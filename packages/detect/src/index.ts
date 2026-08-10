@@ -20,6 +20,18 @@
 // it is `false` for all of them today, and a test asserts that the count of unverified rules
 // is stated rather than discovered. Flip a flag when a real capture arrives.
 
+// WHAT THIS CANNOT CATCH, stated because the gap is structural rather than a missing rule.
+//
+// A site that rolls its OWN block page — no Cloudflare, no DataDome, just a 200 saying "you
+// have been blocked" — has no fingerprint to match, and we call it OK. There is a real
+// capture of exactly that in corpus/bespoke-block.json with a test pinning the miss.
+//
+// The tempting fix is a rule on the words. It is wrong: the no-fire test proves such a rule
+// would flag an article about bot detection, and a false positive here fails over and spends
+// a second provider's credits on every request to that site. Catching a bespoke block needs
+// a different signal entirely — a per-domain baseline, or a user telling us — and that is
+// not a string match.
+
 export interface DetectRule {
 	readonly id: string;
 	/** Where the signature is documented or publicly observable. Not folklore. */
