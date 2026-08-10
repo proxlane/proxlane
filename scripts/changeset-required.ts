@@ -52,9 +52,11 @@ export function changesetRequired(
 		// A test-only change ships no behaviour. Requiring a changeset for one trains people
 		// to write empty changesets, which is worse than not asking.
 		if (/\.(test|spec)\.[cm]?tsx?$/.test(f)) return false;
-		// Fixtures are recordings, not code. Re-recording after provider drift changes no
-		// published behaviour of ours.
-		if (f.includes('/fixtures/')) return false;
+		// Fixtures and corpora are recordings, not code. Re-recording after provider drift, or
+		// capturing a new block page, changes no published behaviour of ours — and neither
+		// directory ships, since `files` is a dist-only allowlist. The corpus exemption was
+		// missing and the gate fired on a captured JSON file.
+		if (f.includes('/fixtures/') || f.includes('/corpus/')) return false;
 		return true;
 	});
 	return { required: touched.length > 0, touched };
