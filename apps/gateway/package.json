@@ -14,7 +14,8 @@
 		"hono": "catalog:",
 		"@hono/node-server": "catalog:",
 		"@proxlane/adapters": "workspace:*",
-		"@proxlane/shared": "workspace:*"
+		"@proxlane/shared": "workspace:*",
+		"@proxlane/detect": "workspace:*"
 	},
 	"devDependencies": {
 		"@proxlane/tsconfig": "workspace:*",

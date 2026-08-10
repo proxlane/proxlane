@@ -13,6 +13,7 @@ import {
 	type ProviderCapabilities,
 	policyFor,
 } from '@proxlane/adapters';
+import { detect } from '@proxlane/detect';
 import { guardTargetUrl } from '@proxlane/shared';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
 import type { HttpTransport } from './transport.js';
@@ -20,6 +21,8 @@ import type { HttpTransport } from './transport.js';
 export interface Attempt {
 	readonly provider: string;
 	readonly outcome: Outcome;
+	/** Set only when /detect turned an OK into a SOFT_BLOCK. Surfaced as X-Detect-Rule. */
+	readonly detectRuleId?: string;
 	readonly budgetMs: number;
 	readonly latencyMs?: number;
 	/**
@@ -35,6 +38,7 @@ export interface Attempt {
 
 export interface ChainResult {
 	readonly outcome: Outcome;
+	readonly detectRuleId?: string;
 	readonly result?: ParsedResult;
 	readonly provider?: string;
 	/** Every hop, in order. The logged grain is the attempt, not the request. */
@@ -149,10 +153,22 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 
 		let parsed: ParsedResult | undefined;
 		let outcome: Outcome;
+		let detectRuleId: string | undefined;
 		switch (res.kind) {
 			case 'response':
 				parsed = adapter.parse(res.response);
 				outcome = parsed.outcome;
+				// SOFT_BLOCK is assigned HERE and nowhere else. An adapter cannot produce it:
+				// `parse` is pure and has not run a detector, and the provider thinks the fetch
+				// succeeded. Only OK is re-examined — a 404 that happens to contain a vendor
+				// token is still a 404, and re-labelling it would make it fail over.
+				if (outcome === 'OK' && parsed.body !== undefined) {
+					const verdict = detect(parsed.body, parsed.contentType, parsed.charset);
+					if (verdict.blocked) {
+						outcome = 'SOFT_BLOCK';
+						detectRuleId = verdict.ruleId;
+					}
+				}
 				break;
 			case 'timeout':
 				outcome = 'PROVIDER_TIMEOUT';
@@ -170,6 +186,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			budgetMs: budget.perAttemptMs,
 			...(res.kind === 'response' ? { latencyMs: res.latencyMs } : {}),
 			...(parsed === undefined ? {} : { costMicrocredits: parsed.cost.microcredits }),
+			...(detectRuleId === undefined ? {} : { detectRuleId }),
 		});
 		lastOutcome = outcome;
 
@@ -182,6 +199,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				outcome,
 				attempts,
 				provider: adapter.capabilities.id,
+				...(detectRuleId === undefined ? {} : { detectRuleId }),
 				...(parsed === undefined ? {} : { result: parsed }),
 			};
 		}
@@ -193,6 +211,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					outcome,
 					attempts,
 					provider: adapter.capabilities.id,
+					...(detectRuleId === undefined ? {} : { detectRuleId }),
 					...(parsed === undefined ? {} : { result: parsed }),
 				};
 			}
@@ -204,6 +223,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				outcome,
 				attempts,
 				provider: adapter.capabilities.id,
+				...(detectRuleId === undefined ? {} : { detectRuleId }),
 				...(parsed === undefined ? {} : { result: parsed }),
 			};
 		}
