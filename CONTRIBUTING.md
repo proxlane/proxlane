@@ -56,6 +56,14 @@ succeeds on it.
 order packages must go in — a scoped dependency has to exist on the registry before the
 package that names it.
 
+## Two things that do not go in a public issue
+
+**A vulnerability.** Use [private reporting](https://github.com/proxlane/proxlane/security/advisories/new) or security@proxlane.dev. `SECURITY.md` has the scope, the timelines, and what is not protected yet.
+
+**A conduct report.** `CODE_OF_CONDUCT.md` applies here and in Discussions. conduct@proxlane.dev reaches the maintainer.
+
+`SECURITY.md` belongs to the security reviewer, who has no write access by design: review and merge are not the same person's job. Whoever commits it commits those words verbatim and says so in the PR.
+
 ## Licence
 
 The gateway, web app, `api`, `db`, `ui`, `route-viz` and the CLI are **AGPL-3.0-only**. `sdk`, `adapters`, `detect` and `shared` are **Apache-2.0** — so you can write an adapter, or build on the SDK, without inheriting copyleft. That split is deliberate: adapters are the thing we most want written by strangers.

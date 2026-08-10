@@ -22,11 +22,11 @@ Owner decisions and external answers. None is unblocked by writing code.
   Opted-in org key, or a shadow attempt billed to nobody? *Before the health machine.*
 - **`domain-class`** — undefined anywhere, yet the per-class health key carries the block
   signal. Define it, or phase-gate it and route blocks to `cd:blk`.
-- **Going public** — irreversible. Remaining: content triage (`affiliate-emails.md` and
-  `docs/archive/**` leave), a history rewrite, Discussions, and a non-personal contact
-  address. README licence and npm names are done; all five publish at 0.0.1.
-  **CODE_OF_CONDUCT.md is blocked on that address** — a CoC whose report channel does not
-  work promises a process that does not exist.
+- **Going public** — irreversible. Every content gate is closed: triage, history, npm
+  names, README, Discussions, furniture, `security@proxlane.dev`. One item left, and it is
+  a Cloudflare routing rule rather than a decision. **`conduct@proxlane.dev` is not routed
+  and the catch-all drops mail**, so the CoC names a channel that discards reports. Add
+  the rule, then flip.
 - **Where `k6:soak` runs** — the box sits at ~66% CPU / ~51% IO pressure during normal
   scrape windows, so a gateway-internal p95 gate measured there measures the neighbours.
   Dedicated ephemeral box, or restate the threshold honestly. *Before it is a launch gate.*
