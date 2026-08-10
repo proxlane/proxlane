@@ -280,6 +280,88 @@ describe('transport failures become outcomes no adapter can produce', () => {
 	});
 });
 
+describe('SOFT_BLOCK, which only the chain can assign', () => {
+	const blockPage = new TextEncoder().encode(
+		'<html><body><script src="/cdn-cgi/challenge-platform/h/b/orchestrate"></script></body></html>',
+	);
+	const withBody = (body: Uint8Array): Adapter => ({
+		capabilities: caps({ id: 'a' }),
+		translate: (r) => ({
+			url: `https://api.a.test/?u=${encodeURIComponent(r.url)}`,
+			method: 'GET',
+			headers: {},
+			timeoutMs: 70_000,
+		}),
+		parse: () => ({
+			outcome: 'OK',
+			body,
+			contentType: 'text/html; charset=utf-8',
+			charset: 'utf-8',
+			cost: { microcredits: 0, source: 'estimated' },
+		}),
+	});
+
+	it('turns an adapter OK into SOFT_BLOCK when a rule fires', async () => {
+		// The adapter said OK and meant it — the provider fetched something and returned 200.
+		// Only looking at the bytes reveals it is a challenge, which is why parse() can never
+		// produce this outcome and the chain must.
+		const r = await runChain(req(), {
+			transport: transportOf([okResponse]),
+			candidates: [{ adapter: withBody(blockPage), key: 'k' }],
+			maxBodyBytes: 1_000_000,
+		});
+		expect(r.outcome).toBe('SOFT_BLOCK');
+		expect(r.detectRuleId).toBe('cloudflare-challenge');
+	});
+
+	it('fails over on it, because another provider may not be blocked', async () => {
+		const r = await runChain(req(), {
+			transport: transportOf([okResponse]),
+			candidates: [
+				{ adapter: withBody(blockPage), key: 'k' },
+				{ adapter: adapterOf('b', 'OK'), key: 'k' },
+			],
+			maxBodyBytes: 1_000_000,
+		});
+		expect(r.outcome).toBe('OK');
+		expect(r.attempts.map((a) => a.outcome)).toEqual(['SOFT_BLOCK', 'OK']);
+		expect(r.attempts[0]?.detectRuleId).toBe('cloudflare-challenge');
+	});
+
+	it('leaves a real page alone', async () => {
+		const page = new TextEncoder().encode('<html><body><h1>Moby-Dick</h1></body></html>');
+		const r = await runChain(req(), {
+			transport: transportOf([okResponse]),
+			candidates: [{ adapter: withBody(page), key: 'k' }],
+			maxBodyBytes: 1_000_000,
+		});
+		expect(r.outcome).toBe('OK');
+		expect(r.detectRuleId).toBeUndefined();
+	});
+
+	it('does not re-label a non-OK outcome, whatever the body holds', async () => {
+		// A 404 whose body happens to carry a vendor token is still a 404. Re-labelling it
+		// SOFT_BLOCK would make it fail over — and TARGET_NOT_FOUND exists precisely because
+		// retrying a real 404 spends money to reach the same answer.
+		const notFound: Adapter = {
+			...withBody(blockPage),
+			parse: () => ({
+				outcome: 'TARGET_NOT_FOUND',
+				body: blockPage,
+				contentType: 'text/html',
+				cost: { microcredits: 0, source: 'estimated' },
+			}),
+		};
+		const r = await runChain(req(), {
+			transport: transportOf([okResponse]),
+			candidates: [{ adapter: notFound, key: 'k' }],
+			maxBodyBytes: 1_000_000,
+		});
+		expect(r.outcome).toBe('TARGET_NOT_FOUND');
+		expect(r.attempts).toHaveLength(1);
+	});
+});
+
 describe('the URL that was judged is the URL that gets sent', () => {
 	it("forwards the guard-normalised URL, not the caller's raw string", async () => {
 		// A live bypass before this. `\\` is an authority terminator to WHATWG, so the guard

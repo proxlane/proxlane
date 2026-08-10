@@ -9,9 +9,9 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 
 ## Now
 
-Phase 1's definition of done is met: `conformance` and `selfhost:smoke` both green — a
-clean `docker compose up` serves in ~30s against a five-minute claim. Next: `/detect`, the
-last outcome with no owner; it needs real block pages, which cannot be summoned on demand.
+Phase 1 done, and all 16 outcomes now have a producer — `/detect` assigns the last. Its
+rules come from vendor signatures and have **never seen a real block page**;
+`unverifiedRules()` reports that and a test asserts the count. Captures come from traffic.
 
 ## Blocked on
 

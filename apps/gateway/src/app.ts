@@ -43,10 +43,11 @@ function headersFor(r: ChainResult): Record<string, string> {
 		'X-Attempts': String(r.attempts.length),
 		'X-Cost-Estimate': (total / 1_000_000).toFixed(6),
 		...(r.provider === undefined ? {} : { 'X-Provider-Used': r.provider }),
-		// NOTE: X-Detect-Rule is deliberately ABSENT, though plan.md section 4 lists it.
-		// /detect does not exist, and emitting `none` would assert that a detector ran and
-		// found nothing — a claim, not a placeholder. It appears the day SOFT_BLOCK can be
-		// produced.
+		// Present ONLY when a rule fired. Still no `none`: emitting that on every response
+		// would assert the detector ran and found nothing, which is untrue for a request that
+		// never reached a provider or came back as JSON. Absence means "no rule fired",
+		// which is what a caller can actually act on.
+		...(r.detectRuleId === undefined ? {} : { 'X-Detect-Rule': r.detectRuleId }),
 	};
 }
 
