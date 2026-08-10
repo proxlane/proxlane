@@ -127,7 +127,7 @@ faithfully reflects a table that is now wrong.
 | `apps/web/src/routes/docs/**` | docs site, `llms.txt`, markdown-at-`.md`, OpenAPI | docs-writer |
 | `apps/worker/**` | queues. Owned now, created by the PR that adds the first one | data-engineer |
 | `packages/adapters/**` | adapters, capability registry, cost tables, the outcome taxonomy | adapter-engineer |
-| `packages/detect/**` | soft-block heuristics | adapter-engineer |
+| `packages/detect/**` | soft-block heuristics and the block-page corpus | adapter-engineer |
 | `packages/api/**` | oRPC contract, served by `apps/web` | platform-engineer |
 | `packages/shared/**` | types, config, constants, the edge guard | platform-engineer |
 | `packages/sdk/**` | `@proxlane/sdk` and the MCP server | platform-engineer |

@@ -100,6 +100,45 @@ describe('the fire half — rule unit tests, NOT fixtures', () => {
 	}
 });
 
+describe('what this detector CANNOT catch, pinned with a real capture', () => {
+	// A real response from web-scraping.dev/blocked — Scrapfly's purpose-built scraping test
+	// site, which exists to be scraped, so capturing it breaks no terms and names no
+	// commercial target. plan.md section 19 bars the obvious alternatives: Amazon and
+	// LinkedIn would both produce a genuine challenge page, and committing one would be
+	// dated, self-published evidence of automated access against a named site's defences.
+	const bespoke = JSON.parse(
+		readFileSync(join(ROOT, 'packages/detect/corpus/bespoke-block.json'), 'utf8'),
+	) as { status: number; contentType: string; bodyBase64: string };
+
+	it('is a real 200 that plainly says the caller was blocked', () => {
+		expect(bespoke.status).toBe(200);
+		const html = Buffer.from(bespoke.bodyBase64, 'base64').toString('utf8');
+		expect(html).toContain("You've been blocked");
+	});
+
+	it('DOES NOT FIRE, and that is the documented limitation', () => {
+		// No vendor fingerprint — the server is plain uvicorn, with none of Cloudflare's,
+		// DataDome's or Imperva's markup. Every rule here is anchored to a vendor asset path
+		// on purpose, so a site that rolls its own block page slips through and we call it OK.
+		//
+		// The fix is NOT a rule matching "you've been blocked": that is generic prose, and the
+		// no-fire test above proves it would flag an article about bot detection. Catching a
+		// bespoke block needs a different signal — a baseline for that domain, or a user
+		// telling us — and that is not a string match.
+		//
+		// This assertion is deliberately inverted. The day someone finds a safe signal, it
+		// fails, and flipping it is the visible record that the gap closed.
+		const v = detect(
+			new Uint8Array(Buffer.from(bespoke.bodyBase64, 'base64')),
+			bespoke.contentType,
+			'utf-8',
+		);
+		expect(v.blocked, 'a rule now catches bespoke blocks — update this test deliberately').toBe(
+			false,
+		);
+	});
+});
+
 describe('the corpus gap is stated, not discovered', () => {
 	it('reports every rule that has never seen a real capture', () => {
 		// integrations.md section 6 wants real fire samples. There are none: a Cloudflare
