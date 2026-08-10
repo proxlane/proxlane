@@ -46,6 +46,15 @@ describe('what actually requires a changeset', () => {
 		).toBe(false);
 	});
 
+	it('does NOT for a captured corpus file', () => {
+		// Same class as a fixture: a recording, not our behaviour, and it does not ship —
+		// `files` is a dist-only allowlist. This exemption was missing and the gate fired.
+		expect(
+			changesetRequired(['packages/detect/corpus/bespoke-block.json'], ['packages/detect'])
+				.required,
+		).toBe(false);
+	});
+
 	it('still fires when a publishable change is mixed in with exempt ones', () => {
 		const v = changesetRequired(
 			['README.md', 'packages/cli/src/bin.ts', 'packages/cli/src/cli.unit.test.ts'],
