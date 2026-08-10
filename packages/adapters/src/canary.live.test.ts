@@ -1,0 +1,135 @@
+// The live canary. `pnpm test:live` — scheduled weekly, NEVER PR-blocking.
+//
+// This is the only test in the repo that touches a real provider, and it exists for the one
+// thing nothing else can check. `integrations.md` section 6 states the gap plainly: the
+// honesty check — a declared `renderJs` proved against reality — needs real keys, and
+// GitHub Actions does not expose secrets to fork PRs, so it cannot run on a community PR.
+// Conformance makes an adapter's shape correct; this is what makes its CLAIMS true.
+//
+// It is selected by FILENAME into its own vitest project, not by tag. A tag filter is one
+// typo away from burning real provider credits on a fork PR, and repo:check assertion 9
+// enforces that no PR-path project can match `*.live.test.ts`.
+//
+// Deliberately small: three requests per provider, weekly. `operations.md` budgets ~50 per
+// provider per night, which is the nightly cadence for later. The point is drift detection,
+// and drift does not need volume — it needs regularity.
+
+import { describe, expect, it } from 'vitest';
+import { type Adapter, REGISTRY } from './index.js';
+
+/**
+ * A page whose visible text exists ONLY after JavaScript runs.
+ *
+ * This is the whole reason the canary exists. `capabilities.renderJs: true` is a promise,
+ * and the only way to falsify it is to ask a provider to render something and check the
+ * result. A provider quietly dropping rendering — or us sending the wrong parameter — looks
+ * exactly like success otherwise: HTTP 200, a real page, no error anywhere.
+ */
+const JS_ONLY_TARGET = 'https://quotes.toscrape.com/js/';
+const JS_ONLY_MARKER = 'Albert Einstein';
+
+const IDS = Object.keys(REGISTRY).sort();
+
+function keyFor(id: string): string | undefined {
+	const v = process.env[`${id.toUpperCase().replace(/-/g, '_')}_KEY`];
+	return v === '' ? undefined : v;
+}
+
+/** Providers we actually hold a key for. */
+const configured = IDS.filter((id) => keyFor(id) !== undefined);
+
+// A live suite that finds no keys must FAIL, not skip. Skipping turns "the canary never ran"
+// into a green board, and this is a launch gate — operations.md section 9 wants it green
+// three consecutive scheduled runs, which is a claim about runs that happened.
+describe('the canary has something to run against', () => {
+	it('has at least one provider key', () => {
+		expect(
+			configured.length,
+			`no provider keys in the environment. Expected one of: ${IDS.map((i) => `${i.toUpperCase()}_KEY`).join(', ')}`,
+		).toBeGreaterThan(0);
+	});
+});
+
+async function attempt(id: string, url: string, renderJs: boolean) {
+	const adapter: Adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
+	const wire = adapter.translate(
+		{
+			url,
+			method: 'GET',
+			renderJs,
+			premium: 'none',
+			deadlineMs: adapter.capabilities.maxTimeoutMs,
+		},
+		keyFor(id) as string,
+	);
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), wire.timeoutMs);
+	try {
+		const res = await fetch(wire.url, {
+			method: wire.method,
+			headers: wire.headers,
+			signal: controller.signal,
+		});
+		const headers: Record<string, string> = {};
+		res.headers.forEach((v, k) => {
+			headers[k] = v;
+		});
+		const body = new Uint8Array(await res.arrayBuffer());
+		return { adapter, parsed: adapter.parse({ status: res.status, headers, body }) };
+	} finally {
+		// In `finally`, so the deadline covers the body read too. fetch() resolves on headers,
+		// and clearing the timer there leaves the transfer unbounded.
+		clearTimeout(timer);
+	}
+}
+
+describe.each(configured)('%s, against the live API', (id) => {
+	it('still returns OK for a page that has always worked', async () => {
+		// Drift detection at its simplest: if this stops being OK, something changed at the
+		// provider and every fixture recorded from them is now suspect.
+		const { parsed } = await attempt(id, 'https://httpbin.dev/html', false);
+		expect(parsed.outcome).toBe('OK');
+		expect(parsed.body?.byteLength ?? 0).toBeGreaterThan(0);
+	}, 120_000);
+
+	it('still maps a real 404 to TARGET_NOT_FOUND', async () => {
+		// The outcome that must never fail over, and the one that costs money to get wrong:
+		// ScraperAPI bills for 404s, so a provider changing how it reports one turns every
+		// dead link into a paid retry across the whole chain.
+		const { parsed } = await attempt(id, 'https://httpbin.dev/status/404', false);
+		expect(parsed.outcome).toBe('TARGET_NOT_FOUND');
+	}, 120_000);
+
+	it('renders JavaScript when it says it can', async () => {
+		// THE HONESTY CHECK. capabilities.renderJs is a promise the router believes: it
+		// filters the failover chain on it, so a provider that silently stopped rendering
+		// would be handed every renderJs request and quietly return unrendered pages.
+		// Nothing but a real request against a JS-only page can tell.
+		const adapter: Adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
+		if (!adapter.capabilities.renderJs) {
+			expect(adapter.capabilities.renderJs).toBe(false);
+			return;
+		}
+		const { parsed } = await attempt(id, JS_ONLY_TARGET, true);
+		expect(parsed.outcome).toBe('OK');
+		const text = new TextDecoder().decode(parsed.body ?? new Uint8Array());
+		expect(
+			text,
+			`${id} declares renderJs but the page came back without content that only exists after JS runs`,
+		).toContain(JS_ONLY_MARKER);
+	}, 180_000);
+});
+
+describe('the corpus this canary defends', () => {
+	it('covers every provider we hold a key for', () => {
+		// Non-zero denominator, and a named gap. A canary that silently skipped two of three
+		// providers would go green while two thirds of the chain drifted unnoticed.
+		const skipped = IDS.filter((id) => !configured.includes(id));
+		expect(configured.length).toBeGreaterThan(0);
+		if (skipped.length > 0) {
+			process.stdout.write(
+				`\n  NOTE: no key for ${skipped.join(', ')} — those adapters were NOT checked.\n`,
+			);
+		}
+	});
+});

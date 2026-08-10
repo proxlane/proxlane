@@ -1,0 +1,28 @@
+{
+	"name": "proxlane",
+	"version": "0.0.1",
+	"type": "module",
+	"license": "AGPL-3.0-only",
+	"description": "Proxlane CLI — doctor, the self-host support surface",
+	"bin": {
+		"proxlane": "./dist/bin.mjs"
+	},
+	"files": [
+		"dist",
+		"skills"
+	],
+	"scripts": {
+		"build": "tsdown src/bin.ts --format esm",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"clean": "rm -rf dist"
+	},
+	"devDependencies": {
+		"@proxlane/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:"
+	},
+	"dependencies": {
+		"@proxlane/adapters": "workspace:*"
+	}
+}

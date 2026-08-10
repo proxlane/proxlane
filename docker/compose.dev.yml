@@ -1,0 +1,48 @@
+# Dev stack only: the databases tests and local work need.
+#
+# The full self-host compose (gateway, web, worker, the lot) is `selfhost:smoke`'s subject
+# and does not exist yet. Do not conflate them — this one is not a deployment artifact.
+#
+# Image tags are asserted against tooling/containers/images.ts by repo:check assertion 8,
+# because "testcontainers versions matching the compose file" is otherwise a habit.
+
+name: proxlane-dev
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: proxlane
+      POSTGRES_PASSWORD: proxlane
+      POSTGRES_DB: proxlane
+    ports:
+      - '5442:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U proxlane']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    # DATA IS DISCARDED ON RESTART, deliberately. This is a dev/test database: a clean
+    # slate every `up` means migrations are exercised from zero and nobody debugs a
+    # schema that only exists on their machine. It also keeps the volume off a disk that
+    # is shared with real databases.
+    #
+    # If you need data to survive, you want the self-host compose, not this file.
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    # No persistence, matching production: everything in here is reconstructible —
+    # cooldowns, health state, token buckets. noeviction rather than allkeys-lru because
+    # silently evicting a spend cap would invert a money control.
+    command: >-
+      valkey-server --save "" --appendonly no
+      --maxmemory 256mb --maxmemory-policy noeviction
+    ports:
+      - '6389:6379'
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 20

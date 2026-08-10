@@ -1,0 +1,20 @@
+{
+	"name": "@proxlane/vitest-config",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./containers": "./containers.ts",
+		"./replay-transport": "./replay-transport.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json"
+	},
+	"devDependencies": {
+		"@proxlane/containers": "workspace:*",
+		"@proxlane/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"typescript": "catalog:",
+		"@proxlane/adapters": "workspace:*"
+	}
+}

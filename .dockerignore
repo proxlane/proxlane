@@ -1,0 +1,42 @@
+# What must NOT enter the build context.
+#
+# node_modules is the one that bites first: copied in, pnpm refuses to remove it without a
+# TTY and the build dies — and if it had succeeded, a Linux image would be running macOS
+# binaries. Build outputs are next: copying a host `dist` means the image can ship code the
+# Dockerfile never compiled.
+#
+# A .dockerignore is a DENY list, so the failure mode is the safe one: forget an entry and
+# the build is slower, not wrong. The opposite mistake — excluding something the build needs
+# — is the one that produces an image missing a file, which is how a sibling repo ran three
+# days stale before anyone noticed. Everything here is excluded because it is harmful or
+# useless, never merely large.
+
+node_modules
+**/node_modules
+
+# Build outputs. The image compiles its own.
+dist
+**/dist
+dev-dist
+**/dev-dist
+conformance-dist
+**/conformance-dist
+*.tsbuildinfo
+**/.turbo
+
+# Never, under any circumstances.
+.env
+.env.*
+!.env.example
+
+# No value inside an image.
+.git
+.github
+.githooks
+.changeset
+.claude
+docs
+test
+**/*.test.ts
+coverage
+.vitest

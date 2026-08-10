@@ -1,0 +1,24 @@
+name: setup
+description: Node, pnpm and an installed workspace. One definition, used by every job.
+
+# One composite action rather than copy-pasted steps: duplicated setup drifts, and then one
+# job is testing a different install than the rest without anyone noticing.
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        # .nvmrc carries the full version and repo:check asserts it matches engines.node,
+        # so CI cannot silently run a different Node than a contributor does.
+        node-version-file: .nvmrc
+        cache: pnpm
+    - shell: bash
+      run: pnpm install --frozen-lockfile
+    # Matrix jobs are independent: each gets a fresh checkout and install, so nothing has
+    # built dist/ for them. test:unit spawns the CLI binary and fails with "Cannot find
+    # module .../dist/bin.mjs" without this — which passed locally only because a previous
+    # build had left dist/ lying around. Turbo caches within the job, so `pnpm build` in
+    # the build matrix entry is then a cache hit rather than a second compile.
+    - shell: bash
+      run: pnpm build

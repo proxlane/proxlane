@@ -1,0 +1,19 @@
+node_modules/
+dist/
+build/
+.turbo/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage/
+
+# scaffold
+.turbo/
+*.tsbuildinfo
+.vitest/
+.output/
+.n/
+dev-dist/
+conformance-dist/

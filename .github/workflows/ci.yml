@@ -1,0 +1,193 @@
+name: ci
+
+on:
+  pull_request:
+    # ready_for_review is NOT in the default set (opened, synchronize, reopened). Without
+    # it a draft skips every job, ci-complete goes green on "skipped", and marking the PR
+    # ready never re-runs anything — leaving a merge-eligible green that tested nothing.
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+# Pushing three times to a PR should run CI once, not three times. Single biggest saver.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The matrix is GENERATED from scripts/commands.json. The day a stub flips to
+  # implemented it joins the blocking set with no workflow edit — which is the answer to
+  # "who remembers to add the job later?" Nobody has to.
+  prepare:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft != true
+    outputs:
+      commands: ${{ steps.matrix.outputs.commands }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: matrix
+        shell: bash
+        run: |
+          node -e '
+            const m = require("./scripts/commands.json");
+            const ids = Object.entries(m)
+              .filter(([k, e]) => !k.startsWith("$") && e.status === "implemented" && e.ci === "pr")
+              .map(([k]) => k);
+            if (ids.length === 0) { console.error("no ci:pr commands — refusing to run an empty matrix"); process.exit(1); }
+            console.log("commands=" + JSON.stringify(ids));
+          ' >> "$GITHUB_OUTPUT"
+      - run: echo "matrix -> ${{ steps.matrix.outputs.commands }}"
+
+  command:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        command: ${{ fromJson(needs.prepare.outputs.commands) }}
+    name: ${{ matrix.command }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm ${{ matrix.command }}
+
+  # B6 lists ten blocking jobs; four are not Commands-table entries, so a matrix generated
+  # from the manifest alone would drop them permanently. They are written out here, and
+  # repo:check asserts the union covers B6.
+  changeset:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - shell: bash
+        run: |
+          # No published packages yet, so a changeset cannot be required. Enforced from the
+          # first release; until then this states the rule rather than pretending to check.
+          if [ ! -d .changeset ]; then
+            echo "::notice title=changeset::.changeset does not exist yet (PR 3). Not enforced."
+            exit 0
+          fi
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          # Logic lives in scripts/changeset-required.ts, with unit tests. Inline, this asked
+          # for a changeset on ANY apps/ or packages/ path — including private packages that
+          # can never be published, where the demanded file cannot meaningfully be written.
+          node scripts/changeset-required.ts "origin/${{ github.base_ref }}"
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      # The gitleaks ACTION requires GITLEAKS_LICENSE for organisation repos; the CLI does
+      # not. Same scanner, same rules, no licence server in the critical path of every PR.
+      - shell: bash
+        run: |
+          # Pinned and checksummed. Piping an unverified download straight into a shell is
+          # a poor look in the job whose entire purpose is supply-chain hygiene.
+          VERSION=8.30.1
+          # From the release's own checksums.txt, fetched 2026-08-07.
+          SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          curl -sSLo /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "${SHA256}  /tmp/gitleaks.tar.gz" | sha256sum -c - \
+            || { echo "::error::gitleaks checksum mismatch — refusing to run it"; exit 1; }
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --redact --no-banner --exit-code 1
+
+  # Not "no infrastructure in the diff" as a habit — as a check. The repo is going public
+  # and a CI grep cannot see anything already at HEAD, so this only holds the line forward.
+  no-infra-leak:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      # The scanner is a .ts file run through Node's native type stripping, so it needs the
+      # pinned Node 24 — the runner's default is older and would fail to parse it. Pinning
+      # via .nvmrc rather than a literal keeps it with the rest of the toolchain.
+      - uses: actions/setup-node@v4
+        with: { node-version-file: '.nvmrc' }
+      - shell: bash
+        env:
+          # Our actual coordinates, never stored in the repo. Absent on fork PRs, which
+          # receive no secrets — the script warns rather than failing, because blocking every
+          # community contribution to prevent a leak a contributor cannot cause is the wrong
+          # trade. See scripts/infra-leak-patterns.json for the two-class design.
+          EXTRA_INFRA_PATTERNS: ${{ secrets.EXTRA_INFRA_PATTERNS }}
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff "origin/${{ github.base_ref }}"...HEAD > /tmp/pr.diff
+          # Logic lives in scripts/infra-leak.ts, not inline here, so it has unit tests. An
+          # inline check is one nobody can run locally, and therefore one nobody has verified.
+          node scripts/infra-leak.ts /tmp/pr.diff
+
+  build-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          # amd64 only. arm64 builds in the release workflow on a native runner — buildx
+          # under QEMU is 5-10x slower and breaks the ten-minute rule.
+          # The Dockerfile is at the REPO ROOT. This tested `docker/Dockerfile`, which has
+          # never existed — so the condition was always false, the job always took the notice
+          # branch, and one of B6's ten "blocking" jobs has never built the image on any PR.
+          # A broken Dockerfile would have passed CI silently.
+          #
+          # No `if` any more. If the file is missing the build fails, which is the correct
+          # answer for a job named build-docker.
+          docker build --platform linux/amd64 -f Dockerfile .
+
+  security-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - shell: bash
+        run: |
+          # Conditional by design. security-engineer has no write tools and cannot own the
+          # code it reviews, so the trigger set lives in a file both this job and
+          # repo:check read — they cannot disagree about what counts as security-touching.
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)
+          MATCH=$(node -e '
+            const cfg = require("./scripts/security-review-paths.json");
+            const changed = process.argv[1].split("\n").filter(Boolean);
+            const hit = changed.filter((f) => cfg.paths.some((p) => {
+              // A prefix match on a non-glob entry is too loose: "SECURITY.md" would also
+              // match "SECURITY.md.bak". Globs match their directory; everything else is
+              // an exact path.
+              if (!p.endsWith("/**")) return f === p;
+              return f.startsWith(p.slice(0, -2));
+            }));
+            console.log(hit.join("\n"));
+          ' "$CHANGED")
+          if [ -n "$MATCH" ]; then
+            echo "::notice title=security-review::this diff is security-touching and needs security-engineer's review"
+            echo "$MATCH"
+          else
+            echo "not security-touching"
+          fi
+
+  # One required check for the ruleset. Requiring B6's ten by name would leave every PR
+  # permanently pending: six report under different names and four never report at all.
+  ci-complete:
+    if: always()
+    needs: [prepare, command, changeset, secrets, no-infra-leak, build-docker, security-review]
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        run: |
+          echo '${{ toJSON(needs) }}'
+          echo '${{ toJSON(needs) }}' | node -e '
+            let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{
+              const needs = JSON.parse(s);
+              const bad = Object.entries(needs).filter(([,v]) => v.result !== "success" && v.result !== "skipped");
+              if (bad.length) { console.error("failed: " + bad.map(([k,v])=>`${k}=${v.result}`).join(", ")); process.exit(1); }
+              console.log("all upstream jobs green");
+            });'

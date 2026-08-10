@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Fixtures are post-transfer-decoding, pre-charset-decoding wire bytes (integrations.md §2).
+# Git's text normalisation would corrupt any CRLF inside a recorded body, silently turning a
+# recording into a fabrication. This must exist before `pnpm record` does.
+**/fixtures/**  -text -diff -merge
+*.bin binary
+
+pnpm-lock.yaml -diff linguist-generated=true

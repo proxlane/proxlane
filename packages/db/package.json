@@ -1,0 +1,28 @@
+{
+	"name": "@proxlane/db",
+	"version": "0.0.1",
+	"type": "module",
+	"license": "AGPL-3.0-only",
+	"private": true,
+	"exports": {
+		".": {
+			"types": "./dist/index.d.mts",
+			"default": "./dist/index.mjs"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsdown src/index.ts --format esm --dts",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"clean": "rm -rf dist",
+		"test": "node ../../scripts/not-implemented.ts \"--filter @proxlane/db test\""
+	},
+	"devDependencies": {
+		"@proxlane/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:"
+	}
+}

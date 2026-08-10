@@ -1,0 +1,36 @@
+import type { CostTable, ProviderCapabilities } from '../../contract.js';
+
+// r.jina.ai, used as a KEYLESS end-to-end subject for the recorder and (later) the
+// conformance harness. It is not a supported provider and must never appear in REGISTRY —
+// see dev-registry.ts for why, and repo:check for the assertion that keeps it true.
+//
+// Observed 2026-08-07 against the live service, not read off a docs page.
+
+const costTable: CostTable = {
+	effectiveDate: '2026-08-07',
+	sourceUrl: 'https://jina.ai/reader/',
+	// Genuinely zero on the keyless tier — which is the entire reason this adapter exists.
+	// The service meters by tokens (it returns `x-usage-tokens`) and rate-limits anonymous
+	// callers rather than charging them, so there is no credit to convert.
+	base: 0,
+	multipliers: {},
+};
+
+export const capabilities: ProviderCapabilities = {
+	id: 'jina-reader',
+	// True, but with a caveat the contract has no field for: it renders JS ALWAYS and offers
+	// no way to turn it off. `renderJs: false` therefore cannot be honoured, only ignored.
+	// Left as a comment rather than silently modelled, because a capability that lies is
+	// worse than one that is coarse. See the note in index.ts translate().
+	renderJs: true,
+	// No geotargeting at all. An empty set, not 'all' — the router must filter this out for
+	// any request naming a country rather than sending one and hoping.
+	countryCodes: new Set<string>(),
+	premiumTiers: new Set(['none']),
+	sessions: false,
+	// Measured, not guessed: cold fetches of a JS-heavy page ran several seconds.
+	maxTimeoutMs: 60_000,
+	fastTimeoutMs: 25_000,
+	post: false,
+	costTable,
+};

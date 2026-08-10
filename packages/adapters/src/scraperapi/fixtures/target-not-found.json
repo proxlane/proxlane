@@ -1,0 +1,44 @@
+{
+	"kind": "exchange",
+	"category": "target-not-found",
+	"recordedAt": "2026-08-07T21:28:22.030Z",
+	"adapter": "scraperapi",
+	"target": {
+		"url": "https://httpbin.dev/status/404",
+		"renderJs": false
+	},
+	"expect": "TARGET_NOT_FOUND",
+	"request": {
+		"method": "GET",
+		"url": "https://api.scraperapi.com/?url=https%3A%2F%2Fhttpbin.dev%2Fstatus%2F404&render=false&premium=false&ultra_premium=false&device_type=desktop&autoparse=false&follow_redirect=true&retry_404=false&keep_headers=false",
+		"headers": {
+			"x-sapi-api_key": "REDACTED",
+			"accept": "*/*"
+		}
+	},
+	"response": {
+		"status": 404,
+		"headers": {
+			"access-control-allow-credentials": "true",
+			"access-control-allow-headers": "Origin, X-Requested-With, Content-Type, Accept",
+			"access-control-allow-methods": "HEAD,GET,POST,DELETE,OPTIONS,PUT",
+			"access-control-allow-origin": "undefined",
+			"connection": "keep-alive",
+			"content-encoding": "gzip",
+			"content-type": "text/html; charset=utf-8",
+			"date": "VOLATILE",
+			"etag": "W/\"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk\"",
+			"sa-credit-cost": "1",
+			"sa-final-url": "https://httpbin.dev/status/404",
+			"sa-proxy-hash": "undefined",
+			"sa-statuscode": "404",
+			"strict-transport-security": "max-age=15724800; includeSubDomains",
+			"transfer-encoding": "chunked",
+			"vary": "Accept-Encoding",
+			"x-powered-by": "Express",
+			"x-robots-tag": "none"
+		},
+		"bodyBase64": "",
+		"bodyBytes": 0
+	}
+}

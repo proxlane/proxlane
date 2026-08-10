@@ -1,0 +1,25 @@
+{
+	"name": "@proxlane/web",
+	"version": "0.0.0",
+	"type": "module",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"clean": "rm -rf dist .output"
+	},
+	"dependencies": {
+		"react": "catalog:",
+		"react-dom": "catalog:"
+	},
+	"devDependencies": {
+		"@proxlane/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:"
+	}
+}

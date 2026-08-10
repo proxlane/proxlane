@@ -1,0 +1,439 @@
+# Proxlane: Operations and Security
+
+Companion to `plan.md` (strategy) and `integrations.md` (adapter architecture).
+This covers everything needed to run Proxlane as a real service rather than a demo.
+
+---
+
+## 1. Traffic and scaling
+
+The gateway is a reverse proxy with a decision layer. Its scaling profile is unusual:
+almost no CPU, almost no memory, but very long-lived connections (a ScraperAPI attempt
+can hold for 70 seconds) and large response bodies.
+
+**Concurrency model.** Node handles this fine because it is nearly all waiting on I/O.
+The constraint is open sockets and memory held by buffered bodies, not CPU.
+
+**The ceiling is derived, not guessed.** A per-request body cap does not bound aggregate
+memory — `maxInflight × cap` does, and nothing used to tie backpressure to either.
+Buffer plus the detector's working set runs roughly **2.5× body size**, and it lives in
+external memory outside `--max-old-space-size`, so exceeding it is an **OOM kill, not a
+GC pause**. On a 4 GB box at a 10 MB cap that is `4096 / (10 × 2.5) ≈ 160` concurrent
+worst-case, so:
+
+```
+maxInflight default 128        # low hundreds, not "low thousands"
+boot-time assertion: maxInflight * bodyCapMb * 2.5 < availableMb   (Zod refine, fail fast)
+```
+
+Note the target box: **CAX11 is 2 vCPU / 4 GB**, not the 4 vCPU / 8 GB this section used
+to size against — that is CAX21. `plan.md` section 17 no longer carries instance budgets, so either
+size up or accept that the ceiling above is the
+ceiling. **OPEN**, tracked in `docs/state.md`; it is a cost decision, not an engineering
+one.
+
+**Non-negotiables from day one:**
+
+- **Body size cap.** Default 10 MB, configurable. This is the one place the number is
+  defined; `integrations.md` references it. Reject beyond it with `RESPONSE_TOO_LARGE`
+  rather than OOMing the process. Without this one bad target (a PDF archive, an infinite
+  stream) takes the gateway down.
+- **Buffer, then validate, then forward.** Detection needs the body, so v1 buffers.
+  Cap protects you. Streaming pass-through for `detect=false` requests is a later
+  optimization, not a launch feature.
+- **Global deadline separate from per-attempt budget.** Client gets `deadlineMs`
+  (default **120s**, max 180s) via the `timeout` param. Per-attempt budget reserves time
+  for the hops that follow it — the formula is in `integrations.md` section 5, and at the
+  old 90s default a three-attempt chain degraded to roughly 1.5 attempts.
+  Never let a failover chain outlive its client.
+- **Per-org concurrency limits.** Valkey token bucket keyed by org. Prevents one user
+  saturating the pool. Also mirrors what providers do to us: their 429s are a
+  concurrency cap, not a rate cap, and we must respect that per provider key.
+- **undici Agent tuning.** `connections` per origin, `keepAliveTimeout`,
+  `headersTimeout` and `bodyTimeout` set explicitly per adapter. Node defaults will
+  kill ScraperAPI's long retries.
+- **Backpressure.** When the in-flight count exceeds a ceiling, return 429 with
+  `Retry-After` rather than queueing. A proxy that queues silently becomes a
+  latency black hole.
+
+**Horizontal scale.** The gateway is stateless: all shared state (cooldowns, buckets,
+scoreboard) is in Valkey. Scaling is `docker compose up --scale gateway=N` behind
+Caddy or Traefik. Do not put the gateway behind Cloudflare (you would be proxying
+scraping traffic through a company whose product is blocking scrapers).
+
+**Sizing path.** Start on the existing Hetzner box. Move the gateway to its own
+dedicated CX/CCX instance the moment hosted traffic exists, so it never shares CPU
+with cron scrapers. Postgres stays separate from the gateway node. Hetzner egress is
+generous and cheap, which matters because every scraped body flows through us twice.
+
+**Load testing before launch.** k6 scenarios against a local mock provider that can
+simulate slow responses, 429s, and huge bodies. This is a launch gate, not a
+nice-to-have — but as it was written ("p95 overhead under 50 ms, no memory growth over a
+30-minute soak") it was unmeasurable: no concurrency, so it passes trivially at 1 VU; no
+instrument separating gateway time from provider time, against a mock with no provider
+latency to subtract; and no threshold on "growth". The gate, specified:
+
+| Assertion | Threshold |
+|---|---|
+| Load | 50 VUs sustained for 30 minutes |
+| Gateway-internal p95 | `< 50 ms`, measured from a `Server-Timing: gw;dur=` header the router emits, **not** from end-to-end request time |
+| RSS slope, minutes 10-30 | `< 1 MB/min` (first 10 minutes excluded as warm-up) |
+| Behaviour at `maxInflight` | 429 with `Retry-After`, zero 5xx, zero dropped connections |
+
+`Server-Timing` is worth emitting in production too: it is the same number a user needs
+when they ask whether the gateway or the provider was slow.
+
+---
+
+## 2. Queues and async work
+
+The hot path is synchronous by design. A queue in the request path would add latency
+and a failure mode for zero benefit. Queues serve everything around it.
+
+**BullMQ on the same Valkey.** Workers run as a separate process from the gateway so a
+slow job can never touch request latency.
+
+| Queue | Job | Cadence |
+|---|---|---|
+| `usage-rollup` | aggregate `requests` into `domain_stats` windows | every 5 min |
+| `billing` | hosted credits: deduct, low-balance alerts, invoice records | on demand + hourly reconcile |
+| `canary` | live provider probes, open drift issues | per `operating.md` B6 |
+| `cost-drift` | diff reported vs estimated cost, alert on stale tables | hourly |
+| `email` | transactional sends via provider | on demand |
+| `retention` | detach and drop expired weekly partitions (never row-level DELETE) | daily |
+| `stats-sync` | ingest opted-in self-host stats, publish routing table | hourly |
+
+**Rules.** Every job idempotent and keyed (`jobId`) so retries are safe. Exponential
+backoff, dead-letter queue inspected on the same cadence as the canary. No job may
+write to `requests` or `request_attempts`; both are append-only from the gateway.
+
+**Async scrape API (phase 3).** Providers offer webhook-based async jobs for slow
+targets. When we add it, that is a real user-facing queue: submit, poll or webhook,
+retrieve. Same BullMQ, different semantics. Not in v1.
+
+**Writes on the hot path.** Do not write a row to Postgres per request synchronously.
+Buffer in memory, flush in batches (every 1s or 500 rows) via a dedicated writer.
+Losing a second of analytics on a crash is acceptable; adding 5 ms and a DB
+dependency to every proxied request is not.
+
+**Analytics batch; billing does not.** Losing a second of analytics is acceptable, but
+section 4 requires every credit deduction to reference the request that caused it, so the
+same batching would lose *billing events* on a crash. In hosted mode the ledger write is
+**synchronous on `OK`**, and only the analytics rows batch. Two consequences:
+
+- Row IDs are **uuidv7 generated in-process**, so a ledger entry can reference a
+  `request_id` whose row has not been flushed yet. Nothing previously stated this, and a
+  serial primary key makes batching impossible.
+- The ledger entry **snapshots** what it billed for — provider, domain, outcome,
+  `cost_micro`, `charged_micro` — and keeps `request_id` as a soft reference with no
+  foreign key. Otherwise section 3's 30/90-day retention deletes rows that the permanent
+  ledger points at, and the audit trail develops holes exactly where the money is.
+
+---
+
+## 3. Data layer
+
+- **`requests` and `request_attempts` are partitioned by week** from the first
+  migration, range partitioning managed as raw SQL outside the drizzle-kit diff (see
+  `plan.md` section 3 for why). Retention: 30 days hot for BYOK free, 90 days for hosted,
+  then **whole partitions detached and dropped** — never a `DELETE` over a partitioned
+  table, which is what the `retention` job used to say and which defeats the point of
+  partitioning. Weekly rather than monthly because 30- and 90-day windows cannot align
+  with month boundaries. **Ledger entries are never subject to retention.**
+  Self-hosters configure their own.
+- **No full URLs by default.** Store `url_hash` plus registrable domain. Full-URL
+  logging is per-org opt-in and clearly labeled in the dashboard. This is both a
+  privacy posture and a marketing line, and it means a database leak does not expose
+  what customers scrape.
+- **Response bodies are never persisted.** Ever. Not for debugging, not for support.
+  The only exception is fixtures, which come from our own test accounts.
+- **Connection pooling** via pgbouncer once there is more than one gateway instance.
+- **Migrations** run as an explicit step, never at boot, never `db push` in CI.
+- **Backups** nightly `pg_dump` to object storage plus WAL archiving once hosted
+  credits exist (losing a credit balance is losing money). Restore drill before
+  launch, not after the first incident.
+
+---
+
+## 4. Payments (phase 3, but designed now)
+
+**Model.** Prepaid credits, not subscriptions. User tops up, we deduct per successful
+request at provider cost plus 5%. No seats, no monthly minimum.
+
+**Why prepaid.** Positive float, no involuntary churn, no chargebacks on usage
+disputes, and no dunning system to build. It also caps our downside: a user can never
+run up a bill we have to eat with a provider.
+
+**Stripe surface used:** Checkout for top-ups, Customer Portal for receipts and cards,
+Payment Intents for auto-recharge. Deliberately not Stripe Billing subscriptions and
+not their metering, because our credit ledger has to be authoritative anyway.
+
+**Ledger design.** Double-entry, append-only `ledger_entries` table: top-ups,
+deductions, refunds, promotional grants. Balance is a materialized sum, never a
+mutable column that drifts. Every deduction references the `request_id` that caused
+it **and snapshots the facts it billed on**, so the audit survives request retention (see
+section 2). Any user can audit every cent. This is the single most important correctness
+surface in the product; get it right before the first paying user.
+
+**Credits are non-refundable and single-purpose** — redeemable only for Proxlane-routed
+requests, never withdrawable as cash. Declare this before the ledger is built and put it
+in the terms: a Swedish entity holding cash-refundable customer balances drifts toward
+stored-value and PSD2 territory, which is a different regulatory conversation than
+selling API usage. Confirm the wording with the accountant; tracked in `docs/state.md`.
+
+**Deduction timing.** Charge on `OK` only, after detection passes. A soft block costs
+us provider money and the user nothing. That is the promise; it must be enforced in
+code, not policy.
+
+**Auto-recharge and limits.** Threshold-based top-up, hard spend ceiling per org per
+day, and a kill switch. A runaway loop in a customer's scraper must not drain their
+balance overnight without a cap they set.
+
+**Webhooks.** Signature-verified, idempotent by event ID, stored before processing.
+Reconcile job hourly against Stripe as the source of truth for payments while our
+ledger stays source of truth for usage.
+
+**Treasury: getting money from Stripe into provider accounts.**
+
+No scraping provider exposes an API to add funds to your balance. Nobody does. So
+"transfer credits programmatically" is not available from any direction, and the
+plumbing has to be a card on file instead.
+
+The mechanism: enable auto-recharge on each provider account and put a card on it
+that draws from money customers have already paid us. Three ways to do that, in
+increasing order of automation:
+
+1. *Business card, manual top-up.* Any business account card (Wise, Revolut) on each
+   provider's auto-recharge. Stripe pays out to the bank on its normal schedule and
+   you move money once a week. Five minutes weekly, zero build. Start here.
+2. *Prefer postpaid providers.* Several bill monthly in arrears against a card rather
+   than requiring prepaid balance. With those you never prefund at all: usage
+   happens, the invoice lands weeks later, and it is paid from money already
+   collected. When choosing which providers back hosted mode, weight postpaid
+   billing heavily. It removes the problem instead of automating it.
+3. *Stripe Issuing virtual cards.* Issuing is available in the EEA including Sweden.
+   Create a virtual card per provider, funded from the Stripe balance, with spend
+   limits per card. Customer top-up lands in Stripe, provider auto-recharge pulls
+   from the same balance, and no manual transfer exists anywhere in the loop. Per
+   card spend controls also cap the damage if a provider account is compromised.
+   Requires approval and a real entity, so this is a month-three improvement, not a
+   launch dependency.
+
+**Float, correctly understood.** Prepaid credits mean customers pay before we spend,
+so this is not a funding problem, it is a timing and buffer problem. Required working
+capital is roughly one peak week of provider spend, held once, not topped up
+continuously. If it feels like continuous front-loading, the buffer is sized too
+small or credits are being sold below provider cost.
+
+**A drained provider balance is an outage.** Monitor it like one. Scrapfly reports
+remaining credit in response headers; others expose a balance endpoint or nothing at
+all. Alert on low balance per provider, keep auto-recharge thresholds well above one
+day of peak usage, and treat a failed auto-recharge as a paging event. The failover
+chain hides a single provider running dry, which is exactly why it can go unnoticed
+until two are dry.
+
+**This is the hidden cost of hosted mode.** BYOK and self-host involve no treasury
+operations whatsoever. That is a real argument for launching on those two alone and
+adding hosted credits only once volume justifies the overhead.
+
+**Per-provider billing automation, checked.** None of the launch three offer a
+balance-threshold auto top-up you can drive from an API. What they offer instead:
+
+| Provider | Runs out of credits | Automatic? | Notes |
+|---|---|---|---|
+| Scrapfly | pay-as-you-go auto-activates on quota exhaustion, billed at plan rate in 10k batches | yes, fully | best of the three. PAG hard-capped at 125% of monthly quota by default; request an increase before hosted traffic needs it. Failed scrapes not billed. Per-project credit budgets available, useful for capping a single customer |
+| ScraperAPI | pay-as-you-go on Scaling and above, with a spending cap you set | partly | continuation is offered via a dashboard prompt, so it can require a human click. Treat quota exhaustion as a paging event, not a silent overflow |
+| ScrapingBee | no overflow. Upgrade the plan or early-renew the subscription | no | a hard stop. Running out is an outage until someone acts |
+
+Design consequences:
+
+- Provider quota is monitored state, not a billing detail. Track remaining credit per
+  provider (Scrapfly reports it in response headers; others need a dashboard check or
+  a scheduled probe) and alert well before exhaustion.
+- Size subscriptions above expected peak rather than relying on overflow, especially
+  for ScrapingBee.
+- The failover chain masks a single provider running dry. Alert on
+  "provider X served zero successful requests in N minutes" independently of overall
+  success rate, or the first outage stays invisible until the second one lands. That
+  query is only possible because `request_attempts` logs losing attempts as rows; against
+  `requests` alone, a provider blocked 100% of the time is indistinguishable from one
+  that was never tried.
+- Weight postpaid, auto-overflow billing heavily when choosing which providers back
+  hosted mode. On this evidence Scrapfly is the natural first master account.
+- This is a further argument for BYOK-first: in BYOK the customer owns the quota
+  problem, and it is their dashboard prompt to click.
+
+**Tax and entity.** Swedish AB or enskild firma, VAT registration, and Stripe Tax for
+EU VAT plus US sales tax nexus. Talk to an accountant before the first invoice, not
+after. B2B EU sales use reverse charge, which Stripe Tax handles, but the entity
+question is yours.
+
+**Fraud.** Prepaid limits exposure, but stolen-card top-ups then heavy scraping is a
+real pattern. Radar rules, low first-top-up ceiling for new accounts, and manual
+review above a threshold.
+
+---
+
+## 5. Security
+
+Proxlane holds two things attackers want: provider API keys, and the ability to make
+arbitrary outbound requests. Both need real defenses.
+
+**Provider key handling.**
+- Encrypted at rest with libsodium sealed boxes, master key from env, never in the DB.
+- Decrypted only in the request path, never logged, never returned by any API
+  (dashboard shows last four characters only).
+- Master key rotation procedure documented and rehearsed; envelope encryption so
+  rotation does not require re-encrypting every row under downtime.
+- Self-hosters generate their own master key at first boot; refuse to start with a
+  default one.
+
+**Where the key lives, and the boundary between the two processes.**
+`packages/api`'s oRPC contract is described as "web ↔ gateway admin API", which would make
+the gateway validate Better Auth sessions — contradicting "hot path only" — and would put
+the provider-key master key in both processes, doubling its blast radius in a self-host
+compose. The primitive already chosen solves this: **libsodium sealed boxes are
+asymmetric**.
+
+- `apps/web` serves the oRPC admin API and holds only the **public** key. It can write a
+  provider key it cannot itself read.
+- `apps/gateway` holds the **secret** key, validates gateway keys only, and never sees a
+  Better Auth session.
+
+**Gateway key revocation latency is bounded, or it is stated.** Any key cache keeps a
+revoked key alive for its TTL with no invalidation channel — nothing in these docs
+bounded that. Either publish revocations on a Valkey pub/sub channel the gateway
+subscribes to, or set the cache TTL to 60s and **document that TTL in SECURITY.md as the
+revocation guarantee**. Silence is not an option; a revoked key is a security control.
+
+**SSRF, scoped to what v1 actually does.** We are, by design, a service that fetches
+arbitrary URLs — except that in v1 **we never open the connection**. The provider fetches
+the target on their egress. That makes edge validation of the `url` parameter correct and
+sufficient:
+- Scheme allowlist: http and https only.
+- Reject private-range literals and hostnames that resolve into private ranges (RFC1918,
+  loopback, link-local, IPv6 unique-local, cloud metadata at 169.254.169.254). A target
+  of `http://localhost:8080` is rejected at our edge regardless of who would have fetched
+  it. The outcome is `TARGET_FORBIDDEN`, which is a client error and does not page anyone.
+- **IP pinning, redirect re-checks and the DNS-rebinding suite defer with the direct-fetch
+  mode that would need them.** Rebinding attacks the gap between resolution and
+  connection; v1 has no connection to attack. Building that suite now spends the security
+  budget on a threat v1 does not have — spend it on abuse metering and the outcome
+  taxonomy instead. Revisit the moment any direct-fetch path is proposed.
+
+**Gateway keys.** Stored hashed (argon2id), shown once at creation, scoped per
+environment, revocable, with `last_used_at` so users can spot stale ones. Support
+multiple keys per org so rotation needs no downtime.
+
+**Auth.** Better Auth with email plus GitHub OAuth. TOTP available, required for
+orgs with hosted credits. Sessions short, refresh rotated.
+
+**Application hardening.**
+- Zod validation on every input including env at boot; fail fast on bad config.
+- Rate limits: per key, per IP, per org, plus a global ceiling.
+- Response header sanitization: never forward provider auth headers, cookies from
+  our accounts, or anything that leaks our infrastructure.
+- CSP, HSTS (mandatory on .dev anyway), no inline scripts on the dashboard.
+- Dependency scanning via Renovate plus `pnpm audit` in CI; Socket.dev or similar
+  for supply chain, since an OSS project is itself a supply-chain target.
+
+**Secrets in CI.** Live canary keys are GitHub Actions secrets on trial accounts with
+spend caps. Never in the repo, never in fixtures. The record script sanitizes
+automatically and CI fails if a fixture matches a key-shaped pattern.
+
+**Abuse of the hosted tier.** Domain denylist (known illegal targets), volume
+anomaly detection, and a documented process for provider complaints. Our master
+accounts are the asset at risk: one abuse incident that gets a Bright Data account
+terminated ends the hosted business. Conservative allowlist at launch.
+
+**Disclosure.** `SECURITY.md` with a contact address and a 90-day policy. GitHub
+private vulnerability reporting enabled. Expect real reports; an SSRF-adjacent
+service invites researchers.
+
+---
+
+## 6. Open source operations
+
+The license is the business model, so treat governance as product work.
+
+**License.** AGPL-3.0-only for the gateway, web app and CLI. Permissive (Apache-2.0) for
+the client SDK and the adapter kit, so nobody hesitates to depend on them. This split
+is deliberate: copyleft where a competitor would host, permissive where a user
+integrates.
+
+**CLA or DCO.** Use a CLA (via cla-assistant) if you ever want to relicense or offer
+a commercial license to enterprises. Use DCO if you want lower contribution friction
+and never plan to relicense. Recommendation: CLA, because enterprise self-host deals
+are in the plan and they routinely ask for non-AGPL terms. Decide before the first
+external PR, because retrofitting requires chasing every contributor.
+
+**Repo furniture at launch:** README (done), CONTRIBUTING with the adapter guide,
+CODE_OF_CONDUCT, SECURITY.md, LICENSE, issue and PR templates, a labeled roadmap,
+and `good-first-issue` on three real adapter tasks. The adapter conformance suite is
+what makes drive-by contributions safe to merge.
+
+**Release discipline.** Changesets, semver, signed tags, GitHub Releases with real
+notes. Docker images to ghcr.io tagged `:latest`, `:1.2.3`, `:1.2`, built
+multi-arch (amd64 and arm64, because self-hosters run Pi and Ampere boxes).
+Publish a `compose.yml` that pins a version, not `latest`, for anyone who wants
+stability.
+
+**Self-host support burden.** This is the hidden cost of the model. Mitigate with:
+a `proxlane doctor` command that checks env, connectivity, provider keys, and prints
+a shareable diagnostic; a troubleshooting docs page; and an explicit statement that
+community support is best-effort via Discord and GitHub, with paid support as the
+enterprise tier. Say it plainly rather than quietly disappointing people.
+
+**Telemetry.** Off by default. Opt-in only, anonymous, documented field by field in
+the docs, and disable-able with one env var. The scoreboard exchange (share stats,
+get the routing table) is a value trade, not surveillance, and must be presented as
+one.
+
+---
+
+## 7. Design
+
+See `docs/design.md`. It is the only design spec: the brief, the chosen direction
+(D, the transit diagram), the library stack, the copy rules, and the build notes.
+
+This section previously re-prescribed Direction A — the rejected one, palette and all —
+after D had been chosen, which meant two documents pointed a design agent at different
+directions. The rejected directions live in `docs/archive/design-directions.md`.
+
+---
+
+## 8. Agent briefs
+
+Agent briefs live in `.claude/agents/`, one file each. Ownership of every path is the
+table in `CLAUDE.md`, which is also the CODEOWNERS seed. Neither is duplicated here:
+this section used to restate both, the copies drifted, and it instructed each agent to
+write decisions back into itself — which turns a spec document into an append-only log
+that every agent then pays to read on every invocation.
+
+---
+
+## 9. Launch gates
+
+**This is the launch checklist.** `plan.md` section 20 is the separate Phase-0 checklist
+(things to do before writing code), section 5 describes the phases, and section 8 measures
+outcomes after launch. There were four overlapping lists with no cross-references, so an
+agent asked "are we ready" got four answers.
+
+Nothing ships until all of these are true.
+
+- [ ] `pnpm k6:soak` green against the thresholds in section 1 — 50 VUs for 30 minutes,
+      gateway-internal p95 under 50 ms measured from `Server-Timing`, RSS slope under
+      1 MB/min from minute 10, clean 429s at `maxInflight`
+- [ ] `pnpm test:ssrf` green: scheme allowlist, private-range and metadata rejection at
+      the edge, all returning `TARGET_FORBIDDEN`. IP pinning and DNS-rebinding cases are
+      **out of scope for v1** and defer with the direct-fetch mode that would need them
+      (section 5)
+- [ ] Backup restore drill completed from a clean machine
+- [ ] Conformance green on three adapters, live canary green three consecutive scheduled
+      runs (cadence per `operating.md` B6 — weekly at launch, so this is three weeks)
+- [ ] `docker compose up` works on a fresh VM with only a provider key
+- [ ] `proxlane doctor` diagnoses the five most likely misconfigurations
+- [ ] Status page live, alerting to a phone you will actually hear
+- [ ] SECURITY.md, CONTRIBUTING.md, LICENSE, CoC in place
+- [ ] Twelve SEO pages live (indexing is not ours to gate on)
+- [ ] Twenty minutes of someone else's time spent trying to break it

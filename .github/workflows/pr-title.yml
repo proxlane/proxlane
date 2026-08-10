@@ -1,0 +1,80 @@
+name: pr-title
+
+# Lints BOTH the PR title and every commit subject on the branch, because which one reaches
+# main depends on how many commits there are.
+#
+# This job used to check only the title, on the stated reasoning that "squash merge means
+# the title becomes the commit message, so linting commits would enforce the rule on strings
+# that never reach main". That is false for a SINGLE-commit PR: GitHub defaults the squash
+# subject to the commit's own subject, not the title. PR #13 went green on a 63-char title
+# and landed a 79-char subject on main — the check validated one artifact while a different
+# one shipped.
+#
+# The length budget also has to include the `(#N)` suffix GitHub appends, which the old
+# check ignored and which is what pushed #13 from 73 to 79.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - shell: bash
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          # Computed, not guessed: this is exactly what GitHub appends on squash.
+          SUFFIX=" (#${PR})"
+          LIMIT=72
+          BUDGET=$(( LIMIT - ${#SUFFIX} ))
+          fails=0
+
+          check() {
+            local what="$1" s="$2" lands="${3:-yes}"
+            # Scopes match package names; feat! or a BREAKING CHANGE footer for anything
+            # altering the public request surface.
+            if ! printf '%s' "$s" | grep -qE '^(feat|fix|docs|chore|refactor|test|perf|build|ci|style|revert)(\([a-z0-9./-]+\))?!?: .+'; then
+              echo "::error::${what} is not a Conventional Commit: ${s}"
+              echo "  e.g. feat(adapters): add zyte adapter"
+              fails=1
+            fi
+            if [ "${lands}" = "yes" ] && [ ${#s} -gt "${BUDGET}" ]; then
+              echo "::error::${what} is ${#s} chars; keep it to ${BUDGET} so that with '${SUFFIX}' it fits ${LIMIT}"
+              fails=1
+            fi
+          }
+
+          # FORMAT applies to every subject — CLAUDE.md says Conventional Commits, enforced.
+          # LENGTH applies only to what actually lands. GitHub squashes a MULTI-commit PR
+          # using the PR title, so those subjects never reach main and budgeting them is
+          # friction with nothing behind it; a SINGLE-commit PR lands that commit's own
+          # subject, which is the case that put 79 chars on main in the first place.
+          check "PR title" "$TITLE"
+
+          git fetch origin "${BASE}" --depth=1 >/dev/null 2>&1 || true
+          # --no-merges, because on a pull_request event actions/checkout checks out the
+          # SYNTHETIC merge commit ("Merge <sha> into <sha>"), which is in this range, is not
+          # a Conventional Commit, and never lands on main. Squash merge is mandated by
+          # operating.md B3, so a genuine merge subject should not appear here either.
+          mapfile -t SUBJECTS < <(git log --no-merges --format=%s "origin/${BASE}..HEAD")
+          if [ ${#SUBJECTS[@]} -eq 0 ]; then
+            # Non-zero denominator: a run that examined no commits has proved nothing.
+            echo "::error::no commits found against origin/${BASE} — cannot verify what will land"
+            exit 1
+          fi
+          # One commit → its subject lands. More than one → only the title does.
+          LANDS=no
+          [ ${#SUBJECTS[@]} -eq 1 ] && LANDS=yes
+          echo "${#SUBJECTS[@]} commit subject(s); length budget applies to them: ${LANDS}"
+          for s in "${SUBJECTS[@]}"; do check "commit subject" "$s" "${LANDS}"; done
+
+          exit "${fails}"

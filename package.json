@@ -1,0 +1,46 @@
+{
+	"name": "proxlane-monorepo",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@10.34.5+sha512.a4ee05f2f73658255bd6a89859c065a45c28a57daefae2c893a168ee2b73168c37b91e83e57ea67654ad03f03031746430e8bce38e362e042605fb8abc80192e",
+	"engines": {
+		"node": ">=24.11.0 <25"
+	},
+	"scripts": {
+		"bootstrap": "node scripts/bootstrap.ts",
+		"dev": "turbo run dev --parallel",
+		"build": "turbo run build",
+		"typecheck": "turbo run typecheck",
+		"lint": "biome ci .",
+		"test:unit": "vitest run --project unit",
+		"repo:check": "node scripts/repo-check.ts",
+		"test:contract": "vitest run --project contract",
+		"test:e2e": "vitest run --project e2e",
+		"test:live": "vitest run --project live",
+		"conformance": "turbo run build --filter=@proxlane/adapters && node scripts/conformance.ts",
+		"new-adapter": "node scripts/new-adapter.ts",
+		"record": "node scripts/record.ts",
+		"k6:soak": "node scripts/not-implemented.ts k6:soak",
+		"lighthouse:assert": "node scripts/not-implemented.ts lighthouse:assert",
+		"tokens:check": "node scripts/not-implemented.ts tokens:check",
+		"selfhost:smoke": "node scripts/selfhost-smoke.ts",
+		"pages:check": "node scripts/not-implemented.ts pages:check",
+		"content:lint": "node scripts/not-implemented.ts content:lint",
+		"docs:check": "node scripts/not-implemented.ts docs:check",
+		"test:ssrf": "vitest run --project ssrf",
+		"release:dry": "node scripts/release-dry.ts",
+		"check": "node scripts/check.ts",
+		"changeset": "changeset"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "catalog:",
+		"@changesets/cli": "catalog:",
+		"@types/node": "catalog:",
+		"turbo": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	},
+	"dependencies": {
+		"proxlane": "workspace:*"
+	}
+}

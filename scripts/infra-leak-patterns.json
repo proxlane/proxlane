@@ -1,0 +1,50 @@
+{
+	"$comment": [
+		"Patterns that must not enter a public repo. Read by scripts/infra-leak.ts, which the",
+		"no-infra-leak CI job runs and scripts/infra-leak.unit.test.ts covers.",
+		"",
+		"TWO CLASSES, and the distinction is the point.",
+		"",
+		"  patterns        Generic heuristics. They have legitimate exceptions \u2014 a security",
+		"                  control that refuses private ranges has to name them \u2014 so these",
+		"                  honour excludePaths.",
+		"",
+		"  EXTRA_INFRA_PATTERNS  Our actual coordinates: box address, real hostnames. Supplied",
+		"                  at runtime from a repository SECRET and deliberately absent from this",
+		"                  file, because writing the box IP into a public patterns file to stop",
+		"                  the box IP reaching a public repo is self-defeating. They ignore",
+		"                  excludePaths entirely: there is no file where a real coordinate is",
+		"                  legitimate. One pattern per line, # for comments.",
+		"",
+		"excludePaths relaxes the HEURISTICS only. It never relaxes the secret patterns \u2014 which",
+		"is what makes it safe to exclude the SSRF guard, whose job is enumerating the very",
+		"ranges the heuristics look for.",
+		"",
+		"Fork PRs receive no secrets, so the job warns rather than failing there. A scan that",
+		"quietly covers less than it claims is the vacuous pass this repo is arranged against,",
+		"so the reduced coverage is printed.",
+		"",
+		"The ci.yml exclusion was removed once the scan logic moved to scripts/infra-leak.ts:",
+		"nothing in the workflow matches a pattern any more, and a stale exclusion is a hole",
+		"nobody remembers opening.",
+		"",
+		"`farm[.]rip` was removed from this list. It is a real-looking hostname, and this file is",
+		"in the public repo \u2014 which is exactly the contradiction the two-class split above exists",
+		"to resolve. If it is a coordinate of ours it belongs in EXTRA_INFRA_PATTERNS, where it is",
+		"not published; if it is not, it does not belong here at all."
+	],
+	"patterns": [
+		"(^|[^0-9.])(10\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})",
+		"(^|[^0-9.])(192\\.168\\.[0-9]{1,3}\\.[0-9]{1,3})",
+		"(^|[^0-9.])(172\\.(1[6-9]|2[0-9]|3[01])\\.[0-9]{1,3}\\.[0-9]{1,3})",
+		"/root/[a-z]",
+		"dokploy[.-]?(key|token|auth)"
+	],
+	"excludePaths": [
+		"docs/archive",
+		"scripts/infra-leak-patterns.json",
+		"packages/shared/src/edge-guard.ts",
+		"packages/shared/src/edge-guard.ssrf.test.ts",
+		"scripts/infra-leak.unit.test.ts"
+	]
+}

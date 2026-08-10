@@ -1,0 +1,233 @@
+# Proxlane
+
+> **Pre-release.** Parts of this work and parts do not — the Status section below says
+> which, and it is kept honest rather than aspirational. No packages are published yet and
+> `docs.proxlane.dev` is not live.
+> Follow the repo if you want to know when that changes.
+
+One lane to every scraping provider. Automatic failover, cost-aware routing, and
+honest success detection.
+
+Bring your own provider keys and it is free forever. Self-host it and it is free
+forever. Use our hosted credits and you pay provider cost plus a flat 5%.
+
+```diff
+- https://api.scraperapi.com/?api_key=KEY&url=https://example.com
++ https://api.proxlane.dev/v1?api_key=KEY&url=https://example.com
+```
+
+That is the migration. Same parameter names, same response, one hostname.
+
+---
+
+## Why
+
+No single scraping provider works on every target. Teams end up with two or three
+accounts and a pile of glue code that switches between them, retries the failures,
+and guesses which one is cheapest for a given domain.
+
+Proxlane is that glue code, extracted and made honest.
+
+**Failover.** When a provider starts returning blocks at 2am, the request retries
+through the next one. Providers will never fail over to their competitors. We will.
+
+**Real success detection.** Providers return HTTP 200 with a CAPTCHA page in the
+body. ScraperAPI documents this and asks users to report it. Proxlane runs every
+response through a block detector before calling it a success, and tells you which
+rule fired.
+
+**Cost visibility across providers.** Your provider's dashboard shows you their
+numbers. Proxlane shows you that a domain succeeds 98% of the time on provider A at
+a third of what provider B charges for the same page.
+
+**No lock-in.** Switching providers is a config change, not a code change.
+
+### The reliability math
+
+Suppose a hard target blocks 6% of requests on any given provider. One provider
+gives you 94%. Three *independent* providers in a failover chain give you 99.98% on
+the same target.
+
+That independence assumption is the load-bearing part, and it is not true. Blocks are
+caused by the target's anti-bot, which is a common cause: a page that fingerprints one
+provider's traffic tends to fingerprint the next one's too. Real combined success will
+land below the independent-product bound, by an amount nobody has measured yet.
+
+So take the arithmetic as illustrative of the shape, not as a claim. The number we will
+publish is the measured one, per domain, on `/targets` — which is the only version worth
+publishing anyway.
+
+---
+
+## Quickstart
+
+```bash
+curl "https://api.proxlane.dev/v1?api_key=$PROXLANE_KEY&url=https://example.com"
+```
+
+JavaScript rendering and geotargeting:
+
+```bash
+curl "https://api.proxlane.dev/v1?api_key=$PROXLANE_KEY\
+&url=https://example.com&render=true&country_code=de"
+```
+
+Every response tells you what happened:
+
+```
+X-Provider-Used: scrapingbee
+X-Attempts: 2
+X-Outcome: OK
+X-Detect-Rule: none
+X-Cost-Estimate: 0.00049
+```
+
+Node:
+
+```js
+const res = await fetch(
+  `https://api.proxlane.dev/v1?api_key=${key}&url=${encodeURIComponent(target)}`
+);
+const html = await res.text();
+```
+
+Full parameter reference: [docs.proxlane.dev](https://docs.proxlane.dev)
+
+## Self-hosting
+
+```bash
+git clone https://github.com/proxlane/proxlane
+cd proxlane
+cp .env.example .env   # add your provider keys
+docker compose up
+```
+
+Gateway on :8080, dashboard on :3000, Postgres, Valkey and the worker included. Your keys, your
+infrastructure, your scraped data. Nothing phones home unless you opt in.
+
+Self-hosters can optionally share anonymized per-domain routing statistics. In
+exchange you get the community routing table, which is the data that makes smart
+routing work. Opt in with `PROXLANE_SHARE_STATS=true`, off by default.
+
+## Providers
+
+| Provider | Status | JS render | Geo | Sessions |
+|---|---|---|---|---|
+| ScraperAPI | planned, launch adapter | yes | yes | yes |
+| ScrapingBee | planned, launch adapter | yes | yes | unverified |
+| Scrapfly | planned, launch adapter | yes | yes | yes |
+| Zyte | planned | | | |
+| Bright Data Web Unlocker | planned | | | |
+| Oxylabs Web Scraper API | planned | | | |
+| ScrapingAnt | planned | | | |
+| Firecrawl | planned | | | |
+
+Want one that is not here? [Open an issue](https://github.com/proxlane/proxlane/issues),
+or write the adapter yourself. See below.
+
+Once adapters ship, this table is generated from the capability registry so it cannot
+drift from what the router actually does. Today it is hand-written and marked accordingly.
+`unverified` means exactly that: ScrapingBee exposes a `session_id` parameter, so the
+earlier `no` may have been wrong — and a wrong capability flag both removes a provider
+from routing and publishes a false comparison, so it gets checked against the live API
+before it says yes.
+
+## Pricing
+
+Three ways to run it. Two of them are free.
+
+| | Cost | Requests run on |
+|---|---|---|
+| **BYOK** | free, forever | your provider accounts |
+| **Self-host** | free, forever | your provider accounts, your servers |
+| **Hosted credits** | provider cost + 5% | our provider accounts |
+
+Hosted credits are pay as you go, no subscription, and you are only charged for
+requests that pass block detection. A 200 with a CAPTCHA in it is not a success and
+you do not pay for it.
+
+**The 5% is not settled.** Those two promises are in tension: the provider still bills us
+for the CAPTCHA-200 our detector rejects, which makes 5% negative-margin, and every
+improvement to detection makes it worse. Whether hosted credits ship at a higher rate, with
+a cap on absorbed blocks, or not at all is an open decision — see
+[`docs/state.md`](docs/state.md). **BYOK and self-host are unaffected**, and they are the
+launch modes.
+
+## How it works
+
+```
+your scraper
+  -> Proxlane gateway
+       auth, translate, route
+  -> provider A         blocked, cooled down for this domain
+  -> provider B         200, passes detection
+  <- HTML + outcome headers
+```
+
+Adapters are pure functions. `translate()` turns a Proxlane request into a provider
+request, `parse()` turns a provider response into a typed outcome. All network I/O
+goes through one shared transport, which is why the test suite runs against recorded
+real provider traffic instead of hand-written mocks.
+
+Every provider response is validated against a schema. When a provider changes their
+API, the parse fails loudly with a `PROVIDER_DRIFT` outcome instead of quietly
+returning garbage. A scheduled canary runs every adapter against the live APIs and
+opens an issue when something moves.
+
+Architecture details: [`docs/integrations.md`](docs/integrations.md)
+
+## Writing an adapter
+
+```bash
+pnpm new-adapter myprovider   # scaffolds capabilities, translate/parse, schema, fixtures
+pnpm record --adapter=myprovider   # captures real responses with your trial key
+pnpm conformance --adapter=myprovider
+```
+
+Green conformance means the adapter is correct: every parameter translates without
+leaking provider defaults, every response category maps to the right outcome, and
+declared capabilities match what the live API actually does.
+
+That is the whole contribution bar. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Status
+
+**Works today**, and every line of it is covered by a command you can run:
+
+- **Three adapters** — ScraperAPI, ScrapingBee, Scrapfly — each recorded against its live
+  API, with `pnpm conformance` asserting purity, capability honesty and the outcome mapping.
+- **The failover chain**: capability filtering, per-hop budgets that reserve time for the
+  hops behind them, and retry semantics read from one central table rather than decided per
+  adapter.
+- **The edge guard**, refusing private ranges and cloud metadata by every spelling the URL
+  parser accepts. `pnpm test:ssrf`.
+- **`GET /v1?api_key=…&url=…`**, deliberately ScraperAPI-shaped so migration is a hostname
+  change.
+- **A CLI** — `npx proxlane scrape|providers|outcomes|doctor`, `--json` on all of it.
+
+**Does not exist yet**: block detection (`/detect`), so `SOFT_BLOCK` cannot be produced;
+cooldowns and provider health; any database, request log or dashboard; hosted credits.
+
+`pnpm repo:check` reports which of the 24 commands are real. It is asserted against the
+filesystem, so it cannot drift the way a status section can — and it caught this one lying
+twice.
+
+Several commercial decisions are deliberately open and recorded in
+[`docs/state.md`](docs/state.md) rather than assumed — including whether hosted credits
+ship at all, since at cost + 5% they are negative-margin against our own block-detection
+promise.
+
+## License
+
+Split on purpose, and the split is the point.
+
+**Apache-2.0** — `adapters`, `detect`, `sdk`, `shared`. Write an adapter or build on the
+SDK without inheriting copyleft. Adapters are the thing we most want written by strangers,
+and a copyleft adapter layer would be a tax on exactly that.
+
+**AGPL-3.0-only** — the gateway, the web app, `api`, `db`, `ui`, `route-viz` and the CLI.
+Use it, self-host it, modify it, run it for your company. If you offer it to others as a
+hosted service, your changes stay open.
+
+`pnpm repo:check` enforces the direction: an Apache package may never depend on an AGPL
+one, because that dependency is what relicenses.

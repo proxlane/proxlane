@@ -1,0 +1,48 @@
+packages:
+  - apps/*
+  - packages/*
+  - tooling/*
+  - scripts
+
+# Every npm dependency routes through the catalog. A package cannot add an unpinned
+# dependency without adding a key here, and repo:check asserts this list against the
+# `kind: npm` rows of the pinned-toolchain table in CLAUDE.md.
+#
+# Versions resolved from the registry 2026-08-06. Do not bump by hand without checking
+# the Why column in CLAUDE.md — two of these are deliberately not latest.
+catalog:
+  # runtime — the gateway hot path
+  
+  # web
+  '@base-ui/react': ^1.6.0
+  '@biomejs/biome': ^2.5
+  '@changesets/cli': ^2.31
+  '@hono/node-server': ^2.1
+  '@tanstack/react-start': ^1.168
+  '@types/node': ^24
+  '@types/react': ^19.2
+  '@types/react-dom': ^19.2
+
+  # auth
+  better-auth: ^1.6
+  drizzle-kit: ^0.31
+
+  # data
+  drizzle-orm: ^0.45
+  hono: ^4.12
+  ioredis: ^6.0
+  libsodium-wrappers: ^0.8
+  pino: ^10.3
+  react: ^19.2
+  react-dom: ^19.2
+  tailwindcss: ^4.3
+  testcontainers: ^12.1
+  tsdown: ^0.22
+  turbo: ^2.10
+
+  # toolchain
+  typescript: ^5.9
+  undici: ^8.9
+  vite: ^8.2
+  vitest: ^4.1
+  zod: ^4.4

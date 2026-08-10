@@ -1,0 +1,93 @@
+name: scheduled
+
+# Three crons in one file rather than three files. All are stubs today and say so by
+# failing honestly — the commands they run exit 1 naming their owner and blocking file.
+on:
+  schedule:
+    - cron: '17 6 * * 1'   # canary:live   — weekly at launch, nightly once revenue exists
+    - cron: '23 6 * * 2'   # cost-drift    — weekly
+    - cron: '29 6 * * 3'   # record:diff   — weekly
+  workflow_dispatch:
+    inputs:
+      job:
+        description: which job to run
+        type: choice
+        options: [canary, cost-drift, record-diff]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  canary:
+    if: github.event.schedule == '17 6 * * 1' || inputs.job == 'canary'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      # test:live is a stub that exits 1. Without this the canary opens a provider-drift
+      # issue every Monday from day one — and a weekly false alarm is how a real one stops
+      # being read.
+      - id: implemented
+        shell: bash
+        run: |
+          node -e 'process.exit(require("./scripts/commands.json")["test:live"].status === "implemented" ? 0 : 1)' \
+            && echo "yes=true" >> "$GITHUB_OUTPUT" \
+            || { echo "yes=false" >> "$GITHUB_OUTPUT"; echo "::notice::test:live is still a stub; canary is dormant"; }
+      # A second dormancy gate, for a different reason than the first. test:live is now
+      # implemented, so the stub guard above passes — but the canary needs real provider
+      # keys, and without them it fails with "no provider keys" every single Monday. That is
+      # the same weekly false alarm the guard above exists to prevent, arriving by another
+      # route, and a canary nobody reads is worse than no canary.
+      - id: keyed
+        shell: bash
+        env:
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
+          SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
+          SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
+        run: |
+          if [ -n "$SCRAPERAPI_KEY" ] || [ -n "$SCRAPINGBEE_KEY" ] || [ -n "$SCRAPFLY_KEY" ]; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=canary::No provider key secrets are set, so the canary is dormant. The three-week launch gate clock has NOT started. Add SCRAPERAPI_KEY, SCRAPINGBEE_KEY or SCRAPFLY_KEY."
+          fi
+      - id: run
+        if: steps.implemented.outputs.yes == 'true' && steps.keyed.outputs.yes == 'true'
+        continue-on-error: true
+        env:
+          # Trial-account keys, per operations.md. Absent on a fork PR by design — GitHub
+          # does not expose secrets there, which is what makes it structurally impossible to
+          # burn credits on a community contribution.
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
+          SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
+          SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
+        run: pnpm test:live
+      - if: steps.keyed.outputs.yes == 'true' && steps.run.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # A failing canary means a provider changed under us. That is the signal the
+          # whole adapter layer exists to surface, so it opens an issue rather than
+          # turning a scheduled run red where nobody looks.
+          gh issue create --title "provider drift: canary failed $(date -u +%F)" \
+            --label "flag:provider-drift" \
+            --body "\`pnpm test:live\` failed on the scheduled canary. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            || echo "::warning::could not open an issue (labels may not exist yet)"
+
+  cost-drift:
+    if: github.event.schedule == '23 6 * * 2' || inputs.job == 'cost-drift'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: echo "::notice::cost-drift needs the ledger and a cost table with reported values; neither exists"
+
+  record-diff:
+    if: github.event.schedule == '29 6 * * 3' || inputs.job == 'record-diff'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm record --diff || echo "::notice::record is a stub; nothing to diff yet"

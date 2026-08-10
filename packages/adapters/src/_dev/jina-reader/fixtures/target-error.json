@@ -1,0 +1,45 @@
+{
+	"kind": "exchange",
+	"category": "target-error",
+	"recordedAt": "2026-08-07T17:01:28.648Z",
+	"adapter": "jina-reader",
+	"target": {
+		"url": "https://httpbin.dev/status/503",
+		"renderJs": false
+	},
+	"expect": "TARGET_ERROR",
+	"request": {
+		"method": "GET",
+		"url": "https://r.jina.ai/https://httpbin.dev/status/503",
+		"headers": {
+			"accept": "text/plain",
+			"x-respond-with": "markdown",
+			"x-no-cache": "true"
+		}
+	},
+	"response": {
+		"status": 200,
+		"headers": {
+			"alt-svc": "h3=\":443\"; ma=86400",
+			"cf-cache-status": "DYNAMIC",
+			"cf-ray": "VOLATILE",
+			"connection": "keep-alive",
+			"content-encoding": "br",
+			"content-type": "text/plain; charset=utf-8",
+			"date": "VOLATILE",
+			"nel": "VOLATILE",
+			"report-to": "VOLATILE",
+			"server": "cloudflare",
+			"traceparent": "VOLATILE",
+			"transfer-encoding": "chunked",
+			"vary": "*",
+			"via": "1.1 google",
+			"x-cloud-trace-context": "VOLATILE",
+			"x-ratelimit-limit": "20, 20;w=60",
+			"x-ratelimit-remaining": "VOLATILE",
+			"x-usage-tokens": "VOLATILE"
+		},
+		"bodyBase64": "VGl0bGU6IAoKVVJMIFNvdXJjZTogaHR0cHM6Ly9odHRwYmluLmRldi9zdGF0dXMvNTAzCgpXYXJuaW5nOiBUYXJnZXQgVVJMIHJldHVybmVkIGVycm9yIDUwMzogU2VydmljZSBVbmF2YWlsYWJsZQpXYXJuaW5nOiBUaGlzIHBhZ2UgbWF5YmUgbm90IHlldCBmdWxseSBsb2FkZWQsIGNvbnNpZGVyIGV4cGxpY2l0bHkgc3BlY2lmeSBhIHRpbWVvdXQuCgpNYXJrZG93biBDb250ZW50OgoK",
+		"bodyBytes": 219
+	}
+}

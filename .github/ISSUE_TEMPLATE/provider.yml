@@ -1,0 +1,22 @@
+name: Provider request
+description: Ask for a scraping API that proxlane does not support yet
+labels: [adapter]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You can also just write it — see `CONTRIBUTING.md`. Adapters are Apache-2.0 and
+        you do not need our keys, only a trial account with the provider.
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and docs URL
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What it does that the current three do not
+      description: Capability, geography, price, or a target the others fail on.
+    validations:
+      required: true

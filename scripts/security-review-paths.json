@@ -1,0 +1,20 @@
+{
+	"$comment": [
+		"The trigger set for B6's conditional `security-review` job.",
+		"Referenced by BOTH .github/workflows/ci.yml and repo:check, so the workflow and the",
+		"assertion can never disagree about what counts as security-touching.",
+		"",
+		"security-engineer has no write tools and cannot implement its own exit criterion.",
+		"This file is how a review gets routed to it instead."
+	],
+	"paths": [
+		"packages/adapters/**",
+		"apps/gateway/**",
+		"packages/shared/**",
+		"packages/db/**",
+		".github/workflows/**",
+		"docker/**",
+		"SECURITY.md"
+	],
+	"contentTriggers": ["provider_keys", "libsodium", "process.env"]
+}

@@ -1,0 +1,16 @@
+#!/bin/sh
+# Fast only. A slow pre-commit hook gets disabled, and a disabled hook enforces nothing.
+# The full contract runs on pre-push.
+set -e
+
+command -v pnpm >/dev/null 2>&1 || exit 0   # minimal PATH: pre-push will still catch it
+
+git diff --cached --quiet --diff-filter=ACMR && exit 0
+
+if ! pnpm exec biome check --staged --no-errors-on-unmatched; then
+	echo ""
+	echo "  Formatting or lint failed on staged files."
+	echo "  Fix:  pnpm exec biome check --write --staged"
+	echo ""
+	exit 1
+fi

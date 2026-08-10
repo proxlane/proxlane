@@ -1,0 +1,4 @@
+{
+	"extends": "@proxlane/tsconfig/node.json",
+	"include": ["*.ts"]
+}

@@ -1,0 +1,36 @@
+#!/bin/sh
+# The same set CI runs, before it can reach a branch anyone else sees.
+#
+# This exists because a red lint reached main once: nothing on a free private repo requires
+# a check, so "green" meant "green when someone last remembered to look". A ruleset replaces
+# this the day the repo goes public; until then it is the only thing standing there.
+#
+# Skip deliberately with --no-verify when you know what you are doing.
+set -e
+
+# GUI git clients start with a minimal PATH and will not find a version-managed pnpm.
+# Say so, rather than failing with "pnpm: not found" and looking like a broken repo.
+if ! command -v pnpm >/dev/null 2>&1; then
+	echo "pre-push: pnpm not on PATH — skipping the contract."
+	echo "  This usually means a GUI git client with a minimal environment."
+	echo "  Push from a terminal, or run 'pnpm build typecheck lint repo:check test:unit' first."
+	exit 0
+fi
+
+LOG=$(mktemp -t proxlane-prepush)
+trap 'rm -f "$LOG"' EXIT
+
+echo "pre-push: running the contract (skip with --no-verify)"
+for cmd in build typecheck lint repo:check test:unit; do
+	printf '  %-12s ' "$cmd"
+	if pnpm "$cmd" >"$LOG" 2>&1; then
+		echo "ok"
+	else
+		echo "FAILED"
+		echo ""
+		tail -25 "$LOG"
+		echo ""
+		echo "  pnpm $cmd failed. Push aborted."
+		exit 1
+	fi
+done

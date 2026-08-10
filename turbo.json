@@ -1,0 +1,22 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"globalDependencies": ["tsconfig.json", "biome.json", ".nvmrc", "pnpm-workspace.yaml"],
+	"tasks": {
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": ["dist/**", ".output/**"]
+		},
+		"typecheck": {
+			"dependsOn": ["^build"],
+			"outputs": []
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true,
+			"dependsOn": ["^build"]
+		},
+		"clean": {
+			"cache": false
+		}
+	}
+}

@@ -1,0 +1,41 @@
+{
+	"kind": "exchange",
+	"category": "slow-target",
+	"recordedAt": "2026-08-07T21:51:40.458Z",
+	"adapter": "jina-reader",
+	"target": {
+		"url": "https://httpbin.dev/delay/30",
+		"renderJs": false
+	},
+	"expect": "provider-dependent",
+	"request": {
+		"method": "GET",
+		"url": "https://r.jina.ai/https://httpbin.dev/delay/30",
+		"headers": {
+			"accept": "text/plain",
+			"x-respond-with": "markdown",
+			"x-no-cache": "true"
+		}
+	},
+	"response": {
+		"status": 422,
+		"headers": {
+			"alt-svc": "h3=\":443\"; ma=86400",
+			"cf-cache-status": "DYNAMIC",
+			"cf-ray": "VOLATILE",
+			"connection": "keep-alive",
+			"content-length": "207",
+			"content-type": "text/plain",
+			"date": "VOLATILE",
+			"nel": "VOLATILE",
+			"report-to": "VOLATILE",
+			"server": "cloudflare",
+			"traceparent": "VOLATILE",
+			"vary": "*",
+			"via": "1.1 google",
+			"x-cloud-trace-context": "VOLATILE"
+		},
+		"bodyBase64": "QXNzZXJ0aW9uRmFpbHVyZUVycm9yOiBGYWlsZWQgdG8gZ290byBodHRwczovL2h0dHBiaW4uZGV2L2RlbGF5LzMwOiBUaW1lb3V0RXJyb3I6IHBhZ2UuZ290bzogVGltZW91dCAxNTAwMG1zIGV4Y2VlZGVkLgpDYWxsIGxvZzoKICAtIG5hdmlnYXRpbmcgdG8gImh0dHBzOi8vaHR0cGJpbi5kZXYvZGVsYXkvMzAiLCB3YWl0aW5nIHVudGlsICJuZXR3b3JraWRsZSIK",
+		"bodyBytes": 207
+	}
+}

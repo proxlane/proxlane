@@ -1,0 +1,26 @@
+{
+	"name": "@proxlane/gateway",
+	"version": "0.0.0",
+	"type": "module",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"scripts": {
+		"dev": "node --watch src/index.ts",
+		"build": "tsdown src/index.ts --format esm",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"clean": "rm -rf dist"
+	},
+	"dependencies": {
+		"hono": "catalog:",
+		"@hono/node-server": "catalog:",
+		"@proxlane/adapters": "workspace:*",
+		"@proxlane/shared": "workspace:*"
+	},
+	"devDependencies": {
+		"@proxlane/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:",
+		"@proxlane/vitest-config": "workspace:*"
+	}
+}

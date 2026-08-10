@@ -1,0 +1,45 @@
+{
+	"kind": "exchange",
+	"category": "success-json",
+	"recordedAt": "2026-08-07T17:01:27.041Z",
+	"adapter": "jina-reader",
+	"target": {
+		"url": "https://httpbin.dev/json",
+		"renderJs": false
+	},
+	"expect": "OK",
+	"request": {
+		"method": "GET",
+		"url": "https://r.jina.ai/https://httpbin.dev/json",
+		"headers": {
+			"accept": "text/plain",
+			"x-respond-with": "markdown",
+			"x-no-cache": "true"
+		}
+	},
+	"response": {
+		"status": 200,
+		"headers": {
+			"alt-svc": "h3=\":443\"; ma=86400",
+			"cf-cache-status": "DYNAMIC",
+			"cf-ray": "VOLATILE",
+			"connection": "keep-alive",
+			"content-encoding": "br",
+			"content-type": "text/plain; charset=utf-8",
+			"date": "VOLATILE",
+			"nel": "VOLATILE",
+			"report-to": "VOLATILE",
+			"server": "cloudflare",
+			"traceparent": "VOLATILE",
+			"transfer-encoding": "chunked",
+			"vary": "*",
+			"via": "1.1 google",
+			"x-cloud-trace-context": "VOLATILE",
+			"x-ratelimit-limit": "20, 20;w=60",
+			"x-ratelimit-remaining": "VOLATILE",
+			"x-usage-tokens": "VOLATILE"
+		},
+		"bodyBase64": "VGl0bGU6IAoKVVJMIFNvdXJjZTogaHR0cHM6Ly9odHRwYmluLmRldi9qc29uCgpNYXJrZG93biBDb250ZW50Ogp7CiAgInNsaWRlc2hvdyI6IHsKICAgICJhdXRob3IiOiAiWW91cnMgVHJ1bHkiLAogICAgImRhdGUiOiAiZGF0ZSBvZiBwdWJsaWNhdGlvbiIsCiAgICAic2xpZGVzIjogWwogICAgICB7CiAgICAgICAgInRpdGxlIjogIldha2UgdXAgdG8gV29uZGVyV2lkZ2V0cyEiLAogICAgICAgICJ0eXBlIjogImFsbCIKICAgICAgfSwKICAgICAgewogICAgICAgICJpdGVtcyI6IFsKICAgICAgICAgICJXaHkgPGVtPldvbmRlcldpZGdldHM8L2VtPiBhcmUgZ3JlYXQiLAogICAgICAgICAgIldobyA8ZW0+YnV5czwvZW0+IFdvbmRlcldpZGdldHMiCiAgICAgICAgXSwKICAgICAgICAidGl0bGUiOiAiT3ZlcnZpZXciLAogICAgICAgICJ0eXBlIjogImFsbCIKICAgICAgfQogICAgXSwKICAgICJ0aXRsZSI6ICJTYW1wbGUgU2xpZGUgU2hvdyIKICB9Cn0K",
+		"bodyBytes": 486
+	}
+}

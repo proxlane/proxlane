@@ -1,0 +1,18 @@
+{
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": ["config:recommended", ":semanticCommits"],
+	"schedule": ["before 6am on monday"],
+	"packageRules": [
+		{ "matchUpdateTypes": ["patch"], "automerge": true },
+		{
+			"description": "typescript 7.x is the Go rewrite, not a 5.x successor. See the Why column in CLAUDE.md.",
+			"matchPackageNames": ["typescript"],
+			"allowedVersions": "<6"
+		},
+		{
+			"description": "@types/node must stay major-matched to the Node pin or it types the wrong runtime.",
+			"matchPackageNames": ["@types/node"],
+			"allowedVersions": "<25"
+		}
+	]
+}

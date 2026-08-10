@@ -1,0 +1,48 @@
+# Self-host. One command, one service.
+#
+#   cp .env.example .env && $EDITOR .env
+#   docker compose -f docker/compose.yml up
+#
+# ONE SERVICE, and that is not an omission. The gateway currently touches no database: no
+# request log, no cooldown state, no key store. Shipping Postgres and Valkey here because
+# the architecture will eventually need them would mean a self-hoster runs two containers
+# that nothing connects to, and debugs them when they fail. They arrive in the release that
+# uses them. `docker/compose.dev.yml` is the dev stack and is not a deployment artifact.
+
+name: proxlane
+
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: ghcr.io/proxlane/gateway:latest
+    restart: unless-stopped
+    ports:
+      - '${PORT:-8787}:8787'
+    environment:
+      # Authenticates callers TO this gateway. No default, on purpose: the server refuses
+      # to boot without it, because a gateway started open is a proxy funded by whoever
+      # deployed it.
+      PROXLANE_API_KEY: ${PROXLANE_API_KEY:?set PROXLANE_API_KEY in .env — see .env.example}
+      # BYOK. Bring the providers you actually pay for; the rest are simply not in the
+      # chain. At least one is required or the gateway refuses to start.
+      SCRAPERAPI_KEY: ${SCRAPERAPI_KEY:-}
+      SCRAPINGBEE_KEY: ${SCRAPINGBEE_KEY:-}
+      SCRAPFLY_KEY: ${SCRAPFLY_KEY:-}
+      PROXLANE_DEADLINE_MS: ${PROXLANE_DEADLINE_MS:-90000}
+      PROXLANE_BODY_CAP_MB: ${PROXLANE_BODY_CAP_MB:-10}
+    healthcheck:
+      # Node, not curl: the alpine image has no curl and adding one to satisfy a healthcheck
+      # is a package installed for the benefit of the healthcheck alone.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s

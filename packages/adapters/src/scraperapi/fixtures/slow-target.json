@@ -1,0 +1,41 @@
+{
+	"kind": "exchange",
+	"category": "slow-target",
+	"recordedAt": "2026-08-07T21:50:37.347Z",
+	"adapter": "scraperapi",
+	"target": {
+		"url": "https://httpbin.dev/delay/30",
+		"renderJs": false
+	},
+	"expect": "provider-dependent",
+	"request": {
+		"method": "GET",
+		"url": "https://api.scraperapi.com/?url=https%3A%2F%2Fhttpbin.dev%2Fdelay%2F30&render=false&premium=false&ultra_premium=false&device_type=desktop&autoparse=false&follow_redirect=true&retry_404=false&keep_headers=false",
+		"headers": {
+			"x-sapi-api_key": "REDACTED",
+			"accept": "*/*"
+		}
+	},
+	"response": {
+		"status": 500,
+		"headers": {
+			"access-control-allow-credentials": "true",
+			"access-control-allow-headers": "Origin, X-Requested-With, Content-Type, Accept",
+			"access-control-allow-methods": "HEAD,GET,POST,DELETE,OPTIONS,PUT",
+			"access-control-allow-origin": "undefined",
+			"connection": "keep-alive",
+			"content-encoding": "gzip",
+			"content-type": "text/html; charset=utf-8",
+			"date": "VOLATILE",
+			"etag": "W/\"d0-qQGzA5unsNbsxDD6+zEsRRX6CLM\"",
+			"sa-statuscode": "504",
+			"strict-transport-security": "max-age=15724800; includeSubDomains",
+			"transfer-encoding": "chunked",
+			"vary": "Accept-Encoding",
+			"x-powered-by": "Express",
+			"x-robots-tag": "none"
+		},
+		"bodyBase64": "UmVxdWVzdCBmYWlsZWQuIFlvdSB3aWxsIG5vdCBiZSBjaGFyZ2VkIGZvciB0aGlzIHJlcXVlc3QuIFBsZWFzZSBtYWtlIHN1cmUgeW91ciB1cmwgaXMgY29ycmVjdCBhbmQgdHJ5IGFnYWluLiBQcm90ZWN0ZWQgZG9tYWlucyBtYXkgcmVxdWlyZSBhZGRpbmcgcHJlbWl1bT10cnVlIE9SIHVsdHJhX3ByZW1pdW09dHJ1ZSBwYXJhbWV0ZXIgdG8geW91ciByZXF1ZXN0Lg==",
+		"bodyBytes": 208
+	}
+}

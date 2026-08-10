@@ -1,0 +1,13 @@
+{
+	"kind": "deadline",
+	"category": "deadline",
+	"recordedAt": "2026-08-07T22:26:22.354Z",
+	"adapter": "scrapfly",
+	"target": {
+		"url": "https://httpbin.dev/delay/30",
+		"renderJs": false
+	},
+	"expect": "PROVIDER_TIMEOUT",
+	"transportError": "aborted-by-deadline",
+	"timeoutMs": 3000
+}

@@ -1,0 +1,31 @@
+name: Bug report
+description: Something behaves differently from what the docs say
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before anything else, run `proxlane doctor --json` and paste it below. It reports
+        keys by length only, never by value, so it is safe to include — and it answers
+        most of the follow-up questions before they are asked.
+  - type: textarea
+    id: doctor
+    attributes:
+      label: proxlane doctor --json
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+      description: If a request was involved, include the `X-Outcome` header or the CLI's `outcome` field.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: A command or a request. Redact your key.
+    validations:
+      required: true
