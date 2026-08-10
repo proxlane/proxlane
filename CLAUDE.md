@@ -136,7 +136,7 @@ faithfully reflects a table that is now wrong.
 | `packages/route-viz/**` | the lane diagram: hero, dashboard, SEO pages | design-engineer |
 | `packages/cli/**` | the unscoped `proxlane` package and `doctor`, including its output text | devex-engineer |
 | `docker/**` `/Dockerfile` `/.dockerignore` | the self-host image and the compose files | devex-engineer |
-| `.githooks/**` | pre-commit and pre-push. Until the repo is public and a ruleset exists, the only thing between a red build and `main` | devex-engineer |
+| `.githooks/**` | pre-commit and pre-push. The fast local copy of what the `main` ruleset now enforces server-side | devex-engineer |
 | `scripts/**` | the command manifest, the stub harness, repo:check, generators | devex-engineer |
 | `tooling/**` | tsconfig, vitest config, container image constants | devex-engineer |
 | `test/**` | test harnesses that are not a package's own | devex-engineer |
@@ -308,6 +308,9 @@ own rule — if it breaks the budget, the ceiling was set wrong, not the work.
 
 ## Current status
 
-Pre-code. Name, GitHub org and npm org registered. Docs written and corrected.
-**See `docs/state.md`** — it is printed at session start and is the only place that says
-what is actually in flight.
+**Public since 2026-08-10.** Phase 1 shipped: three adapters, the gateway, the edge guard,
+the detector, 18 of 25 commands real. `main` carries a ruleset with no bypass actor, so
+blocking CI binds on the maintainer too.
+
+`pnpm repo:check` is what is built. **See `docs/state.md`** for what is in flight and what
+is waiting on an owner decision; it is printed at session start.

@@ -119,16 +119,22 @@ properties that already earn money.
 
 # Part B — Running the open source project
 
-**Part B applies from the day the repo goes public.** Before that, only B3 —
-Conventional Commits and changesets — is in force.
+**Part B is in force.** The repo went public on 2026-08-10, which was the gate.
 
-This gate is the difference between a process that survives and one abandoned in week
-two. Today the repo is private and its only contributors are the two maintainers.
-Applying all of Part B now would put five checkboxes, a changeset, same-PR docs,
-conformance, a CLA bot, nine blocking CI jobs, a security review and — for anything
-crossing a package boundary or adding a table, which is essentially every phase-1 PR —
-an RFC in front of two people writing a greenfield monorepo, in service of protecting
-external contributors who do not exist yet.
+The gate existed because applying all of Part B to a solo maintainer on a greenfield
+monorepo would have put five checkboxes, a changeset, same-PR docs, conformance, a CLA
+bot, blocking CI, a security review and an RFC in front of one person, protecting
+external contributors who did not exist. They can exist now, so it applies.
+
+What that switched on, and what actually enforces it:
+
+| | Enforced by |
+|---|---|
+| Blocking CI, all of B6 | the `main` ruleset requires `ci-complete` and `title`. No bypass actor, so it binds on the maintainer too |
+| PR before merge, squash only, linear history | the same ruleset |
+| Secret scanning and push protection | GitHub, repo settings |
+| Private vulnerability reporting | `SECURITY.md`, 72h acknowledgement |
+| The 48-hour issue SLA | B4, and nothing but attention |
 
 ## B1. What the license buys and what it costs
 
@@ -205,9 +211,9 @@ status:    needs-triage · confirmed · blocked · wontfix
 flag:      good-first-issue · help-wanted · provider-drift
 ```
 
-**Triage rhythm.** Every issue gets a human response **at the weekly sitting** while the
-repo is private, and **within 48 hours** once it is public and issues arrive from
-strangers. Unanswered issues are the single clearest signal that a project is dead, and
+**Triage rhythm.** Every issue gets a human response **within 48 hours**. That clock
+started 2026-08-10 when the repo went public and issues began arriving from strangers.
+Unanswered issues are the single clearest signal that a project is dead, and
 the fix costs minutes — but a 48-hour SLA is destroyed by definition by this document's
 own promise that every process here survives being skipped for a week.
 

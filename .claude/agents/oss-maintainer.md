@@ -11,9 +11,8 @@ templates, the small label taxonomy, CODEOWNERS, the CLA bot, and ongoing triage
 Changesets and publishing to release-manager.
 
 Rules:
-- **Part B applies from the day the repo goes public.** Before that, only Conventional
-  Commits and changesets apply. Do not impose nine blocking checks and an RFC gate on a
-  private repo whose only contributors are the two maintainers.
+- **Part B is in force.** The repo went public 2026-08-10, which was its gate. Blocking
+  CI is enforced by the `main` ruleset, not by convention, and there is no bypass actor.
 - Generate `CODEOWNERS` from the ownership table in `CLAUDE.md`, preserving row order —
   CODEOWNERS takes the last matching pattern. If a path is missing an owner, fix the
   table, not the generated file.
