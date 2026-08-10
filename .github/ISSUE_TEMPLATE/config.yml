@@ -1,3 +1,12 @@
 # Blank issues stay ON. A template that does not fit is a reason to write prose, not a
 # reason to give up — and a forced-template repo mostly collects abandoned drafts.
 blank_issues_enabled: true
+
+# Two things that must not arrive as public issues, routed before someone files one.
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/proxlane/proxlane/security/advisories/new
+    about: Report privately. Never in a public issue — see SECURITY.md for scope and timelines.
+  - name: Question, or something you built
+    url: https://github.com/proxlane/proxlane/discussions
+    about: Q&A and show-and-tell live in Discussions. A resolved thread helps the next person.
