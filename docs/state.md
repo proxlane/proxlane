@@ -9,9 +9,11 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 
 ## Now
 
-Phase 1 done, and all 16 outcomes now have a producer — `/detect` assigns the last. Its
-rules come from vendor signatures and have **never seen a real block page**;
-`unverifiedRules()` reports that and a test asserts the count. Captures come from traffic.
+**Public since 2026-08-10.** Ruleset on `main` with no bypass actor, verified by a rejected
+push, so blocking CI binds on the maintainer too. Scanning and Dependabot are on.
+
+Phase 1 done, all 16 outcomes have a producer. The detector's rules come from vendor
+signatures and have **never seen a real block page**; a test asserts the count.
 
 ## Blocked on
 
@@ -22,11 +24,9 @@ Owner decisions and external answers. None is unblocked by writing code.
   Opted-in org key, or a shadow attempt billed to nobody? *Before the health machine.*
 - **`domain-class`** — undefined anywhere, yet the per-class health key carries the block
   signal. Define it, or phase-gate it and route blocks to `cd:blk`.
-- **Going public** — irreversible. Every content gate is closed: triage, history, npm
-  names, README, Discussions, furniture, `security@proxlane.dev`. One item left, and it is
-  a Cloudflare routing rule rather than a decision. **`conduct@proxlane.dev` is not routed
-  and the catch-all drops mail**, so the CoC names a channel that discards reports. Add
-  the rule, then flip.
+- **Secret scanning depth** — core scanning and push protection are on. Non-provider
+  patterns and validity checks accept a 200 from the API and stay disabled; they need
+  paid Secret Protection. Buy it, or accept that a bespoke key shape goes unscanned.
 - **Where `k6:soak` runs** — the box sits at ~66% CPU / ~51% IO pressure during normal
   scrape windows, so a gateway-internal p95 gate measured there measures the neighbours.
   Dedicated ephemeral box, or restate the threshold honestly. *Before it is a launch gate.*
