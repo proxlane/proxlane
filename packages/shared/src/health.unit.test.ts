@@ -199,6 +199,73 @@ describe('the state is the whole state', () => {
 	});
 });
 
+describe('the constants are pinned, and the barrier is real', () => {
+	// A mutation sweep found 22 of 41 single-constant changes surviving this suite. The worst
+	// was removing `Math.max(0, …)` — the reflecting barrier that makes this a CUSUM rather
+	// than a random walk — which passed all 31 tests while turning outage detection after a
+	// long clean run from 10 samples into 9,269.
+	//
+	// The structural reason so much survived: assertions written in terms of `HEALTH.X` move
+	// WITH the constant. A test expressed in the constant cannot pin the constant.
+
+	it('detects a total outage immediately, however long the clean run before it', () => {
+		// THE BARRIER TEST. Without `max(0, …)` the statistic accumulates a huge negative
+		// reserve during a healthy run and has to climb back through it before it can alarm,
+		// so detection delay grows without bound in the length of the good period. With the
+		// barrier it is flat.
+		const delays = [1_000, 20_000, 100_000].map((clean) => {
+			const rnd = rng(5150 + clean);
+			let st = initial(0);
+			for (let i = 1; i <= clean; i++) {
+				st = observe(st, rnd() < 0.04 ? 'PROVIDER_ERROR' : 'OK', i);
+			}
+			let n = 0;
+			while (st.state !== 'demoted' && n < 100_000) {
+				n++;
+				st = observe(st, 'PROVIDER_ERROR', clean + n);
+			}
+			return n;
+		});
+		for (const [i, d] of delays.entries()) {
+			expect(d, `detection took ${d} samples after clean run ${i}`).toBeLessThan(60);
+		}
+		// And flat, not merely small: the failure mode is growth with the clean run.
+		const [first, last] = [delays[0] as number, delays[delays.length - 1] as number];
+		expect(last).toBeLessThan(first * 3);
+	});
+
+	it('pins the constants as literals, so a test cannot move with them', () => {
+		// Deliberately not `HEALTH.MIN_SAMPLES` etc. Changing one of these should require
+		// changing this line, and rerunning `scripts/health-sim.ts` to justify it.
+		expect(HEALTH.MIN_SAMPLES).toBe(500);
+		expect(HEALTH.P1_MULTIPLE).toBe(3);
+		expect(HEALTH.H_DEGRADE).toBe(7);
+		expect(HEALTH.H_DEMOTE).toBe(10);
+		expect(HEALTH.H_RESET).toBe(2);
+		expect(HEALTH.RESET_WINDOWS).toBe(3);
+		expect(HEALTH.RESET_WINDOW_SAMPLES).toBe(100);
+		expect(HEALTH.P0_Z).toBe(1.96);
+		expect(HEALTH.P0_FLOOR).toBe(0.005);
+		expect(HEALTH.P0_CEILING).toBe(0.25);
+		expect(HEALTH.PROBE_CLEAN).toBe(2);
+	});
+
+	it('keeps S_CAP above H_DEMOTE, or demotion becomes unreachable', () => {
+		// The coupling is invisible from either docstring. `S_CAP` below `H_DEMOTE` means the
+		// statistic can never reach the threshold and no provider is ever demoted again — a
+		// health system that is silently inert while looking wired.
+		expect(HEALTH.S_CAP).toBeGreaterThan(HEALTH.H_DEMOTE);
+	});
+
+	it('changes behaviour if P1_MULTIPLE changes, which nothing else asserted', () => {
+		// The alternative hypothesis sets BOTH increments, so it is the most consequential
+		// constant here and it survived every mutation. A 3x multiple puts the failure
+		// increment at log 3.
+		expect(increments(0.04).failure).toBeCloseTo(Math.log(3), 6);
+		expect(increments(0.04).success).toBeLessThan(0);
+	});
+});
+
 describe('the recovery edge', () => {
 	it('returns a recovered provider to healthy, and re-measures p0', () => {
 		// Without this edge, p0 stays frozen against a rate that has become fiction and the

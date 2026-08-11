@@ -85,6 +85,22 @@ describe('repo:check goes red when it should', () => {
 		expect(repoCheck().code).toBe(0);
 	});
 
+	it('catches a published health figure drifting from the simulation', () => {
+		// The defect this exists for: the published detection delay was the REJECTED
+		// estimator's result, carried into two files as a claim about the shipped one, under a
+		// sentence telling the reader the numbers were measured. The sim is deterministic, so
+		// it was always a one-command check — nobody ran it.
+		mutate('docs/integrations.md', (t) =>
+			t.replace(/is demoted at\n {2}\*\*[\d,]+\*\*/, 'is demoted at\n  **877**'),
+		);
+		expectRedBecause(/does not quote incident_demote_median/, 'a stale detection-delay figure');
+	});
+
+	it('catches a retired figure being reintroduced by value', () => {
+		mutate('docs/integrations.md', (t) => `${t}\n\nOne false demote per ~54M observations.\n`);
+		expectRedBecause(/stale figure "~54M"/, 'a resurrected retired figure');
+	});
+
 	it('catches a dependency edge pointing UP a layer', () => {
 		// Assertion 20 exists because the graph was inverted for months and nothing noticed:
 		// `shared`, the base layer, depended on `adapters`, a leaf. turbo only complains once
