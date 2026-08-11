@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	arm,
+	armFor,
 	COOLDOWN,
 	type CooldownEntry,
 	claimProbe,
@@ -14,6 +15,7 @@ import {
 	cooldownKey,
 	cooldownMs,
 	decide,
+	parseRetryAfter,
 } from './cooldown.js';
 
 /** Deterministic rng that returns exactly what you give it. */
@@ -154,5 +156,57 @@ describe('the domain of a cooldown', () => {
 
 	it('never throws inside a routing decision', () => {
 		expect(cooldownDomain('not a url')).toBe('invalid');
+	});
+});
+
+describe("the target's own Retry-After", () => {
+	// Measured across the three launch providers against a target sending `Retry-After: 120`:
+	// ScrapingBee forwards it as `spb-retry-after`, Scrapfly exposes it in the envelope's
+	// `response_headers`, and ScraperAPI strips it entirely. So it is absent more often than
+	// present, and every path has to work without it.
+
+	it('reads delta-seconds', () => {
+		expect(parseRetryAfter('120', 0)).toBe(120_000);
+	});
+
+	it('reads the HTTP-date form, which is equally legal and appears in the wild', () => {
+		// Parsed as a number this yields NaN, which would become a zero-length cooldown — i.e.
+		// no cooldown at all, on the outcome whose entire purpose is to back off.
+		const now = Date.parse('2026-08-11T12:00:00Z');
+		expect(parseRetryAfter('Tue, 11 Aug 2026 12:02:00 GMT', now)).toBe(120_000);
+	});
+
+	it('refuses anything it cannot read, so the caller falls back to the backoff', () => {
+		// '-5' is the sharp one: Date.parse reads it as a valid 1901 timestamp, so without a
+		// guard a negative delta-seconds became a ~31-year cooldown arrived at by nonsense.
+		for (const bad of [undefined, '', '   ', 'soon', '-5', '+5', '0', 'NaN', '12x', '1e3']) {
+			expect(parseRetryAfter(bad, 0), JSON.stringify(bad)).toBeUndefined();
+		}
+	});
+
+	it('refuses a date already in the past', () => {
+		const now = Date.parse('2026-08-11T12:00:00Z');
+		expect(parseRetryAfter('Tue, 11 Aug 2026 11:00:00 GMT', now)).toBeUndefined();
+	});
+
+	it('arms for what the target asked, not for a jittered guess', () => {
+		// A first arm draws uniformly from [0, 30s), averaging 15s. A site asking for 120s
+		// would be hit eight times too early.
+		const e = armFor(undefined, 1000, 120_000);
+		expect(e.untilMs - 1000).toBe(120_000);
+		expect(e.probeTaken).toBe(false);
+	});
+
+	it('still clamps to the cap, however long the target asks', () => {
+		// A site asking for a week is not a reason to hold a provider out for a week; the
+		// half-open probe is what discovers it has relaxed.
+		const e = armFor(undefined, 0, 7 * 24 * 60 * 60 * 1000);
+		expect(e.untilMs).toBe(COOLDOWN.CAP_MS);
+	});
+
+	it('still escalates on repeat', () => {
+		let e = armFor(undefined, 0, 1000);
+		e = armFor(e, 0, 1000);
+		expect(e.consecutive).toBe(2);
 	});
 });

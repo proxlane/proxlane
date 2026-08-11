@@ -587,6 +587,91 @@ describe('a target 429 backs off instead of retrying into a ban', () => {
 	});
 });
 
+describe("the cooldown honours the target's Retry-After", () => {
+	// Measured, not assumed: against a target sending `Retry-After: 120`, ScrapingBee forwards
+	// it as `spb-retry-after` and Scrapfly exposes it in the envelope, while ScraperAPI strips
+	// it entirely. So it is absent more often than present and the fallback is the common path.
+	const withRetryAfter = (id: string, outcome: Outcome, retryAfterMs?: number): Adapter =>
+		({
+			capabilities: caps(id),
+			translate: () => ({
+				url: `https://${id}.test/`,
+				method: 'GET',
+				headers: {},
+				timeoutMs: 1000,
+			}),
+			parse: () => ({
+				outcome,
+				cost: { microcredits: 0, source: 'estimated' },
+				...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+			}),
+		}) as Adapter;
+
+	it('waits as long as the target asked, not for a jittered guess', async () => {
+		// The jitter is pinned near zero, so anything near two minutes can only have come from
+		// the header. A first arm otherwise draws from [0, 30s).
+		const cd = new InMemoryCooldownStore(() => 0.0001);
+		const before = Date.now();
+		await runChain(REQ, {
+			transport: okTransport,
+			candidates: [{ adapter: withRetryAfter('a', 'TARGET_RATE_LIMITED', 120_000), key: 'k' }],
+			maxBodyBytes: 1024,
+			cooldowns: cd,
+		});
+		// A RANGE, not an exact bound. `before` is captured before the chain runs, so the arm
+		// lands a millisecond or two later and `<= 120_000` failed in CI at 120001 while
+		// passing locally. What the test is for is distinguishing the header from the jitter,
+		// and the jitter's whole range is [0, 30s) — so anything near two minutes settles it.
+		const until = cd.peek(blk('a'))?.untilMs ?? 0;
+		expect(until - before).toBeGreaterThan(110_000);
+		expect(until - before).toBeLessThan(130_000);
+	});
+
+	it('falls back to the backoff when the provider strips it', async () => {
+		// ScraperAPI's case, and the common one.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		const before = Date.now();
+		await runChain(REQ, {
+			transport: okTransport,
+			candidates: [{ adapter: withRetryAfter('a', 'TARGET_RATE_LIMITED'), key: 'k' }],
+			maxBodyBytes: 1024,
+			cooldowns: cd,
+		});
+		const until = cd.peek(blk('a'))?.untilMs ?? 0;
+		expect(until - before).toBeGreaterThan(0);
+		expect(until - before).toBeLessThanOrEqual(COOLDOWN.BASE_MS);
+	});
+
+	it('clamps an absurd request to the cap', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.5);
+		const before = Date.now();
+		await runChain(REQ, {
+			transport: okTransport,
+			candidates: [
+				{ adapter: withRetryAfter('a', 'TARGET_RATE_LIMITED', 7 * 24 * 3600_000), key: 'k' },
+			],
+			maxBodyBytes: 1024,
+			cooldowns: cd,
+		});
+		expect((cd.peek(blk('a'))?.untilMs ?? 0) - before).toBeLessThanOrEqual(COOLDOWN.CAP_MS);
+	});
+
+	it('applies to any cooling outcome, not just a 429', async () => {
+		// A provider rate limit carries one too, and `cd:acct` deserves the same honesty.
+		const cd = new InMemoryCooldownStore(() => 0.0001);
+		const before = Date.now();
+		await runChain(REQ, {
+			transport: okTransport,
+			candidates: [{ adapter: withRetryAfter('a', 'RATE_LIMITED', 90_000), key: 'k' }],
+			maxBodyBytes: 1024,
+			cooldowns: cd,
+		});
+		const acctUntil = (cd.peek(acct('a'))?.untilMs ?? 0) - before;
+		expect(acctUntil).toBeGreaterThan(80_000);
+		expect(acctUntil).toBeLessThan(100_000);
+	});
+});
+
 describe('a cooldown reason names the right system', () => {
 	// A `cd:acct` cooldown is a rate limit or an auth failure. Reporting it as "cooling on
 	// example.com" sends the operator to debug the target instead of their provider account.

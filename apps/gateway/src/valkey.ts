@@ -29,6 +29,7 @@
 import type { Outcome } from '@proxlane/adapters';
 import {
 	arm,
+	armFor,
 	COOLDOWN,
 	type CooldownDecision,
 	type CooldownEntry,
@@ -489,12 +490,19 @@ export class ValkeyCooldownStore implements CooldownStore {
 		return res === 1;
 	}
 
-	arm(key: string, now: number): void {
+	arm(key: string, now: number, retryAfterMs?: number): void {
 		void (async () => {
 			for (let attempt = 0; attempt < CAS_ATTEMPTS; attempt++) {
 				try {
 					const current = await this.#redis.get(key);
-					const entry: CooldownEntry = arm(parseCooldown(current) ?? undefined, now, this.#rng);
+					const prev = parseCooldown(current) ?? undefined;
+					// Honour the target's own Retry-After when the provider exposed it. The
+					// in-memory store does, and a shared store that quietly did not would make
+					// backoff depend on which one you deployed.
+					const entry: CooldownEntry =
+						retryAfterMs === undefined
+							? arm(prev, now, this.#rng)
+							: armFor(prev, now, retryAfterMs);
 					const ttl = Math.max(1, entry.untilMs - now + COOLDOWN_GRACE_MS);
 					const ok = await this.#redis.eval(
 						CAS,

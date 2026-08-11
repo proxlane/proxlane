@@ -102,6 +102,19 @@ export interface ParsedResult {
 	/** Resolution order: response header, then `<meta>` sniff, then provider default. */
 	readonly charset?: string;
 	readonly upstreamStatusCode?: number;
+	/**
+	 * The TARGET's `Retry-After`, in milliseconds, when the provider exposes it.
+	 *
+	 * Not our own and not the provider's — the site's own statement of how long to wait, which
+	 * is better information than any backoff curve we can invent. The cooldown honours it when
+	 * present.
+	 *
+	 * Measured across the three launch providers, against a target sending `Retry-After: 120`:
+	 * ScrapingBee forwards it as `spb-retry-after`, Scrapfly exposes it in the envelope's
+	 * `response_headers`, and **ScraperAPI strips it entirely**. So this is absent more often
+	 * than it is present, and every consumer must have a fallback.
+	 */
+	readonly retryAfterMs?: number;
 	readonly cost: {
 		readonly microcredits: Microcredits;
 		readonly source: 'reported' | 'estimated';

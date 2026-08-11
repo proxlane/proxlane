@@ -385,6 +385,44 @@ describe('release hands the probe back', () => {
 	});
 });
 
+describe('both stores agree on the target Retry-After', () => {
+	// The in-memory store honoured it and the Valkey one silently did not: `arm` took the
+	// parameter and never used it, so backoff depended on which deployment you were running.
+	// Caught by a lint warning about an unused parameter, not by a test — hence this one.
+	it('waits as long as the target asked', async () => {
+		const store = new ValkeyCooldownStore({ redis, rng: () => 0.0001 });
+		const key = 'cd:blk:p:retryafter.example';
+		const before = Date.now();
+		store.arm(key, before, 120_000);
+		await waitFor(async () => (await redis.get(key)) !== null);
+		const e = JSON.parse((await redis.get(key)) as string) as CooldownEntry;
+		// The jitter is pinned near zero, so anything near two minutes can only have come from
+		// the header rather than from the backoff curve.
+		expect(e.untilMs - before).toBeGreaterThan(110_000);
+		expect(e.untilMs - before).toBeLessThan(130_000);
+	});
+
+	it('falls back to the backoff when the provider stripped it', async () => {
+		const store = new ValkeyCooldownStore({ redis, rng: () => 0.9 });
+		const key = 'cd:blk:p:nora.example';
+		const before = Date.now();
+		store.arm(key, before);
+		await waitFor(async () => (await redis.get(key)) !== null);
+		const e = JSON.parse((await redis.get(key)) as string) as CooldownEntry;
+		expect(e.untilMs - before).toBeLessThanOrEqual(COOLDOWN.BASE_MS);
+	});
+
+	it('gives the record a TTL that outlives the longer wait', async () => {
+		// The grace exists so `consecutive` survives the cooldown. A honoured Retry-After makes
+		// the cooldown longer than the jittered default, so the TTL has to follow it.
+		const store = new ValkeyCooldownStore({ redis, rng: () => 0.0001 });
+		const key = 'cd:blk:p:ttlfollow.example';
+		store.arm(key, Date.now(), 120_000);
+		await waitFor(async () => (await redis.get(key)) !== null);
+		expect(await redis.pttl(key)).toBeGreaterThan(120_000);
+	});
+});
+
 describe('a store whose server has gone away', () => {
 	it('rejects on read rather than hanging, so the chain can fail open', async () => {
 		// The chain catches this and routes as if healthy. What it cannot survive is a read

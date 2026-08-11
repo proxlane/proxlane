@@ -12,6 +12,7 @@
 
 import {
 	arm,
+	armFor,
 	type CooldownDecision,
 	type CooldownEntry,
 	claimProbe,
@@ -38,8 +39,18 @@ export interface CooldownStore {
 	 */
 	claim(key: string, now: number): Promise<boolean>;
 
-	/** Arm or re-arm after a cooling-worthy outcome. Best-effort, off the critical path. */
-	arm(key: string, now: number): void;
+	/**
+	 * Arm or re-arm after a cooling-worthy outcome. Best-effort, off the critical path.
+	 *
+	 * `retryAfterMs` is the TARGET's own statement of how long to wait, when the provider
+	 * exposed it — better information than any backoff curve we can invent, and the reason a
+	 * jittered draw of 5s does not send us back into a site that asked for 120. Still clamped
+	 * to the cap and still exponential in `consecutive`.
+	 *
+	 * Absent more often than present: ScraperAPI strips the header entirely, so every path
+	 * must work without it.
+	 */
+	arm(key: string, now: number, retryAfterMs?: number): void;
 
 	/** A provider that just worked is not cooled. Best-effort. */
 	clear(key: string): void;
@@ -92,8 +103,12 @@ export class InMemoryCooldownStore implements CooldownStore {
 		return Promise.resolve(claimed);
 	}
 
-	arm(key: string, now: number): void {
-		this.#entries.set(key, arm(this.#entries.get(key), now, this.#rng));
+	arm(key: string, now: number, retryAfterMs?: number): void {
+		const prev = this.#entries.get(key);
+		this.#entries.set(
+			key,
+			retryAfterMs === undefined ? arm(prev, now, this.#rng) : armFor(prev, now, retryAfterMs),
+		);
 	}
 
 	clear(key: string): void {
@@ -102,7 +117,7 @@ export class InMemoryCooldownStore implements CooldownStore {
 
 	release(key: string): void {
 		const e = this.#entries.get(key);
-		if (e !== undefined && e.probeTaken) this.#entries.set(key, { ...e, probeTaken: false });
+		if (e?.probeTaken) this.#entries.set(key, { ...e, probeTaken: false });
 	}
 
 	list(_now: number): Promise<ReadonlyArray<{ key: string } & CooldownEntry>> {
