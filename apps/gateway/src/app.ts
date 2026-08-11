@@ -159,6 +159,60 @@ export function createApp(deps: AppDeps): Hono {
 		});
 	});
 
+	// The cooldowns actually held right now.
+	//
+	// Cooldowns are ON by default and were the only routing mechanism with no way to see them:
+	// `/health/providers` covers health, which ships off. An operator asking "why is one
+	// provider never used" had to read source, and two reviews said so.
+	//
+	// Takes the key, like `/health/providers` and for the same reason: it names providers, and
+	// it names the DOMAINS this deployment has been blocked on, which is more sensitive still.
+	app.get('/health/cooldowns', async (c) => {
+		if (!keyMatches(c.req.query('api_key') ?? '', deps.apiKey)) {
+			return c.json({ error: 'unauthorized', message: 'api_key missing or incorrect' }, 401);
+		}
+		if (deps.cooldowns === undefined) {
+			return c.json(
+				{ error: 'not_enabled', message: 'this gateway is running without cooldowns' },
+				501,
+			);
+		}
+		const now = Date.now();
+		let entries: Awaited<ReturnType<typeof deps.cooldowns.list>>;
+		try {
+			entries = await deps.cooldowns.list(now);
+		} catch (err) {
+			// Fails open like everything else that reads this state: a diagnostic must not be
+			// the one thing that breaks when the store is unwell.
+			return c.json({
+				stateUnavailable: err instanceof Error ? err.message : String(err),
+				cooling: [],
+				expired: [],
+			});
+		}
+		const shape = (e: (typeof entries)[number]) => {
+			// `cd:blk:{provider}:{domain}` and `cd:acct:{org}:{provider}`. Parsed rather than
+			// echoed, because "which namespace" is the answer an operator needs first: an
+			// account cooldown has nothing to do with the domain they are debugging.
+			const parts = e.key.split(':');
+			const isBlk = parts[1] === 'blk';
+			return {
+				scope: isBlk ? ('domain' as const) : ('account' as const),
+				provider: isBlk ? parts[2] : parts[3],
+				...(isBlk ? { domain: parts.slice(3).join(':') } : { org: parts[2] }),
+				expiresInMs: Math.max(0, e.untilMs - now),
+				consecutive: e.consecutive,
+				// True means the single post-expiry probe is out with a request right now.
+				probeTaken: e.probeTaken,
+			};
+		};
+		const cooling = entries.filter((e) => now < e.untilMs).map(shape);
+		// Expired but still recorded. Not noise: `consecutive` is what makes the backoff
+		// exponential, so these are the reason the NEXT cooldown on that key is longer.
+		const expired = entries.filter((e) => now >= e.untilMs).map(shape);
+		return c.json({ cooling, expired });
+	});
+
 	app.get('/v1', async (c) => {
 		const presented = c.req.query('api_key') ?? '';
 		if (!keyMatches(presented, deps.apiKey)) {

@@ -237,6 +237,7 @@ describe('fail open', () => {
 			arm: () => {},
 			clear: () => {},
 			release: () => {},
+			list: () => Promise.resolve([]),
 		};
 		const r = await chain(broken, [['a', 'OK']]);
 		expect(r.outcome).toBe('OK');
@@ -252,6 +253,7 @@ describe('fail open', () => {
 			},
 			clear: () => {},
 			release: () => {},
+			list: () => Promise.resolve([]),
 		};
 		await expect(chain(broken, [['a', 'HARD_BLOCK']])).resolves.toMatchObject({
 			outcome: 'HARD_BLOCK',

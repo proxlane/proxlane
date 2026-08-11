@@ -213,8 +213,7 @@ That is the whole contribution bar. See [CONTRIBUTING.md](CONTRIBUTING.md).
 calibration assumes failures that do not clump the way real ones do — `PROXLANE_HEALTH=on`,
 and read `GET /health/providers`.
 
-**Does not exist yet**: any database, request log or dashboard; a worker, so a demoted
-provider is not probed back; hosted credits.
+**Does not exist yet**: any database, request log or dashboard; hosted credits.
 
 `pnpm repo:check` reports which of the 24 commands are real. It is asserted against the
 filesystem, so it cannot drift the way a status section can — and it caught this one lying

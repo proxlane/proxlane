@@ -207,6 +207,75 @@ describe('cooldowns, over real HTTP', () => {
 	});
 });
 
+describe('/health/cooldowns', () => {
+	// Cooldowns are ON by default and were the only routing mechanism with no way to see them.
+	// An operator asking "why is one provider never used" had to read source.
+	it('separates a domain block from an account cooldown', async () => {
+		// The first thing an operator needs: an account cooldown is a rate limit or an auth
+		// failure and has nothing to do with the domain they are debugging.
+		cooldowns.arm('cd:blk:scraperapi:blocked.example', Date.now());
+		cooldowns.arm('cd:acct:self:scrapfly', Date.now());
+		const r = await fetch(`${base}/health/cooldowns?api_key=${API_KEY}`);
+		expect(r.status).toBe(200);
+		const body = (await r.json()) as {
+			cooling: { scope: string; provider: string; domain?: string; org?: string }[];
+		};
+		// Selected by the exact key, not by scope: this suite shares one store, and an earlier
+		// test arms cooldowns of its own. `find(scope === 'domain')` picked up whichever came
+		// first, which is an ordering dependency rather than an assertion.
+		const blk = body.cooling.find((c) => c.domain === 'blocked.example');
+		expect(blk?.scope).toBe('domain');
+		expect(blk?.provider).toBe('scraperapi');
+		const acct = body.cooling.find((c) => c.scope === 'account' && c.provider === 'scrapfly');
+		expect(acct?.provider).toBe('scrapfly');
+		expect(acct?.org).toBe('self');
+		expect(acct, 'an account cooldown must not claim a domain').not.toHaveProperty('domain');
+	});
+
+	it('reports how long is left, not the raw timestamp', async () => {
+		cooldowns.arm('cd:blk:scraperapi:soon.example', Date.now());
+		const body = (await (
+			await fetch(`${base}/health/cooldowns?api_key=${API_KEY}`)
+		).json()) as { cooling: { domain?: string; expiresInMs: number }[] };
+		const e = body.cooling.find((c) => c.domain === 'soon.example');
+		expect(e?.expiresInMs).toBeGreaterThan(0);
+		expect(e?.expiresInMs).toBeLessThanOrEqual(30_000);
+	});
+
+	it('separates expired-but-recorded entries, which explain the next backoff', async () => {
+		// Not noise: `consecutive` is what makes the backoff exponential, so an expired record
+		// is the reason the NEXT cooldown on that key will be longer.
+		cooldowns.arm('cd:blk:scraperapi:old.example', Date.now() - 60 * 60 * 1000);
+		const body = (await (
+			await fetch(`${base}/health/cooldowns?api_key=${API_KEY}`)
+		).json()) as {
+			cooling: { domain?: string }[];
+			expired: { domain?: string; consecutive: number }[];
+		};
+		expect(body.cooling.map((c) => c.domain)).not.toContain('old.example');
+		const e = body.expired.find((x) => x.domain === 'old.example');
+		expect(e?.consecutive).toBeGreaterThan(0);
+	});
+
+	it('refuses without a key, because it names providers AND the domains we were blocked on', async () => {
+		const r = await fetch(`${base}/health/cooldowns`);
+		expect(r.status).toBe(401);
+		expect(await r.text()).not.toContain('blocked.example');
+	});
+
+	it('answers 501, not an empty list, when cooldowns are switched off', async () => {
+		const noCd = createApp({
+			transport: createReplayTransport([]) as HttpTransport,
+			candidates: [],
+			apiKey: API_KEY,
+			maxBodyBytes: 1024,
+			defaultDeadlineMs: 1000,
+		});
+		const r = await noCd.request(`/health/cooldowns?api_key=${API_KEY}`);
+		expect(r.status).toBe(501);
+	});
+});
+
 describe('/health/providers', () => {
 	it('refuses without a key, because it names providers and /health deliberately does not', async () => {
 		// The consistency that matters: `/health` reports a COUNT and no names precisely
