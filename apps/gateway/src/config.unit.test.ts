@@ -121,6 +121,23 @@ describe('the gateway key comparison is constant time in fact, not in intent', (
 	});
 });
 
+describe('shutdown cannot be aborted by the thing it is shutting down', () => {
+	// Found by driving it, not by reading it: stopping Valkey and then sending SIGTERM crashed
+	// the gateway with an unhandled rejection out of `redis.quit()`, because
+	// `enableOfflineQueue: false` makes QUIT reject rather than resolve on a broken socket.
+	//
+	// A shutdown that throws when the dependency is down is the opposite of graceful, and a
+	// down dependency is the likeliest reason someone is restarting the container.
+	it('wraps every step, so one failure cannot skip the others', () => {
+		const src = read('apps/gateway/src/index.ts');
+		expect(src).toMatch(/const step = async/);
+		// `disconnect()` always releases the handle; `quit()` needs a live socket.
+		expect(src).toMatch(/redis\.disconnect\(\)/);
+		const quitLine = /await step\('closing valkey', \(\) => redis\.quit\(\)\)/;
+		expect(src, 'quit() must be inside a guarded step').toMatch(quitLine);
+	});
+});
+
 describe('assertSingleWriter rejects what it cannot understand', () => {
 	it('allows one replica, or an unset value', () => {
 		expect(() => assertSingleWriter('1')).not.toThrow();

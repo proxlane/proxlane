@@ -199,12 +199,34 @@ async function shutdown(signal: string): Promise<void> {
 	shuttingDown = true;
 	process.stdout.write(`\n  ${signal} — draining\n`);
 
+	// Every step is independent and none may abort the rest. Found by driving it: stopping
+	// Valkey and then sending SIGTERM crashed the process with an unhandled rejection out of
+	// `redis.quit()` — "Stream isn't writeable" — because `enableOfflineQueue: false` makes
+	// QUIT reject rather than resolve on a broken connection. A shutdown that throws when the
+	// dependency is down is the exact opposite of what a graceful shutdown is for, and it is
+	// the case most likely to be happening when someone restarts the container.
+	const step = async (what: string, fn: () => Promise<unknown>): Promise<void> => {
+		try {
+			await fn();
+		} catch (err) {
+			process.stderr.write(
+				`  ${what} failed during shutdown: ${err instanceof Error ? err.message : String(err)}\n`,
+			);
+		}
+	};
+
 	const deadline = new Promise<void>((r) => setTimeout(r, 10_000).unref());
 	await Promise.race([
 		(async () => {
-			await new Promise<void>((r) => server.close(() => r()));
-			if (health instanceof ValkeyHealthStore) await health.close();
-			if (redis !== undefined) await redis.quit();
+			await step('closing the server', () => new Promise<void>((r) => server.close(() => r())));
+			if (health instanceof ValkeyHealthStore)
+				await step('draining health', () => health.close());
+			if (redis !== undefined) {
+				// QUIT is the polite close and needs a live socket. `disconnect()` always works and
+				// is what actually releases the handle, so it runs either way.
+				await step('closing valkey', () => redis.quit());
+				redis.disconnect();
+			}
 		})(),
 		deadline,
 	]);
