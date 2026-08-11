@@ -1,56 +1,79 @@
 // globalSetup for the e2e project.
 //
-// `integrations.md` section 6 Layer 4 says real Postgres and real Valkey via testcontainers,
-// nothing mocked but the network boundary to providers. That is the destination.
+// `integrations.md` section 6 Layer 4: real Valkey and real Postgres via testcontainers,
+// nothing mocked but the network boundary to providers.
 //
-// It is NOT what happens today, and pretending otherwise would be the more expensive lie.
-// The gateway currently touches neither database: there is no request log, no cooldown
-// state, no key store. Booting two containers to prove a gateway that never connects to
-// them still works would add ~20s to every run and assert nothing — a slow vacuous pass is
-// still a vacuous pass.
+// This file used to start NOTHING, and said so — the gateway touched neither service, so
+// booting two containers to prove it still worked would have added ~20s per run and asserted
+// nothing. What it did instead was watch for the gateway acquiring a database dependency and
+// fail the moment that stopped being true.
 //
-// So this starts nothing, says so, and — the part that matters — FAILS THE MOMENT IT
-// BECOMES WRONG. The check below watches for the gateway acquiring a database dependency.
-// The day someone adds drizzle or ioredis, e2e goes red with an explanation rather than
-// silently continuing to test against no database at all.
+// It fired. `apps/gateway` took a dependency on `ioredis` and e2e went red with the reason.
+// That is the check working, so the body is now implemented rather than the check removed.
+//
+// STILL ONLY VALKEY. Postgres is started only once something needs it, on exactly the same
+// principle and with the same tripwire below. A container nobody connects to is 10 seconds
+// of startup buying a green tick.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POSTGRES_IMAGE, VALKEY_IMAGE } from '@proxlane/containers';
+import { GenericContainer, type StartedTestContainer } from 'testcontainers';
 
 export const IMAGES = { postgres: POSTGRES_IMAGE, valkey: VALKEY_IMAGE };
 
-/** Dependencies whose presence means the gateway now needs a real backing service. */
-const DB_DEPENDENCIES = ['drizzle-orm', 'ioredis', 'pg', 'postgres'];
+/** Dependencies that mean the gateway now needs a real Postgres. */
+const POSTGRES_DEPENDENCIES = ['drizzle-orm', 'pg', 'postgres'];
+
+function gatewayDeps(root: string): string[] {
+	const pkgPath = join(root, 'apps/gateway/package.json');
+	if (!existsSync(pkgPath)) return [];
+	const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
+		dependencies?: Record<string, string>;
+	};
+	return Object.keys(pkg.dependencies ?? {});
+}
 
 export default async function setup(): Promise<() => Promise<void>> {
 	const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-	const pkgPath = join(root, 'apps/gateway/package.json');
+	const deps = gatewayDeps(root);
 
-	if (existsSync(pkgPath)) {
-		const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
-			dependencies?: Record<string, string>;
-		};
-		const found = Object.keys(pkg.dependencies ?? {}).filter((d) =>
-			DB_DEPENDENCIES.includes(d),
+	// The same tripwire, narrowed to the service that is still not started. Postgres arrives
+	// with the schema; until then, starting it would be theatre.
+	const needsPostgres = deps.filter((d) => POSTGRES_DEPENDENCIES.includes(d));
+	if (needsPostgres.length > 0) {
+		throw new Error(
+			`apps/gateway now depends on ${needsPostgres.join(', ')}, so e2e must boot ` +
+				`${IMAGES.postgres} via testcontainers. This setup starts only Valkey.\n` +
+				'Implement it rather than removing this check: an e2e suite running against no ' +
+				'database is not an e2e suite.',
 		);
-		if (found.length > 0) {
-			throw new Error(
-				`apps/gateway now depends on ${found.join(', ')}, so e2e must boot real ` +
-					`services — ${IMAGES.postgres} and ${IMAGES.valkey} — via testcontainers.\n` +
-					'This setup starts nothing. Implement it rather than removing this check: an ' +
-					'e2e suite running against no database is not an e2e suite.',
-			);
-		}
 	}
 
-	process.stdout.write(
-		'  e2e: no containers started — the gateway uses no database yet. ' +
-			'This setup fails automatically once it does.\n',
-	);
+	const started: StartedTestContainer[] = [];
+
+	if (deps.includes('ioredis')) {
+		// `save ""` and `appendonly no`: the same no-persistence configuration the deployment
+		// uses, so a test never accidentally depends on durability the real thing does not
+		// have. `plan.md` records the decision.
+		const valkey = await new GenericContainer(VALKEY_IMAGE)
+			.withExposedPorts(6379)
+			.withCommand(['valkey-server', '--save', '', '--appendonly', 'no'])
+			.start();
+		started.push(valkey);
+		process.env.PROXLANE_VALKEY_URL = `redis://${valkey.getHost()}:${valkey.getMappedPort(6379)}`;
+		process.stdout.write(`  e2e: valkey on ${process.env.PROXLANE_VALKEY_URL}\n`);
+	}
+
+	if (started.length === 0) {
+		process.stdout.write(
+			'  e2e: no containers started — the gateway needs no backing service yet. ' +
+				'This setup fails automatically once it does.\n',
+		);
+	}
+
 	return async () => {
-		// Nothing to tear down. Kept so the contract stays a teardown-returning setup and the
-		// day containers arrive, only the body changes.
+		await Promise.all(started.map((c) => c.stop()));
 	};
 }

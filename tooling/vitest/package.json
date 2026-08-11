@@ -11,10 +11,11 @@
 		"typecheck": "tsc --noEmit -p tsconfig.json"
 	},
 	"devDependencies": {
+		"@proxlane/adapters": "workspace:*",
 		"@proxlane/containers": "workspace:*",
 		"@proxlane/tsconfig": "workspace:*",
 		"@types/node": "catalog:",
-		"typescript": "catalog:",
-		"@proxlane/adapters": "workspace:*"
+		"testcontainers": "catalog:",
+		"typescript": "catalog:"
 	}
 }

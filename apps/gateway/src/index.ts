@@ -5,10 +5,12 @@
 
 import { serve } from '@hono/node-server';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
+import { Redis } from 'ioredis';
 import { createApp } from './app.js';
-import { InMemoryCooldownStore } from './cooldown-store.js';
-import { assertSingleWriter, InMemoryHealthStore } from './health-store.js';
+import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
+import { assertSingleWriter, type HealthStore, InMemoryHealthStore } from './health-store.js';
 import { createFetchTransport } from './transport.js';
+import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DEFAULT_DEADLINE_MS = Number(process.env.PROXLANE_DEADLINE_MS ?? 90_000);
@@ -26,9 +28,20 @@ const HEALTH_ENABLED = (process.env.PROXLANE_HEALTH ?? 'on') !== 'off';
 // ninety seconds ago costs money and usually gets refused again.
 const COOLDOWNS_ENABLED = (process.env.PROXLANE_COOLDOWNS ?? 'on') !== 'off';
 
-// Provider health is stored in this process, so a second replica would keep a second opinion
-// and demote independently. Refuse rather than misroute. See health-store.ts.
-assertSingleWriter(Number(process.env.PROXLANE_REPLICAS ?? 1));
+// Valkey is what makes more than one replica possible: both stores become shared instead of
+// process-local. Set PROXLANE_VALKEY_URL to use it.
+//
+// Not required, and that is deliberate. Self-host is one process, and a mandatory Valkey
+// would add a service, a failure mode and a compose entry to a deployment that does not need
+// one. `docker/compose.yml` ships it commented out with this paragraph's reasoning.
+const VALKEY_URL = process.env.PROXLANE_VALKEY_URL;
+
+// Process-local state means a second replica keeps a second opinion and demotes
+// independently. Refuse rather than misroute — unless Valkey is backing them, in which case
+// the state is shared and replicas are fine.
+if (VALKEY_URL === undefined) {
+	assertSingleWriter(Number(process.env.PROXLANE_REPLICAS ?? 1));
+}
 
 const apiKey = process.env.PROXLANE_API_KEY;
 if (apiKey === undefined || apiKey === '') {
@@ -78,13 +91,33 @@ if (candidates.length === 0) {
 	);
 }
 
-const cooldowns = new InMemoryCooldownStore();
-// Expired entries are keyed by (provider, domain) and nothing else would ever remove them,
-// so a long-lived gateway with wide traffic leaks one entry per host it has been blocked on.
-// Valkey gets this free from key TTLs. In memory it has to be swept, and `unref` so an idle
-// timer never holds the process open — which is how a graceful shutdown turns into a hang.
-if (COOLDOWNS_ENABLED) {
-	setInterval(() => cooldowns.sweep(Date.now()), 10 * 60 * 1000).unref();
+const redis =
+	VALKEY_URL === undefined
+		? undefined
+		: new Redis(VALKEY_URL, {
+				// A gateway that cannot reach Valkey must still serve: both stores fail open, and
+				// an unbounded retry queue would hold requests instead of letting them through.
+				maxRetriesPerRequest: 1,
+				enableOfflineQueue: false,
+			});
+
+let health: HealthStore | undefined;
+let cooldowns: CooldownStore | undefined;
+if (redis === undefined) {
+	const inMemoryCooldowns = new InMemoryCooldownStore();
+	// Expired entries are keyed by (provider, domain) and nothing else would ever remove
+	// them, so a long-lived gateway with wide traffic leaks one entry per host it has been
+	// blocked on. Valkey gets this free from key TTLs. In memory it has to be swept, and
+	// `unref` so an idle timer never holds the process open — which is how a graceful
+	// shutdown becomes a hang.
+	if (COOLDOWNS_ENABLED) {
+		setInterval(() => inMemoryCooldowns.sweep(Date.now()), 10 * 60 * 1000).unref();
+	}
+	health = HEALTH_ENABLED ? new InMemoryHealthStore() : undefined;
+	cooldowns = COOLDOWNS_ENABLED ? inMemoryCooldowns : undefined;
+} else {
+	health = HEALTH_ENABLED ? new ValkeyHealthStore({ redis }) : undefined;
+	cooldowns = COOLDOWNS_ENABLED ? new ValkeyCooldownStore({ redis }) : undefined;
 }
 
 const app = createApp({
@@ -93,16 +126,17 @@ const app = createApp({
 	apiKey,
 	maxBodyBytes: MAX_BODY_BYTES,
 	defaultDeadlineMs: DEFAULT_DEADLINE_MS,
-	...(HEALTH_ENABLED ? { health: new InMemoryHealthStore() } : {}),
-	...(COOLDOWNS_ENABLED ? { cooldowns } : {}),
+	...(health === undefined ? {} : { health }),
+	...(cooldowns === undefined ? {} : { cooldowns }),
 });
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
 	process.stdout.write(
 		`\n  proxlane gateway on :${info.port}\n` +
 			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(', ')}\n` +
-			`  health:    ${HEALTH_ENABLED ? 'on, in-process — GET /health/providers' : 'OFF (PROXLANE_HEALTH=off)'}\n` +
-			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on, in-process' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
+			`  state:     ${redis === undefined ? 'in-process (single replica only)' : 'valkey (shared)'}\n` +
+			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'OFF (PROXLANE_HEALTH=off)'}\n` +
+			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);
 });

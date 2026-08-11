@@ -32,6 +32,15 @@ services:
       SCRAPFLY_KEY: ${SCRAPFLY_KEY:-}
       PROXLANE_DEADLINE_MS: ${PROXLANE_DEADLINE_MS:-90000}
       PROXLANE_BODY_CAP_MB: ${PROXLANE_BODY_CAP_MB:-10}
+      # Health and cooldowns are shared state. Unset, they live in this process, which is
+      # correct for one gateway and wrong for two — the server refuses to boot with
+      # PROXLANE_REPLICAS>1 rather than let two replicas demote independently.
+      #
+      # Set this to run more than one. Uncomment the `valkey` service below with it.
+      PROXLANE_VALKEY_URL: ${PROXLANE_VALKEY_URL:-}
+    # depends_on is deliberately absent while valkey is commented out. Uncomment both
+    # together: a gateway that starts before Valkey is ready fails open and routes without
+    # health, which is correct behaviour but not what you want on every restart.
     healthcheck:
       # Node, not curl: the alpine image has no curl and adding one to satisfy a healthcheck
       # is a package installed for the benefit of the healthcheck alone.
@@ -46,3 +55,25 @@ services:
       timeout: 3s
       retries: 12
       start_period: 5s
+
+  # Uncomment together with PROXLANE_VALKEY_URL above to run more than one gateway.
+  #
+  # Not on by default: self-host is one process, and a mandatory Valkey adds a service, a
+  # failure mode and a restart ordering problem to a deployment that does not need one. Both
+  # stores fail OPEN when it is unreachable, so the cost of it being down is worse routing
+  # rather than a refused request.
+  #
+  # valkey:
+  #   image: valkey/valkey:8-alpine
+  #   restart: unless-stopped
+  #   # No persistence: everything in here is reconstructible. noeviction rather than
+  #   # allkeys-lru because silently evicting state is worse than refusing to store more.
+  #   command: >-
+  #     valkey-server --save "" --appendonly no
+  #     --maxmemory 256mb --maxmemory-policy noeviction
+  #   healthcheck:
+  #     test: ['CMD', 'valkey-cli', 'ping']
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 10
+
