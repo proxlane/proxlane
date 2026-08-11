@@ -7,12 +7,13 @@ on:
     - cron: '17 6 * * 1'   # canary:live   — weekly at launch, nightly once revenue exists
     - cron: '23 6 * * 2'   # cost-drift    — weekly
     - cron: '29 6 * * 3'   # record:diff   — weekly
+    - cron: '41 6 * * 4'   # health-sim    — weekly
   workflow_dispatch:
     inputs:
       job:
         description: which job to run
         type: choice
-        options: [canary, cost-drift, record-diff]
+        options: [canary, cost-drift, record-diff, health-sim]
 
 permissions:
   contents: read
@@ -91,3 +92,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: pnpm record --diff || echo "::notice::record is a stub; nothing to diff yet"
+
+  # Provenance for the published health figures.
+  #
+  # `repo:check` assertion 21 asserts the DOCS agree with `scripts/health-numbers.json`, and
+  # that the recording is newer than the code it measures. What it cannot check is that the
+  # file was produced by the simulation at all: it is a tracked, hand-editable JSON, so
+  # restating a remembered figure in both places passes. A verification panel demonstrated
+  # exactly that.
+  #
+  # This closes it by actually running the thing. Weekly rather than per-PR because the sim
+  # takes minutes and `repo:check` runs on every commit — and drift is a slow failure, not one
+  # that needs catching within the hour.
+  health-sim:
+    if: github.event.schedule == '41 6 * * 4' || inputs.job == 'health-sim'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: rerun the simulation and diff the recorded figures
+        run: |
+          set -euo pipefail
+          node scripts/health-sim.ts > /tmp/sim.txt
+          if ! git diff --quiet -- scripts/health-numbers.json; then
+            echo "::error::scripts/health-numbers.json does not match a fresh simulation run."
+            git --no-pager diff -- scripts/health-numbers.json
+            echo "The published figures were not produced by the simulation, or the simulation"
+            echo "has changed. Rerun \`node scripts/health-sim.ts\` and update the prose."
+            exit 1
+          fi
+          echo "recorded figures reproduce exactly"

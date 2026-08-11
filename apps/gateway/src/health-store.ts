@@ -112,9 +112,9 @@ export function assertSingleWriter(replicas: string | number): void {
 	}
 	if (n > 1) {
 		throw new Error(
-			`PROXLANE_REPLICAS=${n}, but provider health is stored in-process.\n\n` +
-				'  Two replicas keep two opinions of the same provider and demote independently,\n' +
-				'  so one may route to a provider the other has taken out of rotation.\n\n' +
+			`PROXLANE_REPLICAS=${n}, but routing state is stored in-process.\n\n` +
+				'  Cooldowns are on by default and health is available; each replica would keep its\n' +
+				'  own copy, so one may route to a provider another has just been refused by.\n\n' +
 				'  Run a single gateway, or implement the Valkey-backed HealthStore first.\n',
 		);
 	}

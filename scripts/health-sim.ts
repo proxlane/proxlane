@@ -9,7 +9,8 @@
 // `packages/shared/src/health.unit.test.ts`, which asserts the properties at small trial
 // counts so this file cannot rot unnoticed.
 
-import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HEALTH, type HealthState, initial, observe } from '../packages/shared/src/health.ts';
@@ -260,7 +261,9 @@ line('');
 line('  AUTOCORRELATION — two-regime providers, identical 5% MEAN failure rate');
 line('  mean dwell      demotions/provider    share of time demoted');
 {
-	const N = 200;
+	// 200 providers put the iid cell on 2 events. That is not a two-significant-figure
+	// quantity, and it is the number four files quote as the reason health ships disabled.
+	const N = 1000;
 	const HORIZON = 400_000;
 	for (const dwell of [Number.POSITIVE_INFINITY, 2_000, 20_000]) {
 		let demotions = 0;
@@ -285,8 +288,13 @@ line('  mean dwell      demotions/provider    share of time demoted');
 		line(
 			`  ${label.padEnd(15)} ${(demotions / N).toFixed(2).padStart(18)} ${`${((100 * demotedSamples) / (N * HORIZON)).toFixed(1)}%`.padStart(24)}`,
 		);
-		if (!Number.isFinite(dwell))
+		const share = Number(((100 * demotedSamples) / (N * HORIZON)).toFixed(1));
+		if (Number.isFinite(dwell)) {
+			published[`share_demoted_dwell_${dwell}`] = share;
+		} else {
 			published.iid_demotions_per_provider = Number((demotions / N).toFixed(2));
+			published.iid_share_demoted = share;
+		}
 	}
 }
 line('');
@@ -296,11 +304,48 @@ line('  hours of demotion. This is why PROXLANE_HEALTH now defaults to OFF: the 
 line('  numbers above are true of a provider that does not exist.');
 line('');
 
+/**
+ * A fingerprint of everything that determines these numbers.
+ *
+ * The constants block and the two functions that turn a state into the next one. NOT the
+ * whole file: an mtime comparison was the first attempt and it demanded a three-minute rerun
+ * for a comment edit, which is how a check gets disabled. This changes only when the
+ * behaviour changes.
+ */
+function fingerprint(): string {
+	const src = readFileSync(
+		join(
+			resolve(dirname(fileURLToPath(import.meta.url)), '..'),
+			'packages/shared/src/health.ts',
+		),
+		'utf8',
+	);
+	const parts = [
+		/export const HEALTH = \{[\s\S]*?\} as const;/,
+		/export function increments\([\s\S]*?\n\}/,
+		/export function observe\([\s\S]*?\n\}/,
+		/export function observeProbe\([\s\S]*?\n\}/,
+		/export function wilsonUpper\([\s\S]*?\n\}/,
+	].map((re) => {
+		const m = re.exec(src);
+		if (m === null) throw new Error(`health.ts no longer matches ${String(re)}`);
+		// Strip comments and whitespace: a reworded explanation is not a behaviour change.
+		return m[0]
+			.replace(/\/\*[\s\S]*?\*\//g, '')
+			.replace(/\/\/[^\n]*/g, '')
+			.replace(/\s+/g, '');
+	});
+	return createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 16);
+}
+
 const OUT = join(
 	resolve(dirname(fileURLToPath(import.meta.url)), '..'),
 	'scripts/health-numbers.json',
 );
-writeFileSync(OUT, `${JSON.stringify(published, null, '\t')}\n`);
+writeFileSync(
+	OUT,
+	`${JSON.stringify({ ...published, measuredAgainst: fingerprint() }, null, '\t')}\n`,
+);
 line(`  wrote ${OUT}`);
 line('  repo:check asserts the docs quote exactly these. Restating one from memory is a red');
 line('  build, which is what every stale figure in this design had in common.');

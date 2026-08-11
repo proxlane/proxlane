@@ -30,7 +30,7 @@ function step(name: string): void {
 	process.stdout.write(`  ${elapsed().padStart(7)}  ${name}\n`);
 }
 
-function compose(args: string[], opts: { quiet?: boolean } = {}): void {
+function compose(args: string[], opts: { quiet?: boolean; health?: string } = {}): void {
 	const r = spawnSync('docker', [...COMPOSE, ...args], {
 		cwd: ROOT,
 		encoding: 'utf8',
@@ -39,11 +39,13 @@ function compose(args: string[], opts: { quiet?: boolean } = {}): void {
 			...process.env,
 			PORT: String(PORT),
 			PROXLANE_API_KEY: API_KEY,
-			// Health is OFF by default, deliberately — see apps/gateway/src/index.ts. The smoke
-			// test turns it ON so the RICHEST surface is the one exercised: with it off,
-			// /health/providers honestly answers 501 and the state store is never read, which
-			// is exactly the coverage gap that let a broken default Valkey client ship.
-			PROXLANE_HEALTH: 'on',
+			// Deliberately NOT setting PROXLANE_HEALTH: the point of this command is the
+			// configuration a stranger actually gets. Turning it on here was a mistake caught by
+			// a verification panel — PR 12 exists because "no check starts the shipped compose
+			// file", and overriding a default reintroduces exactly that gap one layer up.
+			//
+			// The health-on path is covered below by a second stack, so both are real.
+			...(opts.health === undefined ? {} : { PROXLANE_HEALTH: opts.health }),
 		},
 	});
 	if (r.status !== 0) {
@@ -134,21 +136,13 @@ try {
 			// Redis client for it, and this endpoint 500'd on every call while the boot banner
 			// claimed shared state. Nothing noticed, because the smoke test only exercised the
 			// surface that existed before health and cooldowns did.
-			what: 'the router will say what it believes about each provider (PROXLANE_HEALTH=on)',
+			// The DEFAULT answer. 501 rather than an empty list, because a gateway with health
+			// off has no opinion at all, which is a different statement from "all fine".
+			what: 'health is off by default, and says so rather than pretending',
 			run: async () => {
 				const r = await fetch(`http://127.0.0.1:${PORT}/health/providers?api_key=${API_KEY}`);
-				if (r.status !== 200) throw new Error(`/health/providers returned ${r.status}`);
-				const body = (await r.json()) as {
-					providers?: unknown[];
-					stateUnavailable?: string;
-				};
-				if (!Array.isArray(body.providers)) {
-					throw new Error('no providers array in the response');
-				}
-				if (body.stateUnavailable !== undefined) {
-					// Reachable but unhealthy is worse than absent: it means the deployment is
-					// configured to use a store it cannot talk to.
-					throw new Error(`state store unreachable: ${body.stateUnavailable}`);
+				if (r.status !== 501) {
+					throw new Error(`/health/providers returned ${r.status}, expected 501 by default`);
 				}
 			},
 		},
@@ -198,6 +192,30 @@ try {
 		process.stdout.write(
 			`           ok  real scrape: 200 OK via ${r.headers.get('x-provider-used')}\n`,
 		);
+	}
+
+	// A SECOND stack, with health on. The original defect — an empty PROXLANE_VALKEY_URL
+	// producing a Redis client that logged ECONNREFUSED forever and 500'd — is only visible
+	// when something actually reads the state store, and nothing does with health off.
+	//
+	// Separate run rather than an override on the first, because the first has to be the
+	// configuration a stranger gets, unmodified.
+	step('restarting with PROXLANE_HEALTH=on');
+	teardown();
+	compose(['up', '-d'], { quiet: true, health: 'on' });
+	await waitForHealth(90_000);
+	{
+		const r = await fetch(`http://127.0.0.1:${PORT}/health/providers?api_key=${API_KEY}`);
+		if (r.status !== 200)
+			throw new Error(`/health/providers returned ${r.status} with health on`);
+		const body = (await r.json()) as { providers?: unknown[]; stateUnavailable?: string };
+		if (!Array.isArray(body.providers)) throw new Error('no providers array in the response');
+		if (body.stateUnavailable !== undefined) {
+			// Reachable but unhealthy is worse than absent: the deployment is configured to use
+			// a store it cannot talk to. This is the assertion the original bug would have failed.
+			throw new Error(`state store unreachable: ${body.stateUnavailable}`);
+		}
+		process.stdout.write('           ok  with health on, the state store is reachable\n');
 	}
 
 	const total = Date.now() - started;

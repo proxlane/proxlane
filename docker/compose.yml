@@ -37,7 +37,9 @@ services:
       # setting them did nothing on the one deployment path this project ships: compose only
       # passes a variable into the container if it is named in this block.
       #
-      # Health and cooldowns are on unless set to `off`. Both live in the gateway process
+      # Cooldowns are on unless set to `off`; health is OFF unless set to `on`, because its
+      # calibration assumes failures that do not clump the way real ones do. Both live in the
+      # gateway process
       # unless PROXLANE_VALKEY_URL is set, which is what makes more than one replica possible;
       # without it the server refuses to boot with PROXLANE_REPLICAS>1 rather than let two
       # replicas demote independently. Uncomment the `valkey` service below alongside the URL.

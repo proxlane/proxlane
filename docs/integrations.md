@@ -384,7 +384,7 @@ something:
 | design | healthy providers falsely demoted within 20k samples |
 |---|---|
 | fixed 5% bootstrap | a 10%-failure provider demoted after a median of ~430 samples |
-| measured, plain rate | ~16-18%, at every rate |
+| measured, plain rate | 11-16%, varying by rate |
 | measured, Wilson upper bound | 0.2% / 0.3% / 0.6% / 3.1% at true rates 2 / 4 / 10 / 20% |
 
 Under-estimating `p0` is unrecoverable — the provider sits permanently above its own baseline
@@ -393,9 +393,10 @@ asymmetric for that reason.
 
 **`MIN_SAMPLES` and specificity are coupled, in the counter-intuitive direction.** The Wilson
 bound is an inflation factor of size `O(z/√n)`, so a LARGER baseline sample makes `p0` tighter
-and the detector twitchier: measured, 500 gives 0.5% false demotes within 100k at a true 4%,
-and 5,000 gives 2.5%. Anyone reasoning "a better baseline needs more samples" would degrade
-specificity fivefold. The real alternative hypothesis is not 3x the baseline; it is roughly
+and the detector twitchier: measured, 500 gives roughly 0.5% false demotes within
+100k at a true 4% and 5,000 gives roughly 2.5%, a fourfold degradation. Anyone reasoning "a
+better baseline needs more samples" would make the detector twitchier, not steadier. This one
+is NOT reproduced by `health-sim.ts`, which never varies `MIN_SAMPLES`. The real alternative hypothesis is not 3x the baseline; it is roughly
 4.6x the true rate, and only at n=500.
 
 **A note on how the second row survived review for a while:** the summary being read was the
@@ -505,16 +506,18 @@ them quoted the **rejected** estimator's result as the shipped system's.
 
 #### What it cannot do, and why it ships disabled
 
-The alternative hypothesis is 3x the baseline, so the drift only turns positive near 2x the
-true rate. From a 4% base, the probability of demoting within 20,000 samples is 6% for a 1.5x
+The alternative hypothesis is 3x the *inflated* baseline, which puts the drift-zero point
+near 2.8x the true rate — Wilson has already widened `p0`, so reasoning from the 3x multiple
+alone understates the floor. From a 4% base, the probability of demoting within 20,000 samples is 6% for a 1.5x
 rise, 29% for 2x, 63% for 2.5x, and 100% for the 6.5x of the motivating incident. **It
 reliably catches 2.5x and above; 2x is a coin flip; 1.5x is invisible.**
 
 Underneath all of it is an assumption of independent Bernoulli trials, and providers do not
 produce them. A two-regime provider with an **identical mean failure rate** — a bad hour, a
-struggling upstream, a diurnal pattern — spends over 90% of its time demoted in simulation,
-against 0.0% for the iid stream every figure above was derived from. The exit path is
-slower than the regime dynamics, so one bad patch buys hours out of rotation.
+struggling upstream, a diurnal pattern — spends 93.4% of its time demoted at a 2,000-sample
+mean dwell and 93.7% at 20,000, against 1.7% for the iid stream every figure above was
+derived from (0.03 demotions per provider). The exit path is slower than the regime
+dynamics, so one bad patch buys hours out of rotation.
 
 **So `PROXLANE_HEALTH` defaults to `off`.** The statistic is not wrong; the claim that it was
 safe to leave on unattended was. Cooldowns stay on: they act on facts a provider just told

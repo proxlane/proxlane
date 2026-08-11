@@ -534,18 +534,28 @@ describe('a cooldown reason names the right system', () => {
 
 describe('a throwing release cannot break a request', () => {
 	it('settles best-effort', async () => {
+		// The first version of this test could not fail: its store returned `open` for every
+		// key, so no probe was ever claimed and `release` was never called. It passed with the
+		// try/catch deleted. The store now reports a genuine half-open probe, so the release
+		// path is actually entered.
+		let released = 0;
 		const broken: CooldownStore = {
 			check: (keys) =>
-				Promise.resolve(new Map(keys.map((k) => [k, { kind: 'open' as const }]))),
+				Promise.resolve(new Map(keys.map((k) => [k, { kind: 'probe' as const }]))),
 			claim: () => Promise.resolve(true),
 			arm: () => {},
 			clear: () => {},
 			release: () => {
+				released++;
 				throw new Error('release failed');
 			},
 		};
-		await expect(chain([['a', 'OK']], { cooldowns: broken })).resolves.toMatchObject({
-			outcome: 'OK',
+		// TARGET_ERROR settles neither namespace, so the claim must be released.
+		await expect(chain([['a', 'TARGET_ERROR']], { cooldowns: broken })).resolves.toMatchObject({
+			outcome: 'TARGET_ERROR',
 		});
+		expect(released, 'release was never reached, so this test proves nothing').toBeGreaterThan(
+			0,
+		);
 	});
 });

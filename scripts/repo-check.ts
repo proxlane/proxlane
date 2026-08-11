@@ -8,6 +8,7 @@
 // exactly two documented exemptions, both marked EXEMPT below.
 
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -938,42 +939,132 @@ const wsPkgs = wsDirs.map((d) => ({ dir: d, json: JSON.parse(read(join(d, 'packa
 		fail('21', `${numbersPath} is missing — run \`node scripts/health-sim.ts\``);
 	} else {
 		const nums = JSON.parse(read(numbersPath)) as Record<string, number>;
-		const keys = Object.keys(nums);
-		if (keys.length === 0) {
-			fail('21', `${numbersPath} is empty, so this assertion checks nothing`);
-		}
 
-		// Only figures the prose actually quotes. A key here that no document mentions would
-		// make the check vacuous for that key, so the map is explicit rather than derived.
-		const quoted: [string, string][] = [
-			['incident_demote_median', nums.incident_demote_median?.toLocaleString('en-US') ?? ''],
-			['incident_step_median', String(nums.incident_step_median ?? '')],
-			['demoted@20k_at_0.04', `${(nums['demoted@20k_at_0.04'] ?? 0).toFixed(1)}%`],
-			['demoted@20k_at_0.2', `${(nums['demoted@20k_at_0.2'] ?? 0).toFixed(1)}%`],
+		/**
+		 * Every figure the prose quotes, and where.
+		 *
+		 * A verification panel got past the first version of this three ways, so all three are
+		 * closed here:
+		 *
+		 *   - Editing a figure the map did not cover. The map now spans every key the sim
+		 *     writes, and `unquoted` below fails on a key no document mentions, so adding a
+		 *     figure to the sim without publishing it is also a red build.
+		 *   - Wiping the file. A missing key rendered as `(undefined ?? 0).toFixed(1)` = "0.0%",
+		 *     which appears in the prose, so an EMPTY file passed while reporting two checks.
+		 *     Rendering is now strict: a missing or non-numeric value fails.
+		 *   - Editing the code that produces the figures. Closed by the staleness check below:
+		 *     the recording must be newer than the script and the module it measures.
+		 *
+		 * WHAT THIS STILL CANNOT DO, and it is the honest limit rather than an oversight: it
+		 * checks AGREEMENT, not PROVENANCE. `health-numbers.json` is a tracked, hand-editable
+		 * file, so restating a remembered figure in both it and the prose passes here. Running
+		 * the simulation is the only thing that closes that, and it takes minutes, which does
+		 * not belong on every commit. The weekly `health-sim` job in `scheduled.yml` reruns it
+		 * and fails if the recording does not reproduce.
+		 *
+		 * Figures from designs that no longer exist — the ~430 bootstrap result, the plain-rate
+		 * range — cannot be regenerated and so are not covered by anything. They are labelled
+		 * as historical where they appear.
+		 */
+		const render = (key: string, fmt: (v: number) => string): string => {
+			const v = nums[key];
+			if (typeof v !== 'number' || !Number.isFinite(v)) return '';
+			return fmt(v);
+		};
+		const asPct = (v: number) => `${v.toFixed(1)}%`;
+		const asInt = (v: number) => v.toLocaleString('en-US');
+
+		const SPEC = 'docs/integrations.md';
+		const quoted: [string, string, string][] = [
+			['incident_demote_median', render('incident_demote_median', asInt), SPEC],
+			['incident_step_median', render('incident_step_median', asInt), SPEC],
+			['demoted@20k_at_0.04', render('demoted@20k_at_0.04', asPct), SPEC],
+			['demoted@20k_at_0.2', render('demoted@20k_at_0.2', asPct), SPEC],
+			['iid_share_demoted', render('iid_share_demoted', asPct), SPEC],
+			['share_demoted_dwell_2000', render('share_demoted_dwell_2000', asPct), SPEC],
+			['share_demoted_dwell_20000', render('share_demoted_dwell_20000', asPct), SPEC],
+			[
+				'iid_demotions_per_provider',
+				render('iid_demotions_per_provider', (v) => v.toFixed(2)),
+				SPEC,
+			],
 		];
-		const spec = read('docs/integrations.md');
+		const covered = new Set(quoted.map(([k]) => k));
+
 		let checked21 = 0;
-		for (const [key, rendered] of quoted) {
-			if (rendered === '' || rendered === '0') {
-				fail('21', `${key} is absent from ${numbersPath}; rerun the simulation`);
+		for (const [key, rendered, file] of quoted) {
+			if (rendered === '') {
+				fail('21', `${key} is missing or not a number in ${numbersPath}; rerun the simulation`);
 				continue;
 			}
 			checked21++;
-			if (!spec.includes(rendered)) {
+			if (!read(file).includes(rendered)) {
 				fail(
 					'21',
-					`docs/integrations.md does not quote ${key} = ${rendered}. ` +
-						'Rerun `node scripts/health-sim.ts` and update the prose from its output, ' +
-						'rather than restating a remembered figure.',
+					`${file} does not quote ${key} = ${rendered}. Rerun ` +
+						'`node scripts/health-sim.ts` and update the prose from its output, rather ' +
+						'than restating a remembered figure.',
 				);
 			}
 		}
-		// The retired figures, banned by value. Each was published and wrong.
-		for (const stale of ['877', 'one every\n  2.9 years', '~54M']) {
-			if (spec.includes(stale)) {
-				fail('21', `docs/integrations.md still contains the stale figure "${stale}"`);
+
+		// A figure the sim measures and nobody publishes is a figure that can rot unnoticed.
+		const unquoted = Object.keys(nums).filter(
+			(k) =>
+				!covered.has(k) &&
+				k !== 'measuredAgainst' &&
+				!k.startsWith('degraded@') &&
+				!k.startsWith('demoted@'),
+		);
+		for (const k of unquoted) {
+			fail('21', `${numbersPath} records ${k}, which no document quotes — add it to this map`);
+		}
+
+		// The recording must describe the CURRENT behaviour. Compared by fingerprint rather
+		// than mtime: mtime demanded a three-minute rerun for a comment edit, which is how a
+		// check gets deleted. The fingerprint covers the constants and the four functions that
+		// determine the numbers, with comments and whitespace stripped.
+		const health = read('packages/shared/src/health.ts');
+		const parts = [
+			/export const HEALTH = \{[\s\S]*?\} as const;/,
+			/export function increments\([\s\S]*?\n\}/,
+			/export function observe\([\s\S]*?\n\}/,
+			/export function observeProbe\([\s\S]*?\n\}/,
+			/export function wilsonUpper\([\s\S]*?\n\}/,
+		].map((re) => {
+			const m = re.exec(health);
+			if (m === null) {
+				fail('21', `packages/shared/src/health.ts no longer matches ${String(re)}`);
+				return '';
+			}
+			return m[0]
+				.replace(/\/\*[\s\S]*?\*\//g, '')
+				.replace(/\/\/[^\n]*/g, '')
+				.replace(/\s+/g, '');
+		});
+		const expectedPrint = createHash('sha256')
+			.update(parts.join('|'))
+			.digest('hex')
+			.slice(0, 16);
+		if ((nums as unknown as { measuredAgainst?: string }).measuredAgainst !== expectedPrint) {
+			fail(
+				'21',
+				'the health statistic has changed since these figures were measured — rerun ' +
+					'`node scripts/health-sim.ts`. (Comments and formatting are ignored, so this ' +
+					'only fires on a real behaviour change.)',
+			);
+		}
+
+		// Retired figures, banned by value, everywhere rather than in one document. Each was
+		// published and wrong, and `877` outlived the first ban by living in a test comment.
+		for (const stale of ['877', '~54M', '2.9 years']) {
+			for (const file of [SPEC, 'packages/shared/src/health.ts']) {
+				if (read(file).includes(stale)) {
+					fail('21', `${file} still contains the retired figure "${stale}"`);
+				}
 			}
 		}
+
 		if (checked21 === 0) {
 			fail('21', 'no health figures were checked — this assertion parsed nothing');
 		} else {

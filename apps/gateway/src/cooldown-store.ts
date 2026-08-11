@@ -54,8 +54,9 @@ export interface CooldownStore {
 	 *
 	 * Without this the slot stayed taken forever. `decide()` then reports `cooling` against an
 	 * expiry already in the past, so the provider is filtered out on every subsequent request
-	 * and the 503 carries `Retry-After: 0` — a hot-loop instruction — until the record's TTL
-	 * runs out an hour later. One 404 on a probe did that.
+	 * and the 503 refuses the request until the record's TTL runs out an hour later. One 404 on
+	 * a probe did that, and it advertised `Retry-After: 0` while doing it — since floored at a
+	 * second, which makes the message merely wrong rather than a hot loop.
 	 */
 	release(key: string): void;
 }

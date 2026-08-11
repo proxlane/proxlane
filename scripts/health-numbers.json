@@ -13,5 +13,9 @@
 	"demoted@100k_at_0.2": 11.7,
 	"incident_demote_median": 1015,
 	"incident_step_median": 52,
-	"iid_demotions_per_provider": 0.01
+	"iid_demotions_per_provider": 0.03,
+	"iid_share_demoted": 1.7,
+	"share_demoted_dwell_2000": 93.4,
+	"share_demoted_dwell_20000": 93.7,
+	"measuredAgainst": "bb52b55d8a520ec2"
 }
