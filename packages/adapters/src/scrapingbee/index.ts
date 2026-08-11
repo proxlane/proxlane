@@ -1,3 +1,4 @@
+import { parseRetryAfter } from '@proxlane/shared';
 import type {
 	Adapter,
 	GatewayRequest,
@@ -141,8 +142,15 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	// does not have to trust the cost table — and the table's inability to express
 	// render+premium pricing stops mattering for billing.
 	const spbCost = meta.data['spb-cost'];
+	// The TARGET's Retry-After, which ScrapingBee copies under its own prefix like every other
+	// target header. Measured against a target sending `Retry-After: 120`: it arrives as
+	// `spb-retry-after: 120`. ScraperAPI strips the same header entirely, so no adapter may
+	// assume it is there.
+	const targetRetryAfter = parseRetryAfter(res.headers['spb-retry-after'], Date.now());
+
 	const base = {
 		...withoutMeta,
+		...(targetRetryAfter === undefined ? {} : { retryAfterMs: targetRetryAfter }),
 		cost:
 			spbCost === undefined
 				? baseCost

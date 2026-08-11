@@ -467,7 +467,10 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				// a correct change to one branch invalidating an assumption in another.
 				let wroteKey: string | undefined;
 				if (cdKey !== null) {
-					deps.cooldowns?.arm(cdKey, now());
+					// The TARGET's Retry-After, when the provider exposed it. Better than any
+					// curve we can invent: a jittered first draw averages 15s, and a site asking
+					// for 120 would be hit eight times too early.
+					deps.cooldowns?.arm(cdKey, now(), parsed?.retryAfterMs);
 					wroteKey = cdKey;
 				} else if (outcome === 'OK' || outcome === 'TARGET_NOT_FOUND') {
 					// The provider REACHED the target. A 200 or a genuine 404 both mean the block, if

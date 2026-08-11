@@ -1,3 +1,4 @@
+import { parseRetryAfter } from '@proxlane/shared';
 import type {
 	Adapter,
 	GatewayRequest,
@@ -143,9 +144,18 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 			? Uint8Array.from(Buffer.from(result.content, 'base64'))
 			: new TextEncoder().encode(result.content);
 
+	// The TARGET's Retry-After. Scrapfly exposes target headers structurally, so this is a
+	// lookup rather than a prefix convention — but header names are case-insensitive and the
+	// envelope preserves whatever the site sent, so match without assuming the casing.
+	const retryHeader = Object.entries(result.response_headers ?? {}).find(
+		([k]) => k.toLowerCase() === 'retry-after',
+	)?.[1];
+	const targetRetryAfter = parseRetryAfter(retryHeader, Date.now());
+
 	const base = {
 		charset: 'utf-8',
 		...(result.content_type === undefined ? {} : { contentType: result.content_type }),
+		...(targetRetryAfter === undefined ? {} : { retryAfterMs: targetRetryAfter }),
 		cost,
 	};
 

@@ -36,6 +36,13 @@ export const ScrapflyResult = z.object({
 	content: z.string(),
 	content_encoding: z.string().optional(),
 	content_type: z.string().optional(),
+	/**
+	 * The TARGET's response headers, verbatim. Scrapfly is the only launch provider that
+	 * exposes them as a structured map rather than prefixed copies. Loose on purpose: header
+	 * names and values are the site's, not a contract of ours, so a strict shape here would
+	 * turn any unusual header into PROVIDER_DRIFT.
+	 */
+	response_headers: z.record(z.string(), z.string()).optional(),
 	error: ScrapflyResultError.nullish(),
 });
 

@@ -179,3 +179,51 @@ export function cooldownDomain(url: string): string {
 		return 'invalid';
 	}
 }
+
+/**
+ * Parse an HTTP `Retry-After` into milliseconds.
+ *
+ * RFC 9110 allows two forms: delta-seconds, and an HTTP-date. Both appear in the wild, so
+ * both are handled — a date-form header parsed as a number yields NaN, which would otherwise
+ * silently become a zero-length cooldown, i.e. no cooldown at all.
+ *
+ * Returns `undefined` for anything unparseable or non-positive, so the caller falls back to
+ * the jittered backoff rather than trusting a value it could not read.
+ */
+export function parseRetryAfter(raw: string | undefined, now: number): number | undefined {
+	if (raw === undefined || raw.trim() === '') return undefined;
+	const trimmed = raw.trim();
+	if (/^\d+$/.test(trimmed)) {
+		const ms = Number(trimmed) * 1000;
+		return ms > 0 ? ms : undefined;
+	}
+	// An HTTP-date always carries a day or month name, and requiring one is what keeps
+	// `Date.parse` away from strings it will happily misread. `Date.parse('-5')` returns a
+	// valid timestamp in 1901 — as a Retry-After that is a ~31-year cooldown, clamped to the
+	// cap but arrived at by nonsense. Anything numeric-but-not-a-count must be rejected, not
+	// reinterpreted as a date.
+	if (!/[a-z]/i.test(trimmed)) return undefined;
+	const at = Date.parse(trimmed);
+	if (Number.isNaN(at)) return undefined;
+	const ms = at - now;
+	return ms > 0 ? ms : undefined;
+}
+
+/**
+ * Arm a cooldown for a duration the TARGET asked for, rather than a jittered guess.
+ *
+ * Still clamped to the cap: a site asking for a week is not a reason to hold a provider out
+ * for a week, and the half-open probe is what discovers it has relaxed. Still exponential in
+ * `consecutive`, so repeated refusals still escalate.
+ */
+export function armFor(
+	entry: CooldownEntry | undefined,
+	now: number,
+	retryAfterMs: number,
+): CooldownEntry {
+	return {
+		untilMs: now + Math.min(COOLDOWN.CAP_MS, Math.max(1, retryAfterMs)),
+		consecutive: (entry?.consecutive ?? 0) + 1,
+		probeTaken: false,
+	};
+}

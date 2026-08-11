@@ -261,9 +261,24 @@ response is to back off on the domain rather than to try again.
 
 The three recorded fixtures show how little the wire agrees — ScraperAPI answers 500,
 ScrapingBee 429, Scrapfly 200 — and all three carry the real status in their own
-discriminator. **`Retry-After` passthrough is unmeasured**: `httpbin.dev/status/429` sends
-none, so its absence in all three recordings proves nothing. The cooldown uses the standard
-jittered backoff until a target that actually throttles with the header has been recorded.
+discriminator.
+
+**The cooldown honours the target's `Retry-After` when it can see it**, which is better
+information than any backoff curve: a first jittered arm draws from `[0, 30s)` and averages
+15 s, so a site asking for 120 would be hit eight times too early. Measured directly against
+a target sending `Retry-After: 120`:
+
+| provider | what arrives |
+|---|---|
+| ScrapingBee | `spb-retry-after: 120`, its usual prefixed copy of a target header |
+| Scrapfly | `retry-after` inside the envelope's `response_headers` |
+| **ScraperAPI** | **nothing — the header is stripped** |
+
+So it is absent more often than present, and every path falls back to the jittered backoff.
+The value is clamped to the 15-minute cap regardless: a site asking for a week is not a
+reason to hold a provider out for a week, and the half-open probe is what discovers it has
+relaxed. Both forms RFC 9110 allows are parsed — delta-seconds and HTTP-date — because a
+date read as a number yields `NaN`, which would silently become no cooldown at all.
 
 Notes:
 - `TARGET_NOT_FOUND` never fails over: a real 404 on provider A is a real 404 on
