@@ -918,6 +918,70 @@ const wsPkgs = wsDirs.map((d) => ({ dir: d, json: JSON.parse(read(join(d, 'packa
 	ok('20', edges, 'internal dependency edges each point down a layer');
 }
 
+// ------------------------------- 21. published health figures match the simulation
+//
+// Every numeric claim about the health detector drifted from the code that produced it. The
+// sharpest: the published detection delay was the REJECTED plain-rate estimator's result,
+// carried forward verbatim into two files as a claim about the shipped Wilson system — under
+// a sentence reading "measured, not chosen. Do not edit one without rerunning the sim."
+//
+// The sim is deterministic and seeded, so every one of those was a one-command check nobody
+// ran. This makes not running it a red build: `scripts/health-sim.ts` writes the figures it
+// measured to `health-numbers.json`, and the docs must contain those exact strings.
+//
+// It does NOT run the simulation — that takes minutes and `repo:check` is on the hot path of
+// every commit. It checks agreement between the last recorded run and the prose, which is
+// the property that actually failed.
+{
+	const numbersPath = 'scripts/health-numbers.json';
+	if (!has(numbersPath)) {
+		fail('21', `${numbersPath} is missing — run \`node scripts/health-sim.ts\``);
+	} else {
+		const nums = JSON.parse(read(numbersPath)) as Record<string, number>;
+		const keys = Object.keys(nums);
+		if (keys.length === 0) {
+			fail('21', `${numbersPath} is empty, so this assertion checks nothing`);
+		}
+
+		// Only figures the prose actually quotes. A key here that no document mentions would
+		// make the check vacuous for that key, so the map is explicit rather than derived.
+		const quoted: [string, string][] = [
+			['incident_demote_median', nums.incident_demote_median?.toLocaleString('en-US') ?? ''],
+			['incident_step_median', String(nums.incident_step_median ?? '')],
+			['demoted@20k_at_0.04', `${(nums['demoted@20k_at_0.04'] ?? 0).toFixed(1)}%`],
+			['demoted@20k_at_0.2', `${(nums['demoted@20k_at_0.2'] ?? 0).toFixed(1)}%`],
+		];
+		const spec = read('docs/integrations.md');
+		let checked21 = 0;
+		for (const [key, rendered] of quoted) {
+			if (rendered === '' || rendered === '0') {
+				fail('21', `${key} is absent from ${numbersPath}; rerun the simulation`);
+				continue;
+			}
+			checked21++;
+			if (!spec.includes(rendered)) {
+				fail(
+					'21',
+					`docs/integrations.md does not quote ${key} = ${rendered}. ` +
+						'Rerun `node scripts/health-sim.ts` and update the prose from its output, ' +
+						'rather than restating a remembered figure.',
+				);
+			}
+		}
+		// The retired figures, banned by value. Each was published and wrong.
+		for (const stale of ['877', 'one every\n  2.9 years', '~54M']) {
+			if (spec.includes(stale)) {
+				fail('21', `docs/integrations.md still contains the stale figure "${stale}"`);
+			}
+		}
+		if (checked21 === 0) {
+			fail('21', 'no health figures were checked — this assertion parsed nothing');
+		} else {
+			ok('21', checked21, 'published health figures agree with the recorded simulation');
+		}
+	}
+}
+
 // ------------------------------------------------------------------------ helpers
 
 function parseCatalog(yaml: string): Record<string, string> {

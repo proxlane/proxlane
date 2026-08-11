@@ -1,0 +1,17 @@
+{
+	"degraded@20k_at_0.02": 1.9,
+	"demoted@20k_at_0.02": 0.2,
+	"demoted@100k_at_0.02": 0.5,
+	"degraded@20k_at_0.04": 4.5,
+	"demoted@20k_at_0.04": 0.3,
+	"demoted@100k_at_0.04": 0.5,
+	"degraded@20k_at_0.1": 23.1,
+	"demoted@20k_at_0.1": 0.6,
+	"demoted@100k_at_0.1": 2.9,
+	"degraded@20k_at_0.2": 59.6,
+	"demoted@20k_at_0.2": 3.1,
+	"demoted@100k_at_0.2": 11.7,
+	"incident_demote_median": 1015,
+	"incident_step_median": 52,
+	"iid_demotions_per_provider": 0.01
+}

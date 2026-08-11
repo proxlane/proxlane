@@ -22,26 +22,45 @@
 //
 // TWO THINGS THAT NEARLY SHIPPED WRONG, both caught by simulation rather than by review.
 //
-// 1. An earlier design bootstrapped `p0` to a house default for providers with no history.
-//    A provider genuinely running at 10% failure against a 5% bootstrap was falsely DEMOTED
-//    after a median of 430 samples. A provider that is simply harder than average is not a
-//    provider that is failing, and a fixed bootstrap cannot tell them apart. `p0` is now
-//    measured from the provider's own history.
+// 1. An earlier design bootstrapped `p0` to a house default. A provider genuinely running at
+//    10% failure against a 5% bootstrap was falsely DEMOTED after a median of ~430 samples.
+//    A provider that is harder than average is not one that is failing.
 //
-// 2. Measuring it as a plain rate was still wrong, and the failure was invisible in the
-//    median. Estimated from 500 samples at a true 4%, `p0` lands below 0.028 about 7% of the
-//    time; the provider then sits permanently above its own baseline and the statistic
-//    ratchets. 16% of HEALTHY providers demoted within 20k samples while the median run
-//    length read 589,863 — the median is the wrong statistic for a false-alarm rate, and it
-//    said the design was fine. Taking the WILSON UPPER BOUND instead of the point estimate
-//    drops that to under 1% and costs four samples of detection delay:
+// 2. Measuring it as a plain rate was still wrong, and invisible in the median. At a true 4%,
+//    `p0` from 500 samples lands low often enough that the provider sits permanently above
+//    its own baseline and the statistic ratchets. Taking the WILSON UPPER BOUND instead:
 //
 //        estimator             false demote in 20k, healthy provider at 2/4/10/20%
-//        plain rate            18.3%  16.3%  16.3%  17.3%
-//        wilson upper bound     0.0%   0.0%   0.3%   3.0%
+//        plain rate            ~16-18% at every rate
+//        wilson upper bound     0.2%   0.3%   0.6%   3.1%
 //
-//    Being wrong about `p0` in the low direction is unrecoverable; being wrong high only
-//    costs sensitivity. The estimator is deliberately asymmetric for that reason.
+//    Being wrong about `p0` low is unrecoverable; being wrong high only costs sensitivity.
+//
+// EVERY NUMBER IN THIS FILE COMES FROM `scripts/health-numbers.json`, which
+// `scripts/health-sim.ts` writes and `repo:check` asserts the docs match. That machinery
+// exists because the prose drifted from the measurement on every single figure — the
+// published detection delay was the REJECTED estimator's result, carried forward verbatim,
+// under a line reading "measured, not chosen. Do not edit one without rerunning the sim."
+//
+// WHAT THIS DETECTOR CANNOT DO, stated because it was previously implied to do more.
+//
+// The alternative hypothesis is 3x the baseline, so the drift turns positive somewhere near
+// 2x the true rate. Measured, from a 4% base:
+//
+//        rise     P(demote within 20k samples)
+//        1.5x      6%
+//        2.0x     29%
+//        2.5x     63%
+//        6.5x    100%
+//
+// It reliably catches a rise of 2.5x or more. 2x is a coin flip. 1.5x and below is
+// effectively invisible, however long you wait. 96% to 74% success is the 6.5x row.
+//
+// AND THE ASSUMPTION UNDERNEATH ALL OF IT: independent Bernoulli trials. Providers are not.
+// A two-regime provider with an IDENTICAL mean failure rate spends over 90% of its time
+// demoted in simulation, against 0.8% for the iid stream every figure above was derived
+// from. That is why `PROXLANE_HEALTH` defaults to OFF. The statistic is not wrong; the claim
+// that it was safe to leave on unattended was.
 
 import type { Outcome } from './outcome.js';
 

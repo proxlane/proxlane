@@ -29,13 +29,21 @@ function env(name: string): string | undefined {
 	return v === undefined || v.trim() === '' ? undefined : v;
 }
 
-// Health tracking is ON by default and opts OUT, not in.
+// Health tracking is OFF by default, and that is a retreat from the previous default.
 //
-// A demoted provider that can never recover is a far worse default than a gateway that keeps
-// a running opinion of its providers, and the whole point of the statistic is that it needs
-// no configuration to be useful. The switch exists for someone who wants the chain to behave
-// exactly as it did before, and for bisecting a routing complaint.
-const HEALTH_ENABLED = (env('PROXLANE_HEALTH') ?? 'on') !== 'off';
+// Its calibration assumes independent Bernoulli trials, and providers do not produce them.
+// Measured in `scripts/health-sim.ts`: a two-regime provider with an IDENTICAL 5% mean
+// failure rate — a bad hour, a struggling upstream, a diurnal pattern — spends over 90% of
+// its time demoted, against 0.8% for the iid stream every published specificity figure was
+// derived from. The exit path is slower than the regime dynamics, so one bad patch buys
+// hours out of rotation.
+//
+// The statistic is not wrong; the claim that it is safe to leave on unattended was. Turning
+// it on is a deliberate act until the calibration is validated against autocorrelated
+// traffic, which needs real traffic to validate against.
+//
+// Cooldowns stay ON: they act on facts a provider just told us, not on inference.
+const HEALTH_ENABLED = (env('PROXLANE_HEALTH') ?? 'off') === 'on';
 
 // Cooldowns are ON by default for the same reason: asking a provider something it refused
 // ninety seconds ago costs money and usually gets refused again.
@@ -155,7 +163,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 		`\n  proxlane gateway on :${info.port}\n` +
 			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(', ')}\n` +
 			`  state:     ${redis === undefined ? 'in-process (single replica only)' : 'valkey (shared)'}\n` +
-			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'OFF (PROXLANE_HEALTH=off)'}\n` +
+			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'off by default; PROXLANE_HEALTH=on to enable'}\n` +
 			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);

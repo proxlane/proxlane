@@ -11,11 +11,11 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 
 **Public since 2026-08-10**, with a ruleset on `main` carrying no bypass actor.
 
-Health and cooldowns both route live traffic: health re-ranks the chain and forces the
-least-bad provider rather than refusing, cooldowns skip one that just refused this domain
-and return `Retry-After` when all are cooling. In-process, or shared via
-`PROXLANE_VALKEY_URL`; without it `PROXLANE_REPLICAS>1` refuses to boot. Last piece is the
-**probe worker** (needs `apps/worker`) — until it lands, a demoted provider stays demoted.
+Cooldowns route live traffic. **Health ships disabled** (`PROXLANE_HEALTH=on`): its
+calibration assumes independent failures, and a two-regime provider with the same mean rate
+spends over 90% of its time demoted in simulation. Validating it needs real traffic. State is
+in-process, or shared via `PROXLANE_VALKEY_URL`. A five-lens panel found a broken self-host
+default and eleven defects here, all fixed and regression-tested. Left: the **probe worker**.
 
 The detector's rules come from vendor signatures and have **never seen a real block page**;
 a test asserts the count.

@@ -383,13 +383,20 @@ something:
 
 | design | healthy providers falsely demoted within 20k samples |
 |---|---|
-| fixed 5% bootstrap | a 10%-failure provider demoted after a median of 430 samples |
-| measured, plain rate | 18.3% / 16.3% / 16.3% / 17.3% at true rates 2 / 4 / 10 / 20% |
-| measured, Wilson upper bound | 0.0% / 0.0% / 0.3% / 3.0% |
+| fixed 5% bootstrap | a 10%-failure provider demoted after a median of ~430 samples |
+| measured, plain rate | ~16-18%, at every rate |
+| measured, Wilson upper bound | 0.2% / 0.3% / 0.6% / 3.1% at true rates 2 / 4 / 10 / 20% |
 
 Under-estimating `p0` is unrecoverable — the provider sits permanently above its own baseline
 and the statistic ratchets — while over-estimating only costs sensitivity. The estimator is
-asymmetric for that reason, and it costs four samples of detection delay.
+asymmetric for that reason.
+
+**`MIN_SAMPLES` and specificity are coupled, in the counter-intuitive direction.** The Wilson
+bound is an inflation factor of size `O(z/√n)`, so a LARGER baseline sample makes `p0` tighter
+and the detector twitchier: measured, 500 gives 0.5% false demotes within 100k at a true 4%,
+and 5,000 gives 2.5%. Anyone reasoning "a better baseline needs more samples" would degrade
+specificity fivefold. The real alternative hypothesis is not 3x the baseline; it is roughly
+4.6x the true rate, and only at n=500.
 
 **A note on how the second row survived review for a while:** the summary being read was the
 MEDIAN run length, which said 589,863 samples to a false demote. The distribution is heavy
@@ -482,10 +489,35 @@ continuously and never took effect at all.
 
 #### Where it lands, at the pinned constants
 
-- One false demote per ~54M observations per provider. At 50,000 attempts/day, one every
-  2.9 years.
-- The motivating incident — 96% to 74% over a 1,000-sample slide — is demoted at 877.
-- Under 1% of steady healthy providers falsely demoted within 20,000 samples.
+All from `scripts/health-numbers.json`, which `scripts/health-sim.ts` writes and `repo:check`
+asserts this document matches. Every figure here was stale at least once, and the worst of
+them quoted the **rejected** estimator's result as the shipped system's.
+
+- The motivating incident — 96% to 74% over a 1,000-sample slide — is demoted at
+  **1,015**. As a step change rather than a slide, **52**.
+- False demotes within 20,000 samples: **0.3%** at a true 4% failure rate,
+  **3.1%** at 20%. Not "under 1%" — that held for three of the four rates measured.
+- **The hazard is not constant.** There is roughly a 10x burn-in over a provider's first
+  20,000 observations, so a pooled lifetime rate divided by requests-per-day understates
+  early-life risk. Quote the first-20k probability. Every recovery re-measures `p0` and
+  therefore restarts the burn-in.
+
+#### What it cannot do, and why it ships disabled
+
+The alternative hypothesis is 3x the baseline, so the drift only turns positive near 2x the
+true rate. From a 4% base, the probability of demoting within 20,000 samples is 6% for a 1.5x
+rise, 29% for 2x, 63% for 2.5x, and 100% for the 6.5x of the motivating incident. **It
+reliably catches 2.5x and above; 2x is a coin flip; 1.5x is invisible.**
+
+Underneath all of it is an assumption of independent Bernoulli trials, and providers do not
+produce them. A two-regime provider with an **identical mean failure rate** — a bad hour, a
+struggling upstream, a diurnal pattern — spends over 90% of its time demoted in simulation,
+against 0.0% for the iid stream every figure above was derived from. The exit path is
+slower than the regime dynamics, so one bad patch buys hours out of rotation.
+
+**So `PROXLANE_HEALTH` defaults to `off`.** The statistic is not wrong; the claim that it was
+safe to leave on unattended was. Cooldowns stay on: they act on facts a provider just told
+us, not on inference.
 
 ## 4. Cost accounting
 
