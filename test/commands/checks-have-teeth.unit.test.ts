@@ -85,6 +85,36 @@ describe('repo:check goes red when it should', () => {
 		expect(repoCheck().code).toBe(0);
 	});
 
+	it('catches a dependency edge pointing UP a layer', () => {
+		// Assertion 20 exists because the graph was inverted for months and nothing noticed:
+		// `shared`, the base layer, depended on `adapters`, a leaf. turbo only complains once
+		// a cycle is COMPLETE, so a one-way inversion builds cleanly and stays invisible until
+		// someone closes it, by which point the fix is a refactor rather than a deletion.
+		//
+		// The mutation restores exactly that edge.
+		mutate('packages/shared/package.json', (t) => {
+			const j = JSON.parse(t);
+			j.dependencies = { ...j.dependencies, '@proxlane/adapters': 'workspace:*' };
+			return `${JSON.stringify(j, null, '\t')}\n`;
+		});
+		expectRedBecause(
+			/@proxlane\/shared \(layer 1\) depends on @proxlane\/adapters \(layer 2\)/,
+			'shared depending on adapters',
+		);
+	});
+
+	it('catches a package with no declared layer at all', () => {
+		// The other half. A new package that nobody classified would otherwise be exempt from
+		// the rule, which is the same shape as a check whose denominator is zero.
+		mutate('packages/detect/package.json', (t) =>
+			t.replace('"@proxlane/detect"', '"@proxlane/unclassified"'),
+		);
+		expectRedBecause(
+			/@proxlane\/unclassified has no layer in repo-check assertion 20/,
+			'an unclassified package',
+		);
+	});
+
 	it('catches a command flipped to implemented without being built', () => {
 		// Structural, not textual: inserting a second "status" key produced a duplicate that
 		// JSON.parse silently resolved to the LAST occurrence, so the mutation was a no-op

@@ -143,6 +143,9 @@ importers:
 
   packages/adapters:
     dependencies:
+      '@proxlane/shared':
+        specifier: workspace:*
+        version: link:../shared
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -255,10 +258,6 @@ importers:
         version: 5.9.3
 
   packages/shared:
-    dependencies:
-      '@proxlane/adapters':
-        specifier: workspace:*
-        version: link:../adapters
     devDependencies:
       '@proxlane/tsconfig':
         specifier: workspace:*
