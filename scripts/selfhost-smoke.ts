@@ -35,7 +35,16 @@ function compose(args: string[], opts: { quiet?: boolean } = {}): void {
 		cwd: ROOT,
 		encoding: 'utf8',
 		stdio: opts.quiet === true ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-		env: { ...process.env, PORT: String(PORT), PROXLANE_API_KEY: API_KEY },
+		env: {
+			...process.env,
+			PORT: String(PORT),
+			PROXLANE_API_KEY: API_KEY,
+			// Health is OFF by default, deliberately — see apps/gateway/src/index.ts. The smoke
+			// test turns it ON so the RICHEST surface is the one exercised: with it off,
+			// /health/providers honestly answers 501 and the state store is never read, which
+			// is exactly the coverage gap that let a broken default Valkey client ship.
+			PROXLANE_HEALTH: 'on',
+		},
 	});
 	if (r.status !== 0) {
 		throw new Error(
@@ -125,7 +134,7 @@ try {
 			// Redis client for it, and this endpoint 500'd on every call while the boot banner
 			// claimed shared state. Nothing noticed, because the smoke test only exercised the
 			// surface that existed before health and cooldowns did.
-			what: 'the router will say what it believes about each provider',
+			what: 'the router will say what it believes about each provider (PROXLANE_HEALTH=on)',
 			run: async () => {
 				const r = await fetch(`http://127.0.0.1:${PORT}/health/providers?api_key=${API_KEY}`);
 				if (r.status !== 200) throw new Error(`/health/providers returned ${r.status}`);
