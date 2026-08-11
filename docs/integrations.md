@@ -249,7 +249,10 @@ Notes:
   provider B, and retrying it burns money. (ScraperAPI charges for 404s.)
 - Scrapfly's own retryable flag is mapped in, not overridden.
 - Every response carries `X-Outcome`, `X-Provider-Used`, `X-Attempts`,
-  `X-Detect-Rule` so users can self-serve debug.
+  `X-Detect-Rule`, and `X-Provider-Health` when a provider served, so users can self-serve
+  debug. `GET /health/providers` returns the router's opinion of each provider and **takes
+  the gateway key**: `/health` reports a count and no names because it is unauthenticated,
+  and an open endpoint listing them would undo that.
 
 ### Cooldowns: two namespaces, because one conflates two facts
 
@@ -391,6 +394,23 @@ request on a known-dead provider every 15 minutes, which is right for a transien
 actively harmful across a three-day outage — roughly 288 wasted requests per domain per day.
 Probe backoff runs 5 minutes to a 6-hour ceiling, so a dead provider costs at most four
 probes a day.
+
+**Which key the probe uses, resolved.** This was filed as blocking on the grounds that
+"launch is BYOK and the gateway holds no house keys, so a demoted provider can never
+recover". That was wrong about launch. Self-host is **one operator, one process, provider
+keys in its own environment** — the gateway already holds a usable credential, and the
+operator already pays for every attempt it makes. So the probe uses the configured key,
+against the same stable targets `pnpm record` uses, at roughly one credit per probe and at
+most four a day per demoted provider.
+
+It is **opt-out, not opt-in** (`PROXLANE_HEALTH=off`): a provider that can never recover is
+a far worse default than a handful of credits.
+
+The rejected alternative is a shadow attempt on real traffic. Under BYOK it spends the
+operator's money on a duplicate of an arbitrary request — ten credits if that request
+rendered JS, against one for a probe — and it is non-deterministic, so a failed shadow tells
+you less. The genuine consent-and-cost question, *whose* key pays to probe on everyone's
+behalf, only exists with multiple tenants. That is hosted, and it is phase 3.
 
 #### Routing consumes it
 
