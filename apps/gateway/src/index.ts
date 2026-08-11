@@ -6,6 +6,7 @@
 import { serve } from '@hono/node-server';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
 import { createApp } from './app.js';
+import { InMemoryCooldownStore } from './cooldown-store.js';
 import { assertSingleWriter, InMemoryHealthStore } from './health-store.js';
 import { createFetchTransport } from './transport.js';
 
@@ -20,6 +21,10 @@ const MAX_BODY_BYTES = Number(process.env.PROXLANE_BODY_CAP_MB ?? 10) * 1024 * 1
 // no configuration to be useful. The switch exists for someone who wants the chain to behave
 // exactly as it did before, and for bisecting a routing complaint.
 const HEALTH_ENABLED = (process.env.PROXLANE_HEALTH ?? 'on') !== 'off';
+
+// Cooldowns are ON by default for the same reason: asking a provider something it refused
+// ninety seconds ago costs money and usually gets refused again.
+const COOLDOWNS_ENABLED = (process.env.PROXLANE_COOLDOWNS ?? 'on') !== 'off';
 
 // Provider health is stored in this process, so a second replica would keep a second opinion
 // and demote independently. Refuse rather than misroute. See health-store.ts.
@@ -73,6 +78,15 @@ if (candidates.length === 0) {
 	);
 }
 
+const cooldowns = new InMemoryCooldownStore();
+// Expired entries are keyed by (provider, domain) and nothing else would ever remove them,
+// so a long-lived gateway with wide traffic leaks one entry per host it has been blocked on.
+// Valkey gets this free from key TTLs. In memory it has to be swept, and `unref` so an idle
+// timer never holds the process open — which is how a graceful shutdown turns into a hang.
+if (COOLDOWNS_ENABLED) {
+	setInterval(() => cooldowns.sweep(Date.now()), 10 * 60 * 1000).unref();
+}
+
 const app = createApp({
 	transport: createFetchTransport(),
 	candidates,
@@ -80,6 +94,7 @@ const app = createApp({
 	maxBodyBytes: MAX_BODY_BYTES,
 	defaultDeadlineMs: DEFAULT_DEADLINE_MS,
 	...(HEALTH_ENABLED ? { health: new InMemoryHealthStore() } : {}),
+	...(COOLDOWNS_ENABLED ? { cooldowns } : {}),
 });
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
@@ -87,6 +102,7 @@ serve({ fetch: app.fetch, port: PORT }, (info) => {
 		`\n  proxlane gateway on :${info.port}\n` +
 			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(', ')}\n` +
 			`  health:    ${HEALTH_ENABLED ? 'on, in-process — GET /health/providers' : 'OFF (PROXLANE_HEALTH=off)'}\n` +
+			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on, in-process' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);
 });

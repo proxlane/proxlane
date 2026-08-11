@@ -11,6 +11,7 @@ import { type Adapter, carriesBody, type GatewayRequest, policyFor } from '@prox
 import { Hono } from 'hono';
 import type { ChainResult } from './chain.js';
 import { runChain } from './chain.js';
+import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
 import type { HttpTransport } from './transport.js';
 
@@ -24,6 +25,8 @@ export interface AppDeps {
 	readonly defaultDeadlineMs: number;
 	/** Omit to route without health. The gateway then behaves exactly as it did before. */
 	readonly health?: HealthStore;
+	/** Omit to route without cooldowns. */
+	readonly cooldowns?: CooldownStore;
 }
 
 /** Constant-time compare, so a wrong key cannot be discovered one character at a time. */
@@ -56,6 +59,13 @@ function headersFor(r: ChainResult): Record<string, string> {
 		// degraded answer is expected. A user who can see that understands their world;
 		// scattered unexplained failures get blamed on us. operations.md section 4.
 		...(r.providerHealth === undefined ? {} : { 'X-Provider-Health': r.providerHealth }),
+		// Seconds, per RFC 9110, and rounded UP: rounding a 1.4s wait down to 1 invites a
+		// retry that is still too early, which re-arms the very cooldown being waited out.
+		// Only set when the chain actually knows — a 503 with a guessed Retry-After is worse
+		// than none, because a caller will believe it.
+		...(r.retryAfterMs === undefined
+			? {}
+			: { 'Retry-After': String(Math.ceil(r.retryAfterMs / 1000)) }),
 	};
 }
 
@@ -165,6 +175,7 @@ export function createApp(deps: AppDeps): Hono {
 			candidates,
 			maxBodyBytes: deps.maxBodyBytes,
 			...(deps.health === undefined ? {} : { health: deps.health }),
+			...(deps.cooldowns === undefined ? {} : { cooldowns: deps.cooldowns }),
 		});
 
 		const policy = policyFor(result.outcome);

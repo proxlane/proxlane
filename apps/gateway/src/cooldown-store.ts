@@ -1,0 +1,108 @@
+// Where cooldowns live between requests. The I/O half of `packages/shared/src/cooldown.ts`.
+//
+// Same shape and same reasoning as `health-store.ts`: process-local today because self-host
+// is one process, an async interface so the Valkey implementation is a swap, and the single
+// -writer limit enforced at boot rather than described in a comment.
+//
+// One difference worth naming. Health degrades gracefully when it is lost — every provider
+// re-enters measurement and routing is merely less informed. A lost cooldown is a wasted
+// attempt at a provider that was about to block us again, which costs money rather than
+// quality. Neither is a reason to fail closed: `integrations.md` section 3's table says both
+// fail OPEN, because refusing a request outright is worse than paying for one bad hop.
+
+import {
+	arm,
+	type CooldownDecision,
+	type CooldownEntry,
+	claimProbe,
+	decide,
+} from '@proxlane/shared';
+
+export interface CooldownStore {
+	/**
+	 * Read, without claiming anything. A `probe` decision here is an invitation, not a
+	 * reservation — the caller claims it only for the provider it actually attempts, so a
+	 * provider that gets re-ranked away does not burn the probe slot on its way past.
+	 *
+	 * May reject. The chain fails OPEN.
+	 */
+	check(keys: readonly string[], now: number): Promise<ReadonlyMap<string, CooldownDecision>>;
+
+	/**
+	 * Take the single post-expiry probe. `false` means somebody else has it, and the caller
+	 * must treat the provider as cooling.
+	 *
+	 * Awaited, unlike `record` on the health store, and the difference is the point: this one
+	 * decides whether to spend money on an attempt, so it is part of the decision rather than
+	 * an observation of it. Implementations must make it atomic.
+	 */
+	claim(key: string, now: number): Promise<boolean>;
+
+	/** Arm or re-arm after a cooling-worthy outcome. Best-effort, off the critical path. */
+	arm(key: string, now: number): void;
+
+	/** A provider that just worked is not cooled. Best-effort. */
+	clear(key: string): void;
+}
+
+/** Process-local cooldowns. Correct for one gateway, wrong for two. */
+export class InMemoryCooldownStore implements CooldownStore {
+	readonly #entries = new Map<string, CooldownEntry>();
+	readonly #rng: () => number;
+
+	constructor(rng: () => number = Math.random) {
+		this.#rng = rng;
+	}
+
+	check(keys: readonly string[], now: number): Promise<ReadonlyMap<string, CooldownDecision>> {
+		return Promise.resolve(new Map(keys.map((k) => [k, decide(this.#entries.get(k), now)])));
+	}
+
+	claim(key: string, now: number): Promise<boolean> {
+		const { claimed, next } = claimProbe(this.#entries.get(key), now);
+		// Single-threaded JS makes this atomic for free. Valkey will not, which is why the
+		// pure function returns the next entry rather than mutating: a Lua script applies the
+		// same compare-and-set in one round trip.
+		if (next !== undefined) this.#entries.set(key, next);
+		return Promise.resolve(claimed);
+	}
+
+	arm(key: string, now: number): void {
+		this.#entries.set(key, arm(this.#entries.get(key), now, this.#rng));
+	}
+
+	clear(key: string): void {
+		this.#entries.delete(key);
+	}
+
+	/** Test and diagnostic access. Not part of the interface. */
+	peek(key: string): CooldownEntry | undefined {
+		return this.#entries.get(key);
+	}
+
+	/**
+	 * Drop entries that expired long ago.
+	 *
+	 * An unbounded Map keyed by (provider, domain) grows with the number of distinct hosts a
+	 * gateway has ever been blocked on, and nothing else would ever remove them — a slow leak
+	 * that only appears on a long-running instance with wide traffic, which is the hardest
+	 * kind to notice. Valkey gets this free from key TTLs; in memory it has to be swept.
+	 *
+	 * `consecutive` is lost when an entry is swept, so the backoff for that key restarts. That
+	 * is correct: a domain we have not been blocked on for an hour is not mid-incident.
+	 */
+	sweep(now: number, olderThanMs = 60 * 60 * 1000): number {
+		let removed = 0;
+		for (const [k, e] of this.#entries) {
+			if (now - e.untilMs > olderThanMs) {
+				this.#entries.delete(k);
+				removed++;
+			}
+		}
+		return removed;
+	}
+
+	get size(): number {
+		return this.#entries.size;
+	}
+}
