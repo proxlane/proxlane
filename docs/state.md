@@ -11,7 +11,7 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 
 **Public since 2026-08-10**, with a ruleset on `main` carrying no bypass actor.
 
-Cooldowns route live traffic. **Health ships disabled** (`PROXLANE_HEALTH=on`): its
+Cooldowns route live traffic. **Health is off unless `PROXLANE_HEALTH=on`**: its
 calibration assumes independent failures, and a two-regime provider with the same mean rate
 spends over 90% of its time demoted in simulation. Validating it needs real traffic. State is
 in-process, or shared via `PROXLANE_VALKEY_URL`. A five-lens panel found a broken self-host

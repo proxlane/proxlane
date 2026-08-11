@@ -436,8 +436,9 @@ operator already pays for every attempt it makes. So the probe uses the configur
 against the same stable targets `pnpm record` uses, at roughly one credit per probe and at
 most four a day per demoted provider.
 
-It is **opt-out, not opt-in** (`PROXLANE_HEALTH=off`): a provider that can never recover is
-a far worse default than a handful of credits.
+Probing itself is not optional once health is enabled — a provider that can never recover is
+a far worse default than a handful of credits. **Health as a whole is opt-in**
+(`PROXLANE_HEALTH=on`); see the end of this section for why.
 
 The rejected alternative is a shadow attempt on real traffic. Under BYOK it spends the
 operator's money on a duplicate of an arbitrary request — ten credits if that request

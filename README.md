@@ -102,8 +102,11 @@ cp .env.example .env   # add your provider keys
 docker compose up
 ```
 
-Gateway on :8080, dashboard on :3000, Postgres, Valkey and the worker included. Your keys, your
-infrastructure, your scraped data. Nothing phones home unless you opt in.
+One gateway on :8787. No dashboard, no Postgres, no worker — none of them exist yet, and
+shipping empty services would be furniture rather than a deployment. Valkey ships commented
+out: it is what lets you run more than one gateway, and a single one does not need it.
+
+Your keys, your infrastructure, your scraped data. Nothing phones home unless you opt in.
 
 Self-hosters can optionally share anonymized per-domain routing statistics. In
 exchange you get the community routing table, which is the data that makes smart
@@ -205,8 +208,13 @@ That is the whole contribution bar. See [CONTRIBUTING.md](CONTRIBUTING.md).
   change.
 - **A CLI** — `npx proxlane scrape|providers|outcomes|doctor`, `--json` on all of it.
 
-**Does not exist yet**: block detection (`/detect`), so `SOFT_BLOCK` cannot be produced;
-cooldowns and provider health; any database, request log or dashboard; hosted credits.
+**Exists now**: block detection, so `SOFT_BLOCK` is produced; cooldowns, on by default, with
+`Retry-After` when every provider is cooling; provider health, **off by default** because its
+calibration assumes failures that do not clump the way real ones do — `PROXLANE_HEALTH=on`,
+and read `GET /health/providers`.
+
+**Does not exist yet**: any database, request log or dashboard; a worker, so a demoted
+provider is not probed back; hosted credits.
 
 `pnpm repo:check` reports which of the 24 commands are real. It is asserted against the
 filesystem, so it cannot drift the way a status section can — and it caught this one lying
