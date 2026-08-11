@@ -34,6 +34,7 @@ import {
 	type CooldownEntry,
 	decide,
 	type HealthState,
+	healthWeight,
 	initial,
 	observe,
 	observeProbe,
@@ -112,6 +113,22 @@ const FLUSH_INTERVAL_MS = 250;
 /** Flush early once a provider has this many pending observations, so bursts stay bounded. */
 const FLUSH_AT = 200;
 
+/**
+ * Hard ceiling on buffered observations per provider.
+ *
+ * Requeue-on-failure is right — losing a whole flush interval to one blip is the failure
+ * buffering exists to avoid — but without a ceiling it is a memory leak with a trigger any
+ * dependency blip can pull. Worse, the early-flush test above is `>=`, so once a requeued
+ * batch sat above FLUSH_AT, EVERY subsequent record chained another full write attempt:
+ * measured at 2,000 records producing 1,801 GETs against a down Valkey, and 1,500 records
+ * producing 3,903 GET+EVAL pairs against a contended one. The buffer amplified load on the
+ * store precisely when the store was struggling.
+ *
+ * At the ceiling the OLDEST observations are dropped, not the newest: the statistic cares
+ * about the recent past, and a stale backlog describes a provider that has since moved on.
+ */
+const MAX_PENDING = 5_000;
+
 export class ValkeyHealthStore implements HealthStore {
 	readonly #redis: Redis;
 	readonly #onError: (where: string, err: unknown) => void;
@@ -126,6 +143,17 @@ export class ValkeyHealthStore implements HealthStore {
 	 * queues behind the write in progress instead, so `await flush()` means what it says.
 	 */
 	readonly #chains = new Map<string, Promise<void>>();
+	/**
+	 * A batch currently being written. Still folded into reads.
+	 *
+	 * Without it the batch is detached from `#pending` before the first await and exists in
+	 * neither place for the duration of the round trip, so a concurrent read goes BACKWARDS —
+	 * the exact property `snapshot` claims to guarantee. The e2e test that asserts it never
+	 * overlapped a flush, so it could not see this.
+	 */
+	readonly #inFlight = new Map<string, { outcome: Outcome; now: number; probe?: boolean }[]>();
+	/** Observations discarded because a provider's buffer hit MAX_PENDING. */
+	#dropped = 0;
 	readonly #timer: NodeJS.Timeout | undefined;
 
 	constructor(opts: ValkeyStoreOptions & { readonly autoFlush?: boolean }) {
@@ -197,32 +225,67 @@ export class ValkeyHealthStore implements HealthStore {
 	 * dropped: the first round drains what is pending, the second picks up anything a
 	 * concurrent writer forced back into the queue.
 	 */
-	async flush(): Promise<void> {
-		for (let round = 0; round < 2; round++) {
+	async flush(rounds = 2): Promise<void> {
+		for (let round = 0; round < rounds; round++) {
 			const ids = new Set([...this.#pending.keys(), ...this.#chains.keys()]);
 			if (ids.size === 0) return;
 			await Promise.all([...ids].map((id) => this.#flushOne(id)));
 		}
 	}
 
-	/** Flush and stop the timer. */
+	/**
+	 * Flush and stop the timer.
+	 *
+	 * More rounds than a routine flush, because this is the last chance: under sustained
+	 * contention a requeued batch needs several passes, and a two-round `flush()` resolving
+	 * with data still buffered was the loss path even once shutdown called it.
+	 */
 	async close(): Promise<void> {
 		if (this.#timer !== undefined) clearInterval(this.#timer);
-		await this.flush();
+		await this.flush(10);
+		if (this.#pending.size > 0) {
+			this.#report(
+				'health close',
+				new Error(`${this.#pending.size} provider(s) still buffered after 10 drain rounds`),
+			);
+		}
 	}
 
 	#enqueue(providerId: string, obs: { outcome: Outcome; now: number; probe?: boolean }): void {
-		const q = this.#pending.get(providerId);
-		if (q === undefined) this.#pending.set(providerId, [obs]);
-		else q.push(obs);
-		if ((this.#pending.get(providerId)?.length ?? 0) >= FLUSH_AT)
-			void this.#flushOne(providerId);
+		// Ignored outcomes are pure no-ops in `observe`, so buffering them buys nothing and
+		// costs a write. Measured: 500 TARGET_NOT_FOUND records produced 301 GETs for
+		// observations that provably could not change anything.
+		if (obs.probe === undefined && healthWeight(obs.outcome) === 'ignore') return;
+
+		const q = this.#pending.get(providerId) ?? [];
+		q.push(obs);
+		if (q.length > MAX_PENDING) {
+			const dropped = q.length - MAX_PENDING;
+			q.splice(0, dropped);
+			this.#dropped += dropped;
+		}
+		this.#pending.set(providerId, q);
+
+		// Only trigger an early flush at the threshold itself, never above it. `>=` meant a
+		// requeued batch re-triggered on every single record, turning the buffer into an
+		// amplifier against a store that was already failing.
+		if (q.length === FLUSH_AT) void this.#flushOne(providerId);
+	}
+
+	/** Observations discarded at the ceiling. Surfaced so a silent leak becomes a visible loss. */
+	get droppedObservations(): number {
+		return this.#dropped;
 	}
 
 	/** Fold buffered observations onto a stored state. The same pure functions, in order. */
 	#applyPending(providerId: string, from: HealthState): HealthState {
 		let st = from;
-		for (const o of this.#pending.get(providerId) ?? []) {
+		// In-flight first: it was enqueued earlier, and `observe` is order-dependent.
+		const buffered = [
+			...(this.#inFlight.get(providerId) ?? []),
+			...(this.#pending.get(providerId) ?? []),
+		];
+		for (const o of buffered) {
 			st =
 				o.probe === undefined
 					? observe(st, o.outcome, o.now)
@@ -249,7 +312,12 @@ export class ValkeyHealthStore implements HealthStore {
 		if (batch === undefined || batch.length === 0) return;
 		// Detach the batch before the first await: anything recorded during the write belongs
 		// to the next flush, not this one, or it would be applied twice.
+		//
+		// Parked in `#inFlight` rather than simply dropped from `#pending`, because otherwise
+		// the observations exist in neither place for the duration of the round trip and a
+		// concurrent read goes BACKWARDS — the exact property `snapshot` claims to guarantee.
 		this.#pending.delete(providerId);
+		this.#inFlight.set(providerId, batch);
 		const key = healthKey(providerId);
 		try {
 			for (let attempt = 0; attempt < CAS_ATTEMPTS; attempt++) {
@@ -277,15 +345,51 @@ export class ValkeyHealthStore implements HealthStore {
 			// Contended past the retry budget. Put the batch back rather than dropping it: it
 			// is a whole flush interval of observations, not one, and the next flush re-reads
 			// and re-folds it onto whatever the winner wrote.
-			const q = this.#pending.get(providerId);
-			this.#pending.set(providerId, q === undefined ? batch : [...batch, ...q]);
-			this.#onError(`health ${key}`, new Error('contended; batch requeued'));
+			this.#requeue(providerId, batch);
+			this.#report(`health ${key}`, new Error('contended; batch requeued'));
 		} catch (err) {
 			// Put the batch back on a transport failure too. Dropping it here would lose a whole
 			// flush interval to one blip, which is the failure mode buffering exists to avoid.
-			const q = this.#pending.get(providerId);
-			this.#pending.set(providerId, q === undefined ? batch : [...batch, ...q]);
-			this.#onError(`health ${key}`, err);
+			//
+			// NOT idempotent, and worth stating: if the EVAL reached the server and the reply
+			// was lost, the batch is applied twice. With `maxRetriesPerRequest: 1` that is a
+			// live path on any connection blip. Double-counting a batch of successes moves the
+			// statistic slightly; it cannot invent a demotion, because `observe` is monotone in
+			// failures and a duplicated batch contains the same ones. Accepted, and said out
+			// loud rather than implied by the word "lossless".
+			this.#requeue(providerId, batch);
+			this.#report(`health ${key}`, err);
+		} finally {
+			this.#inFlight.delete(providerId);
+		}
+	}
+
+	#requeue(
+		providerId: string,
+		batch: { outcome: Outcome; now: number; probe?: boolean }[],
+	): void {
+		const q = this.#pending.get(providerId);
+		const merged = q === undefined ? batch : [...batch, ...q];
+		if (merged.length > MAX_PENDING) {
+			this.#dropped += merged.length - MAX_PENDING;
+			merged.splice(0, merged.length - MAX_PENDING);
+		}
+		this.#pending.set(providerId, merged);
+	}
+
+	/**
+	 * Report a failure without letting the reporter become one.
+	 *
+	 * `onError` is caller-supplied and every call site here is inside a promise nobody awaits.
+	 * A throwing reporter therefore surfaced as an unhandled rejection, which under Node's
+	 * default is process death — on a path the hot path deliberately does not await, so the
+	 * chain's own try/catch could not see it.
+	 */
+	#report(where: string, err: unknown): void {
+		try {
+			this.#onError(where, err);
+		} catch {
+			// Nothing left to report to.
 		}
 	}
 }
@@ -300,7 +404,12 @@ export class ValkeyHealthStore implements HealthStore {
 const CLAIM = `
 local raw = redis.call('GET', KEYS[1])
 if not raw then return 1 end
-local e = cjson.decode(raw)
+-- Defensive, because the JS side is. parseCooldown treats an unreadable record as ABSENT,
+-- which is the fail-open direction section 3 requires; the Lua raised instead, the claim
+-- rejected, and chain.ts's catch failed open into the herd the half-open design exists to
+-- prevent. The two copies disagreed exactly where it costs money.
+local ok, e = pcall(cjson.decode, raw)
+if not ok or type(e) ~= 'table' or type(e.untilMs) ~= 'number' then return 1 end
 if tonumber(ARGV[1]) < e.untilMs then return 0 end
 if e.probeTaken then return 0 end
 e.probeTaken = true
@@ -355,6 +464,15 @@ export class ValkeyCooldownStore implements CooldownStore {
 		this.#rng = opts.rng ?? Math.random;
 	}
 
+	/** See `ValkeyHealthStore.#report`. A throwing reporter must not kill the process. */
+	#report(where: string, err: unknown): void {
+		try {
+			this.#onError(where, err);
+		} catch {
+			// Nothing left to report to.
+		}
+	}
+
 	async check(
 		keys: readonly string[],
 		now: number,
@@ -388,19 +506,19 @@ export class ValkeyCooldownStore implements CooldownStore {
 					);
 					if (ok === 1) return;
 				} catch (err) {
-					this.#onError(`cooldown arm ${key}`, err);
+					this.#report(`cooldown arm ${key}`, err);
 					return;
 				}
 			}
 			// Losing this race means somebody else armed the same key at the same instant, so
 			// the cooldown exists either way. Unlike a dropped health observation this one is
 			// genuinely harmless, and saying so beats a silent return.
-			this.#onError(`cooldown arm ${key}`, new Error('contended; another writer armed it'));
+			this.#report(`cooldown arm ${key}`, new Error('contended; another writer armed it'));
 		})();
 	}
 
 	clear(key: string): void {
-		this.#redis.del(key).catch((err: unknown) => this.#onError(`cooldown clear ${key}`, err));
+		this.#redis.del(key).catch((err: unknown) => this.#report(`cooldown clear ${key}`, err));
 	}
 
 	release(key: string): void {
@@ -408,7 +526,7 @@ export class ValkeyCooldownStore implements CooldownStore {
 		// probes on the same key must not clobber each other's expiry.
 		this.#redis
 			.eval(RELEASE, 1, key)
-			.catch((err: unknown) => this.#onError(`cooldown release ${key}`, err));
+			.catch((err: unknown) => this.#report(`cooldown release ${key}`, err));
 	}
 }
 

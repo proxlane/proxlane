@@ -150,7 +150,7 @@ const app = createApp({
 	...(cooldowns === undefined ? {} : { cooldowns }),
 });
 
-serve({ fetch: app.fetch, port: PORT }, (info) => {
+const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 	process.stdout.write(
 		`\n  proxlane gateway on :${info.port}\n` +
 			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(', ')}\n` +
@@ -160,3 +160,38 @@ serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);
 });
+
+/**
+ * Shut down without losing work or cutting a scrape in half.
+ *
+ * There was no signal handling at all. Node's default SIGTERM handler hard-exits, so a
+ * container stop dropped every buffered health observation, abandoned in-flight scrapes
+ * mid-request — up to the 90s deadline — and left the Valkey socket open. `close()` existed
+ * on the health store and was called from nowhere but tests, which made its own comment
+ * ("close() flushes on a clean one") false.
+ *
+ * Idempotent, because SIGINT following SIGTERM is normal, and bounded: a shutdown that hangs
+ * waiting for a dead Valkey is worse than one that loses a flush interval, and the
+ * orchestrator's SIGKILL is not a graceful path.
+ */
+let shuttingDown = false;
+async function shutdown(signal: string): Promise<void> {
+	if (shuttingDown) return;
+	shuttingDown = true;
+	process.stdout.write(`\n  ${signal} — draining\n`);
+
+	const deadline = new Promise<void>((r) => setTimeout(r, 10_000).unref());
+	await Promise.race([
+		(async () => {
+			await new Promise<void>((r) => server.close(() => r()));
+			if (health instanceof ValkeyHealthStore) await health.close();
+			if (redis !== undefined) await redis.quit();
+		})(),
+		deadline,
+	]);
+	process.exit(0);
+}
+
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+	process.on(signal, () => void shutdown(signal));
+}
