@@ -9,13 +9,13 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 
 ## Now
 
-**Public since 2026-08-10.** Ruleset on `main` with no bypass actor, verified by a rejected
-push, so blocking CI binds on the maintainer too. Scanning and Dependabot are on.
+**Public since 2026-08-10**, with a ruleset on `main` carrying no bypass actor.
 
-Provider health routes live traffic: the CUSUM re-ranks the chain, drops demoted providers,
-forces the least-bad one rather than refusing, and reports itself on `X-Provider-Health` and
-`/health/providers`. Stored in-process — `PROXLANE_REPLICAS>1` refuses to boot. **The probe
-worker is the last piece**, and it needs `apps/worker`, which does not exist.
+Health and cooldowns both route live traffic. Health re-ranks the chain and forces the
+least-bad provider rather than refusing; cooldowns skip one that just refused this domain,
+half-open with a claimed probe, and return `Retry-After` when everything is cooling. Both
+in-process — `PROXLANE_REPLICAS>1` refuses to boot. Next: **Valkey backing** for both, and
+the **probe worker**, which needs `apps/worker`.
 
 The detector's rules come from vendor signatures and have **never seen a real block page**;
 a test asserts the count.

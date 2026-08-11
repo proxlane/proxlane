@@ -16,6 +16,7 @@ import { type Adapter, REGISTRY } from '@proxlane/adapters';
 import { createReplayTransport, loadFixtures } from '@proxlane/vitest-config/replay-transport';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
+import { InMemoryCooldownStore } from './cooldown-store.js';
 import { InMemoryHealthStore } from './health-store.js';
 import type { HttpTransport } from './transport.js';
 
@@ -40,10 +41,12 @@ const target = (category: string) => {
 let base: string;
 let server: ReturnType<typeof serve>;
 let health: InMemoryHealthStore;
+let cooldowns: InMemoryCooldownStore;
 
 beforeAll(async () => {
 	const transport: HttpTransport = createReplayTransport(entries);
 	health = new InMemoryHealthStore();
+	cooldowns = new InMemoryCooldownStore();
 	const app = createApp({
 		transport,
 		candidates: adapters,
@@ -51,6 +54,7 @@ beforeAll(async () => {
 		maxBodyBytes: 10 * 1024 * 1024,
 		defaultDeadlineMs: 90_000,
 		health,
+		cooldowns,
 	});
 	// Port 0: the OS picks a free one. A hardcoded port makes the suite fail on a developer
 	// machine that happens to be running the gateway.
@@ -175,6 +179,31 @@ describe('query parsing, where a default leaks most easily', () => {
 			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&provider=${only}`,
 		);
 		expect(r.headers.get('x-provider-used')).toBe(only);
+	});
+});
+
+describe('cooldowns, over real HTTP', () => {
+	it('answers 503 with Retry-After when every provider is cooling', async () => {
+		// A 503 with no Retry-After tells a caller to guess, and they will guess wrong in the
+		// direction that re-arms the cooldown they are waiting out.
+		const target = 'https://cooled.example/page';
+		for (const id of IDS) {
+			cooldowns.arm(`cd:blk:${id}:cooled.example`, Date.now());
+		}
+		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target)}`);
+		expect(r.status).toBe(503);
+		expect(r.headers.get('x-outcome')).toBe('NO_PROVIDER_AVAILABLE');
+		const retry = Number(r.headers.get('retry-after'));
+		expect(Number.isFinite(retry)).toBe(true);
+		expect(retry).toBeGreaterThanOrEqual(0);
+		expect(retry).toBeLessThanOrEqual(15 * 60);
+	});
+
+	it('sets no Retry-After when the chain does not know one', async () => {
+		// Only set when the chain actually knows. A guessed Retry-After is worse than none,
+		// because a caller will believe it.
+		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`);
+		expect(r.headers.get('retry-after')).toBeNull();
 	});
 });
 

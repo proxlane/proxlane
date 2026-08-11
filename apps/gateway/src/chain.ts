@@ -14,8 +14,17 @@ import {
 	policyFor,
 } from '@proxlane/adapters';
 import { detect } from '@proxlane/detect';
-import { guardTargetUrl, type HealthState, eligible as rankByHealth } from '@proxlane/shared';
+import {
+	type CooldownDecision,
+	cooldownDomain,
+	cooldownKey,
+	cooldownScope,
+	guardTargetUrl,
+	type HealthState,
+	eligible as rankByHealth,
+} from '@proxlane/shared';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
+import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
 import type { HttpTransport } from './transport.js';
 
@@ -46,6 +55,11 @@ export interface ChainResult {
 	readonly attempts: readonly Attempt[];
 	readonly reason?: string;
 	/**
+	 * How long until this request could succeed, when the chain knows. Set only when every
+	 * capable provider was cooling — a 503 with no `Retry-After` tells a caller to guess.
+	 */
+	readonly retryAfterMs?: number;
+	/**
 	 * Health of the provider that served, surfaced as `X-Provider-Health`.
 	 *
 	 * `demoted-forced` means the floor fired: every capable provider was demoted, so the
@@ -66,6 +80,14 @@ export interface ChainDeps {
 	readonly now?: () => number;
 	/** Omit to route without health. The chain then behaves exactly as it did before. */
 	readonly health?: HealthStore;
+	/** Omit to route without cooldowns. */
+	readonly cooldowns?: CooldownStore;
+	/**
+	 * Whose account the `cd:acct` namespace belongs to. Self-host has exactly one, and the
+	 * default names that rather than pretending the field is unused: the key shape has to be
+	 * right now, or hosted becomes a migration.
+	 */
+	readonly orgId?: string;
 }
 
 /**
@@ -152,15 +174,110 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	const order = ranked.chain;
 	const forced = ranked.forced;
 
+	// COOLDOWNS. Read for every ranked provider up front, in one call, because doing it per
+	// hop would add a round trip to the middle of the chain — the one place the latency budget
+	// has already been divided up.
+	//
+	// Fails open, like health: `integrations.md` section 3's table. Losing a cooldown costs a
+	// wasted attempt at a provider that was about to block us, which is money; refusing the
+	// request instead would cost the request.
+	const org = deps.orgId ?? 'self';
+	const domain = cooldownDomain(guarded.url);
+	const keysFor = (providerId: string) => ({
+		blk: cooldownKey('blk', { provider: providerId, domain, org }) as string,
+		acct: cooldownKey('acct', { provider: providerId, domain, org }) as string,
+	});
+
+	let cooldowns: ReadonlyMap<string, CooldownDecision> = new Map();
+	if (deps.cooldowns !== undefined) {
+		try {
+			cooldowns = await deps.cooldowns.check(
+				order.flatMap((o) => {
+					const k = keysFor(o.id);
+					return [k.blk, k.acct];
+				}),
+				startedAt,
+			);
+		} catch {
+			cooldowns = new Map();
+		}
+	}
+
+	/** The worst thing either namespace says about this provider. */
+	const cooldownFor = (providerId: string): CooldownDecision => {
+		const k = keysFor(providerId);
+		const both = [cooldowns.get(k.blk), cooldowns.get(k.acct)].filter(
+			(d): d is CooldownDecision => d !== undefined,
+		);
+		const cooling = both.find((d) => d.kind === 'cooling');
+		if (cooling !== undefined) return cooling;
+		return both.find((d) => d.kind === 'probe') ?? { kind: 'open' };
+	};
+
+	// Drop the definitely-cooled BEFORE the loop, not inside it.
+	//
+	// `hopBudget` divides the remaining deadline by the hops still to come, so skipping inside
+	// the loop would reserve time for providers that are never going to be tried and hand
+	// every real attempt less budget than it should have. Silently: the request would just be
+	// more likely to time out, on a gateway whose entire promise is failover.
+	//
+	// `probe` entries stay in — they are maybe-usable, and the claim happens at attempt time
+	// so a provider that gets skipped for a better one does not burn the single probe slot on
+	// its way past.
+	const cooled: { readonly provider: string; readonly untilMs: number }[] = [];
+	const attemptable = order.filter((o) => {
+		const cd = cooldownFor(o.id);
+		if (cd.kind !== 'cooling') return true;
+		cooled.push({ provider: o.id, untilMs: cd.untilMs });
+		return false;
+	});
+
+	if (attemptable.length === 0) {
+		// Every capable provider is cooling on this domain or this account. There is no floor
+		// here, and that is the difference from health: a demoted provider is a guess about a
+		// trend, while a cooldown is a fact — each of these providers refused this exact
+		// domain within the last few minutes. Forcing one buys a probable second refusal at
+		// full price. Say so instead, with the moment it stops being true.
+		const soonest = Math.min(...cooled.map((c) => c.untilMs));
+		return {
+			outcome: 'NO_PROVIDER_AVAILABLE',
+			attempts,
+			retryAfterMs: Math.max(0, soonest - now()),
+			reason: `every capable provider is cooling on ${domain}: ${cooled
+				.map((c) => c.provider)
+				.join(', ')}`,
+		};
+	}
+
 	let lastOutcome: Outcome = 'NO_PROVIDER_AVAILABLE';
 	let onceUsed = false;
 
-	for (let i = 0; i < order.length; i++) {
-		const { adapter, key } = (order[i] as (typeof order)[number]).candidate;
+	for (let i = 0; i < attemptable.length; i++) {
+		const entry = attemptable[i] as (typeof attemptable)[number];
+		const { adapter, key } = entry.candidate;
 		const providerHealth: HealthState['state'] | 'demoted-forced' = forced
 			? 'demoted-forced'
-			: (order[i] as (typeof order)[number]).state;
-		const hopsLeft = order.length - i - 1;
+			: entry.state;
+
+		// A `probe` has to be CLAIMED before anything is spent. Two concurrent requests both
+		// seeing an expired cooldown and both proceeding is the herd the half-open design
+		// exists to stop, and it only appears under load.
+		if (cooldownFor(adapter.capabilities.id).kind === 'probe' && deps.cooldowns !== undefined) {
+			const k = keysFor(adapter.capabilities.id);
+			const which = cooldowns.get(k.blk)?.kind === 'probe' ? k.blk : k.acct;
+			let claimed: boolean;
+			try {
+				claimed = await deps.cooldowns.claim(which, now());
+			} catch {
+				// Fail open. A claim we cannot make is not a reason to refuse the request.
+				claimed = true;
+			}
+			// Somebody else is already probing. Rare, so the budget for the hops behind is now
+			// marginally conservative rather than wrong, which is the safe direction.
+			if (!claimed) continue;
+		}
+
+		const hopsLeft = attemptable.length - i - 1;
 		const isLastHop = hopsLeft === 0;
 		const cap = isLastHop
 			? adapter.capabilities.maxTimeoutMs
@@ -241,6 +358,25 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			deps.health?.record(adapter.capabilities.id, outcome, now());
 		} catch {
 			// Intentionally swallowed. See above.
+		}
+
+		// Cooldowns, from the outcome's OWN declared scope in FAILOVER rather than from a
+		// second list of outcome names here. Adding an outcome therefore cannot silently miss
+		// this file — it has to declare a scope to compile at all.
+		try {
+			const scope = cooldownScope(outcome);
+			const cdKey = cooldownKey(scope, { provider: adapter.capabilities.id, domain, org });
+			if (cdKey !== null) {
+				deps.cooldowns?.arm(cdKey, now());
+			} else if (outcome === 'OK') {
+				// A provider that just served this domain is not cooled on it. Clearing on OK is
+				// what makes a successful probe end the cooldown rather than merely pause it.
+				const blk = keysFor(adapter.capabilities.id).blk;
+				deps.cooldowns?.clear(blk);
+				deps.cooldowns?.clear(keysFor(adapter.capabilities.id).acct);
+			}
+		} catch {
+			// Best effort, like health. A cooldown we failed to write costs one future attempt.
 		}
 
 		attempts.push({

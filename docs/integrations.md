@@ -281,6 +281,32 @@ Duration is exponential with **full jitter** and a **15-minute cap**, and expiry
 the cap. Without a probe, and with a static list and no epsilon exploration until phase 3,
 a cooled provider has no path back before its cooldown expires.
 
+`packages/shared/src/cooldown.ts` is the executable form. Four things worth stating because
+each has a plausible near-miss:
+
+- **Full jitter, not equal jitter** — uniform in `[0, min(cap, 30s · 2ⁿ))`. Every gateway
+  that hit the same block would otherwise retry at the same instant, and a herd against a
+  site that just blocked us is how a soft block becomes a hard one. A near-zero draw is safe
+  because a failed probe re-arms at the **cap**, not at the next exponent.
+- **The probe is CLAIMED, not merely observed.** Deciding and claiming are one atomic step,
+  because two concurrent requests both seeing an expired cooldown and both proceeding is
+  exactly the herd this prevents — and it only appears under load. In Valkey that is a Lua
+  compare-and-set, never a read followed by a write.
+- **Cooled providers are dropped before the chain is walked**, not skipped inside it. The
+  per-hop budget divides the remaining deadline by the hops still to come, so skipping late
+  reserves time for providers that will never be tried and silently starves the real
+  attempts.
+- **When every capable provider is cooling there is no floor**, unlike demotion. A demoted
+  provider is a guess about a trend; a cooldown is a fact — each of these refused this exact
+  domain minutes ago, so forcing one buys a probable second refusal at full price. The
+  gateway returns `NO_PROVIDER_AVAILABLE` with **`Retry-After`** set from the soonest expiry.
+
+**The domain is the hostname, not the registrable domain.** `www.example.com` and
+`example.com` cool separately. The cheap fix — last two labels — is silently wrong for every
+`.co.uk` or `.github.io` target, where it would cool the whole suffix as though it were one
+site; doing it properly needs the Public Suffix List, which is a dependency and a freshness
+problem. Revisit when traffic shows it mattering.
+
 **Valkey is a hard hot-path dependency in a product that sells reliability, in a compose
 with no HA, so state what happens when it is unreachable:**
 
