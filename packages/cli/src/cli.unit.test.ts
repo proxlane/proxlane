@@ -191,6 +191,111 @@ describe('doctor', () => {
 	});
 });
 
+describe('doctor knows about routing state', () => {
+	// Two operator reviews had to ask for these. `operating.md` B9's rule — every support
+	// question that takes more than one exchange becomes a check — was not followed when
+	// health, cooldowns and Valkey shipped, and the first question they produced was one this
+	// command could not answer.
+
+	const withEnv = async (vars: Record<string, string | undefined>) => {
+		const saved: Record<string, string | undefined> = {};
+		for (const [k, v] of Object.entries(vars)) {
+			saved[k] = process.env[k];
+			if (v === undefined) delete process.env[k];
+			else process.env[k] = v;
+		}
+		try {
+			const [, out] = await capture(() => doctor(true));
+			return JSON.parse(out) as {
+				data: { checks: { name: string; ok: boolean; detail: string; fix?: string }[] };
+			};
+		} finally {
+			for (const [k, v] of Object.entries(saved)) {
+				if (v === undefined) delete process.env[k];
+				else process.env[k] = v;
+			}
+		}
+	};
+	const find = (r: Awaited<ReturnType<typeof withEnv>>, name: string) =>
+		r.data.checks.find((c) => c.name === name);
+
+	it('names an EMPTY PROXLANE_VALKEY_URL as unset, which is the case that shipped', async () => {
+		// `${VAR:-}` in compose sets the variable to an empty string. A gateway reading
+		// `!== undefined` built a Redis client for `''` and logged ECONNREFUSED for its whole
+		// life. One line here instead of one support thread.
+		const r = await withEnv({ PROXLANE_VALKEY_URL: '' });
+		expect(find(r, 'state store')?.detail).toMatch(/set but empty/);
+	});
+
+	it('says where routing state lives, because it decides what a restart costs', async () => {
+		const off = await withEnv({ PROXLANE_VALKEY_URL: undefined });
+		expect(find(off, 'state store')?.detail).toMatch(/in-process/);
+		const on = await withEnv({ PROXLANE_VALKEY_URL: 'redis://example.test:6379' });
+		expect(find(on, 'state store')?.detail).toMatch(/valkey at/);
+	});
+
+	it('never prints credentials from the connection string', async () => {
+		const r = await withEnv({ PROXLANE_VALKEY_URL: 'redis://user:hunter2@example.test:6379' });
+		const detail = find(r, 'state store')?.detail ?? '';
+		expect(detail).not.toContain('hunter2');
+		expect(detail).toContain('REDACTED');
+	});
+
+	it('fails when replicas exceed what the state backing can support', async () => {
+		// The misconfiguration the gateway refuses to boot on. Better to learn it from doctor
+		// than from a crash loop.
+		const r = await withEnv({ PROXLANE_REPLICAS: '3', PROXLANE_VALKEY_URL: undefined });
+		const c = find(r, 'replicas');
+		expect(c?.ok).toBe(false);
+		expect(c?.fix).toMatch(/PROXLANE_VALKEY_URL/);
+	});
+
+	it('accepts several replicas once state is shared', async () => {
+		const r = await withEnv({
+			PROXLANE_REPLICAS: '3',
+			PROXLANE_VALKEY_URL: 'redis://example.test:6379',
+		});
+		expect(find(r, 'replicas')?.ok).toBe(true);
+	});
+
+	it('rejects a replica count it cannot parse, rather than reading it as one', async () => {
+		const r = await withEnv({ PROXLANE_REPLICAS: 'two' });
+		const c = find(r, 'replicas');
+		expect(c?.ok).toBe(false);
+		expect(c?.fix).toMatch(/positive number/);
+	});
+
+	it('states the health default, which is not guessable', async () => {
+		const off = await withEnv({ PROXLANE_HEALTH: undefined });
+		expect(find(off, 'provider health')?.detail).toMatch(/off \(the default\)/);
+		const on = await withEnv({ PROXLANE_HEALTH: 'on' });
+		expect(find(on, 'provider health')?.detail).toMatch(/^on —/);
+	});
+
+	it('states the cooldown default too, and that it is the opposite one', async () => {
+		const on = await withEnv({ PROXLANE_COOLDOWNS: undefined });
+		expect(find(on, 'cooldowns')?.detail).toMatch(/^on —/);
+		const off = await withEnv({ PROXLANE_COOLDOWNS: 'off' });
+		expect(find(off, 'cooldowns')?.detail).toMatch(/OFF/);
+	});
+
+	it('reports an unreachable store as a FAILURE, not a note', async () => {
+		// Port 1 refuses immediately on every platform. The distinction that matters is
+		// "misconfigured" versus "Valkey is unwell", and an operator cannot act without it.
+		const r = await withEnv({ PROXLANE_VALKEY_URL: 'redis://127.0.0.1:1' });
+		const c = find(r, 'valkey reachable');
+		expect(c?.ok).toBe(false);
+		expect(c?.fix, 'must say the gateway still serves').toMatch(/fails OPEN/);
+	});
+
+	it('does not check reachability when no store is configured', async () => {
+		// A check reporting "ok" for a component that does not exist is the zero-exit stub in
+		// another costume, which this file's own header forbids.
+		const r = await withEnv({ PROXLANE_VALKEY_URL: undefined });
+		expect(find(r, 'valkey reachable')).toBeUndefined();
+	});
+});
+
 describe('providers', () => {
 	it('lists every registered adapter with the fields the router filters on', async () => {
 		const [code, out] = await capture(() => providers(true));

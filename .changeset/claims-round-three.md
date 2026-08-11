@@ -1,4 +1,5 @@
 ---
+'@proxlane/gateway': patch
 '@proxlane/shared': patch
 ---
 
