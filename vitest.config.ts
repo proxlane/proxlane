@@ -1,4 +1,43 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+const ROOT = dirname(fileURLToPath(import.meta.url));
+
+// Tests resolve `@proxlane/*` to SOURCE, not to dist.
+//
+// Without this they resolve through the package `exports` field to `dist/index.mjs`, which
+// means every cross-package test validates the last BUILD rather than the working tree. That
+// is not theoretical: `health.ts` was edited in src to break its attribution table on
+// purpose, and the test written to catch exactly that went green, because it was reading a
+// dist built minutes earlier. Three gateway suites had the same property and nobody had
+// noticed, because CI happens to build before it tests.
+//
+// A test that passes against a stale artifact is the same failure class as a stub that exits
+// 0: it reports a fact about something other than the thing under test.
+//
+// Only bare specifiers are aliased. Subpath imports like `@proxlane/vitest-config/...` keep
+// their own resolution, because those packages export deliberate entry points.
+const sourceAliases = readdirSync(join(ROOT, 'packages'), { withFileTypes: true })
+	.filter((d) => d.isDirectory())
+	.map((d) => ({ dir: d.name, entry: join(ROOT, 'packages', d.name, 'src', 'index.ts') }))
+	.filter(({ entry }) => existsSync(entry))
+	.map(({ dir, entry }) => {
+		const { name } = JSON.parse(
+			readFileSync(join(ROOT, 'packages', dir, 'package.json'), 'utf8'),
+		) as { name: string };
+		return {
+			find: new RegExp(`^${name.replace(/[/@]/g, '\\$&')}$`),
+			replacement: resolve(entry),
+		};
+	});
+
+if (sourceAliases.length === 0) {
+	// Non-zero denominator. An empty alias list would silently restore the dist-resolution
+	// behaviour this exists to remove, and every suite would still be green.
+	throw new Error('vitest.config.ts resolved zero @proxlane source aliases');
+}
 
 // Four layers, selected by FILENAME, not by tag.
 //
@@ -14,6 +53,7 @@ import { defineConfig } from 'vitest/config';
 // the latter would land in the `contract` project, which no implemented command invokes,
 // leaving `unit` empty and failing its own passWithNoTests.
 export default defineConfig({
+	resolve: { alias: sourceAliases },
 	test: {
 		projects: [
 			{
