@@ -12,8 +12,8 @@ import {
 	HEALTH,
 	type HealthState,
 	healthWeight,
-	INITIAL,
 	increments,
+	initial,
 	observe,
 	observeProbe,
 	orderChain,
@@ -36,9 +36,9 @@ function rng(seed: number): () => number {
 /** Feed a stream at a fixed failure rate and report where it lands. */
 function run(rate: (i: number) => number, seed: number, n: number): HealthState {
 	const rnd = rng(seed);
-	let st = INITIAL;
+	let st = initial(0);
 	for (let i = 1; i <= n; i++)
-		st = observe(st, rnd() < rate(i) ? 'PROVIDER_ERROR' : 'OK', i * 60_000, 0);
+		st = observe(st, rnd() < rate(i) ? 'PROVIDER_ERROR' : 'OK', i * 60_000);
 	return st;
 }
 
@@ -154,11 +154,11 @@ describe('sensitivity, the incident this was built for', () => {
 	it('passes through degraded on the way, rather than jumping', () => {
 		const M = HEALTH.MIN_SAMPLES;
 		const rnd = rng(31);
-		let st = INITIAL;
+		let st = initial(0);
 		let sawDegraded = false;
 		for (let i = 1; i <= 6000; i++) {
 			const p = i <= M ? 0.04 : 0.26;
-			st = observe(st, rnd() < p ? 'PROVIDER_ERROR' : 'OK', i * 60_000, 0);
+			st = observe(st, rnd() < p ? 'PROVIDER_ERROR' : 'OK', i * 60_000);
 			if (st.state === 'degraded') sawDegraded = true;
 			if (st.state === 'demoted') break;
 		}
@@ -167,29 +167,64 @@ describe('sensitivity, the incident this was built for', () => {
 	});
 });
 
+describe('the state is the whole state', () => {
+	// The defect this guards: `observe` used to take `enteredAt` as a fourth argument, so the
+	// record in Valkey had to carry a field `HealthState` did not declare. Whoever transcribed
+	// the Lua would have had to infer it from a call site. A state machine whose persisted
+	// shape is wider than its type round-trips wrong exactly once, in production, on the
+	// recovery edge — the rarest path and the one nobody would test by hand.
+	it('survives a JSON round trip with no behaviour change', () => {
+		const rnd = rng(4242);
+		let live = initial(0);
+		let stored = initial(0);
+		for (let i = 1; i <= 3000; i++) {
+			const outcome = rnd() < (i <= HEALTH.MIN_SAMPLES ? 0.04 : 0.3) ? 'PROVIDER_ERROR' : 'OK';
+			live = observe(live, outcome, i * 60_000);
+			// The other side goes through the wire on every single step.
+			stored = observe(JSON.parse(JSON.stringify(stored)) as HealthState, outcome, i * 60_000);
+		}
+		expect(stored).toEqual(live);
+		expect(live.state, 'the run must actually reach a non-trivial state').not.toBe('healthy');
+	});
+
+	it('is JSON-serialisable with no undefined or non-finite fields', () => {
+		// p0 is `null`, never `undefined`: JSON.stringify drops undefined keys, which would
+		// silently turn a measured baseline back into an unmeasured one on read.
+		const st = initial(1234);
+		expect(JSON.parse(JSON.stringify(st))).toEqual(st);
+		for (const [k, v] of Object.entries(st)) {
+			expect(v, `${k} is undefined`).not.toBeUndefined();
+			if (typeof v === 'number') expect(Number.isFinite(v), `${k} is not finite`).toBe(true);
+		}
+	});
+});
+
 describe('the recovery edge', () => {
 	it('returns a recovered provider to healthy, and re-measures p0', () => {
 		// Without this edge, p0 stays frozen against a rate that has become fiction and the
 		// provider re-trips forever.
+		// The caller no longer tracks `enteredAt` alongside the state — it IS the state, which
+		// is the whole point of moving it in. This loop used to carry a local, and the Valkey
+		// record would have had to carry the same field invisibly.
 		const M = HEALTH.MIN_SAMPLES;
 		const rnd = rng(77);
-		let st = INITIAL;
-		let enteredAt = 0;
+		let st = initial(0);
 		let now = 0;
 		for (let i = 1; i <= M + 3000 && st.state !== 'degraded'; i++) {
 			now = i * 60_000;
-			const prev = st.state;
-			st = observe(st, rnd() < (i <= M ? 0.04 : 0.2) ? 'PROVIDER_ERROR' : 'OK', now, enteredAt);
-			if (st.state !== prev) enteredAt = now;
+			st = observe(st, rnd() < (i <= M ? 0.04 : 0.2) ? 'PROVIDER_ERROR' : 'OK', now);
 		}
 		expect(st.state).toBe('degraded');
+		const degradedAt = st.enteredAt;
+		expect(degradedAt, 'entering degraded stamps the clock').toBe(now);
 
 		for (let i = 0; i < 4000 && st.state === 'degraded'; i++) {
 			now += 60_000;
-			st = observe(st, 'OK', now, enteredAt);
+			st = observe(st, 'OK', now);
 		}
 		expect(st.state).toBe('healthy');
 		expect(st.p0, 'p0 must be re-measured, not resumed').toBeNull();
+		expect(st.enteredAt, 'recovery re-stamps the clock').toBeGreaterThan(degradedAt);
 	});
 
 	it('holds a provider in degraded until the dwell has passed, statistic notwithstanding', () => {
@@ -201,9 +236,10 @@ describe('the recovery edge', () => {
 			failures: 0,
 			cleanWindows: HEALTH.RESET_WINDOWS - 1,
 			cleanProbes: 0,
+			enteredAt: 0,
 		};
-		expect(observe(ready, 'OK', 60_000, 0).state, 'dwell not yet served').toBe('degraded');
-		expect(observe(ready, 'OK', HEALTH.DWELL_RECOVER_MS + 1, 0).state).toBe('healthy');
+		expect(observe(ready, 'OK', 60_000).state, 'dwell not yet served').toBe('degraded');
+		expect(observe(ready, 'OK', HEALTH.DWELL_RECOVER_MS + 1).state).toBe('healthy');
 	});
 
 	it('requires CONSECUTIVE clean windows, so one dip does not recover a bad provider', () => {
@@ -217,8 +253,9 @@ describe('the recovery edge', () => {
 			failures: 0,
 			cleanWindows: 0,
 			cleanProbes: 0,
+			enteredAt: 0,
 		};
-		const afterOneCleanWindow = observe(bad, 'OK', HEALTH.DWELL_RECOVER_MS + 1, 0);
+		const afterOneCleanWindow = observe(bad, 'OK', HEALTH.DWELL_RECOVER_MS + 1);
 		expect(afterOneCleanWindow.state).toBe('degraded');
 		expect(afterOneCleanWindow.cleanWindows).toBe(1);
 	});
@@ -232,8 +269,9 @@ describe('the recovery edge', () => {
 			failures: 0,
 			cleanWindows: 2,
 			cleanProbes: 0,
+			enteredAt: 0,
 		};
-		expect(observe(st, 'PROVIDER_ERROR', HEALTH.DWELL_RECOVER_MS + 1, 0).cleanWindows).toBe(0);
+		expect(observe(st, 'PROVIDER_ERROR', HEALTH.DWELL_RECOVER_MS + 1).cleanWindows).toBe(0);
 	});
 
 	it('never leaves demoted on live traffic, however much of it succeeds', () => {
@@ -245,17 +283,18 @@ describe('the recovery edge', () => {
 			failures: 0,
 			cleanWindows: 0,
 			cleanProbes: 0,
+			enteredAt: 0,
 		};
-		for (let i = 0; i < 5000; i++) cur = observe(cur, 'OK', i * 60_000, 0);
+		for (let i = 0; i < 5000; i++) cur = observe(cur, 'OK', i * 60_000);
 		expect(cur.state).toBe('demoted');
 	});
 
 	it('caps the statistic, so recovery is a bounded distance not an unbounded one', () => {
 		// A one-sided CUSUM has no upper bound and `demoted` keeps observing. Uncapped, a
 		// three-day outage leaves a number no amount of success can walk back down.
-		let cur = INITIAL;
+		let cur = initial(0);
 		for (let i = 1; i <= 20_000; i++) {
-			cur = observe(cur, i <= HEALTH.MIN_SAMPLES ? 'OK' : 'PROVIDER_ERROR', i * 60_000, 0);
+			cur = observe(cur, i <= HEALTH.MIN_SAMPLES ? 'OK' : 'PROVIDER_ERROR', i * 60_000);
 		}
 		expect(cur.state).toBe('demoted');
 		expect(cur.s).toBeLessThanOrEqual(HEALTH.S_CAP);
@@ -271,15 +310,16 @@ describe('the only exit from demoted', () => {
 		failures: 0,
 		cleanWindows: 0,
 		cleanProbes: 0,
+		enteredAt: 0,
 	};
 
 	it('takes PROBE_CLEAN consecutive clean probes to reach degraded', () => {
 		let st = demoted;
 		for (let i = 1; i < HEALTH.PROBE_CLEAN; i++) {
-			st = observeProbe(st, true);
+			st = observeProbe(st, true, 0);
 			expect(st.state, `after ${i} clean probes`).toBe('demoted');
 		}
-		st = observeProbe(st, true);
+		st = observeProbe(st, true, 0);
 		expect(st.state).toBe('degraded');
 	});
 
@@ -287,29 +327,29 @@ describe('the only exit from demoted', () => {
 		// Two clean probes are evidence the provider answers, not evidence it is well. One bad
 		// patch from here should re-demote quickly.
 		let st = demoted;
-		for (let i = 0; i < HEALTH.PROBE_CLEAN; i++) st = observeProbe(st, true);
+		for (let i = 0; i < HEALTH.PROBE_CLEAN; i++) st = observeProbe(st, true, 0);
 		expect(st.s).toBe(HEALTH.H_DEGRADE);
 		expect(st.s).toBeLessThan(HEALTH.H_DEMOTE);
 	});
 
 	it('restarts the streak on a failed probe', () => {
-		let st = observeProbe(demoted, true);
+		let st = observeProbe(demoted, true, 0);
 		expect(st.cleanProbes).toBe(1);
-		st = observeProbe(st, false);
+		st = observeProbe(st, false, 0);
 		expect(st.cleanProbes).toBe(0);
 		expect(st.state).toBe('demoted');
 	});
 
 	it('does nothing to a provider that is not demoted', () => {
-		const healthy = { ...INITIAL, p0: 0.04 };
-		expect(observeProbe(healthy, true)).toEqual(healthy);
+		const healthy = { ...initial(0), p0: 0.04 };
+		expect(observeProbe(healthy, true, 0)).toEqual(healthy);
 	});
 
 	it('gives a demoted provider a real path back rather than a dead state', () => {
 		// The whole point. Without this the spec's own warning stands: "as written, a demoted
 		// provider can never recover".
 		let st = demoted;
-		for (let i = 0; i < 10 && st.state === 'demoted'; i++) st = observeProbe(st, true);
+		for (let i = 0; i < 10 && st.state === 'demoted'; i++) st = observeProbe(st, true, 0);
 		expect(st.state).not.toBe('demoted');
 	});
 });

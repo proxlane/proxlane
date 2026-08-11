@@ -19,11 +19,11 @@ signatures and have **never seen a real block page**; a test asserts the count.
 
 Owner decisions and external answers. None is unblocked by writing code.
 
-- **The probe credential** — recovery from `demoted` is a background probe, but launch is
-  BYOK and the gateway holds no house keys, so a demoted provider can never recover.
-  Opted-in org key, or a shadow attempt billed to nobody? *Before the health machine.*
-- **`domain-class`** — undefined anywhere, yet the per-class health key carries the block
-  signal. Define it, or phase-gate it and route blocks to `cd:blk`.
+- **The probe credential** — the only thing between the health machine and working;
+  `domain-class` is now phase-gated in `integrations.md` §3 and blocks route to `cd:blk`.
+  Recovery from `demoted` is a background probe, but launch is BYOK and the gateway holds no
+  house keys. An opted-in org's key, or a shadow attempt billed to nobody? The statistic,
+  the store, routing and the surface are all buildable without an answer. Recovery is not.
 - **Secret scanning depth** — core scanning and push protection are on. Non-provider
   patterns and validity checks accept a 200 from the API and stay disabled; they need
   paid Secret Protection. Buy it, or accept that a bespoke key shape goes unscanned.

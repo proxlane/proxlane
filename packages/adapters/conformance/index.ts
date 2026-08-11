@@ -56,10 +56,30 @@ const EXPECTED: Readonly<Record<string, Outcome | 'provider-dependent'>> = {
 	'render-js': 'OK',
 	'target-not-found': 'TARGET_NOT_FOUND',
 	'target-error': 'TARGET_ERROR',
+	// Honoured if one is ever captured; see REQUIRED below for why it cannot be required.
+	'provider-error': 'PROVIDER_ERROR',
 	// Measured across three providers: 422, 500 and a plain 200. There is no single right
 	// answer, so asserting one would be a permanent false failure.
 	'slow-target': 'provider-dependent',
 };
+
+/**
+ * Categories every adapter must have recorded.
+ *
+ * The zero-fixture guard below is not enough on its own: an adapter shipping only
+ * `success-html` satisfies it and is then never checked for the thing that matters most,
+ * which is whether it can tell a TARGET failure from its OWN. Get that wrong and one popular
+ * dead site pushes a healthy provider toward demotion for every org — the cross-org
+ * contamination the two cooldown namespaces exist to prevent, arriving through outcome
+ * attribution instead.
+ *
+ * `provider-error` is deliberately NOT here. It needs a provider 5xx, which cannot be
+ * summoned on demand — the same structural gap `/detect` has with block pages, and
+ * hand-writing one would be the fabricated fixture CLAUDE.md forbids. The consequence is
+ * stated rather than hidden: the failure term of the health statistic
+ * (`packages/shared/src/health.ts`) rests on review, not on this suite.
+ */
+const REQUIRED = ['success-html', 'target-not-found', 'target-error'] as const;
 
 interface ExchangeFixture {
 	kind: 'exchange';
@@ -229,6 +249,16 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 	const fixtures = fixturesFor(id);
 	if (fixtures.length === 0) {
 		fail('fixtures', `no recorded fixtures — run \`pnpm record --adapter=${id}\``);
+	}
+	const present = new Set(fixtures.map((f) => f.category));
+	for (const need of REQUIRED) {
+		if (!present.has(need)) {
+			fail(
+				'fixtures',
+				`no \`${need}\` fixture. Required: an adapter that cannot be checked for ` +
+					'target-versus-provider attribution can demote a healthy provider for every org',
+			);
+		}
 	}
 	for (const { category, fixture } of fixtures) {
 		if (fixture.kind !== 'exchange') continue;
