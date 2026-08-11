@@ -120,6 +120,34 @@ try {
 			run: () => expectStatus(`/v1?api_key=${API_KEY}`, 400, 'missing url'),
 		},
 		{
+			// The default deployment shipped BROKEN and this command deployed it and passed.
+			// `compose.yml` set PROXLANE_VALKEY_URL to an empty string, the gateway built a
+			// Redis client for it, and this endpoint 500'd on every call while the boot banner
+			// claimed shared state. Nothing noticed, because the smoke test only exercised the
+			// surface that existed before health and cooldowns did.
+			what: 'the router will say what it believes about each provider',
+			run: async () => {
+				const r = await fetch(`http://127.0.0.1:${PORT}/health/providers?api_key=${API_KEY}`);
+				if (r.status !== 200) throw new Error(`/health/providers returned ${r.status}`);
+				const body = (await r.json()) as {
+					providers?: unknown[];
+					stateUnavailable?: string;
+				};
+				if (!Array.isArray(body.providers)) {
+					throw new Error('no providers array in the response');
+				}
+				if (body.stateUnavailable !== undefined) {
+					// Reachable but unhealthy is worse than absent: it means the deployment is
+					// configured to use a store it cannot talk to.
+					throw new Error(`state store unreachable: ${body.stateUnavailable}`);
+				}
+			},
+		},
+		{
+			what: '/health/providers refuses without a key, unlike /health',
+			run: () => expectStatus('/health/providers', 401, 'providers without a key'),
+		},
+		{
 			// The whole stack with no provider involved: auth, parsing, the chain, the edge
 			// guard, and the status mapping. This is what makes the smoke meaningful for
 			// someone who has not signed up for anything yet.
