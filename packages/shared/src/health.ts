@@ -60,17 +60,36 @@ export interface HealthState {
 	readonly cleanWindows: number;
 	/** Consecutive clean probes. Only meaningful in `demoted`. */
 	readonly cleanProbes: number;
+	/**
+	 * When the current state was entered, epoch ms. `DWELL_RECOVER_MS` is measured from here.
+	 *
+	 * Part of the state rather than a parameter, and that is the correction: `observe` used to
+	 * take it separately, which meant the record in Valkey had to carry a field this type did
+	 * not declare. Whoever wrote the Lua script would have had to know that from reading the
+	 * call site. A state machine whose persisted shape is wider than its type is one that
+	 * round-trips wrong exactly once, in production, on the recovery edge.
+	 */
+	readonly enteredAt: number;
 }
 
-export const INITIAL: HealthState = {
-	state: 'healthy',
-	p0: null,
-	s: 0,
-	samples: 0,
-	failures: 0,
-	cleanWindows: 0,
-	cleanProbes: 0,
-};
+/**
+ * A provider nothing has been observed about yet.
+ *
+ * A function rather than a constant because `enteredAt` is a clock reading, and a shared
+ * frozen object would hand every provider the timestamp of process start.
+ */
+export function initial(now: number): HealthState {
+	return {
+		state: 'healthy',
+		p0: null,
+		s: 0,
+		samples: 0,
+		failures: 0,
+		cleanWindows: 0,
+		cleanProbes: 0,
+		enteredAt: now,
+	};
+}
 
 /**
  * Pinned constants. Every one is reproduced by `scripts/health-sim.ts`, which runs the
@@ -141,7 +160,20 @@ export const HEALTH = {
  * discharges the provider-specific part in `parse`. All three launch providers can tell a
  * target failure from their own (`sa-statuscode`, `spb-initial-status-code`, Scrapfly's
  * `result` key), so by the time an `Outcome` exists the question "whose fault" is answered.
- * The conformance suite is what keeps that true for a fourth adapter.
+ *
+ * HOW MUCH OF THAT IS ENFORCED, precisely, because an earlier version of this comment
+ * claimed "the conformance suite keeps that true for a fourth adapter" and it did not.
+ *
+ *   TARGET_ERROR      enforced. `target-error` is a required fixture category and
+ *                     conformance asserts the outcome it must produce.
+ *   PROVIDER_ERROR    NOT enforced, and structurally cannot be. It needs a provider 5xx,
+ *                     which you cannot summon on demand any more than you can summon a
+ *                     Cloudflare challenge — the same gap `/detect`'s corpus has. A
+ *                     `provider-error` fixture is honoured if one is ever captured.
+ *
+ * So the failure term of this statistic rests on an adapter author mapping a provider 5xx
+ * correctly, checked by review rather than by CI. Said out loud because the alternative is
+ * a reader assuming the green board covers it.
  *
  * `PROVIDER_TIMEOUT` is deliberately absent. It is not a property of a provider but of a
  * provider AT A HOP: section 5 gives a non-terminal attempt 22s and a terminal one 75s.
@@ -206,12 +238,7 @@ export function increments(p0: number): { readonly failure: number; readonly suc
  * Pure, and takes `now` rather than reading a clock, so the simulation and the tests drive
  * it deterministically. The Lua script is a transcription of this, not a second design.
  */
-export function observe(
-	prev: HealthState,
-	outcome: Outcome,
-	now: number,
-	enteredAt: number,
-): HealthState {
+export function observe(prev: HealthState, outcome: Outcome, now: number): HealthState {
 	const w = healthWeight(outcome);
 	if (w === 'ignore') return prev;
 	const failed = w === 'failure';
@@ -224,7 +251,10 @@ export function observe(
 		if (samples < HEALTH.MIN_SAMPLES) return { ...prev, samples, failures };
 		const measured = wilsonUpper(failures, samples);
 		const p0 = Math.min(HEALTH.P0_CEILING, Math.max(HEALTH.P0_FLOOR, measured));
-		return { ...INITIAL, p0 };
+		// Not a state change: the provider was `healthy` throughout measurement and still is,
+		// so `enteredAt` is carried, not reset. Resetting it here would restart the dwell clock
+		// on a transition that never happened.
+		return { ...initial(prev.enteredAt), p0 };
 	}
 
 	const inc = increments(prev.p0);
@@ -249,10 +279,18 @@ export function observe(
 			failures: 0,
 			cleanWindows: 0,
 			cleanProbes: 0,
+			enteredAt: now,
 		};
 	}
 	if (s >= HEALTH.H_DEGRADE && prev.state === 'healthy') {
-		return { ...next, state: 'degraded', samples: 0, failures: 0, cleanWindows: 0 };
+		return {
+			...next,
+			state: 'degraded',
+			samples: 0,
+			failures: 0,
+			cleanWindows: 0,
+			enteredAt: now,
+		};
 	}
 	if (prev.state !== 'degraded' || samples < HEALTH.RESET_WINDOW_SAMPLES) return next;
 
@@ -264,11 +302,16 @@ export function observe(
 	// degraded -> healthy. Without this edge the first provider that ever degrades keeps its
 	// baseline frozen against a rate that has since become fiction, and a one-sided statistic
 	// against a stale-high p0 re-trips forever.
-	if (cleanWindows >= HEALTH.RESET_WINDOWS && now - enteredAt >= HEALTH.DWELL_RECOVER_MS) {
+	if (cleanWindows >= HEALTH.RESET_WINDOWS && now - prev.enteredAt >= HEALTH.DWELL_RECOVER_MS) {
 		// p0 is re-measured rather than resumed: the pre-incident value described a provider
-		// that no longer exists. The cost is a MIN_SAMPLES window with no detection, which is
-		// the price of not carrying a stale baseline forward.
-		return { ...INITIAL };
+		// that no longer exists.
+		//
+		// The cost is stated because it is not free: for the next MIN_SAMPLES observations
+		// this provider has no statistic and cannot be demoted, so a provider that recovers
+		// and immediately relapses is invisible for that window. The alternative is carrying
+		// a baseline measured before an incident the provider has since been through, which
+		// is a number about a provider that no longer exists.
+		return initial(now);
 	}
 	return closed;
 }
@@ -281,7 +324,7 @@ export function observe(
  * minutes, which is right for a transient block and actively harmful across a three-day
  * outage. A probe is ours, it is scheduled on `probeDelayMs`, and nobody is waiting on it.
  */
-export function observeProbe(prev: HealthState, ok: boolean): HealthState {
+export function observeProbe(prev: HealthState, ok: boolean, now: number): HealthState {
 	if (prev.state !== 'demoted') return prev;
 	if (!ok) return { ...prev, cleanProbes: 0 };
 	const cleanProbes = prev.cleanProbes + 1;
@@ -298,6 +341,7 @@ export function observeProbe(prev: HealthState, ok: boolean): HealthState {
 		failures: 0,
 		cleanWindows: 0,
 		cleanProbes: 0,
+		enteredAt: now,
 	};
 }
 

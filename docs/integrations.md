@@ -260,10 +260,18 @@ A rate limit is a property of one org's **account**: section 1 records that Scra
 own concurrency cools that provider for **every other org**, so the hosted instance
 degrades under exactly the load it exists to absorb.
 
-| Key | Outcomes | Scope |
-|---|---|---|
-| `cd:blk:{provider}:{domain}` | `SOFT_BLOCK`, `HARD_BLOCK` | shared across orgs; feeds the scoreboard |
-| `cd:acct:{org}:{provider}` | `RATE_LIMITED`, `AUTH_FAILED`, quota exhaustion | private to one org |
+| Key | Outcomes | Scope | Lifetime |
+|---|---|---|---|
+| `cd:blk:{provider}:{domain}` | `SOFT_BLOCK`, `HARD_BLOCK` | shared across orgs; feeds the scoreboard | 15 min cap |
+| `cd:acct:{org}:{provider}` | `RATE_LIMITED`, `AUTH_FAILED`, quota exhaustion | private to one org | 15 min cap |
+| `hs:{provider}` | `OK`, `PROVIDER_ERROR`, `PROVIDER_DRIFT` | shared across orgs | hours to days |
+
+**There is no per-`domain-class` health key, and that is a decision rather than an
+omission.** An earlier design had `hs:{provider}:{domain-class}` carrying the block signal,
+but `domain-class` is defined nowhere and per-class baselines need volume per class that no
+deployment has yet. Shipping the key implied and inert is worse than not shipping it: it
+reads as coverage. Blocks route to `cd:blk` for phase 1, exactly as they do today. Revisit
+with the phase-2 rollup, when there is data to define classes from.
 
 Duration is exponential with **full jitter** and a **15-minute cap**, and expiry is
 **half-open**: the first request after expiry is a probe, and a failed probe re-arms at
@@ -279,9 +287,132 @@ with no HA, so state what happens when it is unreachable:**
 | scoreboard lookup | **fail open** — fall back to the static priority list |
 | org concurrency bucket | **fail closed** — 429 |
 | org spend cap / balance | **fail closed** — 402 |
+| `hs:` health lookup | **fail open** — route as if healthy |
+
+`hs:` is the only one of these whose loss changes ROUTING rather than costing a wasted
+attempt, which is worth saying out loud given Valkey runs without persistence. A cold start
+loses every baseline and every provider re-enters measurement: no detection for
+`MIN_SAMPLES` observations each, and no demotions carried over. That is the correct failure
+direction — a gateway that forgets a provider was demoted routes to it again, whereas one
+that forgets it was healthy would not.
 
 The rule is that failing open may cost us a wasted attempt; failing open on a spend
 control costs money we cannot recover.
+
+### Provider health: is this provider worse than it usually is?
+
+A different question from the routing scoreboard, which asks "which provider is best for
+this domain" and is phase 3. Health is self-referential — each provider against its own
+recent past — so it needs no cross-provider join and no rollup.
+
+It exists because **every cooldown trigger above is a single request's outcome**. A provider
+that slid from 96% to 74% success over hours trips none of them: at 74% no individual attempt
+says "this is dying", only the rate does, and nothing read the rate.
+
+`packages/shared/src/health.ts` is the executable form of this, and its constants are
+derived by `scripts/health-sim.ts`, which imports the shipped functions rather than a copy.
+**The numbers below are measured, not chosen.** Do not edit one without rerunning the sim.
+
+**Attribution is per-outcome.** That is sound only because every adapter already discharges
+the provider-specific part in `parse` — all three launch providers can tell a target failure
+from their own (`sa-statuscode`, `spb-initial-status-code`, Scrapfly's `result` key). So by
+the time an `Outcome` exists, "whose fault" is answered.
+
+| Counts toward | Outcomes |
+|---|---|
+| the success term | `OK` |
+| the failure term | `PROVIDER_ERROR`, `PROVIDER_DRIFT` |
+| nothing — a property of a hop, not a provider | `PROVIDER_TIMEOUT` |
+| nothing — target facts, handled by `cd:blk` | `SOFT_BLOCK`, `HARD_BLOCK`, `TARGET_NOT_FOUND`, `TARGET_ERROR` |
+| nothing — account facts, handled by `cd:acct` | `AUTH_FAILED`, `RATE_LIMITED` |
+| nothing — ours or the client's | `INVALID_REQUEST`, `BAD_REQUEST`, `TARGET_FORBIDDEN`, `NO_PROVIDER_AVAILABLE`, `RESPONSE_TOO_LARGE`, `BUDGET_EXCEEDED` |
+
+`PROVIDER_TIMEOUT` is excluded despite being a provider fact. It is a property of a provider
+*at a hop*: section 5 gives a non-terminal attempt 22 s and a terminal one 75 s. Degrading a
+provider moves it down the chain, which shortens its budget, which raises its timeout rate,
+which feeds the statistic that degraded it. The cost is real — a provider dying purely by
+slow-then-timeout is caught late — and phase 2 can readmit it normalised by hop budget.
+
+**What enforces that table**: `AUTH_FAILED` and `RATE_LIMITED` are excluded because launch is
+BYOK, so one org's lapsed key must never demote a provider for every other org. A unit test
+pins all sixteen outcomes against the union, so adding one fails until somebody decides what
+it means. `TARGET_ERROR` is enforced end to end by a required conformance fixture.
+`PROVIDER_ERROR` is **not**, and cannot be: it needs a provider 5xx, which is no more
+summonable than a Cloudflare challenge. That half rests on review.
+
+#### The statistic
+
+A one-sided **CUSUM** on the failure indicator against a **frozen** baseline `p0`, not two
+live EWMAs. A fast window against a slow live baseline is the obvious design and it fails
+exactly where it matters, because the baseline chases the slide — of a real 0.22 drop it sees
+0.217 over a 1,000-sample ramp but only 0.055 over 120,000. The slower the decay, the less a
+live baseline can see of it.
+
+`p0` is **measured from each provider's own first `MIN_SAMPLES` observations**, as a Wilson
+upper bound rather than a plain rate. Both halves of that were arrived at by rejecting
+something:
+
+| design | healthy providers falsely demoted within 20k samples |
+|---|---|
+| fixed 5% bootstrap | a 10%-failure provider demoted after a median of 430 samples |
+| measured, plain rate | 18.3% / 16.3% / 16.3% / 17.3% at true rates 2 / 4 / 10 / 20% |
+| measured, Wilson upper bound | 0.0% / 0.0% / 0.3% / 3.0% |
+
+Under-estimating `p0` is unrecoverable — the provider sits permanently above its own baseline
+and the statistic ratchets — while over-estimating only costs sensitivity. The estimator is
+asymmetric for that reason, and it costs four samples of detection delay.
+
+**A note on how the second row survived review for a while:** the summary being read was the
+MEDIAN run length, which said 589,863 samples to a false demote. The distribution is heavy
+tailed, so the median said nothing about the 16% demoting inside 20,000. The sim reports
+rates and a hazard now, never a median.
+
+#### The state machine
+
+```
+healthy   -- CUSUM crosses H_DEGRADE                        --> degraded
+degraded  -- statistic continues past H_DEMOTE              --> demoted
+degraded  -- RESET_WINDOWS consecutive windows below
+             H_RESET, and dwell >= DWELL_RECOVER            --> healthy, p0 re-measured
+demoted   -- PROBE_CLEAN consecutive clean background
+             probes; NEVER live traffic                     --> degraded, re-entered at
+                                                                H_DEGRADE
+```
+
+Four edges, and the third is mandatory rather than nice to have: `p0` is frozen while
+degraded, so without a path back the first provider that ever degrades keeps a baseline
+against a rate that has since become fiction, and a one-sided statistic against a stale-high
+`p0` re-trips forever. `p0` is re-measured on recovery rather than resumed, which costs a
+`MIN_SAMPLES` window with no detection. That window is the price of not carrying forward a
+number describing a provider that no longer exists.
+
+Recovery from `demoted` is probe-only. The half-open cooldown above spends a real user's
+request on a known-dead provider every 15 minutes, which is right for a transient block and
+actively harmful across a three-day outage — roughly 288 wasted requests per domain per day.
+Probe backoff runs 5 minutes to a 6-hour ceiling, so a dead provider costs at most four
+probes a day.
+
+#### Routing consumes it
+
+Rank by `(state, static priority)` and let position fall out. "Never put a degraded provider
+in the terminal hop" is unsatisfiable the moment two of three are degraded — and two
+simultaneous degradations is precisely the correlated scenario this exists for. The invariant
+that survives every configuration is **the terminal hop is the least-degraded member of the
+chain**, which matters because section 5 gives that hop 75 s against everyone else's 22 s.
+Moving the least reliable member there is a promotion.
+
+**Demotion has a floor.** Section 5 filters by capability first, so a correlated false
+positive can empty the chain and return `NO_PROVIDER_AVAILABLE`. If demotion would leave zero
+capable providers, the best demoted one is used and the response carries
+`X-Provider-Health: demoted-forced`. A gateway that turns itself off is worse than one
+routing at 74%.
+
+#### Where it lands, at the pinned constants
+
+- One false demote per ~54M observations per provider. At 50,000 attempts/day, one every
+  2.9 years.
+- The motivating incident — 96% to 74% over a 1,000-sample slide — is demoted at 877.
+- Under 1% of steady healthy providers falsely demoted within 20,000 samples.
 
 ## 4. Cost accounting
 

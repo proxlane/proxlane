@@ -9,7 +9,7 @@
 // `packages/shared/src/health.unit.test.ts`, which asserts the properties at small trial
 // counts so this file cannot rot unnoticed.
 
-import { HEALTH, type HealthState, INITIAL, observe } from '../packages/shared/src/health.ts';
+import { HEALTH, type HealthState, initial, observe } from '../packages/shared/src/health.ts';
 
 /** Seeded, so a rerun reproduces the table. */
 function rng(seed: number): () => number {
@@ -37,10 +37,10 @@ function samplesTo(
 	cap: number,
 ): number {
 	const rnd = rng(seed);
-	let st = INITIAL;
+	let st = initial(0);
 	// A clock that always satisfies DWELL, so this measures the statistic and not the dwell.
 	for (let i = 1; i <= cap; i++) {
-		st = observe(st, rnd() < rate(i) ? FAIL : OK, i * 60_000, 0);
+		st = observe(st, rnd() < rate(i) ? FAIL : OK, i * 60_000);
 		if (st.state === target) return i;
 	}
 	return cap;
