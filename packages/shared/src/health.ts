@@ -43,7 +43,7 @@
 //    Being wrong about `p0` in the low direction is unrecoverable; being wrong high only
 //    costs sensitivity. The estimator is deliberately asymmetric for that reason.
 
-import type { Outcome } from '@proxlane/adapters';
+import type { Outcome } from './outcome.js';
 
 /** Everything the statistic needs. Updated atomically, so a Lua script rather than INCR. */
 export interface HealthState {

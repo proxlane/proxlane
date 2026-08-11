@@ -6,7 +6,6 @@
 // "a stream of failures eventually degrades" passes for any threshold at all and would not
 // have caught the bootstrap-p0 defect the simulation found.
 
-import type { Outcome } from '@proxlane/adapters';
 import { describe, expect, it } from 'vitest';
 import {
 	eligible,
@@ -21,6 +20,7 @@ import {
 	probeDelayMs,
 	wilsonUpper,
 } from './health.js';
+import type { Outcome } from './outcome.js';
 
 function rng(seed: number): () => number {
 	let a = seed;

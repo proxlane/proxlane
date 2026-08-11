@@ -8,9 +8,9 @@
 // provider health. A new outcome silently defaulting to `ignore` is the failure mode, because
 // `ignore` is the answer that never looks wrong.
 
-import { OUTCOMES, type Outcome } from '@proxlane/adapters';
 import { describe, expect, it } from 'vitest';
 import { HEALTH_FAILURE, HEALTH_SUCCESS, healthWeight } from './health.js';
+import { OUTCOMES, type Outcome } from './outcome.js';
 
 /**
  * The attribution table from `integrations.md` section 3, pinned.
