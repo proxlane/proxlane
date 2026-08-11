@@ -184,6 +184,7 @@ defined per outcome, centrally, never inside adapters.
 | `HARD_BLOCK` | Provider says blocked/banned | 502 | no | yes | `blk` | no |
 | `TARGET_NOT_FOUND` | Genuine 404 (unless retry_404 semantics) | 404 | provider-dependent | **no** | no | no |
 | `TARGET_ERROR` | Target site 5xx / DNS dead | 502 | no | yes, once | no | no |
+| `TARGET_RATE_LIMITED` | Target returned 429 | 429 + body | no | yes | `blk` | no |
 | `PROVIDER_TIMEOUT` | Attempt exceeded per-attempt budget | 504 | no | yes | `acct`, short | no |
 | `PROVIDER_ERROR` | Provider 5xx / infra failure | 502 | no | yes | `acct`, short | no |
 | `RATE_LIMITED` | Provider 429 / concurrency cap | 429 + `Retry-After` | no | yes | `acct`, respect headers | no |
@@ -243,6 +244,26 @@ a request that is simply wrong, so all of it landed on `INVALID_REQUEST`:
 
 The HTTP column is not decoration: the product's promise is drop-in compatibility, so the
 status a client sees is part of the public surface, and no document defined it.
+
+**Why a target 429 has its own outcome rather than folding into `TARGET_ERROR` or
+`HARD_BLOCK`.** It used to be `TARGET_ERROR`, which arms no cooldown — so a throttled domain
+was retried on the very next request, and repeatedly ignoring a rate limit is what escalates
+it into a ban. We would have been doing that on the operator's own provider account.
+
+`HARD_BLOCK` would have supplied the cooldown, and the mechanism is right, but it answers 502
+and merges "throttled" with "banned". The status is public surface under the drop-in promise —
+a caller migrating already branches on 429, and this genuinely is one — and the block corpus
+and the phase-3 per-domain scoreboard both need the two kept apart.
+
+Providers retry a target 429 internally before it reaches us: ScraperAPI for up to 60 seconds
+across its pool, uncharged. So one that arrives has already outlasted that, which is why the
+response is to back off on the domain rather than to try again.
+
+The three recorded fixtures show how little the wire agrees — ScraperAPI answers 500,
+ScrapingBee 429, Scrapfly 200 — and all three carry the real status in their own
+discriminator. **`Retry-After` passthrough is unmeasured**: `httpbin.dev/status/429` sends
+none, so its absence in all three recordings proves nothing. The cooldown uses the standard
+jittered backoff until a target that actually throttles with the header has been recorded.
 
 Notes:
 - `TARGET_NOT_FOUND` never fails over: a real 404 on provider A is a real 404 on
@@ -355,7 +376,7 @@ the time an `Outcome` exists, "whose fault" is answered.
 | the success term | `OK` |
 | the failure term | `PROVIDER_ERROR`, `PROVIDER_DRIFT` |
 | nothing — a property of a hop, not a provider | `PROVIDER_TIMEOUT` |
-| nothing — target facts, handled by `cd:blk` | `SOFT_BLOCK`, `HARD_BLOCK`, `TARGET_NOT_FOUND`, `TARGET_ERROR` |
+| nothing — target facts, handled by `cd:blk` | `SOFT_BLOCK`, `HARD_BLOCK`, `TARGET_NOT_FOUND`, `TARGET_ERROR`, `TARGET_RATE_LIMITED` |
 | nothing — account facts, handled by `cd:acct` | `AUTH_FAILED`, `RATE_LIMITED` |
 | nothing — ours or the client's | `INVALID_REQUEST`, `BAD_REQUEST`, `TARGET_FORBIDDEN`, `NO_PROVIDER_AVAILABLE`, `RESPONSE_TOO_LARGE`, `BUDGET_EXCEEDED` |
 
@@ -367,7 +388,7 @@ slow-then-timeout is caught late — and phase 2 can readmit it normalised by ho
 
 **What enforces that table**: `AUTH_FAILED` and `RATE_LIMITED` are excluded because launch is
 BYOK, so one org's lapsed key must never demote a provider for every other org. A unit test
-pins all sixteen outcomes against the union, so adding one fails until somebody decides what
+pins every outcome against the union, so adding one fails until somebody decides what
 it means. `TARGET_ERROR` is enforced end to end by a required conformance fixture.
 `PROVIDER_ERROR` is **not**, and cannot be: it needs a provider 5xx, which is no more
 summonable than a Cloudflare challenge. That half rests on review.

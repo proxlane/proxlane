@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { OUTCOMES } from '@proxlane/adapters';
 import { describe, expect, it } from 'vitest';
 import { doctor } from './doctor.js';
 import { outcomes } from './outcomes.js';
@@ -125,7 +126,10 @@ describe('--json is a contract, not a formatting option', () => {
 		const [code, out] = await capture(() => outcomes([], true));
 		expect(code).toBe(EXIT.OK);
 		const { data } = JSON.parse(out);
-		expect(data).toHaveLength(16);
+		// Derived from the union, not a literal. A hardcoded count goes stale the moment an
+		// outcome is added, and then the test that exists to prove the CLI lists them ALL is
+		// the thing asserting it lists an outdated number.
+		expect(data).toHaveLength(OUTCOMES.length);
 		for (const d of data) {
 			expect(d).toHaveProperty('failover');
 			expect(d).toHaveProperty('chargeable');

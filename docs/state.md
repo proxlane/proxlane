@@ -39,10 +39,6 @@ Owner decisions and external answers. None is unblocked by writing code.
 - **Keyless paths and provider ToS** — `plan.md` §18. Needs provider permission in writing
   and Swedish counsel. *Interim default:* `npx proxlane try`, the blocked-domain checker
   and the playground are neither built nor documented as available.
-- **A target 429 has no outcome of its own.** It falls to `TARGET_ERROR`, which carries no
-  health weight and fails over once — probably right, but undecided rather than chosen. A
-  target throttling us is a block signal, so `HARD_BLOCK` and the shared `cd:blk` cooldown
-  is the other candidate.
 - **Comparative content vs affiliate terms** — `affiliate-emails.md` Q3. Two launch
   providers must confirm in writing. *External.*
 - **Credits refundability** — `operations.md` §4. Confirm with the accountant before the

@@ -9,7 +9,7 @@ import { COOLDOWN, cooldownKey, initial } from '@proxlane/shared';
 import { describe, expect, it } from 'vitest';
 import { runChain } from './chain.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
-import type { HealthStore } from './health-store.js';
+import { type HealthStore, InMemoryHealthStore } from './health-store.js';
 import type { HttpTransport } from './transport.js';
 
 function caps(id: string): ProviderCapabilities {
@@ -511,6 +511,79 @@ describe('a lost probe claim does not hide the demoted fallback', () => {
 		expect(new Set(tried).size, `a provider was attempted twice: ${tried.join(', ')}`).toBe(
 			tried.length,
 		);
+	});
+});
+
+describe('a target 429 backs off instead of retrying into a ban', () => {
+	// The outcome exists for this. As TARGET_ERROR a target 429 armed NOTHING — it failed over
+	// once and the next request repeated the whole thing immediately. Repeatedly ignoring a
+	// rate limit is what turns it into a ban, and we would be doing it on the operator's own
+	// provider account.
+	//
+	// Providers already retry a target 429 internally first (ScraperAPI for up to 60s across
+	// its pool, uncharged), so one that reaches us has already outlasted that.
+	it('arms the DOMAIN cooldown, which TARGET_ERROR did not', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		await chain([['a', 'TARGET_RATE_LIMITED']], { cooldowns: cd });
+		expect(cd.peek(blk('a')), 'no backoff was armed').toBeDefined();
+		expect(
+			cd.peek(acct('a')),
+			'a target fact must not touch the account namespace',
+		).toBeUndefined();
+	});
+
+	it('skips that provider for that domain on the next request', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		await chain(
+			[
+				['a', 'TARGET_RATE_LIMITED'],
+				['b', 'OK'],
+			],
+			{ cooldowns: cd },
+		);
+		const second = await chain(
+			[
+				['a', 'OK'],
+				['b', 'OK'],
+			],
+			{ cooldowns: cd },
+		);
+		expect(second.provider, 'the throttled provider was tried again immediately').toBe('b');
+	});
+
+	it('leaves other domains alone', async () => {
+		// A rate limit is a property of the target, so it must not remove the provider from
+		// every other site the moment one starts throttling.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		await chain([['a', 'TARGET_RATE_LIMITED']], { cooldowns: cd });
+		const other = await runChain(
+			{ ...REQ, url: 'https://elsewhere.example/x' },
+			{
+				transport: okTransport,
+				candidates: [{ adapter: adapterFor('a', 'OK'), key: 'k' }],
+				maxBodyBytes: 1024,
+				cooldowns: cd,
+			},
+		);
+		expect(other.provider).toBe('a');
+	});
+
+	it('fails over rather than stopping, because another provider is another egress', async () => {
+		const r = await chain([
+			['a', 'TARGET_RATE_LIMITED'],
+			['b', 'OK'],
+		]);
+		expect(r.outcome).toBe('OK');
+		expect(r.provider).toBe('b');
+	});
+
+	it('carries no health weight, so one throttling site cannot demote a provider', async () => {
+		const store = new InMemoryHealthStore();
+		for (let i = 0; i < 5000; i++) store.record('a', 'TARGET_RATE_LIMITED', 1000 + i);
+		expect(
+			(await store.all(0)).get('a')?.p0,
+			'a target fact reached the statistic',
+		).toBeFalsy();
 	});
 });
 

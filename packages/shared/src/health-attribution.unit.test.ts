@@ -32,6 +32,9 @@ const EXPECTED: Record<Outcome, 'success' | 'failure' | 'ignore'> = {
 	HARD_BLOCK: 'ignore',
 	TARGET_NOT_FOUND: 'ignore',
 	TARGET_ERROR: 'ignore',
+	// A target throttling us says nothing about the provider's infrastructure. Counting it
+	// would let one aggressively rate-limited site demote a provider for every org.
+	TARGET_RATE_LIMITED: 'ignore',
 	// Account facts. Launch is BYOK, so one org's lapsed key must not demote for other orgs.
 	AUTH_FAILED: 'ignore',
 	RATE_LIMITED: 'ignore',

@@ -109,6 +109,11 @@ function outcomeForTarget(status: number): Outcome {
 	// A target 403 is an anti-bot refusal far more often than a permission error. NOT
 	// TARGET_FORBIDDEN, which means rejected at OUR edge.
 	if (status === 403) return 'HARD_BLOCK';
+	// The target is throttling us. Distinct from RATE_LIMITED, which is OUR account against
+	// the provider — this one is domain-scoped and shared, because it is a property of the
+	// site. As TARGET_ERROR it armed no cooldown and the next request repeated it, which is
+	// what escalates a rate limit into a ban.
+	if (status === 429) return 'TARGET_RATE_LIMITED';
 	// Known taxonomy gap, same as the other two adapters: a TARGET throttling us is not
 	// RATE_LIMITED, which is scoped to the provider account and would cool the wrong thing.
 	return 'TARGET_ERROR';

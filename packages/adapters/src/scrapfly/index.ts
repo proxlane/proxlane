@@ -62,6 +62,11 @@ function outcomeForTarget(status: number): Outcome {
 	if (status >= 200 && status < 300) return 'OK';
 	if (status === 404) return 'TARGET_NOT_FOUND';
 	if (status === 403) return 'HARD_BLOCK';
+	// The target is throttling us. Distinct from RATE_LIMITED, which is OUR account against
+	// the provider — this one is domain-scoped and shared, because it is a property of the
+	// site. As TARGET_ERROR it armed no cooldown and the next request repeated it, which is
+	// what escalates a rate limit into a ban.
+	if (status === 429) return 'TARGET_RATE_LIMITED';
 	return 'TARGET_ERROR';
 }
 

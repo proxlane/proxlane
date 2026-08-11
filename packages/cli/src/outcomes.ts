@@ -4,7 +4,7 @@ import { EXIT, emit, style } from './output.js';
 // `proxlane outcomes` — the whole error taxonomy, as data.
 //
 // This is the command written specifically for an agent. Every request through proxlane
-// resolves to exactly one of 16 outcomes, and correct handling depends on knowing three
+// resolves to exactly one outcome, and correct handling depends on knowing three
 // things per outcome that are NOT guessable from its name: whether it fails over, whether
 // you are charged, and what HTTP status the caller sees.
 //

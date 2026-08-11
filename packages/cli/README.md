@@ -76,7 +76,7 @@ attempt, honestly labelled.
 
 The whole error taxonomy, as data. **This is the command written for an agent.**
 
-Every request resolves to exactly one of 16 outcomes, and handling one correctly needs
+Every request resolves to exactly one outcome, and handling one correctly needs
 three things that are not guessable from its name: whether it fails over, whether you are
 charged, and what status the caller sees.
 

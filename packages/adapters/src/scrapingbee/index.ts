@@ -90,7 +90,11 @@ function outcomeForTarget(status: number): Outcome {
 	if (status === 403) return 'HARD_BLOCK';
 	// Same taxonomy gap as everywhere else: a TARGET throttling us is not RATE_LIMITED,
 	// which is scoped to the provider account and would cool the wrong thing.
-	if (status === 429) return 'TARGET_ERROR';
+	// The target is throttling us. Distinct from RATE_LIMITED, which is OUR account against
+	// the provider — this one is domain-scoped and shared, because it is a property of the
+	// site. As TARGET_ERROR it armed no cooldown and the next request repeated it, which is
+	// what escalates a rate limit into a ban.
+	if (status === 429) return 'TARGET_RATE_LIMITED';
 	if (status >= 500) return 'TARGET_ERROR';
 	return 'TARGET_ERROR';
 }
