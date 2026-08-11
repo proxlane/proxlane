@@ -12,18 +12,18 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 **Public since 2026-08-10.** Ruleset on `main` with no bypass actor, verified by a rejected
 push, so blocking CI binds on the maintainer too. Scanning and Dependabot are on.
 
-Phase 1 done, all 16 outcomes have a producer. The detector's rules come from vendor
-signatures and have **never seen a real block page**; a test asserts the count.
+Provider health routes live traffic: the CUSUM re-ranks the chain, drops demoted providers,
+forces the least-bad one rather than refusing, and reports itself on `X-Provider-Health` and
+`/health/providers`. Stored in-process — `PROXLANE_REPLICAS>1` refuses to boot. **The probe
+worker is the last piece**, and it needs `apps/worker`, which does not exist.
+
+The detector's rules come from vendor signatures and have **never seen a real block page**;
+a test asserts the count.
 
 ## Blocked on
 
 Owner decisions and external answers. None is unblocked by writing code.
 
-- **The probe credential** — the only thing between the health machine and working;
-  `domain-class` is now phase-gated in `integrations.md` §3 and blocks route to `cd:blk`.
-  Recovery from `demoted` is a background probe, but launch is BYOK and the gateway holds no
-  house keys. An opted-in org's key, or a shadow attempt billed to nobody? The statistic,
-  the store, routing and the surface are all buildable without an answer. Recovery is not.
 - **Secret scanning depth** — core scanning and push protection are on. Non-provider
   patterns and validity checks accept a 200 from the API and stay disabled; they need
   paid Secret Protection. Buy it, or accept that a bespoke key shape goes unscanned.

@@ -11,6 +11,7 @@ import { type Adapter, carriesBody, type GatewayRequest, policyFor } from '@prox
 import { Hono } from 'hono';
 import type { ChainResult } from './chain.js';
 import { runChain } from './chain.js';
+import type { HealthStore } from './health-store.js';
 import type { HttpTransport } from './transport.js';
 
 export interface AppDeps {
@@ -21,6 +22,8 @@ export interface AppDeps {
 	readonly apiKey: string;
 	readonly maxBodyBytes: number;
 	readonly defaultDeadlineMs: number;
+	/** Omit to route without health. The gateway then behaves exactly as it did before. */
+	readonly health?: HealthStore;
 }
 
 /** Constant-time compare, so a wrong key cannot be discovered one character at a time. */
@@ -48,6 +51,11 @@ function headersFor(r: ChainResult): Record<string, string> {
 		// never reached a provider or came back as JSON. Absence means "no rule fired",
 		// which is what a caller can actually act on.
 		...(r.detectRuleId === undefined ? {} : { 'X-Detect-Rule': r.detectRuleId }),
+		// Present only when a provider actually served. `demoted-forced` is the one worth
+		// reading: every capable provider was demoted and the least-bad was used anyway, so a
+		// degraded answer is expected. A user who can see that understands their world;
+		// scattered unexplained failures get blamed on us. operations.md section 4.
+		...(r.providerHealth === undefined ? {} : { 'X-Provider-Health': r.providerHealth }),
 	};
 }
 
@@ -62,6 +70,50 @@ export function createApp(deps: AppDeps): Hono {
 	// The COUNT, never the names: this endpoint takes no key, and which providers an operator
 	// pays for is not something to hand out. A count is enough to diagnose.
 	app.get('/health', (c) => c.json({ status: 'ok', providers: deps.candidates.length }));
+
+	// The operator's view of what the router believes. Unlike `/health`, this one NAMES
+	// providers — an operator debugging "why is everything slow" needs to know which provider
+	// the gateway has given up on.
+	//
+	// AND THEREFORE IT TAKES THE KEY. `/health` reports a count and no names precisely because
+	// it is unauthenticated: which providers an operator pays for is not something to hand to
+	// anyone who can reach the port. An open endpoint listing them would have quietly undone
+	// that decision one file away from where it is written down.
+	//
+	// The argument for leaving it open — "a diagnostic you cannot reach when things are broken
+	// is useless" — is true of `/health`, which is the container healthcheck. It is not true
+	// here: the operator asking this question always has the gateway key, and `proxlane doctor`
+	// is already configured with one.
+	app.get('/health/providers', async (c) => {
+		if (!keyMatches(c.req.query('api_key') ?? '', deps.apiKey)) {
+			return c.json({ error: 'unauthorized', message: 'api_key missing or incorrect' }, 401);
+		}
+		if (deps.health === undefined) {
+			// Honest 501 rather than an empty list. `{providers: []}` would read as "all fine".
+			return c.json(
+				{ error: 'not_enabled', message: 'this gateway is running without health tracking' },
+				501,
+			);
+		}
+		const now = Date.now();
+		const states = await deps.health.all(now);
+		return c.json({
+			providers: deps.candidates.map(({ adapter }) => {
+				const id = adapter.capabilities.id;
+				const st = states.get(id);
+				return {
+					id,
+					state: st?.state ?? 'healthy',
+					// null until MIN_SAMPLES observations exist. Reported as null rather than
+					// omitted, because "we have no baseline yet" is the actionable answer when
+					// somebody asks why a dying provider has not been demoted.
+					baselineFailureRate: st?.p0 ?? null,
+					statistic: st === undefined ? 0 : Number(st.s.toFixed(3)),
+					samplesInState: st?.samples ?? 0,
+				};
+			}),
+		});
+	});
 
 	app.get('/v1', async (c) => {
 		const presented = c.req.query('api_key') ?? '';
@@ -112,6 +164,7 @@ export function createApp(deps: AppDeps): Hono {
 			transport: deps.transport,
 			candidates,
 			maxBodyBytes: deps.maxBodyBytes,
+			...(deps.health === undefined ? {} : { health: deps.health }),
 		});
 
 		const policy = policyFor(result.outcome);

@@ -14,8 +14,9 @@ import {
 	policyFor,
 } from '@proxlane/adapters';
 import { detect } from '@proxlane/detect';
-import { guardTargetUrl } from '@proxlane/shared';
+import { guardTargetUrl, type HealthState, eligible as rankByHealth } from '@proxlane/shared';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
+import type { HealthStore } from './health-store.js';
 import type { HttpTransport } from './transport.js';
 
 export interface Attempt {
@@ -44,14 +45,27 @@ export interface ChainResult {
 	/** Every hop, in order. The logged grain is the attempt, not the request. */
 	readonly attempts: readonly Attempt[];
 	readonly reason?: string;
+	/**
+	 * Health of the provider that served, surfaced as `X-Provider-Health`.
+	 *
+	 * `demoted-forced` means the floor fired: every capable provider was demoted, so the
+	 * least-bad one was used anyway. A user seeing that understands their world; the same
+	 * request failing with NO_PROVIDER_AVAILABLE would look like our outage.
+	 */
+	readonly providerHealth?: HealthState['state'] | 'demoted-forced';
 }
 
 export interface ChainDeps {
 	readonly transport: HttpTransport;
-	/** Resolved and ordered by the caller; BYOK means keys arrive per request. */
+	/**
+	 * Resolved by the caller in STATIC PRIORITY order; BYOK means keys arrive per request.
+	 * Health re-ranks this list, it does not replace it: ties break on the order given here.
+	 */
 	readonly candidates: ReadonlyArray<{ adapter: Adapter; key: string }>;
 	readonly maxBodyBytes: number;
 	readonly now?: () => number;
+	/** Omit to route without health. The chain then behaves exactly as it did before. */
+	readonly health?: HealthStore;
 }
 
 /**
@@ -95,8 +109,11 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	// re-parses a different string". This is the caller finally honouring that.
 	const guarded: GatewayRequest = { ...req, url: verdict.url.href };
 
-	const eligible = deps.candidates.filter((c) => isCapable(c.adapter.capabilities, guarded));
-	if (eligible.length === 0) {
+	// Capability first, health second. A provider that cannot render JS is not a health
+	// question, and filtering on capability before consulting health keeps the two reasons a
+	// provider is missing from a chain distinguishable in the reason string below.
+	const capable = deps.candidates.filter((c) => isCapable(c.adapter.capabilities, guarded));
+	if (capable.length === 0) {
 		return {
 			outcome: 'NO_PROVIDER_AVAILABLE',
 			attempts,
@@ -107,12 +124,43 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 		};
 	}
 
+	// FAIL OPEN. `integrations.md` section 3's Valkey-failure table: losing health costs a
+	// worse routing decision, never a refused request. Health is an optimisation over a chain
+	// that already works, so a store that is down must not be able to take the gateway with
+	// it — which is exactly what awaiting an unguarded read would do.
+	let states: ReadonlyMap<string, HealthState> = new Map();
+	if (deps.health !== undefined) {
+		try {
+			states = await deps.health.snapshot(
+				capable.map((c) => c.adapter.capabilities.id),
+				startedAt,
+			);
+		} catch {
+			states = new Map();
+		}
+	}
+
+	const ranked = rankByHealth(
+		capable.map((c) => ({
+			id: c.adapter.capabilities.id,
+			state: states.get(c.adapter.capabilities.id)?.state ?? 'healthy',
+			candidate: c,
+		})),
+	);
+	// The floor. With capability filtering ahead of it, a correlated false positive can empty
+	// the chain, and a gateway that turns itself off is worse than one routing at 74%.
+	const order = ranked.chain;
+	const forced = ranked.forced;
+
 	let lastOutcome: Outcome = 'NO_PROVIDER_AVAILABLE';
 	let onceUsed = false;
 
-	for (let i = 0; i < eligible.length; i++) {
-		const { adapter, key } = eligible[i] as { adapter: Adapter; key: string };
-		const hopsLeft = eligible.length - i - 1;
+	for (let i = 0; i < order.length; i++) {
+		const { adapter, key } = (order[i] as (typeof order)[number]).candidate;
+		const providerHealth: HealthState['state'] | 'demoted-forced' = forced
+			? 'demoted-forced'
+			: (order[i] as (typeof order)[number]).state;
+		const hopsLeft = order.length - i - 1;
 		const isLastHop = hopsLeft === 0;
 		const cap = isLastHop
 			? adapter.capabilities.maxTimeoutMs
@@ -180,6 +228,21 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				outcome = 'PROVIDER_ERROR';
 		}
 
+		// Fire and forget, by the interface's design: recording must never be awaited on the
+		// hot path. A forced attempt under the floor is recorded too — it is real evidence
+		// about a provider we were told is dead.
+		//
+		// Guarded, because "best effort" has to be true in the direction that matters. A store
+		// that throws on write would otherwise take down the request it was only observing —
+		// this exact case failed the first time it was tested. Reporting the failure belongs
+		// to the implementation, which is the only layer that knows whether a write dropping
+		// is routine or an outage; the chain's job is to be unaffected either way.
+		try {
+			deps.health?.record(adapter.capabilities.id, outcome, now());
+		} catch {
+			// Intentionally swallowed. See above.
+		}
+
 		attempts.push({
 			provider: adapter.capabilities.id,
 			outcome,
@@ -199,6 +262,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				outcome,
 				attempts,
 				provider: adapter.capabilities.id,
+				providerHealth,
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
 				...(parsed === undefined ? {} : { result: parsed }),
 			};
@@ -211,6 +275,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					outcome,
 					attempts,
 					provider: adapter.capabilities.id,
+					providerHealth,
 					...(detectRuleId === undefined ? {} : { detectRuleId }),
 					...(parsed === undefined ? {} : { result: parsed }),
 				};
@@ -223,13 +288,14 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				outcome,
 				attempts,
 				provider: adapter.capabilities.id,
+				providerHealth,
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
 				...(parsed === undefined ? {} : { result: parsed }),
 			};
 		}
 	}
 
-	// Unreachable while eligible.length > 0: the last hop always returns above. Kept honest
+	// Unreachable while order.length > 0: the last hop always returns above. Kept honest
 	// rather than thrown away, because "cannot happen" is how a silent wrong answer ships.
 	return { outcome: lastOutcome, attempts, reason: 'chain exhausted' };
 }

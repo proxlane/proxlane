@@ -6,11 +6,24 @@
 import { serve } from '@hono/node-server';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
 import { createApp } from './app.js';
+import { assertSingleWriter, InMemoryHealthStore } from './health-store.js';
 import { createFetchTransport } from './transport.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DEFAULT_DEADLINE_MS = Number(process.env.PROXLANE_DEADLINE_MS ?? 90_000);
 const MAX_BODY_BYTES = Number(process.env.PROXLANE_BODY_CAP_MB ?? 10) * 1024 * 1024;
+
+// Health tracking is ON by default and opts OUT, not in.
+//
+// A demoted provider that can never recover is a far worse default than a gateway that keeps
+// a running opinion of its providers, and the whole point of the statistic is that it needs
+// no configuration to be useful. The switch exists for someone who wants the chain to behave
+// exactly as it did before, and for bisecting a routing complaint.
+const HEALTH_ENABLED = (process.env.PROXLANE_HEALTH ?? 'on') !== 'off';
+
+// Provider health is stored in this process, so a second replica would keep a second opinion
+// and demote independently. Refuse rather than misroute. See health-store.ts.
+assertSingleWriter(Number(process.env.PROXLANE_REPLICAS ?? 1));
 
 const apiKey = process.env.PROXLANE_API_KEY;
 if (apiKey === undefined || apiKey === '') {
@@ -66,12 +79,14 @@ const app = createApp({
 	apiKey,
 	maxBodyBytes: MAX_BODY_BYTES,
 	defaultDeadlineMs: DEFAULT_DEADLINE_MS,
+	...(HEALTH_ENABLED ? { health: new InMemoryHealthStore() } : {}),
 });
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
 	process.stdout.write(
 		`\n  proxlane gateway on :${info.port}\n` +
 			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(', ')}\n` +
+			`  health:    ${HEALTH_ENABLED ? 'on, in-process — GET /health/providers' : 'OFF (PROXLANE_HEALTH=off)'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);
 });
