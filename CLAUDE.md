@@ -304,7 +304,15 @@ own rule — if it breaks the budget, the ceiling was set wrong, not the work.
 
 ## House rules
 
-- Conventional Commits, enforced. Every behaviour change carries a changeset.
+- Conventional Commits, enforced. Every behaviour change carries a changeset — **including
+  `apps/gateway`**, which is `private: true` but versioned: `.changeset/config.json` sets
+  `privatePackages: { version: true, tag: false }`, so it gets a CHANGELOG and never a
+  publish. Before that, ten gateway-only changesets named `@proxlane/shared` instead, because
+  naming the package that actually changed was impossible.
+- **A new subsystem ships with its `proxlane doctor` checks in the same PR.** `operating.md`
+  B9 already says every support question that takes more than one exchange becomes a check;
+  health, cooldowns and Valkey shipped without any, and the first question they produced was
+  one `doctor` could not answer.
 - Docs update in the same PR as the API change. A decision goes into the doc it changes,
   in the same commit — there is no separate decisions log.
 - No secrets in fixtures. The record script sanitizes; CI scans.

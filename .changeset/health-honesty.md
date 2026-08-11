@@ -1,4 +1,5 @@
 ---
+'@proxlane/gateway': minor
 '@proxlane/shared': minor
 ---
 
