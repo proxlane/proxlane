@@ -28,6 +28,12 @@ import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
 import type { HttpTransport } from './transport.js';
 
+/**
+ * The smallest wait a 503 will ever advertise. `Retry-After` is expressed in whole seconds,
+ * so anything below this rounds to zero and tells the caller to retry at once.
+ */
+const MIN_RETRY_AFTER_MS = 1000;
+
 export interface Attempt {
 	readonly provider: string;
 	readonly outcome: Outcome;
@@ -162,25 +168,21 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 		}
 	}
 
-	const ranked = rankByHealth(
-		capable.map((c) => ({
-			id: c.adapter.capabilities.id,
-			state: states.get(c.adapter.capabilities.id)?.state ?? 'healthy',
-			candidate: c,
-		})),
-	);
-	// The floor. With capability filtering ahead of it, a correlated false positive can empty
-	// the chain, and a gateway that turns itself off is worse than one routing at 74%.
-	const order = ranked.chain;
-	const forced = ranked.forced;
-
-	// COOLDOWNS. Read for every ranked provider up front, in one call, because doing it per
-	// hop would add a round trip to the middle of the chain — the one place the latency budget
-	// has already been divided up.
+	// COOLDOWNS. Read for every CAPABLE provider up front, in one call.
 	//
-	// Fails open, like health: `integrations.md` section 3's table. Losing a cooldown costs a
-	// wasted attempt at a provider that was about to block us, which is money; refusing the
-	// request instead would cost the request.
+	// Capable, not merely the health-ranked subset, and that ordering is a correction. Health
+	// ranking drops demoted providers, so reading cooldowns only for what survived it meant a
+	// healthy-but-cooling provider could empty the chain while a demoted-but-usable one was
+	// never even considered — the floor exists precisely to stop the gateway turning itself
+	// off, and cooldown filtering routed around it. Both filters now see the same input and
+	// the floor is applied last, to whatever is left.
+	//
+	// One call rather than per hop, because a round trip in the middle of the chain lands in
+	// the one place the latency budget has already been divided up.
+	//
+	// Fails open: `integrations.md` section 3's table. Losing a cooldown costs a wasted
+	// attempt at a provider that was about to block us, which is money; refusing the request
+	// instead would cost the request.
 	const org = deps.orgId ?? 'self';
 	const domain = cooldownDomain(guarded.url);
 	const keysFor = (providerId: string) => ({
@@ -192,8 +194,8 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	if (deps.cooldowns !== undefined) {
 		try {
 			cooldowns = await deps.cooldowns.check(
-				order.flatMap((o) => {
-					const k = keysFor(o.id);
+				capable.flatMap((c) => {
+					const k = keysFor(c.adapter.capabilities.id);
 					return [k.blk, k.acct];
 				}),
 				startedAt,
@@ -224,30 +226,59 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	// `probe` entries stay in — they are maybe-usable, and the claim happens at attempt time
 	// so a provider that gets skipped for a better one does not burn the single probe slot on
 	// its way past.
-	const cooled: { readonly provider: string; readonly untilMs: number }[] = [];
-	const attemptable = order.filter((o) => {
-		const cd = cooldownFor(o.id);
+	const cooled: {
+		readonly provider: string;
+		readonly untilMs: number;
+		readonly scope: string;
+	}[] = [];
+	const notCooling = capable.filter((c) => {
+		const id = c.adapter.capabilities.id;
+		const cd = cooldownFor(id);
 		if (cd.kind !== 'cooling') return true;
-		cooled.push({ provider: o.id, untilMs: cd.untilMs });
+		// Which namespace cooled it. An `acct` cooldown is a rate limit or an auth failure and
+		// has nothing to do with the domain, so reporting it as "cooling on example.com" sends
+		// the operator to debug the wrong system.
+		const k = keysFor(id);
+		cooled.push({
+			provider: id,
+			untilMs: cd.untilMs,
+			scope: cooldowns.get(k.blk)?.kind === 'cooling' ? `blocked on ${domain}` : 'account',
+		});
 		return false;
 	});
 
-	if (attemptable.length === 0) {
-		// Every capable provider is cooling on this domain or this account. There is no floor
-		// here, and that is the difference from health: a demoted provider is a guess about a
-		// trend, while a cooldown is a fact — each of these providers refused this exact
-		// domain within the last few minutes. Forcing one buys a probable second refusal at
-		// full price. Say so instead, with the moment it stops being true.
+	if (notCooling.length === 0) {
+		// Every capable provider is cooling. There is no floor here, and that is the difference
+		// from demotion: a demoted provider is a guess about a trend, while a cooldown is a
+		// fact — each of these refused this exact request minutes ago. Forcing one buys a
+		// probable second refusal at full price. Say so, with the moment it stops being true.
 		const soonest = Math.min(...cooled.map((c) => c.untilMs));
 		return {
 			outcome: 'NO_PROVIDER_AVAILABLE',
 			attempts,
-			retryAfterMs: Math.max(0, soonest - now()),
-			reason: `every capable provider is cooling on ${domain}: ${cooled
-				.map((c) => c.provider)
+			// FLOORED AT ONE SECOND, never zero. A cooldown whose expiry is already in the past
+			// still reports `cooling` when its single probe is out with another request, so the
+			// naive `soonest - now()` is negative and clamps to 0 — and `Retry-After: 0` is an
+			// instruction to retry immediately, i.e. a hot loop, from the one response that
+			// exists to tell a caller to wait. The honest answer in that case is "shortly".
+			retryAfterMs: Math.max(MIN_RETRY_AFTER_MS, soonest - now()),
+			reason: `every capable provider is cooling: ${cooled
+				.map((c) => `${c.provider} (${c.scope})`)
 				.join(', ')}`,
 		};
 	}
+
+	// Health ranks what is left, and the demoted floor applies to THAT — so a demoted provider
+	// is still preferred over no provider at all, even when the healthy ones are cooling.
+	const ranked = rankByHealth(
+		notCooling.map((c) => ({
+			id: c.adapter.capabilities.id,
+			state: states.get(c.adapter.capabilities.id)?.state ?? 'healthy',
+			candidate: c,
+		})),
+	);
+	const attemptable = ranked.chain;
+	const forced = ranked.forced;
 
 	let lastOutcome: Outcome = 'NO_PROVIDER_AVAILABLE';
 	let onceUsed = false;
@@ -262,6 +293,10 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 		// A `probe` has to be CLAIMED before anything is spent. Two concurrent requests both
 		// seeing an expired cooldown and both proceeding is the herd the half-open design
 		// exists to stop, and it only appears under load.
+		//
+		// `claimedKey` is then owed a settlement — arm, clear or release — on EVERY path out of
+		// this iteration, including a throw. See `settleProbe` below.
+		let claimedKey: string | undefined;
 		if (cooldownFor(adapter.capabilities.id).kind === 'probe' && deps.cooldowns !== undefined) {
 			const k = keysFor(adapter.capabilities.id);
 			const which = cooldowns.get(k.blk)?.kind === 'probe' ? k.blk : k.acct;
@@ -275,138 +310,159 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			// Somebody else is already probing. Rare, so the budget for the hops behind is now
 			// marginally conservative rather than wrong, which is the safe direction.
 			if (!claimed) continue;
+			claimedKey = which;
 		}
 
-		const hopsLeft = attemptable.length - i - 1;
-		const isLastHop = hopsLeft === 0;
-		const cap = isLastHop
-			? adapter.capabilities.maxTimeoutMs
-			: adapter.capabilities.fastTimeoutMs;
+		/**
+		 * Give the probe slot back if this attempt did not settle the cooldown itself.
+		 *
+		 * Called from a `finally`, so a transport that throws, an adapter that throws, or a
+		 * budget check that returns cannot strand the claim. `release` is a no-op once `arm` or
+		 * `clear` has run, because both leave `probeTaken` false or delete the record outright.
+		 */
+		let settled = false;
+		const settleProbe = () => {
+			if (claimedKey !== undefined && !settled) {
+				try {
+					deps.cooldowns?.release(claimedKey);
+				} catch {
+					// Best effort. The record's TTL is the backstop.
+				}
+			}
+		};
 
-		const remaining = guarded.deadlineMs - (now() - startedAt);
-		const budget = hopBudget(remaining, hopsLeft, cap);
-		if (budget.kind === 'exhausted') {
-			// Deliberately NOT the previous outcome. The chain stopped because time ran out,
-			// and reporting the last provider's failure instead would hide a tuning problem as
-			// a provider problem — and send someone debugging the wrong system.
-			return { outcome: 'BUDGET_EXCEEDED', attempts, reason: budget.reason };
-		}
-
-		let wire: ReturnType<Adapter['translate']>;
 		try {
-			wire = adapter.translate(guarded, key);
-		} catch (err) {
-			// An adapter refusing to build a request it cannot honour is a capability answer,
-			// not a crash — but isCapable() should have caught it, so reaching here means the
-			// declaration and the code disagree. That is our bug: INVALID_REQUEST pages.
+			const hopsLeft = attemptable.length - i - 1;
+			const isLastHop = hopsLeft === 0;
+			// The cap keys off HEALTH, not just position. The terminal hop gets maxTimeoutMs and
+			// `orderChain` puts the least healthy member last, so keying purely off position hands
+			// the worst provider 3.4x everyone else's budget — a promotion, and the exact thing the
+			// design says it avoids. A degraded or forced provider keeps the fast cap wherever it
+			// lands, so a timeout there cannot eat the budget failover exists to preserve.
+			const healthyEnough = providerHealth === 'healthy';
+			const cap =
+				isLastHop && healthyEnough
+					? adapter.capabilities.maxTimeoutMs
+					: adapter.capabilities.fastTimeoutMs;
+
+			const remaining = guarded.deadlineMs - (now() - startedAt);
+			const budget = hopBudget(remaining, hopsLeft, cap);
+			if (budget.kind === 'exhausted') {
+				// Deliberately NOT the previous outcome. The chain stopped because time ran out,
+				// and reporting the last provider's failure instead would hide a tuning problem as
+				// a provider problem — and send someone debugging the wrong system.
+				return { outcome: 'BUDGET_EXCEEDED', attempts, reason: budget.reason };
+			}
+
+			let wire: ReturnType<Adapter['translate']>;
+			try {
+				wire = adapter.translate(guarded, key);
+			} catch (err) {
+				// An adapter refusing to build a request it cannot honour is a capability answer,
+				// not a crash — but isCapable() should have caught it, so reaching here means the
+				// declaration and the code disagree. That is our bug: INVALID_REQUEST pages.
+				attempts.push({
+					provider: adapter.capabilities.id,
+					outcome: 'INVALID_REQUEST',
+					budgetMs: budget.perAttemptMs,
+				});
+				return {
+					outcome: 'INVALID_REQUEST',
+					attempts,
+					reason: err instanceof Error ? err.message : String(err),
+				};
+			}
+
+			const res = await deps.transport.execute(wire, {
+				budgetMs: budget.perAttemptMs,
+				maxBodyBytes: deps.maxBodyBytes,
+			});
+
+			let parsed: ParsedResult | undefined;
+			let outcome: Outcome;
+			let detectRuleId: string | undefined;
+			switch (res.kind) {
+				case 'response':
+					parsed = adapter.parse(res.response);
+					outcome = parsed.outcome;
+					// SOFT_BLOCK is assigned HERE and nowhere else. An adapter cannot produce it:
+					// `parse` is pure and has not run a detector, and the provider thinks the fetch
+					// succeeded. Only OK is re-examined — a 404 that happens to contain a vendor
+					// token is still a 404, and re-labelling it would make it fail over.
+					if (outcome === 'OK' && parsed.body !== undefined) {
+						const verdict = detect(parsed.body, parsed.contentType, parsed.charset);
+						if (verdict.blocked) {
+							outcome = 'SOFT_BLOCK';
+							detectRuleId = verdict.ruleId;
+						}
+					}
+					break;
+				case 'timeout':
+					outcome = 'PROVIDER_TIMEOUT';
+					break;
+				case 'too-large':
+					outcome = 'RESPONSE_TOO_LARGE';
+					break;
+				default:
+					outcome = 'PROVIDER_ERROR';
+			}
+
+			// Fire and forget, by the interface's design: recording must never be awaited on the
+			// hot path. A forced attempt under the floor is recorded too — it is real evidence
+			// about a provider we were told is dead.
+			//
+			// Guarded, because "best effort" has to be true in the direction that matters. A store
+			// that throws on write would otherwise take down the request it was only observing —
+			// this exact case failed the first time it was tested. Reporting the failure belongs
+			// to the implementation, which is the only layer that knows whether a write dropping
+			// is routine or an outage; the chain's job is to be unaffected either way.
+			try {
+				deps.health?.record(adapter.capabilities.id, outcome, now());
+			} catch {
+				// Intentionally swallowed. See above.
+			}
+
+			// Cooldowns, from the outcome's OWN declared scope in FAILOVER rather than from a
+			// second list of outcome names here. Adding an outcome therefore cannot silently miss
+			// this file — it has to declare a scope to compile at all.
+			try {
+				const scope = cooldownScope(outcome);
+				const cdKey = cooldownKey(scope, { provider: adapter.capabilities.id, domain, org });
+				if (cdKey !== null) {
+					deps.cooldowns?.arm(cdKey, now());
+					settled = true;
+				} else if (outcome === 'OK' || outcome === 'TARGET_NOT_FOUND') {
+					// The provider REACHED the target. A 200 or a genuine 404 both mean the block, if
+					// there ever was one, is over — which is what makes a successful probe end a
+					// cooldown rather than merely pause it.
+					//
+					// Only the DOMAIN key. Clearing the account key here was wrong: `cd:acct` is not
+					// domain-scoped, so any concurrent request coming back OK deleted the rate-limit
+					// backoff another request had just armed, `consecutive` included. That is the
+					// steady state of a plan concurrency cap — some 429, some fine — so the account
+					// cooldown was armed and destroyed continuously and never took effect at all.
+					deps.cooldowns?.clear(keysFor(adapter.capabilities.id).blk);
+					settled = true;
+				}
+			} catch {
+				// Best effort, like health. A cooldown we failed to write costs one future attempt.
+			}
+
 			attempts.push({
 				provider: adapter.capabilities.id,
-				outcome: 'INVALID_REQUEST',
-				budgetMs: budget.perAttemptMs,
-			});
-			return {
-				outcome: 'INVALID_REQUEST',
-				attempts,
-				reason: err instanceof Error ? err.message : String(err),
-			};
-		}
-
-		const res = await deps.transport.execute(wire, {
-			budgetMs: budget.perAttemptMs,
-			maxBodyBytes: deps.maxBodyBytes,
-		});
-
-		let parsed: ParsedResult | undefined;
-		let outcome: Outcome;
-		let detectRuleId: string | undefined;
-		switch (res.kind) {
-			case 'response':
-				parsed = adapter.parse(res.response);
-				outcome = parsed.outcome;
-				// SOFT_BLOCK is assigned HERE and nowhere else. An adapter cannot produce it:
-				// `parse` is pure and has not run a detector, and the provider thinks the fetch
-				// succeeded. Only OK is re-examined — a 404 that happens to contain a vendor
-				// token is still a 404, and re-labelling it would make it fail over.
-				if (outcome === 'OK' && parsed.body !== undefined) {
-					const verdict = detect(parsed.body, parsed.contentType, parsed.charset);
-					if (verdict.blocked) {
-						outcome = 'SOFT_BLOCK';
-						detectRuleId = verdict.ruleId;
-					}
-				}
-				break;
-			case 'timeout':
-				outcome = 'PROVIDER_TIMEOUT';
-				break;
-			case 'too-large':
-				outcome = 'RESPONSE_TOO_LARGE';
-				break;
-			default:
-				outcome = 'PROVIDER_ERROR';
-		}
-
-		// Fire and forget, by the interface's design: recording must never be awaited on the
-		// hot path. A forced attempt under the floor is recorded too — it is real evidence
-		// about a provider we were told is dead.
-		//
-		// Guarded, because "best effort" has to be true in the direction that matters. A store
-		// that throws on write would otherwise take down the request it was only observing —
-		// this exact case failed the first time it was tested. Reporting the failure belongs
-		// to the implementation, which is the only layer that knows whether a write dropping
-		// is routine or an outage; the chain's job is to be unaffected either way.
-		try {
-			deps.health?.record(adapter.capabilities.id, outcome, now());
-		} catch {
-			// Intentionally swallowed. See above.
-		}
-
-		// Cooldowns, from the outcome's OWN declared scope in FAILOVER rather than from a
-		// second list of outcome names here. Adding an outcome therefore cannot silently miss
-		// this file — it has to declare a scope to compile at all.
-		try {
-			const scope = cooldownScope(outcome);
-			const cdKey = cooldownKey(scope, { provider: adapter.capabilities.id, domain, org });
-			if (cdKey !== null) {
-				deps.cooldowns?.arm(cdKey, now());
-			} else if (outcome === 'OK') {
-				// A provider that just served this domain is not cooled on it. Clearing on OK is
-				// what makes a successful probe end the cooldown rather than merely pause it.
-				const blk = keysFor(adapter.capabilities.id).blk;
-				deps.cooldowns?.clear(blk);
-				deps.cooldowns?.clear(keysFor(adapter.capabilities.id).acct);
-			}
-		} catch {
-			// Best effort, like health. A cooldown we failed to write costs one future attempt.
-		}
-
-		attempts.push({
-			provider: adapter.capabilities.id,
-			outcome,
-			budgetMs: budget.perAttemptMs,
-			...(res.kind === 'response' ? { latencyMs: res.latencyMs } : {}),
-			...(parsed === undefined ? {} : { costMicrocredits: parsed.cost.microcredits }),
-			...(detectRuleId === undefined ? {} : { detectRuleId }),
-		});
-		lastOutcome = outcome;
-
-		const policy = policyFor(outcome);
-		if (policy.failover === false) {
-			// Final, and final means final even with hops to spare. A real 404 is a real 404 at
-			// the next provider too, and ScraperAPI charges for one — so retrying spends money
-			// to reach the same answer.
-			return {
 				outcome,
-				attempts,
-				provider: adapter.capabilities.id,
-				providerHealth,
+				budgetMs: budget.perAttemptMs,
+				...(res.kind === 'response' ? { latencyMs: res.latencyMs } : {}),
+				...(parsed === undefined ? {} : { costMicrocredits: parsed.cost.microcredits }),
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
-				...(parsed === undefined ? {} : { result: parsed }),
-			};
-		}
-		if (policy.failover === 'once') {
-			// 'once' is the CALLER's to track, per the contract. Tracked here because here is
-			// the only place that knows how many hops have already happened.
-			if (onceUsed) {
+			});
+			lastOutcome = outcome;
+
+			const policy = policyFor(outcome);
+			if (policy.failover === false) {
+				// Final, and final means final even with hops to spare. A real 404 is a real 404 at
+				// the next provider too, and ScraperAPI charges for one — so retrying spends money
+				// to reach the same answer.
 				return {
 					outcome,
 					attempts,
@@ -416,24 +472,52 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					...(parsed === undefined ? {} : { result: parsed }),
 				};
 			}
-			onceUsed = true;
-		}
+			if (policy.failover === 'once') {
+				// 'once' is the CALLER's to track, per the contract. Tracked here because here is
+				// the only place that knows how many hops have already happened.
+				if (onceUsed) {
+					return {
+						outcome,
+						attempts,
+						provider: adapter.capabilities.id,
+						providerHealth,
+						...(detectRuleId === undefined ? {} : { detectRuleId }),
+						...(parsed === undefined ? {} : { result: parsed }),
+					};
+				}
+				onceUsed = true;
+			}
 
-		if (isLastHop) {
-			return {
-				outcome,
-				attempts,
-				provider: adapter.capabilities.id,
-				providerHealth,
-				...(detectRuleId === undefined ? {} : { detectRuleId }),
-				...(parsed === undefined ? {} : { result: parsed }),
-			};
+			if (isLastHop) {
+				return {
+					outcome,
+					attempts,
+					provider: adapter.capabilities.id,
+					providerHealth,
+					...(detectRuleId === undefined ? {} : { detectRuleId }),
+					...(parsed === undefined ? {} : { result: parsed }),
+				};
+			}
+		} finally {
+			settleProbe();
 		}
 	}
 
-	// Unreachable while order.length > 0: the last hop always returns above. Kept honest
-	// rather than thrown away, because "cannot happen" is how a silent wrong answer ships.
-	return { outcome: lastOutcome, attempts, reason: 'chain exhausted' };
+	// REACHABLE, and it used to claim otherwise. A lost probe claim `continue`s, and if that
+	// happens on the last element the loop exits normally. The old comment said "unreachable"
+	// and returned `lastOutcome` — so a chain that never completed an attempt reported the
+	// PREVIOUS provider's failure with no provider attached, and the response dropped
+	// `X-Provider-Used` while `X-Outcome` named a provider fault.
+	//
+	// An exhausted chain is NO_PROVIDER_AVAILABLE, which is what it has always meant.
+	return {
+		outcome: attempts.length === 0 ? 'NO_PROVIDER_AVAILABLE' : lastOutcome,
+		attempts,
+		reason:
+			attempts.length === 0
+				? 'every capable provider was already being probed by another request'
+				: 'chain exhausted',
+	};
 }
 
 export { MIN_USEFUL_ATTEMPT_MS };

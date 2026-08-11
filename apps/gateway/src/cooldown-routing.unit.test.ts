@@ -236,6 +236,7 @@ describe('fail open', () => {
 			claim: () => Promise.reject(new Error('valkey is gone')),
 			arm: () => {},
 			clear: () => {},
+			release: () => {},
 		};
 		const r = await chain(broken, [['a', 'OK']]);
 		expect(r.outcome).toBe('OK');
@@ -250,6 +251,7 @@ describe('fail open', () => {
 				throw new Error('write failed');
 			},
 			clear: () => {},
+			release: () => {},
 		};
 		await expect(chain(broken, [['a', 'HARD_BLOCK']])).resolves.toMatchObject({
 			outcome: 'HARD_BLOCK',
