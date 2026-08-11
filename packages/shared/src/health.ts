@@ -43,17 +43,23 @@
 //    Being wrong about `p0` in the low direction is unrecoverable; being wrong high only
 //    costs sensitivity. The estimator is deliberately asymmetric for that reason.
 
-/** Everything the statistic needs. Five fields, updated atomically, so a Lua script. */
+import type { Outcome } from '@proxlane/adapters';
+
+/** Everything the statistic needs. Updated atomically, so a Lua script rather than INCR. */
 export interface HealthState {
 	readonly state: 'healthy' | 'degraded' | 'demoted';
 	/** Frozen in-control failure rate. `null` until MIN_SAMPLES observations exist. */
 	readonly p0: number | null;
-	/** The CUSUM statistic. Never negative. */
+	/** The CUSUM statistic. Never negative, never above S_CAP. */
 	readonly s: number;
-	/** Observations seen while `p0` was still being measured, or since entering this state. */
+	/** Observations while `p0` is being measured, or within the current recovery window. */
 	readonly samples: number;
 	/** Failures within those samples. Only meaningful while `p0` is null. */
 	readonly failures: number;
+	/** Consecutive recovery windows closed below H_RESET. Only meaningful in `degraded`. */
+	readonly cleanWindows: number;
+	/** Consecutive clean probes. Only meaningful in `demoted`. */
+	readonly cleanProbes: number;
 }
 
 export const INITIAL: HealthState = {
@@ -62,6 +68,8 @@ export const INITIAL: HealthState = {
 	s: 0,
 	samples: 0,
 	failures: 0,
+	cleanWindows: 0,
+	cleanProbes: 0,
 };
 
 /**
@@ -99,11 +107,22 @@ export const HEALTH = {
 	H_DEGRADE: 7,
 	/** Out of rotation. A false positive here removes a provider, so it is deliberately far. */
 	H_DEMOTE: 10,
-	/** The statistic must fall below this before recovery starts counting. */
+	/**
+	 * A one-sided CUSUM has no upper bound, and `demoted` keeps observing. Without a cap the
+	 * statistic runs away during an outage and a recovered provider would need thousands of
+	 * clean requests to walk it back down. Capping it makes recovery a bounded distance.
+	 */
+	S_CAP: 20,
+	/** The statistic must be below this at a window close for that window to count as clean. */
 	H_RESET: 2,
-	/** Consecutive windows below H_RESET required to return to healthy. */
+	/**
+	 * CONSECUTIVE windows below H_RESET required to return to healthy, and the observations
+	 * per window. Consecutive, not cumulative: an earlier version required only 300 total
+	 * samples in `degraded` plus `s < H_RESET` at that instant, so a provider could sit at
+	 * s=9 for 299 samples, dip once, and recover. The constant was named for windows and the
+	 * code counted samples.
+	 */
 	RESET_WINDOWS: 3,
-	/** Observations per reset window. */
 	RESET_WINDOW_SAMPLES: 100,
 	/** Minimum time in `degraded` before `healthy` is reachable, regardless of the statistic. */
 	DWELL_RECOVER_MS: 30 * 60 * 1000,
@@ -131,13 +150,20 @@ export const HEALTH = {
  * baseline. The cost is real and stated: a provider dying purely by slow-then-timeout is
  * caught late. Phase 2 can readmit it normalised by hop budget.
  */
-export const HEALTH_SUCCESS = ['OK'] as const;
-export const HEALTH_FAILURE = ['PROVIDER_ERROR', 'PROVIDER_DRIFT'] as const;
+export const HEALTH_SUCCESS: readonly Outcome[] = ['OK'];
+export const HEALTH_FAILURE: readonly Outcome[] = ['PROVIDER_ERROR', 'PROVIDER_DRIFT'];
 
-/** Does this outcome move the statistic at all, and in which direction? */
-export function healthWeight(outcome: string): 'success' | 'failure' | 'ignore' {
-	if ((HEALTH_SUCCESS as readonly string[]).includes(outcome)) return 'success';
-	if ((HEALTH_FAILURE as readonly string[]).includes(outcome)) return 'failure';
+/**
+ * Does this outcome move the statistic, and in which direction?
+ *
+ * Typed on `Outcome` rather than `string`, so a misspelled member is a compile error rather
+ * than a silent `ignore`. `ignore` is the answer that never looks wrong, which makes it the
+ * dangerous default: an outcome that quietly stopped feeding the statistic reads exactly
+ * like an outcome that was never meant to.
+ */
+export function healthWeight(outcome: Outcome): 'success' | 'failure' | 'ignore' {
+	if (HEALTH_SUCCESS.includes(outcome)) return 'success';
+	if (HEALTH_FAILURE.includes(outcome)) return 'failure';
 	return 'ignore';
 }
 
@@ -182,7 +208,7 @@ export function increments(p0: number): { readonly failure: number; readonly suc
  */
 export function observe(
 	prev: HealthState,
-	outcome: string,
+	outcome: Outcome,
 	now: number,
 	enteredAt: number,
 ): HealthState {
@@ -198,34 +224,81 @@ export function observe(
 		if (samples < HEALTH.MIN_SAMPLES) return { ...prev, samples, failures };
 		const measured = wilsonUpper(failures, samples);
 		const p0 = Math.min(HEALTH.P0_CEILING, Math.max(HEALTH.P0_FLOOR, measured));
-		return { state: 'healthy', p0, s: 0, samples: 0, failures: 0 };
+		return { ...INITIAL, p0 };
 	}
 
 	const inc = increments(prev.p0);
-	const s = Math.max(0, prev.s + (failed ? inc.failure : inc.success));
+	const s = Math.min(HEALTH.S_CAP, Math.max(0, prev.s + (failed ? inc.failure : inc.success)));
 	const samples = prev.samples + 1;
-	const next = { ...prev, s, samples, failures: prev.failures + (failed ? 1 : 0) };
+	const next = {
+		...prev,
+		s,
+		samples,
+		failures: prev.failures + (failed ? 1 : 0),
+	};
 
+	// Live traffic never lifts a demoted provider. Only `observeProbe` does. It still moves
+	// the statistic, because a forced attempt under the floor is real evidence.
 	if (prev.state === 'demoted') return next;
 
-	if (s >= HEALTH.H_DEMOTE) return { ...next, state: 'demoted', samples: 0, failures: 0 };
-	if (s >= HEALTH.H_DEGRADE && prev.state === 'healthy') {
-		return { ...next, state: 'degraded', samples: 0, failures: 0 };
+	if (s >= HEALTH.H_DEMOTE) {
+		return {
+			...next,
+			state: 'demoted',
+			samples: 0,
+			failures: 0,
+			cleanWindows: 0,
+			cleanProbes: 0,
+		};
 	}
+	if (s >= HEALTH.H_DEGRADE && prev.state === 'healthy') {
+		return { ...next, state: 'degraded', samples: 0, failures: 0, cleanWindows: 0 };
+	}
+	if (prev.state !== 'degraded' || samples < HEALTH.RESET_WINDOW_SAMPLES) return next;
+
+	// A recovery window just closed. Consecutive, not cumulative: a single dip below H_RESET
+	// after a long bad stretch is noise, not recovery.
+	const cleanWindows = s < HEALTH.H_RESET ? prev.cleanWindows + 1 : 0;
+	const closed = { ...next, samples: 0, failures: 0, cleanWindows };
+
 	// degraded -> healthy. Without this edge the first provider that ever degrades keeps its
 	// baseline frozen against a rate that has since become fiction, and a one-sided statistic
 	// against a stale-high p0 re-trips forever.
-	if (
-		prev.state === 'degraded' &&
-		s < HEALTH.H_RESET &&
-		samples >= HEALTH.RESET_WINDOWS * HEALTH.RESET_WINDOW_SAMPLES &&
-		now - enteredAt >= HEALTH.DWELL_RECOVER_MS
-	) {
-		// p0 is re-measured from the recovered window rather than resumed. The pre-incident
-		// value described a provider that no longer exists.
-		return { state: 'healthy', p0: null, s: 0, samples: 0, failures: 0 };
+	if (cleanWindows >= HEALTH.RESET_WINDOWS && now - enteredAt >= HEALTH.DWELL_RECOVER_MS) {
+		// p0 is re-measured rather than resumed: the pre-incident value described a provider
+		// that no longer exists. The cost is a MIN_SAMPLES window with no detection, which is
+		// the price of not carrying a stale baseline forward.
+		return { ...INITIAL };
 	}
-	return next;
+	return closed;
+}
+
+/**
+ * Fold a background PROBE result into the state. The only exit from `demoted`.
+ *
+ * Separate from `observe` on purpose. Recovery must never ride on a user's request: the
+ * half-open cooldown in section 3 spends a real request on a known-dead provider every 15
+ * minutes, which is right for a transient block and actively harmful across a three-day
+ * outage. A probe is ours, it is scheduled on `probeDelayMs`, and nobody is waiting on it.
+ */
+export function observeProbe(prev: HealthState, ok: boolean): HealthState {
+	if (prev.state !== 'demoted') return prev;
+	if (!ok) return { ...prev, cleanProbes: 0 };
+	const cleanProbes = prev.cleanProbes + 1;
+	if (cleanProbes < HEALTH.PROBE_CLEAN) return { ...prev, cleanProbes };
+	// Back to `degraded`, not to `healthy`, and re-entering AT the degrade boundary rather
+	// than at zero. Two clean probes are evidence the provider answers, not evidence it is
+	// well. From here one bad patch re-demotes quickly and a genuinely recovered provider
+	// walks the statistic down through the normal window process.
+	return {
+		...prev,
+		state: 'degraded',
+		s: HEALTH.H_DEGRADE,
+		samples: 0,
+		failures: 0,
+		cleanWindows: 0,
+		cleanProbes: 0,
+	};
 }
 
 /** Delay before the nth probe of a demoted provider. */

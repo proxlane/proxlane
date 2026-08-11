@@ -6,6 +6,7 @@
 // "a stream of failures eventually degrades" passes for any threshold at all and would not
 // have caught the bootstrap-p0 defect the simulation found.
 
+import type { Outcome } from '@proxlane/adapters';
 import { describe, expect, it } from 'vitest';
 import {
 	eligible,
@@ -15,6 +16,7 @@ import {
 	INITIAL,
 	increments,
 	observe,
+	observeProbe,
 	orderChain,
 	probeDelayMs,
 	wilsonUpper,
@@ -50,7 +52,13 @@ describe('attribution', () => {
 	it('ignores every target fact, so one dead site cannot demote a provider', () => {
 		// The cross-org contamination this design exists to prevent, arriving through
 		// attribution rather than through the cooldown namespace.
-		for (const o of ['TARGET_ERROR', 'TARGET_NOT_FOUND', 'SOFT_BLOCK', 'HARD_BLOCK']) {
+		const targetFacts: Outcome[] = [
+			'TARGET_ERROR',
+			'TARGET_NOT_FOUND',
+			'SOFT_BLOCK',
+			'HARD_BLOCK',
+		];
+		for (const o of targetFacts) {
 			expect(healthWeight(o), o).toBe('ignore');
 		}
 	});
@@ -185,17 +193,124 @@ describe('the recovery edge', () => {
 	});
 
 	it('holds a provider in degraded until the dwell has passed, statistic notwithstanding', () => {
-		const st: HealthState = { state: 'degraded', p0: 0.04, s: 0, samples: 10_000, failures: 0 };
-		// now - enteredAt is one minute, well under DWELL_RECOVER_MS
-		expect(observe(st, 'OK', 60_000, 0).state).toBe('degraded');
-		expect(observe(st, 'OK', HEALTH.DWELL_RECOVER_MS + 1, 0).state).toBe('healthy');
+		const ready: HealthState = {
+			state: 'degraded',
+			p0: 0.04,
+			s: 0,
+			samples: HEALTH.RESET_WINDOW_SAMPLES - 1,
+			failures: 0,
+			cleanWindows: HEALTH.RESET_WINDOWS - 1,
+			cleanProbes: 0,
+		};
+		expect(observe(ready, 'OK', 60_000, 0).state, 'dwell not yet served').toBe('degraded');
+		expect(observe(ready, 'OK', HEALTH.DWELL_RECOVER_MS + 1, 0).state).toBe('healthy');
 	});
 
-	it('never leaves demoted on live traffic, only a probe can', () => {
-		const st: HealthState = { state: 'demoted', p0: 0.04, s: 20, samples: 0, failures: 0 };
-		let cur = st;
+	it('requires CONSECUTIVE clean windows, so one dip does not recover a bad provider', () => {
+		// The defect this replaced: the rule was "300 samples in degraded AND s < H_RESET right
+		// now", so a provider could sit at s=9 for 299 samples, dip once, and recover.
+		const bad: HealthState = {
+			state: 'degraded',
+			p0: 0.04,
+			s: 0,
+			samples: HEALTH.RESET_WINDOW_SAMPLES - 1,
+			failures: 0,
+			cleanWindows: 0,
+			cleanProbes: 0,
+		};
+		const afterOneCleanWindow = observe(bad, 'OK', HEALTH.DWELL_RECOVER_MS + 1, 0);
+		expect(afterOneCleanWindow.state).toBe('degraded');
+		expect(afterOneCleanWindow.cleanWindows).toBe(1);
+	});
+
+	it('resets the clean-window streak when a window closes dirty', () => {
+		const st: HealthState = {
+			state: 'degraded',
+			p0: 0.04,
+			s: HEALTH.H_RESET + 3,
+			samples: HEALTH.RESET_WINDOW_SAMPLES - 1,
+			failures: 0,
+			cleanWindows: 2,
+			cleanProbes: 0,
+		};
+		expect(observe(st, 'PROVIDER_ERROR', HEALTH.DWELL_RECOVER_MS + 1, 0).cleanWindows).toBe(0);
+	});
+
+	it('never leaves demoted on live traffic, however much of it succeeds', () => {
+		let cur: HealthState = {
+			state: 'demoted',
+			p0: 0.04,
+			s: HEALTH.S_CAP,
+			samples: 0,
+			failures: 0,
+			cleanWindows: 0,
+			cleanProbes: 0,
+		};
 		for (let i = 0; i < 5000; i++) cur = observe(cur, 'OK', i * 60_000, 0);
 		expect(cur.state).toBe('demoted');
+	});
+
+	it('caps the statistic, so recovery is a bounded distance not an unbounded one', () => {
+		// A one-sided CUSUM has no upper bound and `demoted` keeps observing. Uncapped, a
+		// three-day outage leaves a number no amount of success can walk back down.
+		let cur = INITIAL;
+		for (let i = 1; i <= 20_000; i++) {
+			cur = observe(cur, i <= HEALTH.MIN_SAMPLES ? 'OK' : 'PROVIDER_ERROR', i * 60_000, 0);
+		}
+		expect(cur.state).toBe('demoted');
+		expect(cur.s).toBeLessThanOrEqual(HEALTH.S_CAP);
+	});
+});
+
+describe('the only exit from demoted', () => {
+	const demoted: HealthState = {
+		state: 'demoted',
+		p0: 0.04,
+		s: HEALTH.S_CAP,
+		samples: 0,
+		failures: 0,
+		cleanWindows: 0,
+		cleanProbes: 0,
+	};
+
+	it('takes PROBE_CLEAN consecutive clean probes to reach degraded', () => {
+		let st = demoted;
+		for (let i = 1; i < HEALTH.PROBE_CLEAN; i++) {
+			st = observeProbe(st, true);
+			expect(st.state, `after ${i} clean probes`).toBe('demoted');
+		}
+		st = observeProbe(st, true);
+		expect(st.state).toBe('degraded');
+	});
+
+	it('re-enters at the degrade boundary, not at zero', () => {
+		// Two clean probes are evidence the provider answers, not evidence it is well. One bad
+		// patch from here should re-demote quickly.
+		let st = demoted;
+		for (let i = 0; i < HEALTH.PROBE_CLEAN; i++) st = observeProbe(st, true);
+		expect(st.s).toBe(HEALTH.H_DEGRADE);
+		expect(st.s).toBeLessThan(HEALTH.H_DEMOTE);
+	});
+
+	it('restarts the streak on a failed probe', () => {
+		let st = observeProbe(demoted, true);
+		expect(st.cleanProbes).toBe(1);
+		st = observeProbe(st, false);
+		expect(st.cleanProbes).toBe(0);
+		expect(st.state).toBe('demoted');
+	});
+
+	it('does nothing to a provider that is not demoted', () => {
+		const healthy = { ...INITIAL, p0: 0.04 };
+		expect(observeProbe(healthy, true)).toEqual(healthy);
+	});
+
+	it('gives a demoted provider a real path back rather than a dead state', () => {
+		// The whole point. Without this the spec's own warning stands: "as written, a demoted
+		// provider can never recover".
+		let st = demoted;
+		for (let i = 0; i < 10 && st.state === 'demoted'; i++) st = observeProbe(st, true);
+		expect(st.state).not.toBe('demoted');
 	});
 });
 
