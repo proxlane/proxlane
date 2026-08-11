@@ -11,11 +11,12 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"hono": "catalog:",
 		"@hono/node-server": "catalog:",
 		"@proxlane/adapters": "workspace:*",
+		"@proxlane/detect": "workspace:*",
 		"@proxlane/shared": "workspace:*",
-		"@proxlane/detect": "workspace:*"
+		"hono": "catalog:",
+		"ioredis": "catalog:"
 	},
 	"devDependencies": {
 		"@proxlane/tsconfig": "workspace:*",
