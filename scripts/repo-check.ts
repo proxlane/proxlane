@@ -837,6 +837,87 @@ const wsPkgs = wsDirs.map((d) => ({ dir: d, json: JSON.parse(read(join(d, 'packa
 	}
 }
 
+// ------------------------------- 20. the internal dependency graph is a layered DAG
+//
+// This exists because the graph was upside down and nothing noticed. `packages/shared` — the
+// base layer, per CLAUDE.md's own description — depended on `packages/adapters`, a leaf,
+// purely to name the `Outcome` type. Consequences, all real:
+//
+//   - `adapters` could never import `shared`; it would have been a cycle. Adapters are the
+//     package strangers are most invited to write, and it was the one cut off from the base.
+//   - CODEOWNERS handed the outcome taxonomy to adapter-engineer, when it drives failover,
+//     cooldowns, HTTP status and health, which belong to platform-engineer.
+//   - `turbo` only complains once the cycle is COMPLETE. A one-way inversion builds fine and
+//     is invisible until someone adds the import that closes it, at which point the fix is a
+//     refactor rather than a deletion.
+//
+// So the direction is declared, not inferred. A package may depend on a STRICTLY lower layer
+// and nothing else.
+{
+	// Layer 0 is config with no dependencies at all; each layer may only reach strictly
+	// downward. The numbers have gaps in meaning rather than in value: what matters is that
+	// `shared` sits below `adapters`, and that test tooling sits above the packages it
+	// replays, not beside them.
+	const LAYERS: Record<string, number> = {
+		// 0 — pure config, depends on nothing.
+		'@proxlane/tsconfig': 0,
+		// 1 — the base. No knowledge of providers, of HTTP, or of the gateway.
+		'@proxlane/shared': 1,
+		'@proxlane/containers': 1,
+		// 2 — provider knowledge. `adapters` depends on `shared`, which is the direction this
+		// whole assertion exists to hold.
+		'@proxlane/adapters': 2,
+		'@proxlane/detect': 2,
+		// 3 — things built on provider knowledge, including the test tooling that replays
+		// recorded adapter traffic and the operator CLI.
+		'@proxlane/api': 3,
+		'@proxlane/db': 3,
+		'@proxlane/sdk': 3,
+		'@proxlane/ui': 3,
+		'@proxlane/vitest-config': 3,
+		'@proxlane/scripts': 3,
+		proxlane: 3,
+		// 4 — composed UI.
+		'@proxlane/route-viz': 4,
+		// 5 — the deployables. Everything may point at them; they point at everything.
+		'@proxlane/gateway': 5,
+		'@proxlane/web': 5,
+	};
+
+	let edges = 0;
+	const internal = new Set(wsPkgs.map((p) => p.json.name as string));
+	for (const pkg of wsPkgs) {
+		const name = pkg.json.name as string;
+		const mine = LAYERS[name];
+		if (mine === undefined) {
+			fail('20', `${name} has no layer in repo-check assertion 20 — add one and say why`);
+			continue;
+		}
+		const deps = {
+			...(pkg.json.dependencies ?? {}),
+			...(pkg.json.devDependencies ?? {}),
+		} as Record<string, string>;
+		for (const dep of Object.keys(deps)) {
+			if (!internal.has(dep)) continue;
+			edges++;
+			const theirs = LAYERS[dep];
+			if (theirs === undefined) {
+				fail('20', `${name} depends on ${dep}, which has no layer`);
+			} else if (theirs >= mine) {
+				fail(
+					'20',
+					`${name} (layer ${mine}) depends on ${dep} (layer ${theirs}). ` +
+						'A package may only depend on a strictly lower layer',
+				);
+			}
+		}
+	}
+	if (edges === 0) {
+		fail('20', 'zero internal dependency edges found — this assertion parsed nothing');
+	}
+	ok('20', edges, 'internal dependency edges each point down a layer');
+}
+
 // ------------------------------------------------------------------------ helpers
 
 function parseCatalog(yaml: string): Record<string, string> {

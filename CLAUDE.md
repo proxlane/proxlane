@@ -41,6 +41,16 @@ reasoning survives, not so it gets loaded.
   publishable: it is an operator tool, not an integration surface, and no document asks for
   it to be permissive. `repo:check` assertion 10 enforces the direction. CLA via
   cla-assistant.
+- **Package layering is declared, and enforced two ways.** `shared` is the base and depends
+  on nothing internal; `adapters` and `detect` sit above it; the deployables sit on top. The
+  outcome taxonomy lives in `packages/shared/src/outcome.ts` and `adapters` re-exports it, so
+  adapter authors still import everything from `@proxlane/adapters`.
+  This is a correction, not a preference: the taxonomy used to live in `adapters`, which
+  forced `shared` to depend on a leaf, locked `adapters` out of `shared` entirely, and handed
+  the taxonomy to adapter-engineer under CODEOWNERS when it drives failover, cooldowns, HTTP
+  status and health. `repo:check` assertion 20 checks the manifests; a `biome` override
+  catches the import before the manifest changes. **turbo only reports a cycle once it is
+  complete**, so a one-way inversion builds fine and stays invisible.
 - **Testing: nothing mocked but the network boundary**, and that is fed by recorded
   real provider traffic. Real Postgres and Valkey via testcontainers.
 - **Launch adapters: ScraperAPI, ScrapingBee, Scrapfly.**
@@ -126,10 +136,10 @@ faithfully reflects a table that is now wrong.
 | `apps/web/src/generators/**` | generated pages, sitemap, OG, affiliate flow | growth-engineer |
 | `apps/web/src/routes/docs/**` | docs site, `llms.txt`, markdown-at-`.md`, OpenAPI | docs-writer |
 | `apps/worker/**` | queues. Owned now, created by the PR that adds the first one | data-engineer |
-| `packages/adapters/**` | adapters, capability registry, cost tables, the outcome taxonomy | adapter-engineer |
+| `packages/adapters/**` | adapters, capability registry, cost tables | adapter-engineer |
 | `packages/detect/**` | soft-block heuristics and the block-page corpus | adapter-engineer |
 | `packages/api/**` | oRPC contract, served by `apps/web` | platform-engineer |
-| `packages/shared/**` | types, config, constants, the edge guard | platform-engineer |
+| `packages/shared/**` | the outcome taxonomy, `GatewayRequest`, config, constants, the edge guard | platform-engineer |
 | `packages/sdk/**` | `@proxlane/sdk` and the MCP server | platform-engineer |
 | `packages/db/**` | Drizzle, migrations, rollups, ledger, worker queues | data-engineer |
 | `packages/ui/**` | Base UI wrapped, tokens, primitives | design-engineer |

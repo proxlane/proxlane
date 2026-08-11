@@ -24,6 +24,7 @@
 		"typescript": "catalog:"
 	},
 	"dependencies": {
+		"@proxlane/shared": "workspace:*",
 		"zod": "catalog:"
 	}
 }

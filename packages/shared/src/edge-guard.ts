@@ -13,7 +13,7 @@
 // every hostile URL landed on INVALID_REQUEST, which pages the on-call. Anyone could wake
 // somebody up with one curl.
 
-import type { Outcome } from '@proxlane/adapters';
+import type { Outcome } from './outcome.js';
 
 export type EdgeVerdict =
 	| { readonly allowed: true; readonly url: URL }

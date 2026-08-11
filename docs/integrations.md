@@ -80,7 +80,9 @@ What their APIs actually do, and the quirks that drive our design.
 One interface. Everything provider-specific lives behind it.
 
 ```ts
-// packages/adapters/src/contract.ts
+// packages/adapters/src/contract.ts — the adapter surface.
+// The outcome taxonomy it re-exports lives in packages/shared/src/outcome.ts, so that
+// `shared` can depend on nothing internal. See CLAUDE.md, package layering.
 
 export interface GatewayRequest {
   url: string;
