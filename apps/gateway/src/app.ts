@@ -106,8 +106,22 @@ export function createApp(deps: AppDeps): Hono {
 			);
 		}
 		const now = Date.now();
-		const states = await deps.health.all(now);
+		// Fail OPEN, like the routing path. This is the tool an operator reaches for when
+		// something is wrong, so it must not be the one thing that breaks when the backing
+		// store is unhealthy — which is exactly when they are using it. It used to 500.
+		let states: Awaited<ReturnType<typeof deps.health.all>>;
+		let degraded: string | undefined;
+		try {
+			states = await deps.health.all(now);
+		} catch (err) {
+			states = new Map();
+			degraded = err instanceof Error ? err.message : String(err);
+		}
 		return c.json({
+			// Present only when the store could not be read. Its absence is the healthy case,
+			// and a caller that ignores it sees every provider as `healthy`, which is what
+			// routing does too — so the endpoint and the router agree about a degraded store.
+			...(degraded === undefined ? {} : { stateUnavailable: degraded }),
 			providers: deps.candidates.map(({ adapter }) => {
 				const id = adapter.capabilities.id;
 				const st = states.get(id);

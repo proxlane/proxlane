@@ -99,10 +99,20 @@ export class InMemoryHealthStore implements HealthStore {
  * reading a compose file, not this module, so the check names the fix at the moment it
  * becomes wrong: run one replica, or land the Valkey store first.
  */
-export function assertSingleWriter(replicas: number): void {
-	if (replicas > 1) {
+export function assertSingleWriter(replicas: string | number): void {
+	// Takes the raw value so a typo is a boot failure rather than a silent pass. `Number('two')`
+	// is NaN, and `NaN > 1` is false, so the previous signature let `PROXLANE_REPLICAS=two`
+	// through the guard entirely — a misconfiguration reading as a clean single-replica boot.
+	const n = typeof replicas === 'number' ? replicas : Number(replicas);
+	if (!Number.isFinite(n) || n < 1) {
 		throw new Error(
-			`PROXLANE_REPLICAS=${replicas}, but provider health is stored in-process.\n\n` +
+			`PROXLANE_REPLICAS=${String(replicas)} is not a positive number.\n\n` +
+				'  Set it to the number of gateway processes sharing this configuration, or unset it.\n',
+		);
+	}
+	if (n > 1) {
+		throw new Error(
+			`PROXLANE_REPLICAS=${n}, but provider health is stored in-process.\n\n` +
 				'  Two replicas keep two opinions of the same provider and demote independently,\n' +
 				'  so one may route to a provider the other has taken out of rotation.\n\n' +
 				'  Run a single gateway, or implement the Valkey-backed HealthStore first.\n',

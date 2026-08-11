@@ -32,11 +32,20 @@ services:
       SCRAPFLY_KEY: ${SCRAPFLY_KEY:-}
       PROXLANE_DEADLINE_MS: ${PROXLANE_DEADLINE_MS:-90000}
       PROXLANE_BODY_CAP_MB: ${PROXLANE_BODY_CAP_MB:-10}
-      # Health and cooldowns are shared state. Unset, they live in this process, which is
-      # correct for one gateway and wrong for two — the server refuses to boot with
-      # PROXLANE_REPLICAS>1 rather than let two replicas demote independently.
+      # Routing state. These four were documented in .env.example and NOT listed here, so
+      # setting them did nothing on the one deployment path this project ships: compose only
+      # passes a variable into the container if it is named in this block.
       #
-      # Set this to run more than one. Uncomment the `valkey` service below with it.
+      # Health and cooldowns are on unless set to `off`. Both live in the gateway process
+      # unless PROXLANE_VALKEY_URL is set, which is what makes more than one replica possible;
+      # without it the server refuses to boot with PROXLANE_REPLICAS>1 rather than let two
+      # replicas demote independently. Uncomment the `valkey` service below alongside the URL.
+      #
+      # Note `${VAR:-}` sets the variable to an empty string rather than leaving it unset, so
+      # the gateway treats empty as absent. It has to: compose cannot express "unset".
+      PROXLANE_HEALTH: ${PROXLANE_HEALTH:-}
+      PROXLANE_COOLDOWNS: ${PROXLANE_COOLDOWNS:-}
+      PROXLANE_REPLICAS: ${PROXLANE_REPLICAS:-}
       PROXLANE_VALKEY_URL: ${PROXLANE_VALKEY_URL:-}
     # depends_on is deliberately absent while valkey is commented out. Uncomment both
     # together: a gateway that starts before Valkey is ready fails open and routes without

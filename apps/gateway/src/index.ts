@@ -13,8 +13,21 @@ import { createFetchTransport } from './transport.js';
 import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
-const DEFAULT_DEADLINE_MS = Number(process.env.PROXLANE_DEADLINE_MS ?? 90_000);
-const MAX_BODY_BYTES = Number(process.env.PROXLANE_BODY_CAP_MB ?? 10) * 1024 * 1024;
+const DEFAULT_DEADLINE_MS = Number(env('PROXLANE_DEADLINE_MS') ?? 90_000);
+// Empty would read as 0 here, i.e. a body cap of nothing, which rejects every response.
+const MAX_BODY_BYTES = Number(env('PROXLANE_BODY_CAP_MB') ?? 10) * 1024 * 1024;
+
+/**
+ * Read an env var, treating empty as absent.
+ *
+ * Docker Compose cannot express "leave this variable unset" for an optional value: the
+ * conventional `${VAR:-}` always defines it. Anything reading `process.env` directly and
+ * testing `undefined` is therefore wrong under the one deployment path this project ships.
+ */
+function env(name: string): string | undefined {
+	const v = process.env[name];
+	return v === undefined || v.trim() === '' ? undefined : v;
+}
 
 // Health tracking is ON by default and opts OUT, not in.
 //
@@ -22,11 +35,11 @@ const MAX_BODY_BYTES = Number(process.env.PROXLANE_BODY_CAP_MB ?? 10) * 1024 * 1
 // a running opinion of its providers, and the whole point of the statistic is that it needs
 // no configuration to be useful. The switch exists for someone who wants the chain to behave
 // exactly as it did before, and for bisecting a routing complaint.
-const HEALTH_ENABLED = (process.env.PROXLANE_HEALTH ?? 'on') !== 'off';
+const HEALTH_ENABLED = (env('PROXLANE_HEALTH') ?? 'on') !== 'off';
 
 // Cooldowns are ON by default for the same reason: asking a provider something it refused
 // ninety seconds ago costs money and usually gets refused again.
-const COOLDOWNS_ENABLED = (process.env.PROXLANE_COOLDOWNS ?? 'on') !== 'off';
+const COOLDOWNS_ENABLED = (env('PROXLANE_COOLDOWNS') ?? 'on') !== 'off';
 
 // Valkey is what makes more than one replica possible: both stores become shared instead of
 // process-local. Set PROXLANE_VALKEY_URL to use it.
@@ -34,17 +47,24 @@ const COOLDOWNS_ENABLED = (process.env.PROXLANE_COOLDOWNS ?? 'on') !== 'off';
 // Not required, and that is deliberate. Self-host is one process, and a mandatory Valkey
 // would add a service, a failure mode and a compose entry to a deployment that does not need
 // one. `docker/compose.yml` ships it commented out with this paragraph's reasoning.
-const VALKEY_URL = process.env.PROXLANE_VALKEY_URL;
+//
+// EMPTY STRING MEANS UNSET, and that is not defensive coding for its own sake. Compose
+// interpolates `${PROXLANE_VALKEY_URL:-}` to `""` rather than omitting the variable, so a
+// default self-host deployment — nobody having touched anything — arrived here with `''`,
+// built `new Redis('')`, and spent its life logging ECONNREFUSED while `/health/providers`
+// returned 500. The boot banner even claimed `state: valkey (shared)`. Every one of the ten
+// PR checks passed, because none of them start the shipped compose file.
+const VALKEY_URL = env('PROXLANE_VALKEY_URL');
 
 // Process-local state means a second replica keeps a second opinion and demotes
 // independently. Refuse rather than misroute — unless Valkey is backing them, in which case
 // the state is shared and replicas are fine.
 if (VALKEY_URL === undefined) {
-	assertSingleWriter(Number(process.env.PROXLANE_REPLICAS ?? 1));
+	assertSingleWriter(env('PROXLANE_REPLICAS') ?? '1');
 }
 
-const apiKey = process.env.PROXLANE_API_KEY;
-if (apiKey === undefined || apiKey === '') {
+const apiKey = env('PROXLANE_API_KEY');
+if (apiKey === undefined) {
 	// REFUSE TO BOOT rather than run open.
 	//
 	// This gateway fetches an arbitrary URL a caller chooses, on provider credentials that
