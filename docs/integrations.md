@@ -440,18 +440,45 @@ behalf, only exists with multiple tenants. That is hosted, and it is phase 3.
 
 #### Routing consumes it
 
-Rank by `(state, static priority)` and let position fall out. "Never put a degraded provider
-in the terminal hop" is unsatisfiable the moment two of three are degraded — and two
-simultaneous degradations is precisely the correlated scenario this exists for. The invariant
-that survives every configuration is **the terminal hop is the least-degraded member of the
-chain**, which matters because section 5 gives that hop 75 s against everyone else's 22 s.
-Moving the least reliable member there is a promotion.
+Rank by `(state, static priority)` and let position fall out: healthy providers first, so the
+chain tries its best option before its worst.
 
-**Demotion has a floor.** Section 5 filters by capability first, so a correlated false
-positive can empty the chain and return `NO_PROVIDER_AVAILABLE`. If demotion would leave zero
-capable providers, the best demoted one is used and the response carries
-`X-Provider-Health: demoted-forced`. A gateway that turns itself off is worse than one
-routing at 74%.
+**That makes the terminal hop the LEAST healthy member, which is why the timeout cap keys off
+health rather than position.** Section 5 gives the terminal hop 75 s and everyone else 22 s,
+so a cap chosen by position hands the worst provider 3.4x the budget — a promotion, and a
+timeout there consumes the budget failover exists to preserve. A degraded or forced provider
+keeps the fast cap wherever it lands.
+
+An earlier version of this paragraph asserted the opposite invariant, that the terminal hop
+holds the least-degraded member. It never did, in any configuration, and the test named after
+it asserted the negation of its own title while passing.
+
+**Demotion has a floor, and it is applied AFTER cooldowns.** Section 5 filters by capability
+first, so a correlated false positive can empty the chain and return
+`NO_PROVIDER_AVAILABLE`. If demotion would leave zero providers, the best demoted one is used
+and the response carries `X-Provider-Health: demoted-forced`. A gateway that turns itself off
+is worse than one routing at 74%.
+
+The ordering matters and was wrong once: cooldowns were read only for providers that survived
+health ranking, and ranking drops demoted ones. So a healthy-but-cooling provider emptied the
+chain while a demoted-but-usable one was never considered, and the floor was routed past.
+Both filters now see every capable provider, and the floor applies to whatever is left.
+
+**A claimed probe is always settled.** Claiming and settling are separate events and not
+every outcome settles: a probe returning `PROVIDER_ERROR` neither confirms the block nor
+refutes it. Arming would punish the provider for an unrelated fault; clearing would declare
+a block over on no evidence. So the slot is RELEASED, and the release happens in a `finally`
+so a throwing transport cannot strand it either. Left stranded, `decide()` reports `cooling`
+against an expiry already in the past — the provider is filtered out of every request and the
+503 carries `Retry-After: 0`, a hot-loop instruction, until the record's TTL lapses an hour
+later. One 404 on a probe did that. `Retry-After` is floored at one second for the same
+reason.
+
+**Success clears the DOMAIN key only.** `cd:acct` is not domain-scoped, so clearing it on
+`OK` meant any concurrent request coming back fine deleted a rate-limit backoff another
+request had just armed, `consecutive` included. That is the steady state of a plan
+concurrency cap — some 429, some fine — so the account cooldown was armed and destroyed
+continuously and never took effect at all.
 
 #### Where it lands, at the pinned constants
 

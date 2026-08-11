@@ -43,6 +43,21 @@ export interface CooldownStore {
 
 	/** A provider that just worked is not cooled. Best-effort. */
 	clear(key: string): void;
+
+	/**
+	 * Hand the probe slot back, leaving the cooldown otherwise untouched.
+	 *
+	 * Needed because claiming and settling are separate events, and not every outcome settles.
+	 * A claimed probe that returned, say, `PROVIDER_ERROR` neither confirms the block nor
+	 * refutes it: arming would punish the provider for an unrelated fault, clearing would
+	 * declare a block over on no evidence. Releasing lets the NEXT request probe.
+	 *
+	 * Without this the slot stayed taken forever. `decide()` then reports `cooling` against an
+	 * expiry already in the past, so the provider is filtered out on every subsequent request
+	 * and the 503 carries `Retry-After: 0` — a hot-loop instruction — until the record's TTL
+	 * runs out an hour later. One 404 on a probe did that.
+	 */
+	release(key: string): void;
 }
 
 /** Process-local cooldowns. Correct for one gateway, wrong for two. */
@@ -73,6 +88,11 @@ export class InMemoryCooldownStore implements CooldownStore {
 
 	clear(key: string): void {
 		this.#entries.delete(key);
+	}
+
+	release(key: string): void {
+		const e = this.#entries.get(key);
+		if (e !== undefined && e.probeTaken) this.#entries.set(key, { ...e, probeTaken: false });
 	}
 
 	/** Test and diagnostic access. Not part of the interface. */

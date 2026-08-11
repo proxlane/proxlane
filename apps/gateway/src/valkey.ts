@@ -314,6 +314,27 @@ return 1
 `;
 
 /**
+ * Hand the probe slot back without touching the expiry or the backoff exponent.
+ *
+ * A no-op when the record is gone or the slot was never taken, so a late release racing a
+ * concurrent `arm` cannot resurrect a claim against the new cooldown.
+ */
+const RELEASE = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return 0 end
+local ok, e = pcall(cjson.decode, raw)
+if not ok or type(e) ~= 'table' or not e.probeTaken then return 0 end
+e.probeTaken = false
+local ttl = redis.call('PTTL', KEYS[1])
+if ttl and ttl > 0 then
+  redis.call('SET', KEYS[1], cjson.encode(e), 'PX', ttl)
+else
+  redis.call('SET', KEYS[1], cjson.encode(e))
+end
+return 1
+`;
+
+/**
  * How long a cooldown record outlives the cooldown itself.
  *
  * Not zero, because `consecutive` is what makes backoff exponential: expiring the record the
@@ -380,6 +401,14 @@ export class ValkeyCooldownStore implements CooldownStore {
 
 	clear(key: string): void {
 		this.#redis.del(key).catch((err: unknown) => this.#onError(`cooldown clear ${key}`, err));
+	}
+
+	release(key: string): void {
+		// Atomic, and TTL-preserving, for the same reasons CLAIM is: two gateways settling
+		// probes on the same key must not clobber each other's expiry.
+		this.#redis
+			.eval(RELEASE, 1, key)
+			.catch((err: unknown) => this.#onError(`cooldown release ${key}`, err));
 	}
 }
 
