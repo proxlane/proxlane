@@ -56,6 +56,7 @@ const EXPECTED: Readonly<Record<string, Outcome | 'provider-dependent'>> = {
 	'render-js': 'OK',
 	'target-not-found': 'TARGET_NOT_FOUND',
 	'target-error': 'TARGET_ERROR',
+	'target-rate-limited': 'TARGET_RATE_LIMITED',
 	// Honoured if one is ever captured; see REQUIRED below for why it cannot be required.
 	'provider-error': 'PROVIDER_ERROR',
 	// Measured across three providers: 422, 500 and a plain 200. There is no single right
@@ -79,7 +80,15 @@ const EXPECTED: Readonly<Record<string, Outcome | 'provider-dependent'>> = {
  * stated rather than hidden: the failure term of the health statistic
  * (`packages/shared/src/health.ts`) rests on review, not on this suite.
  */
-const REQUIRED = ['success-html', 'target-not-found', 'target-error'] as const;
+const REQUIRED = [
+	'success-html',
+	'target-not-found',
+	'target-error',
+	// Recordable, unlike a block page, so it is required rather than merely honoured. A target
+	// 429 is the one target fact that arms a shared cooldown, so an adapter mapping it wrong
+	// either backs off when it should not or does not when it should.
+	'target-rate-limited',
+] as const;
 
 interface ExchangeFixture {
 	kind: 'exchange';

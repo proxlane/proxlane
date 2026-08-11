@@ -50,6 +50,7 @@ export type TargetCategory =
 	| 'success-json'
 	| 'target-not-found'
 	| 'target-error'
+	| 'target-rate-limited'
 	| 'slow-target'
 	| 'deadline'
 	| 'render-js';
@@ -101,6 +102,16 @@ export const TARGETS: readonly Target[] = [
 		renderJs: false,
 		expect: 'TARGET_ERROR',
 		why: 'the target is broken, not the provider. Fails over once',
+	},
+	{
+		category: 'target-rate-limited',
+		url: 'https://httpbin.dev/status/429',
+		renderJs: false,
+		expect: 'TARGET_RATE_LIMITED',
+		// Recordable, unlike a block page — which is why this outcome gets a real fixture and
+		// SOFT_BLOCK does not. Providers retry a target 429 internally first (ScraperAPI for up
+		// to 60s across its pool, uncharged), so one reaching us has already survived that.
+		why: 'the target is throttling us, which is the warning before a ban',
 	},
 	{
 		category: 'slow-target',

@@ -52,6 +52,7 @@ export type Outcome =
 	| 'HARD_BLOCK'
 	| 'TARGET_NOT_FOUND'
 	| 'TARGET_ERROR'
+	| 'TARGET_RATE_LIMITED'
 	| 'PROVIDER_TIMEOUT'
 	| 'PROVIDER_ERROR'
 	| 'RATE_LIMITED'
@@ -70,6 +71,7 @@ export const OUTCOMES = [
 	'HARD_BLOCK',
 	'TARGET_NOT_FOUND',
 	'TARGET_ERROR',
+	'TARGET_RATE_LIMITED',
 	'PROVIDER_TIMEOUT',
 	'PROVIDER_ERROR',
 	'RATE_LIMITED',
@@ -162,6 +164,37 @@ export const FAILOVER = {
 		cooldown: 'none',
 		pages: false,
 		meaning: 'Target site 5xx or DNS dead',
+	},
+	TARGET_RATE_LIMITED: {
+		// 429, not 502. The status is public surface — a caller migrating from a provider
+		// already branches on 429, and this genuinely is one. Answering 502 would be a lie
+		// about what happened and would break code that already handles throttling.
+		httpStatus: 429,
+		chargeable: false,
+		// A different provider is a different egress, which is the documented remedy for a
+		// rate limit. Not 'once': the whole point is to get off the exhausted IP pool.
+		failover: true,
+		// The DOMAIN namespace, shared across orgs. A target throttling us is a property of
+		// the target, exactly like a block.
+		//
+		// This cooldown is the reason the outcome exists. As TARGET_ERROR it armed NOTHING, so
+		// the next request repeated the whole thing immediately — and repeatedly ignoring a
+		// rate limit is what turns it into a ban. Providers already retry a target 429
+		// internally first (ScraperAPI for up to 60s across its pool, uncharged), so one that
+		// reaches us has already outlasted that.
+		cooldown: 'blk',
+		pages: false,
+		meaning: 'Target rate-limited us (429); backs off per domain rather than retrying',
+		// The cooldown uses the standard jittered backoff, NOT the target's Retry-After.
+		//
+		// Whether a provider passes that header through is UNMEASURED, and the recorded
+		// fixtures cannot settle it: `httpbin.dev/status/429` sends no Retry-After itself, so
+		// its absence in all three recordings shows only that nothing appears when nothing is
+		// sent. Honouring a header we have never seen would be guessing.
+		//
+		// Settling it needs a target that actually throttles with a Retry-After, which is the
+		// same "record it from real traffic" gap the block corpus has — smaller, because this
+		// one is at least reachable without waiting for a live incident.
 	},
 	PROVIDER_TIMEOUT: {
 		httpStatus: 504,
@@ -292,6 +325,8 @@ export function cooldownScope(outcome: Outcome): CooldownScope {
  *                      from exactly these.
  *   HARD_BLOCK         the provider's block page — the thing you need to SEE to work out
  *                      why you are blocked.
+ *   TARGET_RATE_LIMITED  the target's own throttle page, which often carries the limit and
+ *                      the window in prose when it does not carry Retry-After.
  *
  * Everything else is a failure whose body is a provider error page or empty. The caller
  * receives FAILOVER's httpStatus, not the upstream page, so passing bytes through would be
@@ -302,6 +337,7 @@ export function carriesBody(outcome: Outcome): boolean {
 		outcome === 'OK' ||
 		outcome === 'TARGET_NOT_FOUND' ||
 		outcome === 'SOFT_BLOCK' ||
-		outcome === 'HARD_BLOCK'
+		outcome === 'HARD_BLOCK' ||
+		outcome === 'TARGET_RATE_LIMITED'
 	);
 }
