@@ -90,6 +90,37 @@ describe('empty is treated as unset', () => {
 	});
 });
 
+describe('the gateway key comparison is constant time in fact, not in intent', () => {
+	// SECURITY.md claims constant time without qualification. The previous implementation
+	// short-circuited on length — leaking key length over the network in O(1) — and a
+	// charCodeAt loop is not a constant-time primitive anyway: V8 may deoptimise it and sliced
+	// or rope string representations make per-character access non-uniform.
+	it('uses timingSafeEqual over fixed-width digests', () => {
+		const src = read('apps/gateway/src/app.ts');
+		expect(src).toContain('timingSafeEqual');
+		expect(src, 'a length short-circuit leaks key length').not.toMatch(
+			/presented\.length !== expected\.length/,
+		);
+	});
+
+	it('says nothing different for a wrong key of the wrong length', async () => {
+		// Behavioural, not just structural: both must be rejected identically.
+		const { createApp } = await import('./app.js');
+		const app = createApp({
+			transport: { execute: () => Promise.reject(new Error('unused')) },
+			candidates: [],
+			apiKey: 'the-real-key-which-is-long',
+			maxBodyBytes: 1024,
+			defaultDeadlineMs: 1000,
+		});
+		const short = await app.request('/v1?api_key=x&url=https://example.com/');
+		const long = await app.request(`/v1?api_key=${'y'.repeat(200)}&url=https://example.com/`);
+		expect(short.status).toBe(401);
+		expect(long.status).toBe(401);
+		expect(await short.text()).toBe(await long.text());
+	});
+});
+
 describe('assertSingleWriter rejects what it cannot understand', () => {
 	it('allows one replica, or an unset value', () => {
 		expect(() => assertSingleWriter('1')).not.toThrow();

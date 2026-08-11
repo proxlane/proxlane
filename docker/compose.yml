@@ -47,6 +47,7 @@ services:
       PROXLANE_COOLDOWNS: ${PROXLANE_COOLDOWNS:-}
       PROXLANE_REPLICAS: ${PROXLANE_REPLICAS:-}
       PROXLANE_VALKEY_URL: ${PROXLANE_VALKEY_URL:-}
+      PROXLANE_ORG_ID: ${PROXLANE_ORG_ID:-}
     # depends_on is deliberately absent while valkey is commented out. Uncomment both
     # together: a gateway that starts before Valkey is ready fails open and routes without
     # health, which is correct behaviour but not what you want on every restart.

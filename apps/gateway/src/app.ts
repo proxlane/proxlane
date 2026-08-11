@@ -7,6 +7,7 @@
 // Everything here is thin. Deciding what to do is `runChain`'s job; this parses a query
 // string, maps an Outcome onto an HTTP response, and gets out of the way.
 
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { type Adapter, carriesBody, type GatewayRequest, policyFor } from '@proxlane/adapters';
 import { Hono } from 'hono';
 import type { ChainResult } from './chain.js';
@@ -27,16 +28,35 @@ export interface AppDeps {
 	readonly health?: HealthStore;
 	/** Omit to route without cooldowns. */
 	readonly cooldowns?: CooldownStore;
+	/**
+	 * Whose account the `cd:acct` namespace belongs to.
+	 *
+	 * `ChainDeps` has always accepted this and `AppDeps` did not, so nothing ever supplied it
+	 * and every account cooldown was keyed `cd:acct:self:{provider}`. Harmless with one
+	 * deployment; wrong the moment two share a Valkey, which is the exact shape the Valkey
+	 * store exists to enable — one gateway's expired key would cool that provider for the
+	 * other, which is the cross-org contamination the two namespaces exist to prevent.
+	 */
+	readonly orgId?: string;
 }
 
 /** Constant-time compare, so a wrong key cannot be discovered one character at a time. */
+/**
+ * Compare the presented gateway key against the configured one.
+ *
+ * `timingSafeEqual` over SHA-256 digests rather than a hand-rolled character loop. The loop
+ * short-circuited on length, which leaks key length over the network in O(1), and a
+ * `charCodeAt` loop is not a constant-time primitive anyway: V8 may deoptimise it, and sliced
+ * or rope string representations make per-character access non-uniform.
+ *
+ * Hashing first is what makes the lengths equal, so the comparison is genuinely fixed-width
+ * for any pair of inputs. `SECURITY.md` claims constant time; this is the primitive that
+ * earns the claim rather than approximating it.
+ */
 function keyMatches(presented: string, expected: string): boolean {
-	if (presented.length !== expected.length) return false;
-	let diff = 0;
-	for (let i = 0; i < presented.length; i++) {
-		diff |= presented.charCodeAt(i) ^ expected.charCodeAt(i);
-	}
-	return diff === 0;
+	const a = createHash('sha256').update(presented, 'utf8').digest();
+	const b = createHash('sha256').update(expected, 'utf8').digest();
+	return timingSafeEqual(a, b);
 }
 
 function headersFor(r: ChainResult): Record<string, string> {
@@ -190,6 +210,7 @@ export function createApp(deps: AppDeps): Hono {
 			maxBodyBytes: deps.maxBodyBytes,
 			...(deps.health === undefined ? {} : { health: deps.health }),
 			...(deps.cooldowns === undefined ? {} : { cooldowns: deps.cooldowns }),
+			...(deps.orgId === undefined ? {} : { orgId: deps.orgId }),
 		});
 
 		const policy = policyFor(result.outcome);

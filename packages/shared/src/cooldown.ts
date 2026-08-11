@@ -148,9 +148,30 @@ export function cooldownKey(
  * Suffix List: a dependency, a data file, and a freshness problem, for a benefit that is
  * currently one extra cooldown entry per host. Revisit if real traffic shows it mattering.
  */
+/**
+ * Longest hostname a cooldown key will carry.
+ *
+ * A DNS name cannot exceed 253 octets, but `new URL()` happily parses a 20,000-character
+ * host. Unbounded, that is a 20 KB Valkey key name sent twice per provider on every request,
+ * a 20 KB `Map` key in the in-memory store, and a 20 KB reflection of attacker input into the
+ * error body — and it makes filling a 256 MB `noeviction` Valkey a matter of ~13k blocked
+ * requests rather than ~1.3M.
+ */
+const MAX_HOSTNAME = 253;
+
 export function cooldownDomain(url: string): string {
 	try {
-		return new URL(url).hostname.toLowerCase();
+		const host = new URL(url).hostname.toLowerCase();
+		// Strip the FQDN root dot. `example.com.` and `example.com` resolve to the same site, so
+		// keeping them apart is a one-character bypass of an armed cooldown and a free way to
+		// double the keyspace. The edge guard already strips it for its blocklist check and
+		// then hands back the un-stripped URL, so this is the second place that has to know.
+		const trimmed = host.endsWith('.') ? host.slice(0, -1) : host;
+		// Truncate rather than reject: the edge guard owns admission, and a hostname this long
+		// is not a reason to refuse a request that already passed it. Collisions among 253+
+		// character hosts cool each other, which is a strictly better outcome than the
+		// unbounded keyspace they would otherwise create.
+		return trimmed.length > MAX_HOSTNAME ? trimmed.slice(0, MAX_HOSTNAME) : trimmed;
 	} catch {
 		// The edge guard runs before this and rejects anything unparseable, so reaching here
 		// means the caller skipped it. Return something inert rather than throwing inside a
