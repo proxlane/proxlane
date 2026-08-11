@@ -98,7 +98,7 @@ describe('repo:check goes red when it should', () => {
 
 	it('catches a retired figure being reintroduced by value', () => {
 		mutate('docs/integrations.md', (t) => `${t}\n\nOne false demote per ~54M observations.\n`);
-		expectRedBecause(/stale figure "~54M"/, 'a resurrected retired figure');
+		expectRedBecause(/retired figure "~54M"/, 'a resurrected retired figure');
 	});
 
 	it('catches a dependency edge pointing UP a layer', () => {

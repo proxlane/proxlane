@@ -11,11 +11,12 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 
 **Public since 2026-08-10**, with a ruleset on `main` carrying no bypass actor.
 
-Cooldowns route live traffic. **Health is off unless `PROXLANE_HEALTH=on`**: its
-calibration assumes independent failures, and a two-regime provider with the same mean rate
-spends over 90% of its time demoted in simulation. Validating it needs real traffic. State is
-in-process, or shared via `PROXLANE_VALKEY_URL`. A five-lens panel found a broken self-host
-default and eleven defects here, all fixed and regression-tested. Left: the **probe worker**.
+Cooldowns route live traffic. **Health is off unless `PROXLANE_HEALTH=on`**: its calibration
+assumes independent failures, and a two-regime provider with the same mean rate spends 93% of
+its time demoted in simulation. Validating it needs real traffic. State is in-process, or
+shared via `PROXLANE_VALKEY_URL`. Two review panels found a broken self-host default and
+thirteen defects, all fixed and regression-tested. Left: the **probe worker**, and
+`proxlane doctor`, which knows nothing about any of this.
 
 The detector's rules come from vendor signatures and have **never seen a real block page**;
 a test asserts the count.
@@ -41,8 +42,7 @@ Owner decisions and external answers. None is unblocked by writing code.
 - **A target 429 has no outcome of its own.** It falls to `TARGET_ERROR`, which carries no
   health weight and fails over once — probably right, but undecided rather than chosen. A
   target throttling us is a block signal, so `HARD_BLOCK` and the shared `cd:blk` cooldown
-  is the other candidate. *(Attribution itself is settled: per-outcome, because every
-  adapter discharges the provider-specific part in `parse`. `packages/shared/src/health.ts`.)*
+  is the other candidate.
 - **Comparative content vs affiliate terms** — `affiliate-emails.md` Q3. Two launch
   providers must confirm in writing. *External.*
 - **Credits refundability** — `operations.md` §4. Confirm with the accountant before the

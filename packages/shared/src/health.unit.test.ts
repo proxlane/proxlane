@@ -140,9 +140,12 @@ describe('specificity, the expensive error', () => {
 
 describe('sensitivity, the incident this was built for', () => {
 	it('demotes a provider that slides from 96% to 74% success', () => {
-		// Warm p0 clean, then slide over 1000 samples. The simulation puts the median demote
-		// at 877 including warmup; 6000 is a generous ceiling that still fails if a constant
-		// moves by an order of magnitude.
+		// Warm p0 clean, then slide over 1000 samples. `health-numbers.json` records the median
+		// demote at 1,015 including warmup; 6000 is a generous ceiling that still fails if a
+		// constant moves by an order of magnitude.
+		//
+		// It said 877 until a panel caught it — the rejected plain-rate estimator's figure,
+		// surviving here because repo:check bans that value in the docs and not in the tests.
 		const M = HEALTH.MIN_SAMPLES;
 		const ramp = (i: number) =>
 			i <= M ? 0.04 : i <= M + 1000 ? 0.04 + (0.22 * (i - M)) / 1000 : 0.26;
@@ -248,6 +251,33 @@ describe('the constants are pinned, and the barrier is real', () => {
 		expect(HEALTH.P0_FLOOR).toBe(0.005);
 		expect(HEALTH.P0_CEILING).toBe(0.25);
 		expect(HEALTH.PROBE_CLEAN).toBe(2);
+		// The five a verification panel found unpinned. Three of them survived every mutation:
+		// S_CAP could be any value, and both probe delays could be anything, because the only
+		// assertions on them were written in terms of the constants themselves.
+		expect(HEALTH.S_CAP).toBe(20);
+		expect(HEALTH.DWELL_RECOVER_MS).toBe(30 * 60 * 1000);
+		expect(HEALTH.PROBE_FIRST_MS).toBe(5 * 60 * 1000);
+		expect(HEALTH.PROBE_MULTIPLIER).toBe(2);
+		expect(HEALTH.PROBE_MAX_MS).toBe(6 * 60 * 60 * 1000);
+	});
+
+	it('pins the probe backoff in absolute time, not in its own constants', () => {
+		// The old assertions read `expect(probeDelayMs(0)).toBe(HEALTH.PROBE_FIRST_MS)` — three
+		// of them, each expressed in the constant it claimed to pin, 130 lines below a comment
+		// explaining why that does not work.
+		expect(probeDelayMs(0)).toBe(300_000);
+		expect(probeDelayMs(1)).toBe(600_000);
+		expect(probeDelayMs(4)).toBe(4_800_000);
+		expect(probeDelayMs(50)).toBe(21_600_000);
+	});
+
+	it('keeps the p1 clamp unreachable, so it cannot quietly become load-bearing', () => {
+		// `increments` clamps p1 at 0.95, and `observe` clamps p0 at P0_CEILING — so the clamp
+		// only ever binds if someone raises the ceiling past 0.316. Asserted rather than left
+		// implicit, because dead code that looks like a safety bound is how a real bound gets
+		// deleted as unused.
+		expect(HEALTH.P0_CEILING * HEALTH.P1_MULTIPLE).toBeLessThan(0.95);
+		expect(increments(HEALTH.P0_CEILING).failure).toBeCloseTo(Math.log(3), 6);
 	});
 
 	it('keeps S_CAP above H_DEMOTE, or demotion becomes unreachable', () => {
@@ -423,16 +453,18 @@ describe('the only exit from demoted', () => {
 
 describe('probe backoff', () => {
 	it('starts at minutes and ends at hours', () => {
-		expect(probeDelayMs(0)).toBe(HEALTH.PROBE_FIRST_MS);
-		expect(probeDelayMs(1)).toBe(HEALTH.PROBE_FIRST_MS * 2);
-		expect(probeDelayMs(50)).toBe(HEALTH.PROBE_MAX_MS);
+		// Shape only; the absolute values are pinned above.
+		expect(probeDelayMs(0)).toBeLessThan(probeDelayMs(1));
+		expect(probeDelayMs(50)).toBe(probeDelayMs(500));
 	});
 
 	it('is bounded, so a three-day outage is not 288 wasted requests a day', () => {
 		// The half-open 15-minute cooldown spends a real user's request on a known-dead
 		// provider every 15 minutes for three days. This is the fix, and the bound is the fix.
-		const perDay = (24 * 60 * 60 * 1000) / HEALTH.PROBE_MAX_MS;
+		const perDay = (24 * 60 * 60 * 1000) / probeDelayMs(99);
 		expect(perDay).toBeLessThanOrEqual(4);
+		// And the ceiling is reached, rather than the bound holding because backoff runs away.
+		expect(probeDelayMs(99)).toBe(21_600_000);
 	});
 });
 

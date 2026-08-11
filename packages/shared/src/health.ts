@@ -18,7 +18,13 @@
 //      120,000        0.055   (75% lost)
 //
 // The slower the decay, the less of it a live baseline can see. That is the case this was
-// built for. `scripts/health-sim.ts` reproduces the table.
+// built for.
+//
+// Those three figures are ANALYTIC — gap = D(1 - e^(-aR)) / (aR), with a = ln2/halflife — and
+// are computed nowhere in this repo, because no EWMA implementation exists here. An earlier
+// version of this comment cited `scripts/health-sim.ts` for them, which is the same false
+// citation this file spends thirty lines warning about. Cited wrong twice, in fact: the
+// correction landed in the simulation and the claim stayed here.
 //
 // TWO THINGS THAT NEARLY SHIPPED WRONG, both caught by simulation rather than by review.
 //
@@ -31,21 +37,27 @@
 //    its own baseline and the statistic ratchets. Taking the WILSON UPPER BOUND instead:
 //
 //        estimator             false demote in 20k, healthy provider at 2/4/10/20%
-//        plain rate            ~16-18% at every rate
+//        plain rate            11-16%, varying by rate
 //        wilson upper bound     0.2%   0.3%   0.6%   3.1%
 //
 //    Being wrong about `p0` low is unrecoverable; being wrong high only costs sensitivity.
 //
-// EVERY NUMBER IN THIS FILE COMES FROM `scripts/health-numbers.json`, which
-// `scripts/health-sim.ts` writes and `repo:check` asserts the docs match. That machinery
-// exists because the prose drifted from the measurement on every single figure — the
-// published detection delay was the REJECTED estimator's result, carried forward verbatim,
-// under a line reading "measured, not chosen. Do not edit one without rerunning the sim."
+// WHERE THESE NUMBERS COME FROM, per figure, because "they are all measured" was itself an
+// overstatement. The estimator table above, the detection-floor rows and the autocorrelation
+// share are written by `scripts/health-sim.ts` into `scripts/health-numbers.json`, and
+// `repo:check` assertion 21 fails if the prose disagrees with that file. The EWMA row is
+// analytic, as noted above. The ~430 and the plain-rate range are historical measurements of
+// designs that were rejected and no longer exist to re-measure.
+//
+// That machinery exists because the prose drifted from the measurement on every single
+// figure — the published detection delay was the REJECTED estimator's result, carried
+// forward verbatim, under a line reading "measured, not chosen".
 //
 // WHAT THIS DETECTOR CANNOT DO, stated because it was previously implied to do more.
 //
-// The alternative hypothesis is 3x the baseline, so the drift turns positive somewhere near
-// 2x the true rate. Measured, from a 4% base:
+// The alternative hypothesis is 3x the INFLATED baseline, which puts the drift-zero point
+// near 2.8x the TRUE rate — not 2x, which an earlier version of this comment claimed by
+// forgetting that Wilson has already widened p0. Measured, from a 4% base:
 //
 //        rise     P(demote within 20k samples)
 //        1.5x      6%
@@ -57,10 +69,10 @@
 // effectively invisible, however long you wait. 96% to 74% success is the 6.5x row.
 //
 // AND THE ASSUMPTION UNDERNEATH ALL OF IT: independent Bernoulli trials. Providers are not.
-// A two-regime provider with an IDENTICAL mean failure rate spends over 90% of its time
-// demoted in simulation, against 0.8% for the iid stream every figure above was derived
-// from. That is why `PROXLANE_HEALTH` defaults to OFF. The statistic is not wrong; the claim
-// that it was safe to leave on unattended was.
+// A two-regime provider with an IDENTICAL mean failure rate spends 93.4% of its time
+// demoted at a 2,000-sample mean dwell, against 1.7% for the iid stream every figure
+// above was derived from. That is why `PROXLANE_HEALTH` defaults to OFF. The statistic is not
+// wrong; the claim that it was safe to leave on unattended was.
 
 import type { Outcome } from './outcome.js';
 
@@ -111,9 +123,15 @@ export function initial(now: number): HealthState {
 }
 
 /**
- * Pinned constants. Every one is reproduced by `scripts/health-sim.ts`, which runs the
- * functions in this file rather than a copy of them, so the numbers cannot drift from the
- * code they describe.
+ * Pinned constants.
+ *
+ * `scripts/health-sim.ts` runs the functions in this file rather than a copy of them, so the
+ * behaviour it reports is this code's behaviour. It does NOT vary any of these constants, so
+ * it shows what they do rather than that they beat an alternative — an earlier version of
+ * this docstring said "every one is reproduced by" the sim, which claimed the second thing.
+ *
+ * What holds them still is `health.unit.test.ts`, which pins them as literals. Anything not
+ * pinned there can be changed without a test noticing, so pin anything you add.
  */
 export const HEALTH = {
 	/**
@@ -244,6 +262,12 @@ export function wilsonUpper(
 
 /** Bernoulli CUSUM log-likelihood-ratio increments. */
 export function increments(p0: number): { readonly failure: number; readonly success: number } {
+	// The 0.95 clamp is UNREACHABLE from any state the machine can produce: `observe` clamps
+	// p0 at P0_CEILING, so p1 tops out at P0_CEILING * P1_MULTIPLE = 0.75. It stays as a guard
+	// for a future ceiling change — above 0.316 the success increment would start behaving
+	// badly — and `health.unit.test.ts` asserts the two constants keep it unreachable, so it
+	// cannot quietly become load-bearing. A mutation of the 0.95 survives every test, and that
+	// is expected rather than a gap.
 	const p1 = Math.min(0.95, p0 * HEALTH.P1_MULTIPLE);
 	return {
 		failure: Math.log(p1 / p0),

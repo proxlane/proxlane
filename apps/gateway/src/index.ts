@@ -34,7 +34,7 @@ function env(name: string): string | undefined {
 // Its calibration assumes independent Bernoulli trials, and providers do not produce them.
 // Measured in `scripts/health-sim.ts`: a two-regime provider with an IDENTICAL 5% mean
 // failure rate — a bad hour, a struggling upstream, a diurnal pattern — spends over 90% of
-// its time demoted, against 0.8% for the iid stream every published specificity figure was
+// its time demoted, against 1.7% for the iid stream every published specificity figure was
 // derived from. The exit path is slower than the regime dynamics, so one bad patch buys
 // hours out of rotation.
 //
