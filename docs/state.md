@@ -14,9 +14,9 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 Cooldowns route live traffic. **Health is off unless `PROXLANE_HEALTH=on`**: its calibration
 assumes independent failures, and a two-regime provider with the same mean rate spends 93% of
 its time demoted in simulation. Validating it needs real traffic. State is in-process, or
-shared via `PROXLANE_VALKEY_URL`. Two review panels found a broken self-host default and
-thirteen defects, all fixed and regression-tested. Left: the **probe worker**, and
-`proxlane doctor`, which knows nothing about any of this.
+shared via `PROXLANE_VALKEY_URL`. The prober lifts demoted providers back, and
+`GET /health/cooldowns` shows what is cooling. Two review panels found a broken self-host
+default and thirteen defects, all fixed and regression-tested.
 
 The detector's rules come from vendor signatures and have **never seen a real block page**;
 a test asserts the count.

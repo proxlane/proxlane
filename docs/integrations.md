@@ -250,9 +250,12 @@ Notes:
 - Scrapfly's own retryable flag is mapped in, not overridden.
 - Every response carries `X-Outcome`, `X-Provider-Used`, `X-Attempts`,
   `X-Detect-Rule`, and `X-Provider-Health` when a provider served, so users can self-serve
-  debug. `GET /health/providers` returns the router's opinion of each provider and **takes
-  the gateway key**: `/health` reports a count and no names because it is unauthenticated,
-  and an open endpoint listing them would undo that.
+  debug. `GET /health/providers` returns the router's opinion of each provider and
+  `GET /health/cooldowns` returns the cooldowns actually held, split into `cooling` and
+  `expired` — the latter is not noise, because `consecutive` is what makes the next backoff
+  longer. Both **take the gateway key**: `/health` reports a count and no names because it is
+  unauthenticated, and an open endpoint naming providers, or the domains this deployment has
+  been blocked on, would undo that.
 
 ### Cooldowns: two namespaces, because one conflates two facts
 
@@ -428,6 +431,15 @@ request on a known-dead provider every 15 minutes, which is right for a transien
 actively harmful across a three-day outage — roughly 288 wasted requests per domain per day.
 Probe backoff runs 5 minutes to a 6-hour ceiling, so a dead provider costs at most four
 probes a day.
+
+**Where the probe runs.** In the gateway process, not in `apps/worker`. It is not a queue —
+it is a scheduled read-modify-write against health state, and that state is process-local
+unless `PROXLANE_VALKEY_URL` is set, so a separate worker could not see it in the default
+deployment. It would be inert, or it would make Valkey mandatory. Creating an app to hold
+something that cannot work there is the "worker registering zero queues" `CLAUDE.md` calls a
+running lie. With several replicas each one sees the same demoted provider, so a probe takes
+a short Valkey lease first: otherwise the spend and the consecutive-clean-probe count both
+multiply by the replica count.
 
 **Which key the probe uses, resolved.** This was filed as blocking on the grounds that
 "launch is BYOK and the gateway holds no house keys, so a demoted provider can never

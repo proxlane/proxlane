@@ -3,12 +3,14 @@
 // Every decision lives elsewhere — the chain decides routing, FAILOVER decides retries,
 // the adapters decide translation. This file exists so that `pnpm dev` runs the real thing.
 
+import { hostname } from 'node:os';
 import { serve } from '@hono/node-server';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
 import { Redis } from 'ioredis';
 import { createApp } from './app.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
 import { assertSingleWriter, type HealthStore, InMemoryHealthStore } from './health-store.js';
+import { Prober } from './prober.js';
 import { createFetchTransport } from './transport.js';
 import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
 
@@ -139,6 +141,10 @@ const redis =
 				enableOfflineQueue: false,
 			});
 
+const transport = createFetchTransport();
+/** Identifies which replica holds a probe lease, so a stuck lock is traceable. */
+const HOSTNAME = hostname();
+
 let health: HealthStore | undefined;
 let cooldowns: CooldownStore | undefined;
 if (redis === undefined) {
@@ -158,8 +164,31 @@ if (redis === undefined) {
 	cooldowns = COOLDOWNS_ENABLED ? new ValkeyCooldownStore({ redis }) : undefined;
 }
 
+// The probe is what lifts a demoted provider, and without it health is a one-way door.
+// Only started when health is on: with health off nothing is ever demoted, so a prober would
+// be a timer that wakes up to find nothing to do.
+const prober =
+	health === undefined
+		? undefined
+		: new Prober({
+				health,
+				transport,
+				candidates,
+				// A lease only matters when several replicas share state. With in-process state
+				// there is nobody to race, and requiring one would mean requiring Valkey.
+				...(redis === undefined
+					? {}
+					: {
+							lease: async (key: string, ttlMs: number) => {
+								const got = await redis.set(`lock:${key}`, HOSTNAME, 'PX', ttlMs, 'NX');
+								return got === 'OK';
+							},
+						}),
+			});
+prober?.start();
+
 const app = createApp({
-	transport: createFetchTransport(),
+	transport,
 	candidates,
 	apiKey,
 	maxBodyBytes: MAX_BODY_BYTES,
@@ -175,7 +204,8 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(', ')}\n` +
 			`  state:     ${redis === undefined ? 'in-process (single replica only)' : 'valkey (shared)'}\n` +
 			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'off by default; PROXLANE_HEALTH=on to enable'}\n` +
-			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
+			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on — GET /health/cooldowns' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
+			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);
 });

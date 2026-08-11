@@ -521,6 +521,26 @@ export class ValkeyCooldownStore implements CooldownStore {
 		this.#redis.del(key).catch((err: unknown) => this.#report(`cooldown clear ${key}`, err));
 	}
 
+	async list(_now: number): Promise<ReadonlyArray<{ key: string } & CooldownEntry>> {
+		// SCAN, never KEYS, for the same reason `all()` uses it: this is reachable from an HTTP
+		// endpoint, and KEYS blocks the server for the length of the keyspace. A diagnostic that
+		// can stall the gateway it is diagnosing is worse than no diagnostic.
+		const out: ({ key: string } & CooldownEntry)[] = [];
+		let cursor = '0';
+		do {
+			const [next, keys] = await this.#redis.scan(cursor, 'MATCH', 'cd:*', 'COUNT', 100);
+			cursor = next;
+			if (keys.length > 0) {
+				const values = await this.#redis.mget(keys);
+				keys.forEach((k, i) => {
+					const parsed = parseCooldown(values[i] ?? null);
+					if (parsed !== null) out.push({ key: k, ...parsed });
+				});
+			}
+		} while (cursor !== '0');
+		return out;
+	}
+
 	release(key: string): void {
 		// Atomic, and TTL-preserving, for the same reasons CLAIM is: two gateways settling
 		// probes on the same key must not clobber each other's expiry.

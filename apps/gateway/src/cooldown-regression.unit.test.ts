@@ -461,6 +461,7 @@ describe('a lost probe claim does not hide the demoted fallback', () => {
 			arm: (k, n) => inner.arm(k, n),
 			clear: (k) => inner.clear(k),
 			release: (k) => inner.release(k),
+			list: (n) => inner.list(n),
 		};
 
 		const deps = {
@@ -549,6 +550,7 @@ describe('a throwing release cannot break a request', () => {
 				released++;
 				throw new Error('release failed');
 			},
+			list: () => Promise.resolve([]),
 		};
 		// TARGET_ERROR settles neither namespace, so the claim must be released.
 		await expect(chain([['a', 'TARGET_ERROR']], { cooldowns: broken })).resolves.toMatchObject({

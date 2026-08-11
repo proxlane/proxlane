@@ -59,6 +59,15 @@ export interface CooldownStore {
 	 * second, which makes the message merely wrong rather than a hot loop.
 	 */
 	release(key: string): void;
+
+	/**
+	 * Every cooldown currently held. For `GET /health/cooldowns`.
+	 *
+	 * Cooldowns are ON by default and were the only routing mechanism with no way to see them:
+	 * `/health/providers` covers health, which ships off. An operator asking "why is one
+	 * provider never used" had to read source. Two operator reviews said so.
+	 */
+	list(now: number): Promise<ReadonlyArray<{ key: string } & CooldownEntry>>;
 }
 
 /** Process-local cooldowns. Correct for one gateway, wrong for two. */
@@ -94,6 +103,10 @@ export class InMemoryCooldownStore implements CooldownStore {
 	release(key: string): void {
 		const e = this.#entries.get(key);
 		if (e !== undefined && e.probeTaken) this.#entries.set(key, { ...e, probeTaken: false });
+	}
+
+	list(_now: number): Promise<ReadonlyArray<{ key: string } & CooldownEntry>> {
+		return Promise.resolve([...this.#entries].map(([key, e]) => ({ key, ...e })));
 	}
 
 	/** Test and diagnostic access. Not part of the interface. */
