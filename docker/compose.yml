@@ -26,7 +26,8 @@ services:
       # deployed it.
       PROXLANE_API_KEY: ${PROXLANE_API_KEY:?set PROXLANE_API_KEY in .env — see .env.example}
       # BYOK. Bring the providers you actually pay for; the rest are simply not in the
-      # chain. At least one is required or the gateway refuses to start.
+      # chain. None set is allowed: the gateway warns, boots, and answers
+      # NO_PROVIDER_AVAILABLE, rather than crash-looping someone who has not signed up yet.
       SCRAPERAPI_KEY: ${SCRAPERAPI_KEY:-}
       SCRAPINGBEE_KEY: ${SCRAPINGBEE_KEY:-}
       SCRAPFLY_KEY: ${SCRAPFLY_KEY:-}
@@ -48,9 +49,11 @@ services:
       PROXLANE_REPLICAS: ${PROXLANE_REPLICAS:-}
       PROXLANE_VALKEY_URL: ${PROXLANE_VALKEY_URL:-}
       PROXLANE_ORG_ID: ${PROXLANE_ORG_ID:-}
-    # depends_on is deliberately absent while valkey is commented out. Uncomment both
-    # together: a gateway that starts before Valkey is ready fails open and routes without
-    # health, which is correct behaviour but not what you want on every restart.
+    # No depends_on, even when the valkey service below is uncommented. Both stores fail OPEN,
+    # so a gateway that starts first routes correctly without them and picks them up when they
+    # arrive — verified by killing Valkey under a running gateway and watching it self-heal.
+    # An ordering constraint would buy nothing and would turn a Valkey restart into a gateway
+    # restart.
     healthcheck:
       # Node, not curl: the alpine image has no curl and adding one to satisfy a healthcheck
       # is a package installed for the benefit of the healthcheck alone.

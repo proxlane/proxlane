@@ -173,6 +173,70 @@ describe('a claimed probe is always settled', () => {
 	});
 });
 
+describe('settlement compares the key CLAIMED to the key WRITTEN', () => {
+	// The first fix set `settled = true` whenever the attempt wrote any cooldown key. The two
+	// keys are frequently in different namespaces, so eight of the sixteen outcomes stranded
+	// the claim anyway — including a SUCCESSFUL probe on an account claim, which takes a
+	// working provider out of service for an hour.
+	//
+	// The first regression suite could not see any of it: it only ever armed `blk`, and only
+	// iterated outcomes whose cooldown scope is `none`. Both halves of that blind spot are
+	// covered here — every outcome, against both namespaces.
+	const ALL: Outcome[] = [
+		'OK',
+		'SOFT_BLOCK',
+		'HARD_BLOCK',
+		'TARGET_NOT_FOUND',
+		'TARGET_ERROR',
+		'PROVIDER_TIMEOUT',
+		'PROVIDER_ERROR',
+		'RATE_LIMITED',
+		'AUTH_FAILED',
+		'PROVIDER_DRIFT',
+		'INVALID_REQUEST',
+		'BAD_REQUEST',
+		'TARGET_FORBIDDEN',
+		'NO_PROVIDER_AVAILABLE',
+		'RESPONSE_TOO_LARGE',
+		'BUDGET_EXCEEDED',
+	];
+
+	it.each(ALL)('leaves no stranded blk claim after %s', async (outcome) => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		expired(cd, blk('a'));
+		await chain([['a', outcome]], { cooldowns: cd });
+		const e = cd.peek(blk('a'));
+		// Either settled (armed afresh, or cleared away) or explicitly released. What must never
+		// remain is a taken probe against an expiry in the past.
+		if (e !== undefined && e.untilMs <= Date.now()) {
+			expect(e.probeTaken, `${outcome} stranded the blk claim`).toBe(false);
+		}
+	});
+
+	it.each(ALL)('leaves no stranded acct claim after %s', async (outcome) => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		expired(cd, acct('a'));
+		await chain([['a', outcome]], { cooldowns: cd });
+		const e = cd.peek(acct('a'));
+		if (e !== undefined && e.untilMs <= Date.now()) {
+			expect(e.probeTaken, `${outcome} stranded the acct claim`).toBe(false);
+		}
+	});
+
+	it('keeps a provider in service after a successful probe on an ACCOUNT cooldown', async () => {
+		// The worst case, end to end. Request 1 probes and succeeds; requests 2 and 3 must not
+		// then be refused. Before the fix they were 503 until the hourly sweep.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		expired(cd, acct('a'));
+		const first = await chain([['a', 'OK']], { cooldowns: cd });
+		expect(first.outcome).toBe('OK');
+		for (const n of [2, 3]) {
+			const r = await chain([['a', 'OK']], { cooldowns: cd });
+			expect(r.outcome, `request ${n} was refused after a successful probe`).toBe('OK');
+		}
+	});
+});
+
 describe('a concurrent success does not destroy an account cooldown', () => {
 	// THE DEFECT: `OK` cleared BOTH the domain and the account key. `cd:acct` is not
 	// domain-scoped, so any concurrent request coming back OK deleted the rate-limit backoff
@@ -354,6 +418,98 @@ describe('an exhausted chain says so', () => {
 		const r = await chain([['a', 'OK']], { cooldowns: cd });
 		expect(r.retryAfterMs).toBeGreaterThan(25_000);
 		expect(r.retryAfterMs).toBeLessThanOrEqual(COOLDOWN.BASE_MS);
+	});
+});
+
+describe('a lost probe claim does not hide the demoted fallback', () => {
+	// The floor drops demoted providers before the chain is walked, but a probe claim is only
+	// resolved AT attempt time. So a request whose claim is lost used to `continue` off the end
+	// of a one-element chain while a demoted-but-perfectly-open provider sat unconsidered —
+	// the same failure the floor exists to prevent, arriving through the one cooldown fact
+	// resolved after ranking.
+	//
+	// It needs genuine concurrency: sequentially the second request reads `cooling` and routes
+	// correctly, which is why the earlier suite could not see it.
+	it('falls back to a demoted provider when the healthy one loses its claim', async () => {
+		const inner = new InMemoryCooldownStore(() => 0.9);
+		expired(inner, blk('a'));
+
+		// Both requests read the cooldown state before either claims, which is what two
+		// concurrent requests actually do.
+		let released: (() => void) | undefined;
+		const gate = new Promise<void>((r) => {
+			released = r;
+		});
+		let firstCheck = true;
+		const racing: CooldownStore = {
+			check: async (keys, now) => {
+				const snapshot = await inner.check(keys, now);
+				if (firstCheck) {
+					firstCheck = false;
+				} else {
+					// The second request's read completes only after the first has claimed, but it
+					// carries the state it observed BEFORE that — a stale `probe`.
+					await gate;
+				}
+				return snapshot;
+			},
+			claim: async (key, now) => {
+				const got = await inner.claim(key, now);
+				released?.();
+				return got;
+			},
+			arm: (k, n) => inner.arm(k, n),
+			clear: (k) => inner.clear(k),
+			release: (k) => inner.release(k),
+		};
+
+		const deps = {
+			cooldowns: racing,
+			health: healthOf({ a: 'healthy', b: 'demoted' }),
+		};
+		const [first, second] = await Promise.all([
+			chain(
+				[
+					['a', 'OK'],
+					['b', 'OK'],
+				],
+				deps,
+			),
+			chain(
+				[
+					['a', 'OK'],
+					['b', 'OK'],
+				],
+				deps,
+			),
+		]);
+
+		// One of them probed `a`. The other must have been served by the demoted `b`, not
+		// refused — `b` was open, capable and usable the whole time.
+		const outcomes = [first.outcome, second.outcome];
+		expect(outcomes, 'a usable demoted provider was never considered').not.toContain(
+			'NO_PROVIDER_AVAILABLE',
+		);
+		expect([first.provider, second.provider].sort()).toEqual(['a', 'b']);
+	});
+
+	it('does not re-attempt a provider when the chain is re-ranked', async () => {
+		// Re-ranking restarts the walk, so anything already tried has to be excluded or a
+		// failover would pay for the same provider twice.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		expired(cd, blk('b'));
+		await cd.claim(blk('b'), Date.now());
+		const r = await chain(
+			[
+				['a', 'PROVIDER_ERROR'],
+				['b', 'OK'],
+			],
+			{ cooldowns: cd },
+		);
+		const tried = r.attempts.map((x) => x.provider);
+		expect(new Set(tried).size, `a provider was attempted twice: ${tried.join(', ')}`).toBe(
+			tried.length,
+		);
 	});
 });
 

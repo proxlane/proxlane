@@ -270,15 +270,32 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 
 	// Health ranks what is left, and the demoted floor applies to THAT — so a demoted provider
 	// is still preferred over no provider at all, even when the healthy ones are cooling.
-	const ranked = rankByHealth(
-		notCooling.map((c) => ({
-			id: c.adapter.capabilities.id,
-			state: states.get(c.adapter.capabilities.id)?.state ?? 'healthy',
-			candidate: c,
-		})),
-	);
-	const attemptable = ranked.chain;
-	const forced = ranked.forced;
+	//
+	// `unusable` is how a LOST PROBE CLAIM re-enters this decision. The claim happens at
+	// attempt time, so it is discovered after ranking has already dropped every demoted
+	// candidate — and `continue`ing past it then walked off the end of a one-element chain
+	// while a demoted-but-perfectly-open provider sat unconsidered. That is the same failure
+	// the floor exists to prevent, arriving through the one cooldown fact resolved late.
+	//
+	// Re-ranking excludes it and lets the floor see the remainder. Bounded by the provider
+	// count, and only ever entered on a genuine concurrent race.
+	// Providers that must not be (re)considered when the chain is re-ranked: one whose probe
+	// claim was lost, and — importantly — every provider already attempted. Re-ranking restarts
+	// the walk, so without the second half a failover would try the same provider twice.
+	const unusable = new Set<string>();
+	const rank = () =>
+		rankByHealth(
+			notCooling
+				.filter((c) => !unusable.has(c.adapter.capabilities.id))
+				.map((c) => ({
+					id: c.adapter.capabilities.id,
+					state: states.get(c.adapter.capabilities.id)?.state ?? 'healthy',
+					candidate: c,
+				})),
+		);
+	let ranked = rank();
+	let attemptable = ranked.chain;
+	let forced = ranked.forced;
 
 	let lastOutcome: Outcome = 'NO_PROVIDER_AVAILABLE';
 	let onceUsed = false;
@@ -307,9 +324,17 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				// Fail open. A claim we cannot make is not a reason to refuse the request.
 				claimed = true;
 			}
-			// Somebody else is already probing. Rare, so the budget for the hops behind is now
-			// marginally conservative rather than wrong, which is the safe direction.
-			if (!claimed) continue;
+			if (!claimed) {
+				// Somebody else is already probing. Re-rank without this provider rather than
+				// simply skipping it: skipping keeps a chain that the floor computed while this
+				// one still looked usable, so a demoted fallback stays invisible.
+				unusable.add(adapter.capabilities.id);
+				ranked = rank();
+				attemptable = ranked.chain;
+				forced = ranked.forced;
+				i = -1;
+				continue;
+			}
 			claimedKey = which;
 		}
 
@@ -418,6 +443,8 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			// is routine or an outage; the chain's job is to be unaffected either way.
 			try {
 				deps.health?.record(adapter.capabilities.id, outcome, now());
+				// Attempted, so a later re-rank cannot walk back over it.
+				unusable.add(adapter.capabilities.id);
 			} catch {
 				// Intentionally swallowed. See above.
 			}
@@ -428,9 +455,20 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			try {
 				const scope = cooldownScope(outcome);
 				const cdKey = cooldownKey(scope, { provider: adapter.capabilities.id, domain, org });
+				// WHICH key this attempt wrote. Settlement is then decided by comparing it to the
+				// key that was CLAIMED, not by the fact that a write happened.
+				//
+				// The earlier version set `settled = true` on any write, and the two keys are
+				// frequently different namespaces: a probe claimed on `cd:blk` that comes back
+				// RATE_LIMITED arms `cd:acct` and leaves `cd:blk` claimed forever. Eight of the
+				// sixteen outcomes stranded a probe that way — including a SUCCESSFUL probe on an
+				// account claim, which took a working provider out of service. That last one was
+				// introduced by the fix for the account-clear bug, which is the shape to watch:
+				// a correct change to one branch invalidating an assumption in another.
+				let wroteKey: string | undefined;
 				if (cdKey !== null) {
 					deps.cooldowns?.arm(cdKey, now());
-					settled = true;
+					wroteKey = cdKey;
 				} else if (outcome === 'OK' || outcome === 'TARGET_NOT_FOUND') {
 					// The provider REACHED the target. A 200 or a genuine 404 both mean the block, if
 					// there ever was one, is over — which is what makes a successful probe end a
@@ -441,9 +479,10 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					// backoff another request had just armed, `consecutive` included. That is the
 					// steady state of a plan concurrency cap — some 429, some fine — so the account
 					// cooldown was armed and destroyed continuously and never took effect at all.
-					deps.cooldowns?.clear(keysFor(adapter.capabilities.id).blk);
-					settled = true;
+					wroteKey = keysFor(adapter.capabilities.id).blk;
+					deps.cooldowns?.clear(wroteKey);
 				}
+				if (wroteKey !== undefined && wroteKey === claimedKey) settled = true;
 			} catch {
 				// Best effort, like health. A cooldown we failed to write costs one future attempt.
 			}
