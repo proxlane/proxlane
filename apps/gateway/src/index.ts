@@ -64,6 +64,16 @@ const COOLDOWNS_ENABLED = (env('PROXLANE_COOLDOWNS') ?? 'on') !== 'off';
 // PR checks passed, because none of them start the shipped compose file.
 const VALKEY_URL = env('PROXLANE_VALKEY_URL');
 
+// Namespaces this deployment's account-scoped state.
+//
+// `cd:acct:{org}:{provider}` and `hs:{provider}` are shared the moment two gateways point at
+// one Valkey, and until now nothing filled the org slot: every deployment wrote
+// `cd:acct:self:…`. One gateway with an expired provider key would cool that provider for the
+// other, and a staging gateway pointed at prod's Valkey would write prod's health state.
+//
+// Defaults to `self`, which is correct for the single deployment self-host actually is.
+const ORG_ID = env('PROXLANE_ORG_ID') ?? 'self';
+
 // Process-local state means a second replica keeps a second opinion and demotes
 // independently. Refuse rather than misroute — unless Valkey is backing them, in which case
 // the state is shared and replicas are fine.
@@ -154,6 +164,7 @@ const app = createApp({
 	apiKey,
 	maxBodyBytes: MAX_BODY_BYTES,
 	defaultDeadlineMs: DEFAULT_DEADLINE_MS,
+	orgId: ORG_ID,
 	...(health === undefined ? {} : { health }),
 	...(cooldowns === undefined ? {} : { cooldowns }),
 });

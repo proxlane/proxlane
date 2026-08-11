@@ -530,6 +530,19 @@ export class ValkeyCooldownStore implements CooldownStore {
 	}
 }
 
+/**
+ * `hs:{provider}`, with NO deployment prefix, and that is a limitation rather than a design.
+ *
+ * Health is deliberately provider-global — `integrations.md` section 3 shares it across orgs
+ * on purpose, because "is this provider worse than it usually is" has one answer. But two
+ * separate DEPLOYMENTS pointed at one Valkey is a different thing entirely, and this key
+ * cannot tell them apart: a staging gateway would write production's baselines.
+ *
+ * Not solved with a prefix here, because `all()` scans `hs:*` and ioredis's own `keyPrefix`
+ * option does not apply to SCAN patterns — a half-applied prefix is worse than none. Use a
+ * separate Valkey logical database per deployment instead (`redis://host:6379/1`), which is
+ * free and total. Said out loud because the alternative is someone discovering it.
+ */
 const healthKey = (providerId: string) => `hs:${providerId}`;
 
 /**

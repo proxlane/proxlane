@@ -51,7 +51,9 @@ Two gaps, stated because their absence is the finding and you should not have to
 
 **Provider keys are not encrypted at rest.** There is no store yet. BYOK self-hosting passes them as environment variables, which is exactly as strong as the host. The libsodium sealed-box design in `docs/operations.md` section 5 lands with the hosted tier.
 
-**Revocation is unbounded, because there is nothing to revoke.** The gateway compares one presented key against one `PROXLANE_API_KEY` in constant time. When a key store and cache land, that cache TTL becomes the revocation guarantee and gets a number here.
+**Revocation is unbounded, because there is nothing to revoke.** The gateway compares one presented key against one `PROXLANE_API_KEY`, in constant time via `timingSafeEqual` over SHA-256 digests. An earlier version short-circuited on length, which leaks key length; the claim now names the primitive rather than describing an intent. When a key store and cache land, that cache TTL becomes the revocation guarantee and gets a number here.
+
+**Cooldown state is shared across callers on purpose, and is not abuse-metered.** `cd:blk:{provider}:{domain}` is keyed by domain and deliberately shared: a block is a property of the site, which is the point. With multiple tenants that becomes an amplification surface — a caller who can provoke a genuine block on a domain denies that domain to everyone on the instance, and holds it with a few requests per fifteen minutes. Launch is BYOK single-tenant, so today the only person who can do this is the operator. **It is in scope and unmitigated**, and the corroboration or per-tenant shadow-key design has to land with the hosted tier rather than after it. `operations.md` section 5 defers rate limiting to the same milestone.
 
 Both lines change in the same PR as the code.
 
