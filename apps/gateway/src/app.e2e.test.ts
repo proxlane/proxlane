@@ -112,9 +112,7 @@ describe('the happy path, end to end over HTTP', () => {
 	it('sends a class on failures too, and the JSON body carries it', async () => {
 		// The class must be present on the responses a caller actually branches on, not only on
 		// the happy path — and both surfaces must agree, or switching on one is a trap.
-		const r = await get(
-			'api_key=' + API_KEY + '&url=' + encodeURIComponent('http://127.0.0.1/'),
-		);
+		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent('http://127.0.0.1/')}`);
 		expect(r.headers.get('x-outcome')).toBe('TARGET_FORBIDDEN');
 		expect(r.headers.get('x-outcome-class')).toBe('client');
 		expect(((await r.json()) as { class: string }).class).toBe('client');
