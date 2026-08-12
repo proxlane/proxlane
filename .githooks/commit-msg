@@ -1,0 +1,17 @@
+#!/bin/sh
+# Lint the commit subject at commit time, with the SAME code CI runs.
+#
+# Without this, a too-long or non-conventional subject is discoverable only by pushing and
+# waiting for the `title` check — which is how shipping 0.1.0 burned two round trips on a
+# rule the repo already documents. `scripts/commit-subject.ts` holds the logic and the tests.
+#
+# Fails closed on content, open on environment: no node on PATH means CI still catches it,
+# and blocking a commit because a hook could not run is worse than the check it replaces.
+set -e
+
+command -v node >/dev/null 2>&1 || exit 0
+
+ROOT=$(git rev-parse --show-toplevel)
+[ -f "$ROOT/scripts/commit-subject.ts" ] || exit 0
+
+exec node "$ROOT/scripts/commit-subject.ts" --file "$1"
