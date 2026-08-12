@@ -73,8 +73,12 @@ jobs:
             exit 1
           fi
           printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > ~/.npmrc
-          if ! who=$(npm whoami --registry=https://registry.npmjs.org 2>&1); then
-            echo "::error::NPM_TOKEN is rejected by the registry: ${who}"
+          # stderr captured separately. Merging it made the SUCCESS line read
+          # "authenticated to npm as npm warn Unknown project config ..." — npm grumbling
+          # about pnpm's strict-peer-dependencies in .npmrc, printed where the username goes.
+          # A diagnostic that garbles its own happy path is one people stop reading.
+          if ! who=$(npm whoami --registry=https://registry.npmjs.org 2>/tmp/npm-err); then
+            echo "::error::NPM_TOKEN is rejected by the registry: $(tr -d '\n' < /tmp/npm-err)"
             echo "::error::npm caps automation tokens at 90 days — this is most likely expiry."
             echo "::error::Mint a new granular token (@proxlane scope + the proxlane package,"
             echo "::error::read and write, no org access) and replace the NPM_TOKEN secret."
