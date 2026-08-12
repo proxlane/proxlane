@@ -284,9 +284,39 @@ Notes:
 - `TARGET_NOT_FOUND` never fails over: a real 404 on provider A is a real 404 on
   provider B, and retrying it burns money. (ScraperAPI charges for 404s.)
 - Scrapfly's own retryable flag is mapped in, not overridden.
-- Every response carries `X-Outcome`, `X-Provider-Used`, `X-Attempts`,
-  `X-Detect-Rule`, and `X-Provider-Health` when a provider served, so users can self-serve
-  debug. `GET /health/providers` returns the router's opinion of each provider and
+- Every response carries `X-Request-Id`, `X-Outcome`, `X-Outcome-Class`, `X-Provider-Used`,
+  `X-Attempts`, `X-Detect-Rule`, and `X-Provider-Health` when a provider served, so users can
+  self-serve debug. `X-Request-Id` is on **every** response including 401s and validation
+  errors, is the caller's own value when they send a usable one, and is `requests.id` in the
+  log — so the id a user pastes into an issue is the row a maintainer looks up.
+- **Every non-2xx uses one envelope**, whether the failure happened at a provider or before
+  we reached one:
+
+  ```json
+  {
+    "requestId": "0199f6…",
+    "error": {
+      "code": "TARGET_RATE_LIMITED",
+      "class": "target",
+      "message": "Target rate-limited us (429); backs off per domain rather than retrying",
+      "docs": "https://github.com/proxlane/proxlane/blob/main/docs/…"
+    },
+    "attempts": [ … ]
+  }
+  ```
+
+  `code` is the outcome when a scrape happened, and one of a deliberately tiny set of
+  non-outcome codes when it did not — `UNAUTHORIZED` and `NOT_ENABLED`, which describe
+  requests that never reached a provider and so must never enter provider health. `class` is
+  the closed set, present on both. `attempts` appears only when providers were tried.
+
+  There were two shapes before this: `{error, message}` for auth and validation, and
+  `{outcome, class, attempts}` for a failed scrape, so a client had to determine which
+  *shape* it held before it could read the error.
+
+  `docs` points at GitHub rather than `docs.proxlane.dev`, which does not resolve —
+  `README.md` says so in its second line. A dead link emitted on every failure is a broken
+  promise at request rate. Move it when the docs site is live. `GET /health/providers` returns the router's opinion of each provider and
   `GET /health/cooldowns` returns the cooldowns actually held, split into `cooling` and
   `expired` — the latter is not noise, because `consecutive` is what makes the next backoff
   longer. Both **take the gateway key**: `/health` reports a count and no names because it is

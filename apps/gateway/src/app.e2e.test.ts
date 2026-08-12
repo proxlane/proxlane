@@ -150,6 +150,56 @@ describe('every response is traceable', () => {
 	});
 });
 
+describe('one error shape, whatever went wrong', () => {
+	// The point of the envelope: a client parses one schema, not two. Previously auth and
+	// validation answered {error, message} while a failed scrape answered {outcome, class,
+	// attempts}, so callers had to sniff the shape before reading the error.
+	it.each([
+		[
+			'401, before the request is even a scrape',
+			`url=https%3A%2F%2Fexample.com%2F`,
+			'UNAUTHORIZED',
+		],
+		['400 validation', `api_key=${API_KEY}`, 'BAD_REQUEST'],
+		[
+			'403 from the edge guard',
+			`api_key=${API_KEY}&url=${encodeURIComponent('http://127.0.0.1/')}`,
+			'TARGET_FORBIDDEN',
+		],
+		[
+			'503 with no capable provider',
+			`api_key=${API_KEY}&url=https://example.com/&provider=nope`,
+			'NO_PROVIDER_AVAILABLE',
+		],
+	])('%s carries the same envelope', async (_label, qs, code) => {
+		const body = (await (await get(qs)).json()) as {
+			requestId: string;
+			error: { code: string; class: string; message: string; docs: string };
+		};
+		expect(body.error.code).toBe(code);
+		expect(body.requestId).toMatch(/^[\w.-]+$/);
+		expect(['ok', 'blocked', 'target', 'provider', 'client', 'gateway']).toContain(
+			body.error.class,
+		);
+		expect(body.error.message.length).toBeGreaterThan(0);
+		// A link that exists. `docs.proxlane.dev` does not resolve, and shipping a dead one on
+		// every failure would be a broken promise at request rate.
+		expect(body.error.docs).toMatch(/^https:\/\/github\.com\/proxlane\/proxlane\//);
+	});
+
+	it('never uses the old two-shape form', async () => {
+		// Guards the unification itself: a future handler reaching for `{error: 'x', message}`
+		// would pass every other assertion here while reintroducing the second schema.
+		const body = (await (await get('api_key=nope&url=https://example.com/')).json()) as Record<
+			string,
+			unknown
+		>;
+		expect(typeof body.error).toBe('object');
+		expect(body.message, 'top-level message is the old shape').toBeUndefined();
+		expect(body.outcome, 'top-level outcome is the old shape').toBeUndefined();
+	});
+});
+
 describe('the happy path, end to end over HTTP', () => {
 	it('returns the page bytes with the upstream status', async () => {
 		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`);
@@ -174,7 +224,9 @@ describe('the happy path, end to end over HTTP', () => {
 		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent('http://127.0.0.1/')}`);
 		expect(r.headers.get('x-outcome')).toBe('TARGET_FORBIDDEN');
 		expect(r.headers.get('x-outcome-class')).toBe('client');
-		expect(((await r.json()) as { class: string }).class).toBe('client');
+		const body = (await r.json()) as { error: { class: string; code: string } };
+		expect(body.error.class).toBe('client');
+		expect(body.error.code).toBe(r.headers.get('x-outcome'));
 	});
 
 	it('does NOT claim a detect rule, because /detect does not exist', async () => {
@@ -201,8 +253,8 @@ describe('failures reach the caller as a status they can branch on', () => {
 	it('answers a target error as 502 with the attempts that were made', async () => {
 		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('target-error'))}`);
 		expect(r.status).toBe(502);
-		const body = (await r.json()) as { outcome: string; attempts: unknown[] };
-		expect(body.outcome).toBe('TARGET_ERROR');
+		const body = (await r.json()) as { error: { code: string }; attempts: unknown[] };
+		expect(body.error.code).toBe('TARGET_ERROR');
 		// The logged grain is the attempt: a caller debugging a failover needs to see which
 		// providers were tried, not just the verdict.
 		expect(body.attempts).toHaveLength(2);

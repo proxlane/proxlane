@@ -17,6 +17,9 @@
 
 export type {
 	CooldownScope,
+	ErrorBody,
+	ErrorCode,
+	GatewayErrorCode,
 	GatewayRequest,
 	Outcome,
 	OutcomeClass,
@@ -26,7 +29,11 @@ export type {
 export {
 	carriesBody,
 	cooldownScope,
+	DEFAULT_DOCS_URL,
+	errorBody,
+	errorClassFor,
 	FAILOVER,
+	GATEWAY_ERROR_CODES,
 	OUTCOME_CLASSES,
 	OUTCOMES,
 	outcomeClass,
