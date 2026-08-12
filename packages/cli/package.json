@@ -4,6 +4,11 @@
 	"type": "module",
 	"license": "AGPL-3.0-only",
 	"description": "Proxlane CLI — doctor, the self-host support surface",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/proxlane/proxlane.git",
+		"directory": "packages/cli"
+	},
 	"bin": {
 		"proxlane": "./dist/bin.mjs"
 	},
