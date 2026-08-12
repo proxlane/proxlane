@@ -400,13 +400,23 @@ addition whenever it is wanted.
 | `stripe` | phase 3 | and it models *subscriptions*; credits are an append-only ledger, so it may not fit at all |
 | `sso`, `scim`, `oidcProvider` | no | enterprise surface, phase 3 at the earliest |
 
-**`apiKey` is rejected deliberately, because it looks like an exact match.** It offers
-org-owned keys, expiry, metadata, per-key permissions and rate limits — everything
-`gateway_keys` needs. It cannot be used anyway: verification is a Better Auth server call
-against its own tables, and **`apps/gateway` must never see Better Auth** (above in this
-section), nor read Postgres per request on the hot path. Adopting it would drag auth into the
-proxy and couple the hot path to a plugin's schema. `gateway_keys` stays hand-written,
-argon2id, validated by the gateway alone. Recorded here so it is not re-proposed.
+**`apiKey` is rejected deliberately, and the fit is closer than the rejection suggests.** It
+does org-owned keys natively via `organizationId`, plus expiry, metadata, per-key permissions
+and rate limits, and it offers secondary storage for fast lookups — so "it would mean a
+Postgres read per request" is *not* the objection, and we already run Valkey.
+
+The objection is one thing and it is structural: **`verifyApiKey` is a server-only endpoint
+on a full Better Auth instance**, and there is no standalone verifier. Using it means
+`apps/gateway` constructs Better Auth with a database adapter, which contradicts the process
+split above — the gateway validates gateway keys and never sees Better Auth, so that the
+sealed-box secret key and the session layer stay in different processes. Adopting the plugin
+would put auth in the proxy to save writing one table.
+
+Secondary: the plugin's docs do not state how keys are stored, whereas `gateway_keys` pins
+argon2id. Unspecified hashing is not acceptable for a credential that authorises spending.
+
+`gateway_keys` stays hand-written and gateway-validated. Recorded with its reasoning because
+the feature list genuinely matches and it will be proposed again.
 
 **Application hardening.**
 - Zod validation on every input including env at boot; fail fast on bad config.
