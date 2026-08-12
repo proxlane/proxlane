@@ -29,7 +29,9 @@ describe('the budget accounts for the suffix GitHub appends', () => {
 		const at = `docs: ${'x'.repeat(budget(31) - 6)}`;
 		expect(at.length).toBe(budget(31));
 		expect(checkSubject('t', at, { pr: 31, applyLength: true })).toEqual([]);
-		expect(kinds(checkSubject('t', `${at}y`, { pr: 31, applyLength: true }))).toEqual(['length']);
+		expect(kinds(checkSubject('t', `${at}y`, { pr: 31, applyLength: true }))).toEqual([
+			'length',
+		]);
 	});
 
 	it('rejects the 68-char subject that failed twice while shipping 0.1.0', () => {
@@ -53,9 +55,9 @@ describe('length applies only to what actually lands', () => {
 
 	it('still enforces FORMAT when length does not apply', () => {
 		// Format is unconditional. Relaxing both was the bug the "lands" split had to avoid.
-		expect(kinds(checkSubject('t', 'no type here at all', { pr: 31, applyLength: false }))).toEqual(
-			['format'],
-		);
+		expect(
+			kinds(checkSubject('t', 'no type here at all', { pr: 31, applyLength: false })),
+		).toEqual(['format']);
 	});
 });
 
@@ -96,13 +98,30 @@ describe('the hook does not judge git scaffolding', () => {
 
 describe('reading a commit message file', () => {
 	it('skips comment lines git adds below the subject', () => {
-		expect(subjectOf('feat: a thing\n\n# Please enter the commit message\n# On branch main\n')).toBe(
-			'feat: a thing',
-		);
+		expect(
+			subjectOf('feat: a thing\n\n# Please enter the commit message\n# On branch main\n'),
+		).toBe('feat: a thing');
 	});
 
 	it('skips leading blank lines', () => {
 		expect(subjectOf('\n\nfix: later subject\n')).toBe('fix: later subject');
+	});
+
+	it('joins the whole first paragraph, because that is what git reports as %s', () => {
+		// Reading only the first line let a 58-char line pass while git recorded a 197-char
+		// subject. The commit that added this file did exactly that, in this repo, today.
+		expect(subjectOf('ci(hooks): a subject\nno blank line after it\n\nbody\n')).toBe(
+			'ci(hooks): a subject no blank line after it',
+		);
+	});
+
+	it('rejects a missing-blank-line message on length, as git would', () => {
+		const msg = `ci(hooks): lint commit subjects locally, not after the push\n${'body text '.repeat(12)}\n`;
+		const subject = subjectOf(msg);
+		expect(subject.length).toBeGreaterThan(budget(ASSUMED_PR));
+		expect(kinds(checkSubject('t', subject, { pr: ASSUMED_PR, applyLength: true }))).toEqual([
+			'length',
+		]);
 	});
 
 	it('returns empty for a message that is only comments, so the hook stays out of the way', () => {

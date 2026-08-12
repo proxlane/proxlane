@@ -96,14 +96,26 @@ export function isExempt(subject: string): boolean {
 	return /^(Merge |Revert "|fixup!|squash!|amend!)/.test(subject);
 }
 
-/** First non-comment, non-blank line of a commit message file. */
+/**
+ * The subject git itself will report, which is the first PARAGRAPH and not the first line.
+ *
+ * `git log --format=%s` joins every line up to the first blank one with spaces. Reading only
+ * the first line looks equivalent and is not: a message written without the blank line after
+ * the subject produces a valid-looking first line and an enormous real subject. That is not
+ * hypothetical — it happened to the commit that introduced this file, which passed the hook
+ * with a 58-character first line and landed a 197-character subject.
+ */
 export function subjectOf(message: string): string {
-	return (
-		message
-			.split('\n')
-			.find((l) => l.trim() !== '' && !l.startsWith('#'))
-			?.trim() ?? ''
-	);
+	const out: string[] = [];
+	for (const line of message.split('\n')) {
+		if (line.startsWith('#')) continue;
+		if (line.trim() === '') {
+			if (out.length > 0) break;
+			continue;
+		}
+		out.push(line.trim());
+	}
+	return out.join(' ');
 }
 
 if (import.meta.filename === process.argv[1]) {
@@ -120,7 +132,9 @@ if (import.meta.filename === process.argv[1]) {
 		// unconditional even where CI relaxes it for a multi-commit PR.
 		const subject = subjectOf(readFileSync(file, 'utf8'));
 		if (subject === '' || isExempt(subject)) process.exit(0);
-		problems.push(...checkSubject('commit subject', subject, { pr: ASSUMED_PR, applyLength: true }));
+		problems.push(
+			...checkSubject('commit subject', subject, { pr: ASSUMED_PR, applyLength: true }),
+		);
 		if (problems.length > 0) {
 			process.stderr.write('\n');
 			for (const p of problems) process.stderr.write(`  ${p.message}\n`);
