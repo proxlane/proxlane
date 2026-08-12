@@ -298,13 +298,10 @@ so nobody has to ask.
   provenance is the attestation that actually ships: it links each tarball to the commit and
   the workflow that built it, signed with the workflow's OIDC identity rather than a stored
   secret. Revisit tag signing when there is a key to sign with.
-- **The npm token expires every 90 days**, which is npm's cap on automation tokens and the
-  right trade — the cost is rotation, not exposure. The release workflow proves the
-  credential before it versions anything, so expiry fails as a clear message rather than as a
-  half-finished release with `main` claiming a version the registry does not have. Mint a
-  granular token scoped to `@proxlane` plus the unscoped `proxlane` package, read and write,
-  **no organisation access** — org permission manages members and settings and publishing
-  does not need it.
+- **There is no npm token.** Publishing authenticates with OIDC trusted publishing, so the
+  repo stores no publishing credential at all and there is nothing to rotate. `NPM_TOKEN` and
+  the credential preflight that guarded its 90-day expiry are both deleted — that failure mode
+  is gone rather than handled.
 - **Provenance validates `repository.url` in the published manifest.** Every publishable
   package declares `repository` with a `directory`, and `release:dry` fails without it. This
   is not decoration: 0.1.0's first publish attempt was rejected `E422` on all four packages
@@ -332,17 +329,16 @@ so nobody has to ask.
 - **The binding is to the workflow FILENAME.** Renaming `release.yml` breaks it silently, and
   publishing falls back to the token rather than failing. `repo:check` assertion 22 keeps the
   file existing under that name because `CLAUDE.md` owns the literal path.
-- **A green release is not evidence OIDC was used**, because npm falls back to the static
-  token whenever the exchange fails. `scripts/verify-trusted-publish.ts` runs after every
-  publish and reads back what the registry recorded, so the release fails loudly on a
-  credential regression even though the packages went out fine. The signal is
-  `_npmUser.trustedPublisher` in the **full** packument, which is what pnpm's own
-  `trustPolicy` reads; `npm view <pkg> _npmUser` renders it as a string and the abbreviated
-  packument omits it, so neither can answer this.
-- **`NPM_TOKEN` stays until one release proves the exchange.** It is the fallback that makes
-  configuring trusted publishing safe. Delete it once the verify step has passed once, and
-  remove the credential preflight in the same PR: with no token, a preflight that demands one
-  would block releases that no longer need it.
+- **A green release is not, by itself, evidence OIDC was used.** npm falls back to a static
+  token whenever the exchange fails, so with one configured the publish succeeds either way.
+  `scripts/verify-trusted-publish.ts` runs after every publish and reads back what the
+  registry recorded. The signal is `_npmUser.trustedPublisher` in the **full** packument,
+  which is what pnpm's own `trustPolicy` reads; `npm view <pkg> _npmUser` renders it as a
+  string and the abbreviated packument omits it, so neither can answer this.
+
+  It stays now that the token is gone, for two reasons. It is what proved the exchange in the
+  first place — `0.2.0` reported `trusted publisher (OIDC)` for all three packages — and it is
+  what would catch a future `NODE_AUTH_TOKEN` being reintroduced and quietly taking over.
 - Semver honestly. A changed default in an adapter is a breaking change even if the
   types did not move.
 - Release cadence: whenever the release PR has something worth shipping, at most
