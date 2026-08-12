@@ -101,9 +101,23 @@ describe('the happy path, end to end over HTTP', () => {
 	it('sets the headers plan.md section 4 promises', async () => {
 		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`);
 		expect(r.headers.get('x-outcome')).toBe('OK');
+		// The stable half. `x-outcome` grows with the taxonomy; this does not, so integration
+		// code branches on it and survives a gateway newer than itself.
+		expect(r.headers.get('x-outcome-class')).toBe('ok');
 		expect(r.headers.get('x-provider-used')).toBeTruthy();
 		expect(r.headers.get('x-attempts')).toBe('1');
 		expect(r.headers.get('x-cost-estimate')).toMatch(/^\d+\.\d{6}$/);
+	});
+
+	it('sends a class on failures too, and the JSON body carries it', async () => {
+		// The class must be present on the responses a caller actually branches on, not only on
+		// the happy path — and both surfaces must agree, or switching on one is a trap.
+		const r = await get(
+			'api_key=' + API_KEY + '&url=' + encodeURIComponent('http://127.0.0.1/'),
+		);
+		expect(r.headers.get('x-outcome')).toBe('TARGET_FORBIDDEN');
+		expect(r.headers.get('x-outcome-class')).toBe('client');
+		expect(((await r.json()) as { class: string }).class).toBe('client');
 	});
 
 	it('does NOT claim a detect rule, because /detect does not exist', async () => {

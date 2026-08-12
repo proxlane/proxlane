@@ -11,9 +11,10 @@ import { FAILOVER, MICROCREDITS_PER_CREDIT, OUTCOMES, type Outcome } from './con
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const spec = readFileSync(join(ROOT, 'docs/integrations.md'), 'utf8');
 
-/** The section-3 table: | Outcome | Meaning | HTTP | Charge | Failover | Cooldown | Page | */
+/** Section 3: | Outcome | Class | Meaning | HTTP | Charge | Failover | Cooldown | Page | */
 function specRows(): {
 	outcome: string;
+	class: string;
 	http: string;
 	charge: string;
 	failover: string;
@@ -21,7 +22,7 @@ function specRows(): {
 	pages: string;
 }[] {
 	const lines = spec.split('\n');
-	const start = lines.findIndex((l) => l.startsWith('| Outcome | Meaning |'));
+	const start = lines.findIndex((l) => l.startsWith('| Outcome | Class | Meaning |'));
 	expect(start, 'section 3 outcome table not found').toBeGreaterThan(-1);
 	const rows: ReturnType<typeof specRows> = [];
 	for (let i = start + 2; i < lines.length; i++) {
@@ -35,11 +36,12 @@ function specRows(): {
 		if (!outcome) continue;
 		rows.push({
 			outcome,
-			http: c[2] ?? '',
-			charge: c[3] ?? '',
-			failover: c[4] ?? '',
-			cooldown: c[5] ?? '',
-			pages: c[6] ?? '',
+			class: (c[1] ?? '').replace(/`/g, ''),
+			http: c[3] ?? '',
+			charge: c[4] ?? '',
+			failover: c[5] ?? '',
+			cooldown: c[6] ?? '',
+			pages: c[7] ?? '',
 		});
 	}
 	return rows;
@@ -52,6 +54,12 @@ describe('the outcome taxonomy matches integrations.md section 3', () => {
 	it('has the same outcomes, in the same order', () => {
 		expect(rows.length).toBeGreaterThan(0);
 		expect(rows.map((r) => r.outcome)).toEqual([...OUTCOMES]);
+	});
+
+	it.each(rows)('$outcome: the published class matches the code', (row) => {
+		// The class is a stability promise made in public. A doc saying one thing while the
+		// gateway sends another is worse than no promise.
+		expect(FAILOVER[row.outcome as Outcome]?.class).toBe(strip(row.class));
 	});
 
 	it.each(rows)('$outcome: failover, cooldown and paging agree with the spec', (row) => {
