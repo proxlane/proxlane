@@ -35,7 +35,7 @@ test/k6/**                         @scarsam   # devex-engineer
 /renovate.json                     @scarsam   # devex-engineer
 .github/workflows/release.yml      @scarsam   # release-manager
 .changeset/**                      @scarsam   # release-manager
-/CHANGELOG.md                      @scarsam   # release-manager
+**/CHANGELOG.md                    @scarsam   # release-manager
 /SECURITY.md                       @scarsam   # security-engineer
 /CONTRIBUTING.md                   @scarsam   # oss-maintainer
 /CODE_OF_CONDUCT.md                @scarsam   # oss-maintainer
