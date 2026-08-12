@@ -25,54 +25,80 @@ import * as adapters from './contract.js';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
 /**
- * Exports of `shared` that must NOT reach adapter authors, each with the reason.
+ * Why a `shared` export is kept off the adapter surface.
  *
- * The reason is the point. Anything here is a considered exclusion rather than an oversight,
- * and the next person adding to `shared` has to write one too.
+ * Grouped rather than repeated per name. The reason is the point — anything excluded is a
+ * considered decision rather than an oversight — but repeating one string twenty-four times
+ * made it look like twenty-four decisions, and rewording it touched twenty-four lines.
  */
-const NOT_FOR_ADAPTERS: Record<string, string> = {
-	PACKAGE_NAME: 'package identity, not API',
+const REASONS = {
+	/**
+	 * The gateway owns routing. An adapter translates a request and parses a response; it
+	 * never decides whether a provider is cooling, healthy, or eligible for the next hop.
+	 */
+	ROUTER_STATE: 'router state: the gateway decides routing, adapters translate and parse',
+	/**
+	 * SSRF is enforced at the gateway edge, before any adapter is chosen. An adapter able to
+	 * reach this would imply it sees unguarded target URLs, which it must not.
+	 */
+	EDGE_GUARD: 'edge guard: runs before adapter selection',
+	/**
+	 * Ids are minted once per request by the gateway. An adapter minting one would produce an
+	 * id that appears in no log and joins to no row.
+	 */
+	REQUEST_ID: 'request identity: minted once by the gateway',
+	/** Not API. */
+	NOT_API: 'package identity, not API',
+} as const;
 
-	// The gateway owns routing. An adapter translates and parses; it never decides whether a
-	// provider is cooling, healthy, or eligible for the next hop.
-	COOLDOWN: 'router state',
-	arm: 'router state',
-	armFor: 'router state',
-	claimProbe: 'router state',
-	cooldownDomain: 'router state',
-	cooldownKey: 'router state',
-	cooldownMs: 'router state',
-	decide: 'router state',
-	parseRetryAfter: 'router state',
-	CooldownEntry: 'router state',
-	CooldownDecision: 'router state',
-	HEALTH: 'router state',
-	HEALTH_FAILURE: 'router state',
-	HEALTH_SUCCESS: 'router state',
-	eligible: 'router state',
-	healthWeight: 'router state',
-	increments: 'router state',
-	initial: 'router state',
-	observe: 'router state',
-	observeProbe: 'router state',
-	orderChain: 'router state',
-	probeDelayMs: 'router state',
-	wilsonUpper: 'router state',
-	HealthState: 'router state',
+/**
+ * Exports of `shared` that must NOT reach adapter authors, grouped by why.
+ *
+ * A list of groups rather than a flat map, so the count is checkable: `Object.fromEntries`
+ * silently keeps the last value when a name appears twice, which would hide a name being
+ * moved between groups without being removed from the old one.
+ */
+const EXCLUSIONS: ReadonlyArray<readonly [reason: string, names: readonly string[]]> = [
+	[REASONS.NOT_API, ['PACKAGE_NAME']],
+	[
+		REASONS.ROUTER_STATE,
+		[
+			'COOLDOWN',
+			'CooldownDecision',
+			'CooldownEntry',
+			'HEALTH',
+			'HEALTH_FAILURE',
+			'HEALTH_SUCCESS',
+			'HealthState',
+			'arm',
+			'armFor',
+			'claimProbe',
+			'cooldownDomain',
+			'cooldownKey',
+			'cooldownMs',
+			'decide',
+			'eligible',
+			'healthWeight',
+			'increments',
+			'initial',
+			'observe',
+			'observeProbe',
+			'orderChain',
+			'parseRetryAfter',
+			'probeDelayMs',
+			'wilsonUpper',
+		],
+	],
+	[REASONS.EDGE_GUARD, ['EdgeVerdict', 'guardTargetUrl']],
+	[
+		REASONS.REQUEST_ID,
+		['createIdGenerator', 'isValidRequestId', 'requestIdFrom', 'uuidv7', 'uuidv7Time'],
+	],
+];
 
-	// SSRF is enforced at the gateway edge, before any adapter is chosen. An adapter that
-	// could reach this would imply it sees unguarded target URLs, which it must not.
-	guardTargetUrl: 'edge guard, runs before adapter selection',
-	EdgeVerdict: 'edge guard, runs before adapter selection',
-
-	// Ids are minted by the gateway per request. An adapter minting one would produce an id
-	// nothing else has ever seen.
-	uuidv7: 'gateway mints request ids',
-	uuidv7Time: 'gateway mints request ids',
-	createIdGenerator: 'gateway mints request ids',
-	requestIdFrom: 'gateway mints request ids',
-	isValidRequestId: 'gateway mints request ids',
-};
+const NOT_FOR_ADAPTERS: Record<string, string> = Object.fromEntries(
+	EXCLUSIONS.flatMap(([reason, names]) => names.map((n) => [n, reason])),
+);
 
 /** Type-only exports never appear at runtime, so they are read out of the source. */
 function sharedTypeExports(): string[] {
@@ -135,6 +161,25 @@ describe('every shared export is classified, so the list cannot drift', () => {
 		expect(stale, `NOT_FOR_ADAPTERS names things shared no longer exports: ${stale}`).toEqual(
 			[],
 		);
+	});
+
+	it('lists no name in two exclusion groups', () => {
+		// Object.fromEntries keeps the last value silently, so a name moved between groups but
+		// left in the old one would carry the wrong reason and nothing would say so.
+		const flat = EXCLUSIONS.flatMap(([, names]) => names);
+		const dupes = flat.filter((n, i) => flat.indexOf(n) !== i);
+		expect(dupes, `listed in more than one group: ${[...new Set(dupes)].join(', ')}`).toEqual(
+			[],
+		);
+		expect(Object.keys(NOT_FOR_ADAPTERS)).toHaveLength(flat.length);
+	});
+
+	it('gives every group a distinct, non-empty reason', () => {
+		const reasons = EXCLUSIONS.map(([r]) => r);
+		expect(new Set(reasons).size, 'two groups share a reason — merge them').toBe(
+			reasons.length,
+		);
+		for (const r of reasons) expect(r.length).toBeGreaterThan(10);
 	});
 
 	it('never lists a name as both re-exported and excluded', () => {
