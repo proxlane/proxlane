@@ -51,6 +51,37 @@ jobs:
       # proxlane@0.0.0 uninstallable, because `npm publish --dry-run` succeeds on it.
       - run: pnpm release:dry
 
+      # Prove the credential BEFORE anything is versioned or published.
+      #
+      # Without this, an expired token fails at the publish step — which runs only after the
+      # release PR has already been merged, so `main` claims a version the registry does not
+      # have and the fix is a manual publish plus a tag nobody made. The token is capped at
+      # 90 days by npm, so this WILL happen; the only question is whether it happens as a
+      # clear message or as a half-finished release.
+      #
+      # On a version run (changesets pending) this fails before the release PR is opened,
+      # which is the useful moment: there is nothing to unwind.
+      - name: check the npm credential
+        if: inputs.dry_run != true
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -uo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is not set. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > ~/.npmrc
+          if ! who=$(npm whoami --registry=https://registry.npmjs.org 2>&1); then
+            echo "::error::NPM_TOKEN is rejected by the registry: ${who}"
+            echo "::error::npm caps automation tokens at 90 days — this is most likely expiry."
+            echo "::error::Mint a new granular token (@proxlane scope + the proxlane package,"
+            echo "::error::read and write, no org access) and replace the NPM_TOKEN secret."
+            exit 1
+          fi
+          echo "authenticated to npm as ${who}"
+
       - name: publish
         id: changesets
         if: inputs.dry_run != true
