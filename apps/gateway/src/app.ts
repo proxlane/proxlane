@@ -15,7 +15,7 @@ import {
 	outcomeClass,
 	policyFor,
 } from '@proxlane/adapters';
-import { requestIdFrom } from '@proxlane/shared';
+import { errorBody, requestIdFrom } from '@proxlane/shared';
 import { Hono } from 'hono';
 import type { ChainResult } from './chain.js';
 import { runChain } from './chain.js';
@@ -45,6 +45,11 @@ export interface AppDeps {
 	 * other, which is the cross-org contamination the two namespaces exist to prevent.
 	 */
 	readonly orgId?: string;
+	/**
+	 * Where `error.docs` points. Defaults to the GitHub taxonomy section, which exists;
+	 * `docs.proxlane.dev` does not resolve and README.md says so.
+	 */
+	readonly docsUrl?: string;
 }
 
 /** Constant-time compare, so a wrong key cannot be discovered one character at a time. */
@@ -153,22 +158,24 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	app.get('/health/providers', async (c) => {
 		if (!keyMatches(c.req.query('api_key') ?? '', deps.apiKey)) {
 			return c.json(
-				{
-					error: 'unauthorized',
-					message: 'api_key missing or incorrect',
+				errorBody({
 					requestId: c.get('requestId'),
-				},
+					code: 'UNAUTHORIZED',
+					message: 'api_key missing or incorrect',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				}),
 				401,
 			);
 		}
 		if (deps.health === undefined) {
 			// Honest 501 rather than an empty list. `{providers: []}` would read as "all fine".
 			return c.json(
-				{
-					error: 'not_enabled',
-					message: 'this gateway is running without health tracking',
+				errorBody({
 					requestId: c.get('requestId'),
-				},
+					code: 'NOT_ENABLED',
+					message: 'this gateway is running without health tracking',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				}),
 				501,
 			);
 		}
@@ -217,21 +224,23 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	app.get('/health/cooldowns', async (c) => {
 		if (!keyMatches(c.req.query('api_key') ?? '', deps.apiKey)) {
 			return c.json(
-				{
-					error: 'unauthorized',
-					message: 'api_key missing or incorrect',
+				errorBody({
 					requestId: c.get('requestId'),
-				},
+					code: 'UNAUTHORIZED',
+					message: 'api_key missing or incorrect',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				}),
 				401,
 			);
 		}
 		if (deps.cooldowns === undefined) {
 			return c.json(
-				{
-					error: 'not_enabled',
-					message: 'this gateway is running without cooldowns',
+				errorBody({
 					requestId: c.get('requestId'),
-				},
+					code: 'NOT_ENABLED',
+					message: 'this gateway is running without cooldowns',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				}),
 				501,
 			);
 		}
@@ -278,11 +287,12 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			// never became one. Reusing AUTH_FAILED here would put gateway auth failures into
 			// the provider health statistics.
 			return c.json(
-				{
-					error: 'unauthorized',
-					message: 'api_key missing or incorrect',
+				errorBody({
 					requestId: c.get('requestId'),
-				},
+					code: 'UNAUTHORIZED',
+					message: 'api_key missing or incorrect',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				}),
 				401,
 			);
 		}
@@ -290,7 +300,12 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		const url = c.req.query('url');
 		if (url === undefined || url === '') {
 			return c.json(
-				{ error: 'bad_request', message: 'url is required', requestId: c.get('requestId') },
+				errorBody({
+					requestId: c.get('requestId'),
+					code: 'BAD_REQUEST',
+					message: 'url is required',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				}),
 				400,
 			);
 		}
@@ -299,11 +314,12 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		const premiumRaw = c.req.query('premium') ?? 'none';
 		if (premiumRaw !== 'none' && premiumRaw !== 'residential' && premiumRaw !== 'stealth') {
 			return c.json(
-				{
-					error: 'bad_request',
-					message: 'premium must be none, residential or stealth',
+				errorBody({
 					requestId: c.get('requestId'),
-				},
+					code: 'BAD_REQUEST',
+					message: 'premium must be none, residential or stealth',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				}),
 				400,
 			);
 		}
@@ -360,16 +376,17 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		// attempt list is included because the logged grain is the attempt: a caller debugging
 		// a failover needs to see which providers were tried and what each said.
 		return c.json(
-			{
+			errorBody({
 				requestId: c.get('requestId'),
-				outcome: result.outcome,
-				// Alongside `outcome`, not instead of it. A caller reading the JSON body gets the
-				// same open/closed pair as one reading the headers, so switching on the stable
-				// half never requires parsing headers instead.
-				class: outcomeClass(result.outcome),
-				...(result.reason === undefined ? {} : { reason: result.reason }),
+				// The outcome IS the error code here. One vocabulary, whether the failure happened
+				// at a provider or before we ever reached one.
+				code: result.outcome,
+				message: result.reason ?? policyFor(result.outcome).meaning,
+				// The logged grain is the attempt: a caller debugging a failover needs to see which
+				// providers were tried and what each said.
 				attempts: result.attempts,
-			},
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			}),
 			status as 502,
 			headersFor(result),
 		);
