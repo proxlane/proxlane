@@ -1,5 +1,19 @@
 # @proxlane/adapters
 
+## 0.2.0
+
+### Minor Changes
+
+- 9e705a6: **Breaking:** every non-2xx now returns one envelope — `{requestId, error: {code, class, message, docs}, attempts?}` — instead of `{error, message}` for auth and validation and `{outcome, class, attempts}` for a failed scrape. Response headers are unchanged.
+- baa3c0f: Add `OutcomeClass`, a closed six-member classification alongside the open `Outcome` union, and send it as `X-Outcome-Class` and in the JSON error body. Branch on the class: it does not grow, so adding an outcome no longer breaks callers.
+
+### Patch Changes
+
+- Updated dependencies [9e705a6]
+- Updated dependencies [baa3c0f]
+- Updated dependencies [9c93bb5]
+  - @proxlane/shared@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
