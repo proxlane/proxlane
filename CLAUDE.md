@@ -76,7 +76,7 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Thing | Kind | Package | Pin | Why this one |
 |---|---|---|---|---|
 | Node | runtime | `node` | `24.19.0` | 22 entered maintenance 2025-10-21. 24 is Active until 2026-10-20 and supported to 2028-04-30. Revisit 26 shortly after launch, not during it |
-| Package manager | runtime | `pnpm` | `10.34.5` | latest is 11.x; 10.x is the line the workspace catalog targets. The exact string with its integrity hash lives in `packageManager` — captured at scaffold time, never drifts |
+| Package manager | runtime | `pnpm` | `10.34.5` | latest is 11.x. **Publishing depends on staying here.** pnpm 10 rewrites `workspace:*` and then delegates to the npm CLI, which is what performs the OIDC exchange; pnpm 11.0.x reimplemented publish natively and broke it, repaired in 11.0.7. See `operating.md` B8 before bumping. The exact string with its integrity hash lives in `packageManager` — captured at scaffold time, never drifts |
 | Postgres | image | `pgvector/pgvector` | `pg17` | matches the existing box, one fewer version in the house — and the image is already resident there, so reusing it costs no extra disk |
 | Cache | image | `valkey/valkey` | `8-alpine` | BSD and Linux Foundation, chosen deliberately rather than inherited from a tag. Note `redis:7` resolves to 7.4.x, which is RSALv2/SSPL |
 | Base UI | npm | `@base-ui/react` | `^1.6.0` | **not `@base-ui-components/react`**, which is abandoned at `1.0.0-rc.0` and is what a model reaches for by default. The catalog does not close this trap — the wrong package resolves cleanly at a literal — so assertion 11 bans the name outright |
