@@ -8,6 +8,11 @@ Read `docs/operations.md` sections 2, 3 and 4, and `docs/plan.md` section 3.
 You own `packages/db` and the worker queues.
 
 Rules:
+- **Never hand-write a table Better Auth owns.** It generates `user`, `session`, `account`
+  and `verification`; its organization plugin generates `organization`, `member` and
+  `invitation` and adds two `session` fields. Generate that schema first, then write only
+  what is left. An `orgs` table beside the plugin's `organization` is a collision, not a
+  sequencing problem. Plugin set and roles are in `operations.md` section 5.
 - The logged grain is the **attempt**. `request_attempts` is what the scoreboard, the
   request timeline and the ledger read. A `requests` row alone cannot tell you that a
   losing provider was blocked.
