@@ -130,7 +130,7 @@ file runs.
 | ORM | Drizzle + drizzle-kit | Postgres |
 | DB | Postgres | one instance, both apps; version pinned in `CLAUDE.md` |
 | Cache/state | Valkey (ioredis client) | provider cooldowns, rate limits, scoreboard hot data; version pinned in `CLAUDE.md` |
-| Auth | Better Auth | email + GitHub OAuth; llmgateway uses it, crib the setup |
+| Auth | Better Auth | email, plus GitHub and Google OAuth, with account linking on a verified email. Organization plugin for tenancy. `operations.md` §5 |
 | Validation | Zod | params, env, adapter IO |
 | Encryption | libsodium-wrappers | provider keys encrypted at rest, key from env |
 | Queue (later) | BullMQ | async jobs: usage rollups, affiliate webhooks |
@@ -173,9 +173,13 @@ proxy it almost certainly will not.
 
 ### Data model (v1 sketch)
 
+**`user`, `session`, `account`, `verification`, `organization`, `member` and `invitation`
+are NOT in this sketch, and must not be hand-written.** Better Auth generates the first four,
+and its organization plugin generates and owns the last three. Writing an `orgs` table beside
+a plugin that creates `organization` is a collision, not a sequencing problem. See
+`operations.md` section 5 for the org and permission model this repo settled on.
+
 ```
-users            id, email, created_at
-orgs             id, name, owner_id           (even solo users get an org; saves a migration later)
 gateway_keys     id, org_id, key_hash, name, created_at, last_used_at
 provider_keys    id, org_id, provider, ciphertext, nonce, label, status
 requests         id (uuidv7), org_id, domain, url_hash, outcome, provider_used,

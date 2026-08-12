@@ -325,8 +325,110 @@ sufficient:
 environment, revocable, with `last_used_at` so users can spot stale ones. Support
 multiple keys per org so rotation needs no downtime.
 
-**Auth.** Better Auth with email plus GitHub OAuth. TOTP available, required for
-orgs with hosted credits. Sessions short, refresh rotated.
+**Tenancy and roles.** Every user has an org, including solo users. Membership and roles
+come from Better Auth's organization plugin: `owner`, `admin`, `member`. This repo had
+`org_id` on every table and in the `cd:acct:{org}:{provider}` cooldown namespace long before
+it had any statement of who may be in an org — tenants without a tenancy model.
+
+| Resource | owner | admin | member |
+|---|---|---|---|
+| provider keys — add, rotate, remove | yes | yes | **no** |
+| gateway keys — mint, revoke | yes | yes | **no** |
+| request log and scoreboard | yes | yes | yes |
+| org settings, invitations | yes | yes | no |
+| billing, delete org, transfer ownership | yes | no | no |
+
+The two that are judgement rather than convention are the key rows, and both are set to
+admin-and-above because either one spends money: a provider key bills the org's own account,
+and a gateway key authorises spending through it.
+
+Read access is deliberately wide. The request log is the product, and a member who cannot see
+why something returned 403 cannot debug their own scraper — every such question then escalates
+to an admin, which is the support burden B9 exists to remove. A scraped-domain list can be
+commercially sensitive (`plan.md` §19), but the control for that is **who you invite**, which
+is already admin-and-above; restricting reads does not protect a target list from someone
+deliberately added to the org. Revisit if a customer needs per-member scoping — that is what
+teams are for, and teams are off.
+
+**Roles govern the dashboard, not the proxy.** Gateway keys are org-scoped and the gateway
+authenticates keys, never users; it never sees Better Auth at all. So anyone holding a gateway
+key can scrape whatever their role says, `member` included. Revoking a member's access means
+rotating the key, not changing their role.
+
+**Nobody can read a provider key back, at any role.** Sealed boxes are asymmetric, so
+`apps/web` writes keys it cannot decrypt. "Can a member view the key" is not a permission
+question here — the answer is no for everyone, including the owner. Rotation replaces; it
+never reveals.
+
+**Auth.** Better Auth. TOTP available, required for orgs with hosted credits. Sessions
+short, refresh rotated.
+
+**Email is always on. OAuth providers are bring-your-own**, configured by env and enabled
+only when present:
+
+| Provider | Enabled when |
+|---|---|
+| email + password | always, no configuration |
+| GitHub | `GITHUB_CLIENT_ID` **and** `GITHUB_CLIENT_SECRET` |
+| Google | `GOOGLE_CLIENT_ID` **and** `GOOGLE_CLIENT_SECRET` |
+
+This is the same posture as provider keys, and it exists for the self-hoster. Requiring
+OAuth would mean registering a Google *and* a GitHub app before you can log in to your own
+dashboard — a hostile first run for a product whose pitch is "self-hostable". Magic link is
+not the escape hatch either: it needs SMTP, which is more configuration, not less. So the
+zero-config path is email, and OAuth is the hosted convenience.
+
+Two consequences that are easy to get wrong:
+
+- **Half-configured is a boot failure, not a broken button.** A client ID without its secret
+  fails the Zod boot schema, the same both-or-neither rule the rest of the env uses.
+  Discovering it when a user clicks "Sign in with Google" is too late.
+- **The sign-in page renders from what is configured**, never a hardcoded set of buttons. A
+  self-hoster must not see a Google button that 500s.
+
+`proxlane doctor` reports which providers are live, per the house rule that a new subsystem
+ships its checks in the same PR.
+
+**Accounts link on a verified email.** Signing up with Google and later returning via GitHub
+on the same address gives you one account, not two. Both providers verify email, so both are
+trusted for linking. Without this the second sign-in creates a fresh org holding none of your
+provider keys, which reads as data loss and is a support ticket every time. Better Auth
+defaults this off; it is opt-in config. The trap to watch is GitHub accounts whose email is
+private or unverified — those must not auto-link.
+
+**Plugins, and the reason the list is short.** The question that matters is not "is this
+useful" but **"does it change `user` or `session`"** — those get foreign keys from every
+other table, so adding one later is a migration across the schema. Everything else is a cheap
+addition whenever it is wanted.
+
+| Plugin | Phase 1 | Why |
+|---|---|---|
+| `organization` | **yes** | tenancy. Owns `organization`/`member`/`invitation`, adds two `session` fields. **Teams off** — two more tables, no customers |
+| `twoFactor` | **yes** | already required for hosted-credit orgs. Adds `user` columns, so it is now or a retrofit |
+| `haveIBeenPwned` | **yes** | no schema, few lines. We keep passwords for self-host, and a stolen account can *spend* provider keys |
+| `admin` | **decide now** | adds `user.role`, `user.banned`, `session.impersonatedBy`. Support impersonation into a key-holding org needs an audit trail before it is switched on |
+| `apiKey` | **no** | see below |
+| `passkey`, `magicLink`, `emailOTP` | later | table-only or schema-free. Add when wanted, cheaply |
+| `stripe` | phase 3 | and it models *subscriptions*; credits are an append-only ledger, so it may not fit at all |
+| `sso`, `scim`, `oidcProvider` | no | enterprise surface, phase 3 at the earliest |
+
+**`apiKey` is rejected deliberately, and the fit is closer than the rejection suggests.** It
+does org-owned keys natively via `organizationId`, plus expiry, metadata, per-key permissions
+and rate limits, and it offers secondary storage for fast lookups — so "it would mean a
+Postgres read per request" is *not* the objection, and we already run Valkey.
+
+The objection is one thing and it is structural: **`verifyApiKey` is a server-only endpoint
+on a full Better Auth instance**, and there is no standalone verifier. Using it means
+`apps/gateway` constructs Better Auth with a database adapter, which contradicts the process
+split above — the gateway validates gateway keys and never sees Better Auth, so that the
+sealed-box secret key and the session layer stay in different processes. Adopting the plugin
+would put auth in the proxy to save writing one table.
+
+Secondary: the plugin's docs do not state how keys are stored, whereas `gateway_keys` pins
+argon2id. Unspecified hashing is not acceptable for a credential that authorises spending.
+
+`gateway_keys` stays hand-written and gateway-validated. Recorded with its reasoning because
+the feature list genuinely matches and it will be proposed again.
 
 **Application hardening.**
 - Zod validation on every input including env at boot; fail fast on bad config.
