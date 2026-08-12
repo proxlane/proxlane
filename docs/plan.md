@@ -180,7 +180,9 @@ a plugin that creates `organization` is a collision, not a sequencing problem. S
 `operations.md` section 5 for the org and permission model this repo settled on.
 
 ```
-gateway_keys     id, org_id, key_hash, name, created_at, last_used_at
+gateway_keys     id, org_id, created_by, key_hash, name, created_at, last_used_at
+                 (created_by is the only route to per-member log scoping later,
+                  since requests attribute to the key and never to a user)
 provider_keys    id, org_id, provider, ciphertext, nonce, label, status
 requests         id (uuidv7), org_id, domain, url_hash, outcome, provider_used,
                  attempts, total_latency_ms, cost_micro_total, created_at
