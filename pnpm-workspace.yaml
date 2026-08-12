@@ -26,6 +26,8 @@ catalog:
   # auth
   better-auth: ^1.6
   drizzle-kit: ^0.31
+  pg: ^8.23
+  '@types/pg': ^8.21
 
   # data
   drizzle-orm: ^0.45

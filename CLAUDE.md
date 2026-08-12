@@ -86,6 +86,8 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Gateway server | npm | `@hono/node-server` | `^2.1` | |
 | ORM | npm | `drizzle-orm` | `^0.45` | still pre-1.0; partitioned tables are raw SQL, see `plan.md` section 3 |
 | Migrations | npm | `drizzle-kit` | `^0.31` | pairs with drizzle-orm, also pre-1.0 — pin both tight |
+| Postgres driver | npm | `pg` | `^8.23` | node-postgres, not `postgres.js`. Transaction-mode pgbouncer is the deployment target (`operations.md` §3) and prepared statements need disabling there; `pg` makes that a pool option rather than a driver-wide flag |
+| Postgres driver types | npm | `@types/pg` | `^8.21` | major-matched to `pg` |
 | Validation | npm | `zod` | `^4.4` | |
 | Logging | npm | `pino` | `^10.3` | |
 | Key encryption | npm | `libsodium-wrappers` | `^0.8` | sealed provider keys, `operations.md` section 5 |

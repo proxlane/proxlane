@@ -44,7 +44,20 @@ const NOT_A_CHECK = new Set(['bootstrap']);
 const all = Object.entries(manifest)
 	.filter(([k]) => !k.startsWith('$'))
 	.map(([id, e]) => ({ id, ...(e as Entry) }))
-	.filter((e) => e.status === 'implemented' && e.ci === 'pr' && e.kind === 'root-script')
+	// Every PR-blocking command, whatever its kind — `pnpm --filter @proxlane/db test` runs
+	// from the root exactly like a root script does.
+	//
+	// This used to filter to `root-script`, which was invisible while the only filtered script
+	// was a stub. The moment `@proxlane/db test` became real, `pnpm check` silently stopped
+	// matching CI: the matrix in `ci.yml` filters on `status` and `ci` alone, so the db suite
+	// was PR-blocking in CI and absent from "the one command before you push". CLAUDE.md says
+	// check "runs every PR-blocking check, derived from commands.json so it cannot drift" —
+	// which was false for as long as the two filters disagreed.
+	//
+	// `bin` stays out: `proxlane doctor` is not a pnpm script and `pnpm proxlane doctor` is not
+	// a command. No bin is `ci: pr` today, so this excludes nothing that CI runs; it is here so
+	// that making one PR-blocking fails loudly rather than producing a broken invocation.
+	.filter((e) => e.status === 'implemented' && e.ci === 'pr' && e.kind !== 'bin')
 	.map((e) => e.id)
 	.filter((id) => !NOT_A_CHECK.has(id));
 
@@ -65,12 +78,20 @@ process.stdout.write(
 	`\n  running ${ordered.length} checks, derived from scripts/commands.json\n\n`,
 );
 
+// Widest id, not a literal. `--filter @proxlane/db test` is 26 characters and ran straight
+// into the status with a hardcoded 16, printing `testFAIL`.
+const WIDTH = Math.max(...ordered.map((id) => id.length)) + 2;
+
 const failed: string[] = [];
 for (const id of ordered) {
-	process.stdout.write(`  ${id.padEnd(16)}`);
+	process.stdout.write(`  ${id.padEnd(WIDTH)}`);
 	const started = Date.now();
 	try {
-		execFileSync('pnpm', [id], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+		// SPLIT on spaces. `execFileSync` passes each array element as one argv entry, so a
+		// multi-word id went to pnpm as a single argument and it looked for a script literally
+		// named `--filter @proxlane/db test`. That failed in 220ms while the same command passed
+		// when run by hand — invisible until the first `filtered-script` became implemented.
+		execFileSync('pnpm', id.split(' '), { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
 		process.stdout.write(`ok    ${Date.now() - started}ms\n`);
 	} catch {
 		process.stdout.write(`FAIL  ${Date.now() - started}ms\n`);
