@@ -298,6 +298,13 @@ so nobody has to ask.
   provenance is the attestation that actually ships: it links each tarball to the commit and
   the workflow that built it, signed with the workflow's OIDC identity rather than a stored
   secret. Revisit tag signing when there is a key to sign with.
+- **The npm token expires every 90 days**, which is npm's cap on automation tokens and the
+  right trade — the cost is rotation, not exposure. The release workflow proves the
+  credential before it versions anything, so expiry fails as a clear message rather than as a
+  half-finished release with `main` claiming a version the registry does not have. Mint a
+  granular token scoped to `@proxlane` plus the unscoped `proxlane` package, read and write,
+  **no organisation access** — org permission manages members and settings and publishing
+  does not need it.
 - **OIDC trusted publishing is the destination, not the current state.** Publishing must go
   through pnpm — `npm publish` leaves `workspace:*` verbatim and the tarball is then
   uninstallable, which is how `proxlane@0.0.0` shipped — and pnpm's support for the
