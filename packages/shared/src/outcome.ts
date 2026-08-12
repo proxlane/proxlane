@@ -96,6 +96,54 @@ type _OutcomesAreExhaustive = Outcome extends (typeof OUTCOMES)[number]
 const _outcomesExhaustive: _OutcomesAreExhaustive = true;
 void _outcomesExhaustive;
 
+/**
+ * The stable half of the outcome contract. **This union is closed and does not grow.**
+ *
+ * `Outcome` is open by design: adapters come from strangers, and every new provider quirk is
+ * a candidate member. But an open union is hostile to consumers — a `switch` over `Outcome`
+ * with no default stops compiling the day we add one, and that is not hypothetical:
+ * `TARGET_RATE_LIMITED` was added after launch. The 1.0 criterion in `plan.md` is "the outcome
+ * taxonomy unchanged across two consecutive releases", which an open union can never satisfy.
+ *
+ * So consumers branch on the class and read the outcome for detail. Adding an outcome to an
+ * existing class is then additive, and the stability promise attaches to something we can
+ * actually keep. Adding a CLASS is a breaking change and needs a major.
+ *
+ * The classes answer "whose problem is it", because that is what a caller does next.
+ */
+export type OutcomeClass =
+	/** Real content. Use the body. */
+	| 'ok'
+	/** Anti-bot stopped us. Different settings or a different provider may work. */
+	| 'blocked'
+	/** The site genuinely answered that way. Retrying changes nothing. */
+	| 'target'
+	/** The upstream provider failed us. Not the caller's fault; we failed over. */
+	| 'provider'
+	/** The caller asked for something malformed or not allowed. */
+	| 'client'
+	/** We refused or broke: our limits, our bug, or an exhausted chain. */
+	| 'gateway';
+
+export const OUTCOME_CLASSES = [
+	'ok',
+	'blocked',
+	'target',
+	'provider',
+	'client',
+	'gateway',
+] as const satisfies readonly OutcomeClass[];
+
+/** Same trap as OUTCOMES: `satisfies` accepts a missing member, so assert both directions. */
+type _ClassesAreExhaustive = OutcomeClass extends (typeof OUTCOME_CLASSES)[number]
+	? true
+	: [
+			'OUTCOME_CLASSES is missing a member',
+			Exclude<OutcomeClass, (typeof OUTCOME_CLASSES)[number]>,
+		];
+const _classesExhaustive: _ClassesAreExhaustive = true;
+void _classesExhaustive;
+
 /** Which cooldown namespace an outcome writes to, if any. */
 export type CooldownScope =
 	/** Shared across orgs, keyed (provider, domain). A block is a property of the domain. */
@@ -105,6 +153,13 @@ export type CooldownScope =
 	| 'none';
 
 export interface OutcomePolicy {
+	/**
+	 * The coarse, closed class. Public surface, and the one consumers should branch on.
+	 *
+	 * It lives here rather than in a parallel map so that adding an outcome cannot compile
+	 * until its class is decided — the same reason `httpStatus` is here.
+	 */
+	readonly class: OutcomeClass;
 	/** Status the client sees. Drop-in compatibility makes this public surface. */
 	readonly httpStatus: number | 'upstream';
 	/** Hosted billing only ever charges on OK. */
@@ -124,6 +179,7 @@ export interface OutcomePolicy {
  */
 export const FAILOVER = {
 	OK: {
+		class: 'ok',
 		httpStatus: 'upstream',
 		chargeable: true,
 		failover: false,
@@ -132,6 +188,7 @@ export const FAILOVER = {
 		meaning: 'Real content, passed validation',
 	},
 	SOFT_BLOCK: {
+		class: 'blocked',
 		httpStatus: 502,
 		chargeable: false,
 		failover: true,
@@ -140,6 +197,7 @@ export const FAILOVER = {
 		meaning: '200 but our detector fired; a rule ID is attached',
 	},
 	HARD_BLOCK: {
+		class: 'blocked',
 		httpStatus: 502,
 		chargeable: false,
 		failover: true,
@@ -148,6 +206,7 @@ export const FAILOVER = {
 		meaning: 'Provider says blocked or banned',
 	},
 	TARGET_NOT_FOUND: {
+		class: 'target',
 		httpStatus: 404,
 		chargeable: 'provider-dependent',
 		// A real 404 on provider A is a real 404 on provider B. Retrying burns money —
@@ -158,6 +217,7 @@ export const FAILOVER = {
 		meaning: 'Genuine 404, unless the provider has retry_404 semantics',
 	},
 	TARGET_ERROR: {
+		class: 'target',
 		httpStatus: 502,
 		chargeable: false,
 		failover: 'once',
@@ -166,6 +226,7 @@ export const FAILOVER = {
 		meaning: 'Target site 5xx or DNS dead',
 	},
 	TARGET_RATE_LIMITED: {
+		class: 'target',
 		// 429, not 502. The status is public surface — a caller migrating from a provider
 		// already branches on 429, and this genuinely is one. Answering 502 would be a lie
 		// about what happened and would break code that already handles throttling.
@@ -197,6 +258,7 @@ export const FAILOVER = {
 		// one is at least reachable without waiting for a live incident.
 	},
 	PROVIDER_TIMEOUT: {
+		class: 'provider',
 		httpStatus: 504,
 		chargeable: false,
 		failover: true,
@@ -205,6 +267,7 @@ export const FAILOVER = {
 		meaning: 'Attempt exceeded its per-attempt budget',
 	},
 	PROVIDER_ERROR: {
+		class: 'provider',
 		httpStatus: 502,
 		chargeable: false,
 		failover: true,
@@ -213,6 +276,7 @@ export const FAILOVER = {
 		meaning: 'Provider 5xx or infrastructure failure',
 	},
 	RATE_LIMITED: {
+		class: 'provider',
 		httpStatus: 429,
 		chargeable: false,
 		failover: true,
@@ -222,6 +286,7 @@ export const FAILOVER = {
 		meaning: 'Provider 429 or concurrency cap',
 	},
 	AUTH_FAILED: {
+		class: 'provider',
 		httpStatus: 502,
 		chargeable: false,
 		failover: true,
@@ -231,6 +296,7 @@ export const FAILOVER = {
 		meaning: 'Provider 401/403 on the key',
 	},
 	PROVIDER_DRIFT: {
+		class: 'provider',
 		httpStatus: 502,
 		chargeable: false,
 		failover: true,
@@ -240,6 +306,7 @@ export const FAILOVER = {
 		meaning: 'Response failed its Zod schema',
 	},
 	INVALID_REQUEST: {
+		class: 'gateway',
 		httpStatus: 500,
 		chargeable: false,
 		failover: false,
@@ -249,6 +316,7 @@ export const FAILOVER = {
 		meaning: 'Our translation produced a provider 400',
 	},
 	BAD_REQUEST: {
+		class: 'client',
 		httpStatus: 400,
 		chargeable: false,
 		failover: false,
@@ -257,6 +325,7 @@ export const FAILOVER = {
 		meaning: "The client's request is malformed or impossible",
 	},
 	TARGET_FORBIDDEN: {
+		class: 'client',
 		httpStatus: 403,
 		chargeable: false,
 		failover: false,
@@ -267,6 +336,7 @@ export const FAILOVER = {
 		meaning: 'Target rejected at our edge: private range, denylist, metadata address',
 	},
 	NO_PROVIDER_AVAILABLE: {
+		class: 'gateway',
 		httpStatus: 503,
 		chargeable: false,
 		failover: false,
@@ -275,6 +345,7 @@ export const FAILOVER = {
 		meaning: 'No adapter matches the capability, or the chain is exhausted',
 	},
 	RESPONSE_TOO_LARGE: {
+		class: 'gateway',
 		httpStatus: 413,
 		chargeable: false,
 		failover: false,
@@ -283,6 +354,7 @@ export const FAILOVER = {
 		meaning: 'Body exceeded the cap; see operations.md section 1',
 	},
 	BUDGET_EXCEEDED: {
+		class: 'gateway',
 		httpStatus: 504,
 		chargeable: false,
 		failover: false,
@@ -305,6 +377,22 @@ export function shouldFailover(outcome: Outcome): boolean {
 
 export function cooldownScope(outcome: Outcome): CooldownScope {
 	return FAILOVER[outcome].cooldown;
+}
+
+/**
+ * The stable class for an outcome. Prefer this over matching on `Outcome` directly.
+ *
+ * Accepts a plain string, deliberately. A consumer holding an `X-Outcome` header from a
+ * newer gateway than its SDK will pass a member it does not know about, and the honest
+ * answer is `gateway` rather than a crash — unknown-to-us is our problem, not the caller's.
+ */
+export function outcomeClass(outcome: Outcome | (string & {})): OutcomeClass {
+	return (FAILOVER as Record<string, OutcomePolicy | undefined>)[outcome]?.class ?? 'gateway';
+}
+
+/** Every outcome in a class. Ordered as `OUTCOMES` is, so output is stable. */
+export function outcomesInClass(cls: OutcomeClass): readonly Outcome[] {
+	return OUTCOMES.filter((o) => FAILOVER[o].class === cls);
 }
 
 /**

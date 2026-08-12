@@ -19,6 +19,7 @@ export type {
 	CooldownScope,
 	GatewayRequest,
 	Outcome,
+	OutcomeClass,
 	OutcomePolicy,
 	PremiumTier,
 } from '@proxlane/shared';
@@ -26,7 +27,10 @@ export {
 	carriesBody,
 	cooldownScope,
 	FAILOVER,
+	OUTCOME_CLASSES,
 	OUTCOMES,
+	outcomeClass,
+	outcomesInClass,
 	policyFor,
 	shouldFailover,
 } from '@proxlane/shared';

@@ -177,25 +177,25 @@ fixture is recorded:
 Everything an attempt can produce maps to exactly one outcome. Failover behavior is
 defined per outcome, centrally, never inside adapters.
 
-| Outcome | Meaning | HTTP we return | Charge user? | Failover? | Cooldown | Page us? |
-|---|---|---|---|---|---|---|
-| `OK` | Real content, passed validation | upstream status | yes (hosted) | no | no | no |
-| `SOFT_BLOCK` | 200 but our detector fired (rule ID attached) | 502 | no | yes | `blk` | no |
-| `HARD_BLOCK` | Provider says blocked/banned | 502 | no | yes | `blk` | no |
-| `TARGET_NOT_FOUND` | Genuine 404 (unless retry_404 semantics) | 404 | provider-dependent | **no** | no | no |
-| `TARGET_ERROR` | Target site 5xx / DNS dead | 502 | no | yes, once | no | no |
-| `TARGET_RATE_LIMITED` | Target returned 429 | 429 + body | no | yes | `blk` | no |
-| `PROVIDER_TIMEOUT` | Attempt exceeded per-attempt budget | 504 | no | yes | `acct`, short | no |
-| `PROVIDER_ERROR` | Provider 5xx / infra failure | 502 | no | yes | `acct`, short | no |
-| `RATE_LIMITED` | Provider 429 / concurrency cap | 429 + `Retry-After` | no | yes | `acct`, respect headers | no |
-| `AUTH_FAILED` | Provider 401/403 on the key | 502 | no | yes | `acct`; mark key unhealthy, notify user | no |
-| `PROVIDER_DRIFT` | Response failed schema parse | 502 | no | yes | no | **yes** |
-| `INVALID_REQUEST` | **Our translation** produced a provider 400 | 500 | no | **no** | no | **yes** |
-| `BAD_REQUEST` | The client's request is malformed or impossible | 400 | no | **no** | no | no |
-| `TARGET_FORBIDDEN` | Target rejected at our edge (private range, denylist) | 403 | no | **no** | no | no |
-| `NO_PROVIDER_AVAILABLE` | No adapter matches, or the chain is exhausted | 503 | no | n/a | no | no |
-| `RESPONSE_TOO_LARGE` | Body exceeded the cap | 413 | no | no | no | no |
-| `BUDGET_EXCEEDED` | Global deadline or cost budget hit | 504 | no | no | no | no |
+| Outcome | Class | Meaning | HTTP we return | Charge user? | Failover? | Cooldown | Page us? |
+|---|---|---|---|---|---|---|---|
+| `OK` | `ok` | Real content, passed validation | upstream status | yes (hosted) | no | no | no |
+| `SOFT_BLOCK` | `blocked` | 200 but our detector fired (rule ID attached) | 502 | no | yes | `blk` | no |
+| `HARD_BLOCK` | `blocked` | Provider says blocked/banned | 502 | no | yes | `blk` | no |
+| `TARGET_NOT_FOUND` | `target` | Genuine 404 (unless retry_404 semantics) | 404 | provider-dependent | **no** | no | no |
+| `TARGET_ERROR` | `target` | Target site 5xx / DNS dead | 502 | no | yes, once | no | no |
+| `TARGET_RATE_LIMITED` | `target` | Target returned 429 | 429 + body | no | yes | `blk` | no |
+| `PROVIDER_TIMEOUT` | `provider` | Attempt exceeded per-attempt budget | 504 | no | yes | `acct`, short | no |
+| `PROVIDER_ERROR` | `provider` | Provider 5xx / infra failure | 502 | no | yes | `acct`, short | no |
+| `RATE_LIMITED` | `provider` | Provider 429 / concurrency cap | 429 + `Retry-After` | no | yes | `acct`, respect headers | no |
+| `AUTH_FAILED` | `provider` | Provider 401/403 on the key | 502 | no | yes | `acct`; mark key unhealthy, notify user | no |
+| `PROVIDER_DRIFT` | `provider` | Response failed schema parse | 502 | no | yes | no | **yes** |
+| `INVALID_REQUEST` | `gateway` | **Our translation** produced a provider 400 | 500 | no | **no** | no | **yes** |
+| `BAD_REQUEST` | `client` | The client's request is malformed or impossible | 400 | no | **no** | no | no |
+| `TARGET_FORBIDDEN` | `client` | Target rejected at our edge (private range, denylist) | 403 | no | **no** | no | no |
+| `NO_PROVIDER_AVAILABLE` | `gateway` | No adapter matches, or the chain is exhausted | 503 | no | n/a | no | no |
+| `RESPONSE_TOO_LARGE` | `gateway` | Body exceeded the cap | 413 | no | no | no | no |
+| `BUDGET_EXCEEDED` | `gateway` | Global deadline or cost budget hit | 504 | no | no | no | no |
 
 **Health attribution is a property of the (provider, outcome) pair, not the outcome alone.**
 

@@ -8,7 +8,13 @@
 // string, maps an Outcome onto an HTTP response, and gets out of the way.
 
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { type Adapter, carriesBody, type GatewayRequest, policyFor } from '@proxlane/adapters';
+import {
+	type Adapter,
+	carriesBody,
+	type GatewayRequest,
+	outcomeClass,
+	policyFor,
+} from '@proxlane/adapters';
 import { Hono } from 'hono';
 import type { ChainResult } from './chain.js';
 import { runChain } from './chain.js';
@@ -66,6 +72,10 @@ function headersFor(r: ChainResult): Record<string, string> {
 	const total = r.attempts.reduce((n, a) => n + (a.costMicrocredits ?? 0), 0);
 	return {
 		'X-Outcome': r.outcome,
+		// The coarse, CLOSED class. `X-Outcome` is open and will gain members as adapters land,
+		// so a caller that branches on it breaks on our schedule. This one does not grow, and is
+		// what integration code should switch on. See `OutcomeClass` in @proxlane/shared.
+		'X-Outcome-Class': outcomeClass(r.outcome),
 		'X-Attempts': String(r.attempts.length),
 		'X-Cost-Estimate': (total / 1_000_000).toFixed(6),
 		...(r.provider === undefined ? {} : { 'X-Provider-Used': r.provider }),
@@ -290,6 +300,10 @@ export function createApp(deps: AppDeps): Hono {
 		return c.json(
 			{
 				outcome: result.outcome,
+				// Alongside `outcome`, not instead of it. A caller reading the JSON body gets the
+				// same open/closed pair as one reading the headers, so switching on the stable
+				// half never requires parsing headers instead.
+				class: outcomeClass(result.outcome),
 				...(result.reason === undefined ? {} : { reason: result.reason }),
 				attempts: result.attempts,
 			},
