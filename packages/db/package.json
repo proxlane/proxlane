@@ -17,12 +17,25 @@
 		"build": "tsdown src/index.ts --format esm --dts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"clean": "rm -rf dist",
-		"test": "node ../../scripts/not-implemented.ts \"--filter @proxlane/db test\""
+		"test": "vitest run",
+		"codegen:auth": "node scripts/generate-auth-schema.ts",
+		"db:generate": "drizzle-kit generate"
 	},
 	"devDependencies": {
+		"@proxlane/containers": "workspace:*",
 		"@proxlane/tsconfig": "workspace:*",
 		"@types/node": "catalog:",
+		"@types/pg": "catalog:",
+		"drizzle-kit": "catalog:",
+		"testcontainers": "catalog:",
 		"tsdown": "catalog:",
-		"typescript": "catalog:"
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	},
+	"dependencies": {
+		"better-auth": "catalog:",
+		"drizzle-orm": "catalog:",
+		"pg": "catalog:",
+		"zod": "catalog:"
 	}
 }

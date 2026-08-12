@@ -121,9 +121,8 @@
 		"brief": ".claude/agents/data-engineer.md",
 		"spec": "docs/operations.md#2",
 		"subject": "packages/db/vitest.config.ts",
-		"status": "not-implemented",
-		"gate": "Migration up/down round-trip and automated partition rotation.",
-		"ci": "none"
+		"status": "implemented",
+		"ci": "pr"
 	},
 	"test:live": {
 		"id": "test:live",
