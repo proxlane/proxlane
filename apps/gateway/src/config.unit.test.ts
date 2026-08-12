@@ -19,6 +19,9 @@ import { assertSingleWriter } from './health-store.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
+/** Source with comments removed, for assertions about what the CODE does. */
+const code = (s: string) =>
+	s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 
 /** Every PROXLANE_* variable the gateway's entrypoint reads. */
 function varsReadByGateway(): string[] {
@@ -118,6 +121,37 @@ describe('the gateway key comparison is constant time in fact, not in intent', (
 		expect(short.status).toBe(401);
 		expect(long.status).toBe(401);
 		expect(await short.text()).toBe(await long.text());
+	});
+});
+
+describe('the provider order is chosen, not inherited from the alphabet', () => {
+	// It was `Object.keys(REGISTRY).sort()`. Nobody chose that, and it decides which provider
+	// gets paid first on every request — while `integrations.md` referred twice to a "static
+	// priority list" that did not exist.
+	it('declares an explicit default rather than sorting', () => {
+		const src = read('apps/gateway/src/index.ts');
+		expect(src).toMatch(/DEFAULT_PROVIDER_ORDER/);
+		// Comments stripped first. The banned pattern is quoted in the comment that explains
+		// why it is banned, so matching raw source failed on the explanation rather than on
+		// the code — a structural test that greps source will always hit its own prose.
+		expect(code(src), 'the alphabetical ordering came back').not.toMatch(
+			/Object\.keys\(REGISTRY\)\.sort\(\)/,
+		);
+	});
+
+	it('is overridable, and refuses a name it does not know', () => {
+		// A typo silently changes which provider is paid first, and there is no symptom.
+		const src = read('apps/gateway/src/index.ts');
+		expect(src).toMatch(/PROXLANE_PROVIDER_ORDER/);
+		expect(src).toMatch(/names unknown provider\(s\)/);
+	});
+
+	it('says the default is not evidence-based, because it is not', () => {
+		// The temptation is to reorder on a competitor's published benchmark. A benchmark by a
+		// rival scraping API about rival scraping APIs is not a source to move production
+		// traffic on, and measuring this ourselves is what the product is for.
+		const src = read('apps/gateway/src/index.ts');
+		expect(src).toMatch(/NOT EVIDENCE-BASED/);
 	});
 });
 

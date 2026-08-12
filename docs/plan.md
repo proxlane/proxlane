@@ -94,6 +94,12 @@ Heuristics engine, ships v1 with:
 Every rule has an ID, and responses report which rule fired. Users can override per
 domain. This engine improves forever and is a real differentiator vs. dumb proxying.
 
+**It is NOT a differentiator against the one real competitor.** ScrapeOps ships "Response
+Validation" on every premium plan, so soft-block detection is table stakes in this category
+rather than novel — an earlier version of this section read as though nobody else did it.
+What is actually ours is that it is *inspectable*: a rule ID on every response, a per-attempt
+cost breakdown, and per-domain override. Better and auditable, not new.
+
 ### Routing scoreboard (phase 3, the moat)
 
 Per (domain, provider): rolling success rate, p50/p95 latency, cost per success.

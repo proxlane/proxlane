@@ -584,7 +584,8 @@ us, not on inference.
 
 ## 5. Routing and the failover chain (v1)
 
-- Static priority list per premium tier, filtered by capability match
+- Static priority list, explicit and operator-overridable via `PROXLANE_PROVIDER_ORDER`,
+  filtered by capability match
   (need renderJs -> only adapters with renderJs).
 - Chain stops on: `OK`, `TARGET_NOT_FOUND`, `BAD_REQUEST`, `INVALID_REQUEST`,
   `TARGET_FORBIDDEN`, `BUDGET_EXCEEDED`, or list exhausted, which returns
