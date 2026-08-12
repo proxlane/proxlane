@@ -1,5 +1,13 @@
 # @proxlane/scripts
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies [9e705a6]
+- Updated dependencies [baa3c0f]
+  - @proxlane/adapters@0.2.0
+
 ## 0.0.1
 
 ### Patch Changes
