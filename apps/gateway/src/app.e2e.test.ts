@@ -91,6 +91,65 @@ describe('auth, which is not part of the outcome taxonomy', () => {
 	});
 });
 
+describe('every response is traceable', () => {
+	const V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+	it('returns an id on success, and it is a real v7', async () => {
+		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`);
+		expect(r.headers.get('x-request-id')).toMatch(V7);
+	});
+
+	it.each([
+		['401, which never becomes a scrape', `url=${encodeURIComponent('https://example.com/')}`],
+		['400 with no url', `api_key=${API_KEY}`],
+		[
+			'400 with a bad premium',
+			`api_key=${API_KEY}&url=https%3A%2F%2Fexample.com%2F&premium=nope`,
+		],
+		[
+			'403 refused at the edge',
+			`api_key=${API_KEY}&url=${encodeURIComponent('http://127.0.0.1/')}`,
+		],
+	])('returns one on %s', async (_label, qs) => {
+		// These are the paths a hand-threaded id misses, and they are the ones people report.
+		const r = await get(qs);
+		expect(r.ok).toBe(false);
+		expect(r.headers.get('x-request-id')).toMatch(V7);
+		expect(((await r.json()) as { requestId?: string }).requestId).toBe(
+			r.headers.get('x-request-id'),
+		);
+	});
+
+	it('covers /health too, which takes no key', async () => {
+		expect((await fetch(`${base}/health`)).headers.get('x-request-id')).toMatch(V7);
+	});
+
+	it('echoes a usable caller id, so one id spans both systems', async () => {
+		const mine = 'trace_abc-123.4';
+		const r = await fetch(`${base}/v1?api_key=${API_KEY}`, {
+			headers: { 'X-Request-Id': mine },
+		});
+		expect(r.headers.get('x-request-id')).toBe(mine);
+	});
+
+	it('replaces a hostile caller id rather than reflecting it into a header', async () => {
+		// Header splitting. undici rejects a literal CRLF before it leaves, so this uses a value
+		// that is merely illegal rather than un-sendable, and asserts we substituted our own.
+		const r = await fetch(`${base}/v1?api_key=${API_KEY}`, {
+			headers: { 'X-Request-Id': 'x'.repeat(200) },
+		});
+		const got = r.headers.get('x-request-id') ?? '';
+		expect(got).toMatch(V7);
+		expect(got.length).toBeLessThan(50);
+	});
+
+	it('gives different requests different ids', async () => {
+		const a = await fetch(`${base}/health`);
+		const b = await fetch(`${base}/health`);
+		expect(a.headers.get('x-request-id')).not.toBe(b.headers.get('x-request-id'));
+	});
+});
+
 describe('the happy path, end to end over HTTP', () => {
 	it('returns the page bytes with the upstream status', async () => {
 		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`);
