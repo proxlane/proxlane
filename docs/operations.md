@@ -335,20 +335,36 @@ it had any statement of who may be in an org — tenants without a tenancy model
 | provider keys — add, rotate, remove | yes | yes | **no** |
 | gateway keys — mint, revoke | yes | yes | **no** |
 | request log and scoreboard | yes | yes | yes |
-| org settings, invitations | yes | yes | no |
+| org settings, invitations (never above own role) | yes | yes | no |
 | billing, delete org, transfer ownership | yes | no | no |
 
 The two that are judgement rather than convention are the key rows, and both are set to
 admin-and-above because either one spends money: a provider key bills the org's own account,
 and a gateway key authorises spending through it.
 
-Read access is deliberately wide. The request log is the product, and a member who cannot see
-why something returned 403 cannot debug their own scraper — every such question then escalates
-to an admin, which is the support burden B9 exists to remove. A scraped-domain list can be
-commercially sensitive (`plan.md` §19), but the control for that is **who you invite**, which
-is already admin-and-above; restricting reads does not protect a target list from someone
-deliberately added to the org. Revisit if a customer needs per-member scoping — that is what
-teams are for, and teams are off.
+**Invitations carry an explicit role.** The plugin requires one per invitation and has no
+configurable default, so the dashboard picker defaults to `member` and the inviter chooses
+deliberately. Only `owner` and `admin` may send invitations.
+
+**An inviter may not grant a role above their own**, enforced in the plugin's `beforeAddMember`
+hook. There is no built-in restriction: the default `admin` cannot change the existing owner,
+but nothing stops it inviting a *new* member as `owner` and inheriting billing and delete
+rights through them. Same rule in `beforeUpdateMemberRole`, or the escalation just moves to
+promotion.
+
+Read access is deliberately wide, and the honest reason is narrower than "invitation is the
+control". **Role cannot scope the request log today**, because a request is attributed to the
+org and the gateway key that made it, never to a user — the gateway does not know users exist.
+There is no "your traffic" to show a member, so the only coherent choices are all or nothing,
+and nothing breaks debugging: a member who cannot see why something returned 403 escalates
+every question to an admin, which is the support burden B9 exists to remove.
+
+That is a real limitation, not a preference. A scraped-domain list can be commercially
+sensitive (`plan.md` §19), and an org that wants a contractor to see only their own traffic
+cannot have it. **So `gateway_keys` carries `created_by` from the first migration**: it costs
+one column now and is the only thing that makes per-member scoping possible later without
+migrating a table `request_attempts` already references. Revisit when a customer asks; teams
+are the other half of that answer and are off.
 
 **Roles govern the dashboard, not the proxy.** Gateway keys are org-scoped and the gateway
 authenticates keys, never users; it never sees Better Auth at all. So anyone holding a gateway
