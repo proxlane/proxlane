@@ -325,12 +325,24 @@ so nobody has to ask.
   publish natively, dropped the npm delegation, and broke OIDC publishing outright
   ([pnpm#11513](https://github.com/pnpm/pnpm/issues/11513)); it was repaired in 11.0.7. A
   mechanical bump across that boundary changes how publishing authenticates.
-- **Remaining step: configure the trusted publisher per package**, with
-  `npm trust github <pkg> --file release.yml --repo proxlane/proxlane --allow-publish`, then
-  delete `NPM_TOKEN`. Two cautions. The binding is to the **workflow filename**, so renaming
-  `release.yml` silently breaks it. And npm falls back to a static token when the exchange
-  fails, so **a green release is not evidence OIDC worked** — read
-  `npm view <pkg> dist.attestations` or `npm trust list <pkg>` instead.
+- **Trusted publishers are configured** on all five publishable packages, each bound to
+  `release.yml` in `proxlane/proxlane` with publish permission. Inspect with
+  `npm trust list <pkg>`; note `npm trust` needs npm >= 11.10, so use the Node 24 pin's npm
+  rather than whatever the shell resolves.
+- **The binding is to the workflow FILENAME.** Renaming `release.yml` breaks it silently, and
+  publishing falls back to the token rather than failing. `repo:check` assertion 22 keeps the
+  file existing under that name because `CLAUDE.md` owns the literal path.
+- **A green release is not evidence OIDC was used**, because npm falls back to the static
+  token whenever the exchange fails. `scripts/verify-trusted-publish.ts` runs after every
+  publish and reads back what the registry recorded, so the release fails loudly on a
+  credential regression even though the packages went out fine. The signal is
+  `_npmUser.trustedPublisher` in the **full** packument, which is what pnpm's own
+  `trustPolicy` reads; `npm view <pkg> _npmUser` renders it as a string and the abbreviated
+  packument omits it, so neither can answer this.
+- **`NPM_TOKEN` stays until one release proves the exchange.** It is the fallback that makes
+  configuring trusted publishing safe. Delete it once the verify step has passed once, and
+  remove the credential preflight in the same PR: with no token, a preflight that demands one
+  would block releases that no longer need it.
 - Semver honestly. A changed default in an adapter is a breaking change even if the
   types did not move.
 - Release cadence: whenever the release PR has something worth shipping, at most

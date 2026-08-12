@@ -131,6 +131,20 @@ jobs:
       #
       # So: token auth today, provenance on regardless, and the swap is a one-line env change
       # plus deleting the secret, once a real publish has proven the exchange.
+      # Did that publish actually use OIDC, or did it quietly fall back to the token?
+      #
+      # npm prefers trusted publishing and falls back to `_authToken` when the exchange fails,
+      # so the publish succeeds either way and the credential posture can regress in silence.
+      # The registry records which was used; this reads it back. Without this step, "the
+      # release was green" says nothing about how it authenticated, and the whole point of
+      # trusted publishing is the credential.
+      #
+      # Runs AFTER the publish deliberately: the packages are already out, so a failure here
+      # is a posture regression to investigate, not a broken release to unwind.
+      - name: verify the publish used trusted publishing
+        if: steps.changesets.outputs.published == 'true'
+        run: node scripts/verify-trusted-publish.ts '${{ steps.changesets.outputs.publishedPackages }}'
+
       - name: read the released version
         id: version
         shell: bash
