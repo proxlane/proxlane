@@ -26,6 +26,23 @@ const AUTH_TABLES = [
 	'verification',
 ];
 
+/**
+ * Everything after all migrations, listed rather than derived.
+ *
+ * A derived expectation would follow the schema wherever it went and assert nothing. This
+ * fails when a migration adds or drops a table, which is exactly when someone should look.
+ * `requests` and `request_attempts` appear as their partitioned parents; no partitions exist
+ * until rotation runs.
+ */
+const ALL_TABLES = [
+	...AUTH_TABLES,
+	'domain_stats',
+	'gateway_keys',
+	'provider_keys',
+	'request_attempts',
+	'requests',
+].sort();
+
 let pool: Pool;
 
 beforeAll(() => {
@@ -63,16 +80,16 @@ describe('the migration set is complete', () => {
 });
 
 describe('up', () => {
-	it('creates every Better Auth table', async () => {
+	it('creates every table the migrations declare', async () => {
 		const ran = await migrateUp(pool, { dir: DIR });
 		expect(ran).toEqual(migrationFiles(DIR));
-		expect(await publicTables(pool)).toEqual(AUTH_TABLES);
+		expect(await publicTables(pool)).toEqual(ALL_TABLES);
 	});
 
 	it('is idempotent: a second run applies nothing', async () => {
 		await migrateUp(pool, { dir: DIR });
 		expect(await migrateUp(pool, { dir: DIR })).toEqual([]);
-		expect(await publicTables(pool)).toEqual(AUTH_TABLES);
+		expect(await publicTables(pool)).toEqual(ALL_TABLES);
 	});
 
 	it('stores timestamps as timestamptz, never naked', async () => {
@@ -108,7 +125,7 @@ describe('up', () => {
 describe('down', () => {
 	it('returns the database to empty', async () => {
 		await migrateUp(pool, { dir: DIR });
-		expect(await publicTables(pool)).toEqual(AUTH_TABLES);
+		expect(await publicTables(pool)).toEqual(ALL_TABLES);
 
 		const undone = await migrateDown(pool, { dir: DIR, steps: migrationFiles(DIR).length });
 		expect(undone).toEqual([...migrationFiles(DIR)].reverse());
@@ -122,7 +139,7 @@ describe('down', () => {
 		await migrateDown(pool, { dir: DIR, steps: migrationFiles(DIR).length });
 		const again = await migrateUp(pool, { dir: DIR });
 		expect(again).toEqual(migrationFiles(DIR));
-		expect(await publicTables(pool)).toEqual(AUTH_TABLES);
+		expect(await publicTables(pool)).toEqual(ALL_TABLES);
 	});
 
 	it('refuses to roll back a migration with no down file', async () => {
