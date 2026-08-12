@@ -104,8 +104,51 @@ if (apiKey === undefined) {
 // BYOK: provider keys come from the environment and never leave this process. A provider
 // with no key is not a broken configuration, it is a provider you have not signed up for,
 // so it is left out of the chain rather than failing the boot.
+/**
+ * The order the chain tries providers in, before health re-ranks it.
+ *
+ * This was `Object.keys(REGISTRY).sort()` — ALPHABETICAL. Nobody chose it, and
+ * `integrations.md` refers twice to a "static priority list" that did not exist. An ordering
+ * arrived at by the alphabet is not a priority list; it is the absence of one wearing its
+ * clothes, and it decides which provider gets paid first on every request.
+ *
+ * The default below is DELIBERATE BUT NOT EVIDENCE-BASED, and that distinction matters. A
+ * competitor's published benchmark rates these providers very differently from each other on
+ * protected targets, but a benchmark published by a rival scraping API about rival scraping
+ * APIs is not a source to reorder production traffic on. The honest position is that we do
+ * not yet have our own data — and measuring exactly this is what the product is for. The
+ * health statistic already ranks by observed behaviour, and the phase-3 scoreboard will rank
+ * per domain.
+ *
+ * So: explicit, overridable, and provisional. `PROXLANE_PROVIDER_ORDER` takes a comma-
+ * separated list; anything omitted keeps its registry position behind those named.
+ */
+const DEFAULT_PROVIDER_ORDER = ['scraperapi', 'scrapfly', 'scrapingbee'] as const;
+
+function providerOrder(): string[] {
+	const ids = Object.keys(REGISTRY);
+	const requested = (env('PROXLANE_PROVIDER_ORDER') ?? DEFAULT_PROVIDER_ORDER.join(','))
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean);
+
+	const unknown = requested.filter((id) => !ids.includes(id));
+	if (unknown.length > 0) {
+		// Refuse rather than silently ignore. A typo here quietly changes which provider is
+		// paid first, and there is no symptom to notice.
+		process.stderr.write(
+			`\n  PROXLANE_PROVIDER_ORDER names unknown provider(s): ${unknown.join(', ')}\n` +
+				`  Known: ${ids.sort().join(', ')}\n\n`,
+		);
+		process.exit(1);
+	}
+	// Anything unnamed keeps a stable position behind the named ones, so adding an adapter
+	// cannot silently jump the queue.
+	return [...requested, ...ids.filter((id) => !requested.includes(id)).sort()];
+}
+
 const candidates: { adapter: Adapter; key: string }[] = [];
-for (const id of Object.keys(REGISTRY).sort()) {
+for (const id of providerOrder()) {
 	const adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
 	const envVar = `${id.toUpperCase().replace(/-/g, '_')}_KEY`;
 	const key = process.env[envVar];
@@ -201,7 +244,7 @@ const app = createApp({
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 	process.stdout.write(
 		`\n  proxlane gateway on :${info.port}\n` +
-			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(', ')}\n` +
+			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(' > ')} (in order)\n` +
 			`  state:     ${redis === undefined ? 'in-process (single replica only)' : 'valkey (shared)'}\n` +
 			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'off by default; PROXLANE_HEALTH=on to enable'}\n` +
 			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on — GET /health/cooldowns' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +

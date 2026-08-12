@@ -51,6 +51,7 @@ services:
       PROXLANE_REPLICAS: ${PROXLANE_REPLICAS:-}
       PROXLANE_VALKEY_URL: ${PROXLANE_VALKEY_URL:-}
       PROXLANE_ORG_ID: ${PROXLANE_ORG_ID:-}
+      PROXLANE_PROVIDER_ORDER: ${PROXLANE_PROVIDER_ORDER:-}
     # No depends_on, even when the valkey service below is uncommented. Both stores fail OPEN,
     # so a gateway that starts first routes correctly without them and picks them up when they
     # arrive — verified by killing Valkey under a running gateway and watching it self-heal.
