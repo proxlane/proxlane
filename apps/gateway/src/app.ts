@@ -16,7 +16,7 @@ import {
 	policyFor,
 } from '@proxlane/adapters';
 import { errorBody, requestIdFrom } from '@proxlane/shared';
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import type { ChainResult } from './chain.js';
 import { runChain } from './chain.js';
 import type { CooldownStore } from './cooldown-store.js';
@@ -52,7 +52,30 @@ export interface AppDeps {
 	readonly docsUrl?: string;
 }
 
-/** Constant-time compare, so a wrong key cannot be discovered one character at a time. */
+/**
+ * Where the caller's gateway key came from.
+ *
+ * `api_key` in the query string is the drop-in surface — `plan.md` section 4 promises a
+ * hostname change and nothing else, and that is what the providers we replace accept. It is
+ * also the worst place to put a credential: query strings reach access logs, proxy logs,
+ * `Referer` headers and error trackers, none of which are meant to hold secrets.
+ *
+ * So both are accepted and the header wins. Migrating callers keep working unchanged; anyone
+ * writing new code has somewhere better to put it, and `proxlane doctor` can tell them so.
+ */
+function presentedKey(c: {
+	req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined };
+}): string {
+	const auth = c.req.header('authorization');
+	if (auth !== undefined) {
+		// Case-insensitive scheme per RFC 9110, exactly one space, and nothing else trimmed:
+		// a key is opaque and may legitimately end in characters trimming would eat.
+		const m = /^[Bb][Ee][Aa][Rr][Ee][Rr] (.+)$/.exec(auth);
+		if (m?.[1] !== undefined) return m[1];
+	}
+	return c.req.query('api_key') ?? '';
+}
+
 /**
  * Compare the presented gateway key against the configured one.
  *
@@ -156,7 +179,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	// here: the operator asking this question always has the gateway key, and `proxlane doctor`
 	// is already configured with one.
 	app.get('/health/providers', async (c) => {
-		if (!keyMatches(c.req.query('api_key') ?? '', deps.apiKey)) {
+		if (!keyMatches(presentedKey(c), deps.apiKey)) {
 			return c.json(
 				errorBody({
 					requestId: c.get('requestId'),
@@ -222,7 +245,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	// Takes the key, like `/health/providers` and for the same reason: it names providers, and
 	// it names the DOMAINS this deployment has been blocked on, which is more sensitive still.
 	app.get('/health/cooldowns', async (c) => {
-		if (!keyMatches(c.req.query('api_key') ?? '', deps.apiKey)) {
+		if (!keyMatches(presentedKey(c), deps.apiKey)) {
 			return c.json(
 				errorBody({
 					requestId: c.get('requestId'),
@@ -280,9 +303,8 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		return c.json({ cooling, expired });
 	});
 
-	app.get('/v1', async (c) => {
-		const presented = c.req.query('api_key') ?? '';
-		if (!keyMatches(presented, deps.apiKey)) {
+	const handler = async (c: Context<Vars>) => {
+		if (!keyMatches(presentedKey(c), deps.apiKey)) {
 			// NOT an Outcome. The taxonomy describes what happened to a scrape; this request
 			// never became one. Reusing AUTH_FAILED here would put gateway auth failures into
 			// the provider health statistics.
@@ -326,9 +348,38 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		const countryCode = c.req.query('country_code');
 		const forced = c.req.query('provider');
 
+		// POST was reachable everywhere except here. `GatewayRequest` has carried `method` and
+		// `body` since the contract landed, adapters declare a `post` capability, the chain
+		// already filters on it and conformance tests it — and the surface hardcoded GET, so
+		// none of it could be used.
+		//
+		// The body is read as TEXT, not parsed. Whatever the caller sends is what the target
+		// gets; guessing at JSON versus form encoding here would corrupt one of them.
+		let body: string | undefined;
+		if (c.req.method === 'POST') {
+			body = await c.req.text();
+			// The same cap the RESPONSE uses, applied to the request. Without it a caller can
+			// push an unbounded body through a gateway whose memory budget is sized on
+			// `maxInflight * bodyCap * 2.5` — see operations.md section 1. Bytes, not
+			// characters: a multi-byte body would otherwise pass a length check and blow the cap.
+			const size = Buffer.byteLength(body, 'utf8');
+			if (size > deps.maxBodyBytes) {
+				return c.json(
+					errorBody({
+						requestId: c.get('requestId'),
+						code: 'RESPONSE_TOO_LARGE',
+						message: `request body is ${size} bytes, over the ${deps.maxBodyBytes} cap`,
+						...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+					}),
+					413,
+				);
+			}
+		}
+
 		const req: GatewayRequest = {
 			url,
-			method: 'GET',
+			method: c.req.method === 'POST' ? 'POST' : 'GET',
+			...(body === undefined ? {} : { body }),
 			// Explicit, never inferred from presence: `render=false` must mean false, and the
 			// absence of the parameter must mean false too. Treating presence as truth is how
 			// `render=false` ends up rendering and billing 5x.
@@ -390,7 +441,13 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			status as 502,
 			headersFor(result),
 		);
-	});
+	};
+
+	// Both verbs, one handler. GET is the drop-in surface; POST additionally forwards a body.
+	// Registered explicitly rather than with `app.all`, so PUT and DELETE still 404 instead of
+	// being silently treated as GET.
+	app.get('/v1', handler);
+	app.post('/v1', handler);
 
 	return app;
 }

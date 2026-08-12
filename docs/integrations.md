@@ -284,6 +284,18 @@ Notes:
 - `TARGET_NOT_FOUND` never fails over: a real 404 on provider A is a real 404 on
   provider B, and retrying it burns money. (ScraperAPI charges for 404s.)
 - Scrapfly's own retryable flag is mapped in, not overridden.
+- **The gateway key may be sent as `Authorization: Bearer <key>` or as `?api_key=`.** The
+  query parameter is the drop-in surface and is not going away — `plan.md` section 4 promises
+  a hostname change and nothing else. It is also the worst place for a credential: query
+  strings reach access logs, proxy logs, `Referer` headers and error trackers. The header wins
+  when both are present, and a wrong header does **not** fall back to a valid query key, or
+  precedence would be unpredictable.
+- **`/v1` accepts POST as well as GET**, forwarding the body as text. It was reachable
+  everywhere else already — `GatewayRequest` carries `method` and `body`, adapters declare a
+  `post` capability, the chain filters on it and conformance tests it — and only the HTTP
+  surface hardcoded GET. The request body is capped by the same `maxBodyBytes` as the
+  response, measured in bytes rather than characters. Other verbs 404 rather than being
+  treated as GET.
 - Every response carries `X-Request-Id`, `X-Outcome`, `X-Outcome-Class`, `X-Provider-Used`,
   `X-Attempts`, `X-Detect-Rule`, and `X-Provider-Health` when a provider served, so users can
   self-serve debug. `X-Request-Id` is on **every** response including 401s and validation
