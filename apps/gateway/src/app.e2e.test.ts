@@ -150,6 +150,80 @@ describe('every response is traceable', () => {
 	});
 });
 
+describe('the key may travel in a header, not only the query string', () => {
+	it('accepts Authorization: Bearer', async () => {
+		const r = await fetch(`${base}/v1?url=${encodeURIComponent(target('success-html'))}`, {
+			headers: { Authorization: `Bearer ${API_KEY}` },
+		});
+		expect(r.status).toBe(200);
+	});
+
+	it('accepts the scheme case-insensitively, per RFC 9110', async () => {
+		const r = await fetch(`${base}/v1?url=${encodeURIComponent(target('success-html'))}`, {
+			headers: { Authorization: `bEaReR ${API_KEY}` },
+		});
+		expect(r.status).toBe(200);
+	});
+
+	it('still accepts api_key, because that is the drop-in promise', async () => {
+		expect(
+			(await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`))
+				.status,
+		).toBe(200);
+	});
+
+	it('rejects a wrong bearer without falling back to a valid query key', async () => {
+		// The header WINS when present. Falling back would let a leaked query key override an
+		// explicit header, and would make the precedence unpredictable.
+		const r = await fetch(`${base}/v1?api_key=${API_KEY}&url=https%3A%2F%2Fexample.com%2F`, {
+			headers: { Authorization: 'Bearer wrong' },
+		});
+		expect(r.status).toBe(401);
+	});
+
+	it('ignores a non-Bearer scheme and falls through to api_key', async () => {
+		const r = await fetch(
+			`${base}/v1?api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`,
+			{ headers: { Authorization: 'Basic abc123' } },
+		);
+		expect(r.status).toBe(200);
+	});
+});
+
+describe('POST forwards a body', () => {
+	it('is routed, where it used to be hardcoded to GET', async () => {
+		// No POST fixture exists, so this asserts the surface accepts and routes the verb —
+		// NO_PROVIDER_AVAILABLE is the honest answer when no adapter declares `post`, and it
+		// proves the request reached the chain rather than 404ing at the router.
+		const r = await fetch(`${base}/v1?api_key=${API_KEY}&url=https%3A%2F%2Fexample.com%2F`, {
+			method: 'POST',
+			body: 'a=1&b=2',
+		});
+		expect(r.status).not.toBe(404);
+		expect(r.headers.get('x-request-id')).toBeTruthy();
+	});
+
+	it('caps the request body with the same limit as the response', async () => {
+		// Without this a caller pushes an unbounded body through a process whose memory budget
+		// is sized on maxInflight * bodyCap * 2.5. The e2e app is configured at 10 MB.
+		const r = await fetch(`${base}/v1?api_key=${API_KEY}&url=https%3A%2F%2Fexample.com%2F`, {
+			method: 'POST',
+			body: 'x'.repeat(11 * 1024 * 1024),
+		});
+		expect(r.status).toBe(413);
+		expect(((await r.json()) as { error: { code: string } }).error.code).toBe(
+			'RESPONSE_TOO_LARGE',
+		);
+	});
+
+	it('leaves PUT unrouted rather than silently treating it as GET', async () => {
+		const r = await fetch(`${base}/v1?api_key=${API_KEY}&url=https%3A%2F%2Fexample.com%2F`, {
+			method: 'PUT',
+		});
+		expect(r.status).toBe(404);
+	});
+});
+
 describe('one error shape, whatever went wrong', () => {
 	// The point of the envelope: a client parses one schema, not two. Previously auth and
 	// validation answered {error, message} while a failed scrape answered {outcome, class,
