@@ -13,13 +13,15 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 
 Cooldowns route live traffic. **Health is off unless `PROXLANE_HEALTH=on`**: its calibration
 assumes independent failures, and a two-regime provider with the same mean rate spends 93% of
-its time demoted in simulation. Validating it needs real traffic. State is in-process, or
-shared via `PROXLANE_VALKEY_URL`. The prober lifts demoted providers back, and
-`GET /health/cooldowns` shows what is cooling. Two review panels found a broken self-host
-default and thirteen defects, all fixed and regression-tested.
+its time demoted in simulation. Validating it needs real traffic. State is in-process or shared
+via `PROXLANE_VALKEY_URL`; the prober lifts demoted providers back, and
+`GET /health/cooldowns` shows what is cooling. The detector's rules come from vendor
+signatures and have **never seen a real block page**; a test asserts the count.
 
-The detector's rules come from vendor signatures and have **never seen a real block page**;
-a test asserts the count.
+**The canary gate has not started, though the run list reads as if it has.** §9 wants three
+consecutive *scheduled* greens; the only canary green was a `workflow_dispatch`, and the other
+scheduled greens are different jobs (`cost-drift`, `record:diff`). Cron is Mondays, so the
+first real run is **2026-08-17** and the gate clears **2026-08-31**. Count scheduled runs only.
 
 ## Blocked on
 
@@ -30,7 +32,9 @@ Owner decisions and external answers. None is unblocked by writing code.
   paid Secret Protection. Buy it, or accept that a bespoke key shape goes unscanned.
 - **Where `k6:soak` runs** — the box sits at ~66% CPU / ~51% IO pressure during normal
   scrape windows, so a gateway-internal p95 gate measured there measures the neighbours.
-  Dedicated ephemeral box, or restate the threshold honestly. *Before it is a launch gate.*
+  Dedicated ephemeral box, or restate the threshold honestly. The command is still a stub and
+  is **blocked by this decision, not by code**: building the harness against an unanswerable
+  threshold is the wasted work. *Before it is a launch gate.*
 - **Hosted credit margin** — `plan.md` §7. The rate does not clear its costs once failover
   attempts are counted. Blocks the ledger and all Stripe work. Phase 3; figures are private.
 - **A private fixture corpus** — `plan.md` §19 bars recording any named commercial target
