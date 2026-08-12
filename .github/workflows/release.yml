@@ -1,0 +1,125 @@
+name: release
+
+# Publishing. `operating.md` B8: changesets accumulate on `main`, a release PR is opened
+# automatically, and merging it publishes npm packages, a git tag, a GitHub Release, and
+# multi-arch images to ghcr.
+#
+# THIS FILE DID NOT EXIST until now, which nothing noticed. `CLAUDE.md`'s ownership table has
+# carried a row for it since the scaffold, B8 described its behaviour in the present tense,
+# and 22 changesets accumulated behind a publish path that was never written. `repo:check`
+# assertion 22 now fails if a workflow the ownership table claims is missing — an owner for a
+# file nobody wrote is the same shape as a green check that tested nothing.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: rehearse without publishing or tagging
+        type: boolean
+        default: true
+
+# Two releases racing would publish two versions of the same package. Never cancel a running
+# one — a half-finished publish is worse than a queued one.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write # tags, the release commit, and the GitHub Release
+  pull-requests: write # the release PR
+  packages: write # ghcr
+  id-token: write # npm provenance: the attestation is signed with this, not with a secret
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Changesets needs the history to work out what changed since the last tag.
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      # The rehearsal, run before anything is published rather than after. `release:dry`
+      # packs with pnpm and inspects the resulting tarball, which is the only thing that
+      # catches `workspace:*` surviving into a published manifest — the defect that shipped
+      # proxlane@0.0.0 uninstallable, because `npm publish --dry-run` succeeds on it.
+      - run: pnpm release:dry
+
+      - name: publish
+        id: changesets
+        if: inputs.dry_run != true
+        uses: changesets/action@v1
+        with:
+          # `version` writes the bumps and changelogs; `publish` runs when there is nothing
+          # left to version, i.e. on the merge of the release PR. One job, both halves.
+          version: pnpm exec changeset version
+          publish: pnpm exec changeset publish
+          commit: 'chore(release): version packages'
+          title: 'chore(release): version packages'
+          createGithubReleases: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provenance: a verifiable link from the tarball to this commit and this workflow.
+          # It needs `id-token: write` above and a public repo, both of which hold. For a
+          # product that handles other people's provider keys this is the supply-chain
+          # control that matters most.
+          NPM_CONFIG_PROVENANCE: true
+
+      # OIDC TRUSTED PUBLISHING IS THE DESTINATION, AND IS NOT WIRED YET.
+      #
+      # `plan.md` decided it: it removes the long-lived npm token rather than storing one.
+      # Two things stop it being switched on in this PR, and both are facts rather than
+      # preferences. Publishing MUST go through pnpm — `npm publish` leaves `workspace:*`
+      # verbatim in the manifest and the tarball is then uninstallable, which is exactly how
+      # proxlane@0.0.0 shipped broken — and pnpm's support for the registry's OIDC exchange
+      # is not something this repo has verified. Claiming it works would be a guess in the
+      # one place a guess is unrecoverable.
+      #
+      # So: token auth today, provenance on regardless, and the swap is a one-line env change
+      # plus deleting the secret, once a real publish has proven the exchange.
+      - name: read the released version
+        id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./packages/cli/package.json').version")" >> "$GITHUB_OUTPUT"
+
+  # Images follow the npm publish rather than racing it, so a tag that exists on ghcr always
+  # has a matching package on npm.
+  images:
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # arm64 is in the RELEASE workflow only, never in PR CI, because it is emulated
+          # under QEMU and slow. Self-hosters run Pi and Ampere boxes — `operations.md`
+          # says so — which is a deliberate divergence from the amd64-only siblings.
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # `:latest` exists and B8 documents it as the unstable choice; the compose file
+          # pins a version.
+          tags: |
+            ghcr.io/proxlane/gateway:${{ needs.release.outputs.version }}
+            ghcr.io/proxlane/gateway:latest

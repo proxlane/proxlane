@@ -155,7 +155,7 @@ faithfully reflects a table that is now wrong.
 | `.github/workflows/**` `/renovate.json` | CI matrix, Renovate, image build. **After `.github/**`** | devex-engineer |
 | `.github/workflows/release.yml` | publishing. **After `workflows/**`** | release-manager |
 | `.changeset/**` | changesets | release-manager |
-| `/CHANGELOG.md` | generated changelog | release-manager |
+| `**/CHANGELOG.md` | generated changelogs. **After every package row** — last match wins, and these belong to release-manager wherever they land | release-manager |
 | `/SECURITY.md` | disclosure process. See the note below on scope | security-engineer |
 | `/CONTRIBUTING.md` `/CODE_OF_CONDUCT.md` | contributor-facing furniture | oss-maintainer |
 | `/README.md` `/LICENSE` | the front door, and the grant behind it | oss-maintainer |

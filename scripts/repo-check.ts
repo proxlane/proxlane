@@ -1128,6 +1128,48 @@ function matchesOwner(pattern: string, file: string): boolean {
 	return new RegExp(`^${rx}`).test(file);
 }
 
+// ------------------------------- 22. every owned file that names itself actually exists
+//
+// `CLAUDE.md`'s ownership table carried a row for `.github/workflows/release.yml` from the
+// scaffold onward. The file was never written. `operating.md` B8 described its behaviour in
+// the present tense, 22 changesets accumulated behind it, and nothing failed — because
+// assertion 4 checks that every tracked file has an owner, which is the opposite direction.
+//
+// A row naming a SPECIFIC file is a claim that the file exists. Globs are not: `docs/**`
+// says nothing about any particular path. So this checks only the literal rows, which is
+// also what keeps it from firing on a package that has not been created yet.
+{
+	// Scoped to the ownership section. The Commands table also has backticked first cells,
+	// and matching the whole file reported `pnpm repo:check` as a missing path — a check
+	// whose own error message is nonsense teaches people to ignore it.
+	const claude = read('CLAUDE.md');
+	const from = claude.indexOf('## Target layout and ownership');
+	const to = claude.indexOf('\n## ', from + 1);
+	if (from === -1 || to === -1) {
+		fail('22', 'could not locate the ownership table in CLAUDE.md');
+	}
+	const section = claude.slice(from, to === -1 ? undefined : to);
+	const rows = [...section.matchAll(/^\|\s*`([^`]+)`/gm)]
+		.map((m) => (m[1] as string).trim())
+		.filter((p) => !p.includes('*') && p !== '');
+	if (rows.length === 0) {
+		fail('22', 'parsed zero literal paths from the ownership table — this checked nothing');
+	}
+	let checked22 = 0;
+	for (const row of rows) {
+		const rel = row.startsWith('/') ? row.slice(1) : row;
+		checked22++;
+		if (!has(rel)) {
+			fail(
+				'22',
+				`CLAUDE.md owns ${row}, which does not exist. Either write it or drop the row — ` +
+					'an owner for a file nobody wrote reads as a thing that got built.',
+			);
+		}
+	}
+	ok('22', checked22, 'literally-named owned paths exist');
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

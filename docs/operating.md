@@ -290,8 +290,19 @@ so nobody has to ask.
 ## B8. Releases
 
 - Changesets accumulate on `main`, and a release PR is opened automatically.
-- Merging the release PR publishes: npm packages, signed git tag, GitHub Release with
-  generated notes, multi-arch Docker images to ghcr tagged `:x.y.z`, `:x.y`, `:latest`.
+- Merging the release PR publishes: npm packages **with provenance**, a git tag, a GitHub
+  Release with generated notes, and multi-arch Docker images to ghcr tagged `:x.y.z` and
+  `:latest`.
+- **The tag is annotated, not GPG-signed.** This said "signed" before the workflow existed,
+  and signing needs a key the repo does not have and a decision about where it lives. npm
+  provenance is the attestation that actually ships: it links each tarball to the commit and
+  the workflow that built it, signed with the workflow's OIDC identity rather than a stored
+  secret. Revisit tag signing when there is a key to sign with.
+- **OIDC trusted publishing is the destination, not the current state.** Publishing must go
+  through pnpm — `npm publish` leaves `workspace:*` verbatim and the tarball is then
+  uninstallable, which is how `proxlane@0.0.0` shipped — and pnpm's support for the
+  registry's OIDC exchange is unverified here. Token auth today, provenance regardless, and
+  the swap is one env change plus deleting the secret once a real publish proves it.
 - Semver honestly. A changed default in an adapter is a breaking change even if the
   types did not move.
 - Release cadence: whenever the release PR has something worth shipping, at most
@@ -301,12 +312,16 @@ so nobody has to ask.
 
 ## B9. Support boundaries, stated out loud
 
-Community support is best-effort through GitHub issues and Discord. Paid support is
-the enterprise tier. Say this in the README rather than quietly disappointing people.
+Community support is best-effort through GitHub issues and Discussions — not Discord, which
+B10 rejected because the whole growth model is search and a chat server is invisible to it.
+Paid support is the enterprise tier. Say this in the README rather than quietly
+disappointing people.
 
-`proxlane doctor` exists so that most support requests answer themselves: it checks
-env, DB and Redis connectivity, provider key validity, outbound DNS and egress, and
-prints a shareable diagnostic with secrets redacted. Every time a support question
+`proxlane doctor` exists so that most support requests answer themselves: it checks env,
+provider key presence, egress, where routing state lives, whether the replica count matches
+that backing, which of health and cooldowns are on, and whether a configured Valkey is
+reachable — printing a shareable diagnostic with secrets redacted. Postgres joins the list
+with the schema that needs it. Every time a support question
 takes more than one exchange, the fix is a new check in `doctor`, not a longer reply.
 
 ## B10. Community

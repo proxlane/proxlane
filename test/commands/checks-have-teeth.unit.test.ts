@@ -85,6 +85,24 @@ describe('repo:check goes red when it should', () => {
 		expect(repoCheck().code).toBe(0);
 	});
 
+	it('catches an ownership row naming a file that does not exist', () => {
+		// The defect: CLAUDE.md owned `.github/workflows/release.yml` from the scaffold, the
+		// file was never written, operating.md B8 described its behaviour in the present
+		// tense, and 22 changesets accumulated behind a publish path that did not exist.
+		// Nothing failed, because assertion 4 checks the opposite direction — that every
+		// tracked file has an owner.
+		mutate('CLAUDE.md', (t) =>
+			t.replace(
+				'| `/AGENTS.md` |',
+				'| `/does-not-exist.md` | invented | oss-maintainer |\n| `/AGENTS.md` |',
+			),
+		);
+		expectRedBecause(
+			/owns \/does-not-exist\.md, which does not exist/,
+			'an owned phantom file',
+		);
+	});
+
 	it('catches a published health figure drifting from the simulation', () => {
 		// The defect this exists for: the published detection delay was the REJECTED
 		// estimator's result, carried into two files as a claim about the shipped one, under a
