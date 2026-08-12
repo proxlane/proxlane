@@ -51,40 +51,23 @@ jobs:
       # proxlane@0.0.0 uninstallable, because `npm publish --dry-run` succeeds on it.
       - run: pnpm release:dry
 
-      # Prove the credential BEFORE anything is versioned or published.
+      # THERE IS NO NPM CREDENTIAL. Publishing authenticates with OIDC trusted publishing, so
+      # nothing here holds a token and there is no expiry to preflight.
       #
-      # Without this, an expired token fails at the publish step — which runs only after the
-      # release PR has already been merged, so `main` claims a version the registry does not
-      # have and the fix is a manual publish plus a tag nobody made. The token is capped at
-      # 90 days by npm, so this WILL happen; the only question is whether it happens as a
-      # clear message or as a half-finished release.
+      # A credential check used to live at this point, because an npm automation token is
+      # capped at 90 days and an expired one failed AFTER the release PR merged — leaving
+      # `main` claiming a version the registry did not have. That failure mode is now gone
+      # rather than guarded: there is no token to expire.
       #
-      # On a version run (changesets pending) this fails before the release PR is opened,
-      # which is the useful moment: there is nothing to unwind.
-      - name: check the npm credential
-        if: inputs.dry_run != true
-        shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -uo pipefail
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::NPM_TOKEN is not set. Add it under Settings > Secrets and variables > Actions."
-            exit 1
-          fi
-          printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > ~/.npmrc
-          # stderr captured separately. Merging it made the SUCCESS line read
-          # "authenticated to npm as npm warn Unknown project config ..." — npm grumbling
-          # about pnpm's strict-peer-dependencies in .npmrc, printed where the username goes.
-          # A diagnostic that garbles its own happy path is one people stop reading.
-          if ! who=$(npm whoami --registry=https://registry.npmjs.org 2>/tmp/npm-err); then
-            echo "::error::NPM_TOKEN is rejected by the registry: $(tr -d '\n' < /tmp/npm-err)"
-            echo "::error::npm caps automation tokens at 90 days — this is most likely expiry."
-            echo "::error::Mint a new granular token (@proxlane scope + the proxlane package,"
-            echo "::error::read and write, no org access) and replace the NPM_TOKEN secret."
-            exit 1
-          fi
-          echo "authenticated to npm as ${who}"
+      # What replaced the preflight is a POST-publish check, further down. The reason it moved
+      # to the far side is npm's fallback behaviour: with a token configured, npm silently uses
+      # it when the OIDC exchange fails, so a green release proved nothing about which
+      # credential was used. Deleting the token removes the fallback, and the check confirms
+      # the registry recorded a trusted publish rather than assuming it.
+      #
+      # The remaining way to break this is renaming `release.yml`, because the trust config on
+      # npmjs.com is bound to the filename. `repo:check` assertion 22 keeps that path existing,
+      # since `CLAUDE.md`'s ownership table names it literally.
 
       # NEVER MERGE AN EMPTY CHANGESET TO `main`. It stalls this job in both directions:
       # the action sees a changeset, so it takes the `version` branch rather than `publish`,
@@ -112,7 +95,15 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # No NODE_AUTH_TOKEN. `changeset publish` spawns `pnpm publish`, which rewrites
+          # `workspace:*` and hands off to the npm CLI — and the npm CLI performs the OIDC
+          # exchange itself using `id-token: write` above. Both halves are required: publishing
+          # through npm alone leaves `workspace:*` in the manifest and the tarball is
+          # uninstallable, which is how proxlane@0.0.0 shipped.
+          #
+          # This is also why the pnpm pin is load-bearing beyond the catalog. pnpm 11.0.x
+          # reimplemented publish natively, dropped the npm delegation and broke OIDC
+          # publishing outright; it was repaired in 11.0.7. See CLAUDE.md's toolchain row.
           # Provenance: a verifiable link from the tarball to this commit and this workflow.
           # It needs `id-token: write` above and a public repo, both of which hold. For a
           # product that handles other people's provider keys this is the supply-chain
