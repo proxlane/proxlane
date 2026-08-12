@@ -305,11 +305,32 @@ so nobody has to ask.
   granular token scoped to `@proxlane` plus the unscoped `proxlane` package, read and write,
   **no organisation access** — org permission manages members and settings and publishing
   does not need it.
-- **OIDC trusted publishing is the destination, not the current state.** Publishing must go
-  through pnpm — `npm publish` leaves `workspace:*` verbatim and the tarball is then
-  uninstallable, which is how `proxlane@0.0.0` shipped — and pnpm's support for the
-  registry's OIDC exchange is unverified here. Token auth today, provenance regardless, and
-  the swap is one env change plus deleting the secret once a real publish proves it.
+- **Provenance validates `repository.url` in the published manifest.** Every publishable
+  package declares `repository` with a `directory`, and `release:dry` fails without it. This
+  is not decoration: 0.1.0's first publish attempt was rejected `E422` on all four packages
+  for a missing field, *after* the signed attestation had already reached Sigstore's public
+  transparency log. The rejection is not retryable in place, only in a new run.
+- **Never merge an empty changeset to `main`.** `changesets/action` takes the `version`
+  branch whenever any changeset exists, logs `All changesets are empty; not creating PR`,
+  and exits 0 without publishing. Green run, no release PR, nothing shipped. It cost 0.1.0 a
+  release cycle. `--empty` is fine on a branch and a handbrake on `main`.
+- **OIDC trusted publishing is reachable on the current pins**, and the mechanism is worth
+  stating because it is not obvious. `changeset publish` spawns `pnpm publish`, pnpm rewrites
+  `workspace:*` into real versions and stages the result, then hands off to the npm CLI —
+  which is what performs the OIDC exchange. pnpm 10 contains no OIDC code of its own. So the
+  property we need comes from *both* halves: pnpm for the rewrite, npm for the credential.
+  Publishing through `npm` alone leaves `workspace:*` verbatim and the tarball is
+  uninstallable, which is how `proxlane@0.0.0` shipped.
+- **That is why the pnpm pin is load-bearing beyond the catalog.** pnpm 11.0.x reimplemented
+  publish natively, dropped the npm delegation, and broke OIDC publishing outright
+  ([pnpm#11513](https://github.com/pnpm/pnpm/issues/11513)); it was repaired in 11.0.7. A
+  mechanical bump across that boundary changes how publishing authenticates.
+- **Remaining step: configure the trusted publisher per package**, with
+  `npm trust github <pkg> --file release.yml --repo proxlane/proxlane --allow-publish`, then
+  delete `NPM_TOKEN`. Two cautions. The binding is to the **workflow filename**, so renaming
+  `release.yml` silently breaks it. And npm falls back to a static token when the exchange
+  fails, so **a green release is not evidence OIDC worked** — read
+  `npm view <pkg> dist.attestations` or `npm trust list <pkg>` instead.
 - Semver honestly. A changed default in an adapter is a breaking change even if the
   types did not move.
 - Release cadence: whenever the release PR has something worth shipping, at most
