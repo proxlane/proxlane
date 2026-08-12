@@ -120,7 +120,24 @@ describe('the gateway key comparison is constant time in fact, not in intent', (
 		const long = await app.request(`/v1?api_key=${'y'.repeat(200)}&url=https://example.com/`);
 		expect(short.status).toBe(401);
 		expect(long.status).toBe(401);
-		expect(await short.text()).toBe(await long.text());
+
+		// `requestId` is unique per request by design, so a raw byte comparison cannot hold any
+		// more. Strip exactly that field and require everything else identical — and assert the
+		// field was there, or this silently degrades into comparing two objects that both lost
+		// a key that never existed.
+		const withoutId = async (r: Response) => {
+			const body = (await r.json()) as Record<string, unknown>;
+			expect(typeof body.requestId, 'no requestId on a 401').toBe('string');
+			delete body.requestId;
+			return JSON.stringify(body);
+		};
+		expect(await withoutId(short)).toBe(await withoutId(long));
+
+		// Headers too, which the old assertion never covered: a difference there leaks just as
+		// well as one in the body. X-Request-Id is the only field allowed to differ.
+		const headers = (r: Response) =>
+			[...r.headers.keys()].filter((k) => k !== 'x-request-id').sort();
+		expect(headers(short)).toEqual(headers(long));
 	});
 });
 

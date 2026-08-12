@@ -15,6 +15,7 @@ import {
 	outcomeClass,
 	policyFor,
 } from '@proxlane/adapters';
+import { requestIdFrom } from '@proxlane/shared';
 import { Hono } from 'hono';
 import type { ChainResult } from './chain.js';
 import { runChain } from './chain.js';
@@ -65,6 +66,16 @@ function keyMatches(presented: string, expected: string): boolean {
 	return timingSafeEqual(a, b);
 }
 
+/**
+ * Per-request identity, so every response can be traced back to one attempt chain.
+ *
+ * `requestId` is set by middleware before any handler runs, which is the only way to
+ * guarantee it reaches responses the scrape path never produces — 401, a missing `url`, an
+ * unhandled throw. Threading it through handlers by hand would miss exactly those, and those
+ * are the ones people open issues about.
+ */
+type Vars = { Variables: { requestId: string } };
+
 function headersFor(r: ChainResult): Record<string, string> {
 	// Spend across EVERY attempt, not just the winning one. A failover that cost two charged
 	// hops and reports the price of one is the number that makes margin look better than it
@@ -99,8 +110,23 @@ function headersFor(r: ChainResult): Record<string, string> {
 	};
 }
 
-export function createApp(deps: AppDeps): Hono {
-	const app = new Hono();
+export function createApp(deps: AppDeps): Hono<Vars> {
+	const app = new Hono<Vars>();
+
+	// FIRST, and on every route including /health. A support thread that starts "it returned
+	// 401" is unanswerable without one, and `requests.id` in the log is this same value — so
+	// the id a user pastes is the row a maintainer looks up.
+	//
+	// Echoes the caller's `X-Request-Id` when it is safe to (see `requestIdFrom`), so a client
+	// with its own tracing keeps one id across both systems. Anything unusable is silently
+	// replaced rather than rejected: refusing a request over a malformed trace header turns a
+	// debugging aid into an outage.
+	app.use('*', async (c, next) => {
+		const id = requestIdFrom(c.req.header('x-request-id'));
+		c.set('requestId', id);
+		await next();
+		c.header('X-Request-Id', id);
+	});
 
 	// Health is "this process is up and serving", not "fully configured". A gateway with no
 	// provider keys is correctly running and will honestly answer NO_PROVIDER_AVAILABLE —
@@ -126,12 +152,23 @@ export function createApp(deps: AppDeps): Hono {
 	// is already configured with one.
 	app.get('/health/providers', async (c) => {
 		if (!keyMatches(c.req.query('api_key') ?? '', deps.apiKey)) {
-			return c.json({ error: 'unauthorized', message: 'api_key missing or incorrect' }, 401);
+			return c.json(
+				{
+					error: 'unauthorized',
+					message: 'api_key missing or incorrect',
+					requestId: c.get('requestId'),
+				},
+				401,
+			);
 		}
 		if (deps.health === undefined) {
 			// Honest 501 rather than an empty list. `{providers: []}` would read as "all fine".
 			return c.json(
-				{ error: 'not_enabled', message: 'this gateway is running without health tracking' },
+				{
+					error: 'not_enabled',
+					message: 'this gateway is running without health tracking',
+					requestId: c.get('requestId'),
+				},
 				501,
 			);
 		}
@@ -179,11 +216,22 @@ export function createApp(deps: AppDeps): Hono {
 	// it names the DOMAINS this deployment has been blocked on, which is more sensitive still.
 	app.get('/health/cooldowns', async (c) => {
 		if (!keyMatches(c.req.query('api_key') ?? '', deps.apiKey)) {
-			return c.json({ error: 'unauthorized', message: 'api_key missing or incorrect' }, 401);
+			return c.json(
+				{
+					error: 'unauthorized',
+					message: 'api_key missing or incorrect',
+					requestId: c.get('requestId'),
+				},
+				401,
+			);
 		}
 		if (deps.cooldowns === undefined) {
 			return c.json(
-				{ error: 'not_enabled', message: 'this gateway is running without cooldowns' },
+				{
+					error: 'not_enabled',
+					message: 'this gateway is running without cooldowns',
+					requestId: c.get('requestId'),
+				},
 				501,
 			);
 		}
@@ -229,19 +277,33 @@ export function createApp(deps: AppDeps): Hono {
 			// NOT an Outcome. The taxonomy describes what happened to a scrape; this request
 			// never became one. Reusing AUTH_FAILED here would put gateway auth failures into
 			// the provider health statistics.
-			return c.json({ error: 'unauthorized', message: 'api_key missing or incorrect' }, 401);
+			return c.json(
+				{
+					error: 'unauthorized',
+					message: 'api_key missing or incorrect',
+					requestId: c.get('requestId'),
+				},
+				401,
+			);
 		}
 
 		const url = c.req.query('url');
 		if (url === undefined || url === '') {
-			return c.json({ error: 'bad_request', message: 'url is required' }, 400);
+			return c.json(
+				{ error: 'bad_request', message: 'url is required', requestId: c.get('requestId') },
+				400,
+			);
 		}
 
 		const renderRaw = c.req.query('render');
 		const premiumRaw = c.req.query('premium') ?? 'none';
 		if (premiumRaw !== 'none' && premiumRaw !== 'residential' && premiumRaw !== 'stealth') {
 			return c.json(
-				{ error: 'bad_request', message: 'premium must be none, residential or stealth' },
+				{
+					error: 'bad_request',
+					message: 'premium must be none, residential or stealth',
+					requestId: c.get('requestId'),
+				},
 				400,
 			);
 		}
@@ -299,6 +361,7 @@ export function createApp(deps: AppDeps): Hono {
 		// a failover needs to see which providers were tried and what each said.
 		return c.json(
 			{
+				requestId: c.get('requestId'),
 				outcome: result.outcome,
 				// Alongside `outcome`, not instead of it. A caller reading the JSON body gets the
 				// same open/closed pair as one reading the headers, so switching on the stable
