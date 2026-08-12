@@ -1,11 +1,14 @@
 // `pnpm release:dry` — would a release work, without doing one.
 //
-// Two halves, because two different things go wrong.
+// Three halves, because three different things go wrong.
 //
 //   changeset status   Are the pending version bumps what you expect? This is the half
 //                      that catches "we shipped a breaking change as a patch".
-//   npm publish --dry-run   Would each publishable package actually build a tarball, with
+//   pnpm pack          Would each publishable package actually build a tarball, with
 //                      its licence, its bin, and no missing file?
+//   provenance         Would the registry ACCEPT that tarball? Packing correctly and
+//                      publishing successfully are different questions, and 0.1.0 found
+//                      the gap between them the hard way. See the block near the checks.
 //
 // What `npm publish --dry-run` structurally CANNOT catch is the failure that matters most:
 // a published package depending on a private one resolves fine in a workspace and 404s for
@@ -18,6 +21,32 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * The repository npm provenance expects every published manifest to point at.
+ *
+ * Publishing with provenance is a THREE-way agreement: the workflow signs an attestation
+ * naming the building repo, the registry verifies it, and the tarball's own
+ * `repository.url` must name the same place. Miss the third and the registry rejects the
+ * upload with E422 after the attestation is already in the public transparency log.
+ */
+const CANONICAL_REPO = 'https://github.com/proxlane/proxlane';
+
+/**
+ * Reduce the several spellings npm accepts to the one form the registry compares against:
+ * `git+https://github.com/o/r.git`, `git://…`, `https://….git` and a bare `o/r` shorthand all
+ * mean the same repository.
+ */
+function normaliseRepoUrl(url: string): string {
+	if (/^[\w.-]+\/[\w.-]+$/.test(url)) return `https://github.com/${url}`;
+	return url
+		.replace(/^git\+/, '')
+		.replace(/^git:\/\//, 'https://')
+		.replace(/^ssh:\/\/git@/, 'https://')
+		.replace(/^git@([^:]+):/, 'https://$1/')
+		.replace(/\.git$/, '')
+		.replace(/\/$/, '');
+}
 
 interface Pkg {
 	dir: string;
@@ -101,7 +130,10 @@ for (const pkg of publishable) {
 
 		const manifest = JSON.parse(
 			execFileSync('tar', ['-xzOf', tarball, 'package/package.json'], { encoding: 'utf8' }),
-		) as { dependencies?: Record<string, string> };
+		) as {
+			dependencies?: Record<string, string>;
+			repository?: string | { url?: string; directory?: string };
+		};
 
 		const unresolved = Object.entries(manifest.dependencies ?? {}).filter(([, v]) =>
 			v.startsWith('workspace:'),
@@ -114,6 +146,44 @@ for (const pkg of publishable) {
 		}
 		if (!/package\/LICENSE/.test(files)) {
 			problems.push('no LICENSE in the tarball — packaging succeeded, licensing did not');
+		}
+
+		// Provenance preconditions, checked against the TARBALL manifest rather than the source
+		// one, because the tarball is what the registry validates and pnpm rewrites the manifest
+		// on its way there.
+		//
+		// This check exists because its absence shipped. proxlane 0.1.0's release failed with
+		// E422 on all four packages — `"repository.url" is ""` — after `release:dry` had gone
+		// green in the same workflow run, minutes earlier. The rehearsal packed the tarball and
+		// read its dependencies and licence, then declared "a release would work" about a
+		// release that could not. The 0.0.1 placeholders had hidden it by being published
+		// without provenance at all, so the field was never required until it suddenly was.
+		//
+		// The failure is not recoverable by retrying: the signed attestation reaches Sigstore's
+		// public transparency log BEFORE the registry rejects the upload.
+		{
+			const repo = manifest.repository;
+			const url = typeof repo === 'string' ? repo : repo?.url;
+			if (!url) {
+				problems.push(
+					'no repository.url in the tarball manifest — npm provenance rejects this with E422',
+				);
+			} else if (normaliseRepoUrl(url) !== CANONICAL_REPO) {
+				problems.push(
+					`repository.url is "${url}" (reads as ${normaliseRepoUrl(url)}), ` +
+						`but provenance expects ${CANONICAL_REPO}`,
+				);
+			}
+			// `directory` is not required by the registry, but without it every package on npm
+			// links to the repo root, which for a monorepo of eleven packages is a dead end.
+			const directory = typeof repo === 'object' ? repo?.directory : undefined;
+			const expected = pkg.dir.slice(ROOT.length + 1);
+			if (url && directory !== expected) {
+				problems.push(
+					`repository.directory is ${directory === undefined ? 'missing' : `"${directory}"`}, ` +
+						`expected "${expected}" so npm links to the package rather than the repo root`,
+				);
+			}
 		}
 
 		if (problems.length === 0) {
