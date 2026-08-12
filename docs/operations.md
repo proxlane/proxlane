@@ -340,8 +340,20 @@ it had any statement of who may be in an org — tenants without a tenancy model
 
 The two that are judgement rather than convention are the key rows, and both are set to
 admin-and-above because either one spends money: a provider key bills the org's own account,
-and a gateway key authorises spending through it. Read access is deliberately wide, because
-the request log is the product.
+and a gateway key authorises spending through it.
+
+Read access is deliberately wide. The request log is the product, and a member who cannot see
+why something returned 403 cannot debug their own scraper — every such question then escalates
+to an admin, which is the support burden B9 exists to remove. A scraped-domain list can be
+commercially sensitive (`plan.md` §19), but the control for that is **who you invite**, which
+is already admin-and-above; restricting reads does not protect a target list from someone
+deliberately added to the org. Revisit if a customer needs per-member scoping — that is what
+teams are for, and teams are off.
+
+**Roles govern the dashboard, not the proxy.** Gateway keys are org-scoped and the gateway
+authenticates keys, never users; it never sees Better Auth at all. So anyone holding a gateway
+key can scrape whatever their role says, `member` included. Revoking a member's access means
+rotating the key, not changing their role.
 
 **Nobody can read a provider key back, at any role.** Sealed boxes are asymmetric, so
 `apps/web` writes keys it cannot decrypt. "Can a member view the key" is not a permission
