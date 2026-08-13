@@ -24,7 +24,7 @@ jobs:
     if: github.event.schedule == '17 6 * * 1' || inputs.job == 'canary'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       # test:live is a stub that exits 1. Without this the canary opens a provider-drift
       # issue every Monday from day one — and a weekly false alarm is how a real one stops
@@ -81,7 +81,7 @@ jobs:
     if: github.event.schedule == '23 6 * * 2' || inputs.job == 'cost-drift'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - run: echo "::notice::cost-drift needs the ledger and a cost table with reported values; neither exists"
 
@@ -89,7 +89,7 @@ jobs:
     if: github.event.schedule == '29 6 * * 3' || inputs.job == 'record-diff'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - run: pnpm record --diff || echo "::notice::record is a stub; nothing to diff yet"
 
@@ -108,7 +108,7 @@ jobs:
     if: github.event.schedule == '41 6 * * 4' || inputs.job == 'health-sim'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - name: rerun the simulation and diff the recorded figures
         run: |

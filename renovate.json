@@ -2,6 +2,15 @@
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
 	"extends": ["config:recommended", ":semanticCommits"],
 	"schedule": ["before 6am on monday"],
+	"//": [
+		"THIS FILE ONLY WORKS IF THE RENOVATE GITHUB APP IS INSTALLED ON THE ORG. It is not a",
+		"workflow and nothing in CI runs it. As of 2026-08-13 the App had never run here — no",
+		"pull request, no dependency dashboard issue, no branch — which is why the GitHub Actions",
+		"below sat two majors behind until they were bumped by hand, and why the Node 20",
+		"deprecation warning appeared on every run.",
+		"",
+		"If you are reading this because dependencies look stale, check the App before the config."
+	],
 	"packageRules": [
 		{ "matchUpdateTypes": ["patch"], "automerge": true },
 		{
