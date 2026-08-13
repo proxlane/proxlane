@@ -26,6 +26,33 @@ html {
 }
 
 /* Visible keyboard focus, on both variants. `design.md`'s quality floor, never announced. */
+/* Browser surfaces. The parts nobody draws still carry the design, and they ship with
+ * defaults belonging to no design system: selection, caret, scrollbar, underline offset, and
+ * the numerals in tabular data. Cheapest signal that a page was built rather than assembled.
+ */
+::selection {
+	background: var(--color-line-1);
+	color: var(--color-ground);
+}
+
+html {
+	caret-color: var(--color-line-1);
+	scrollbar-color: var(--color-rule) transparent;
+}
+
+a {
+	text-underline-offset: 0.2em;
+	text-decoration-thickness: 1px;
+}
+
+/* Figures line up in a column when they are tabular. A status code or a latency that jitters
+ * between rows is the default nobody chose. */
+code,
+pre,
+[data-numeric] {
+	font-variant-numeric: tabular-nums;
+}
+
 :focus-visible {
 	outline: 2px solid var(--color-line-1);
 	outline-offset: 2px;

@@ -131,37 +131,42 @@ function Migration() {
  * saying so costs them a success in their own numbers.
  */
 function Honesty() {
+	/* Prose, not a card grid and not the hero-metric template.
+	 *
+	 * The first version was three same-size cells of numeral, label and body — which is the
+	 * one page scaffold every generated landing page reaches for. Three claims that each need
+	 * a sentence do not need three boxes; they need three sentences and a rule between them.
+	 */
 	const facts = [
-		{
-			n: '200',
-			title: 'is not a success',
-			body: 'A block page returns 200 with a body. The detector reads the body, calls it SOFT_BLOCK, and attaches the rule that fired.',
-		},
-		{
-			n: '17',
-			title: 'outcomes, six classes',
-			body: 'Branch on the class, which never grows. Read the outcome for detail. Adding an outcome cannot break your switch.',
-		},
-		{
-			n: '2',
-			title: 'attempts, both billed',
-			body: 'Every attempt is priced, including the ones that failed. A failover that burned two charged hops reports two.',
-		},
-	];
+		[
+			'A 200 is not a success.',
+			'A block page returns 200 with a body. The detector reads the body, calls it SOFT_BLOCK, and attaches the rule that fired so you can see why.',
+		],
+		[
+			'The taxonomy can grow without breaking you.',
+			'Seventeen outcomes, six classes. Branch on the class, which never grows; read the outcome for detail. Adding an outcome cannot break your switch.',
+		],
+		[
+			'Failed attempts are still billed, and still reported.',
+			'Every attempt is priced, including the ones that failed. A failover that burned two charged hops reports two, not one.',
+		],
+	] as const;
 	return (
 		<section className="flex flex-col gap-5">
 			<Heading>Honest by default</Heading>
-			<div className="grid gap-x-10 gap-y-8 sm:grid-cols-3">
-				{facts.map((f) => (
-					<article key={f.title} className="flex flex-col gap-2">
-						<p className="font-mono text-2xl text-[color:var(--color-line-2)] leading-none">
-							{f.n}
-						</p>
-						<h3 className="font-medium">{f.title}</h3>
-						<p className="text-[color:var(--color-slate)] text-sm leading-relaxed">{f.body}</p>
-					</article>
+			<dl className="flex max-w-2xl flex-col">
+				{facts.map(([term, detail], i) => (
+					<div
+						key={term}
+						className={`flex flex-col gap-1.5 py-4 sm:flex-row sm:gap-8 ${i > 0 ? 'border-[color:var(--color-rule)] border-t' : ''}`}
+					>
+						<dt className="font-medium sm:w-64 sm:shrink-0">{term}</dt>
+						<dd className="text-[color:var(--color-slate)] text-sm leading-relaxed">
+							{detail}
+						</dd>
+					</div>
 				))}
-			</div>
+			</dl>
 		</section>
 	);
 }

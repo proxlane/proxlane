@@ -101,6 +101,23 @@
 	--color-line-3: #9775fa; /* 5.35:1 */
 }
 
+/* THE one authored moment, per `design.md`: the route draws itself once, on load. Not a fade
+ * on every section — an entrance animation repeated down a page is scattered effects wearing a
+ * costume. Exponential ease-out, and it starts from an already-visible default so a viewer who
+ * blocks animation still sees the finished map.
+ *
+ * `stroke-dashoffset` on a path whose dash length is its own length is the standard way to draw
+ * a line; each leg is delayed by its index so the journey reads in order.
+ */
+@keyframes proxlane-draw {
+	from {
+		stroke-dashoffset: var(--draw-length, 600);
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
 /* Follows the OS until the viewer chooses, at which point `data-theme` wins in both
  * directions — a toggle that cannot switch back to light is a toggle that is broken. */
 @media (prefers-color-scheme: dark) {

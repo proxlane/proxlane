@@ -131,6 +131,17 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 							strokeWidth="var(--stroke-line, 3)"
 							strokeLinecap="round"
 							strokeDasharray={attempt.outcome.includes('BLOCK') ? '2 7' : undefined}
+							style={
+								// A blocked leg is already dashed, and animating dashoffset on it would
+								// march the dashes rather than draw the line. It arrives at full length.
+								attempt.outcome.includes('BLOCK')
+									? undefined
+									: ({
+											strokeDasharray: legEnd - GEO.startX,
+											animation: `proxlane-draw 620ms cubic-bezier(0.16, 1, 0.3, 1) ${i * 180}ms both`,
+											'--draw-length': legEnd - GEO.startX,
+										} as CSSProperties)
+							}
 						/>
 
 						{/* The interchange: a transfer down to the next provider's line. Drawn as a
