@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The interchange station, the same mark the header wears. A favicon is a standalone file
+       and cannot read the token layer, so the accent is written literally here — and
+       `tokens:check` asserts this hex still equals `--map-accent` in docs/design.md, because a
+       brand colour that drifts in exactly one file is the drift nobody notices. -->
+  <title>proxlane</title>
+  <circle cx="16" cy="16" r="10" fill="none" stroke="#C2255C" stroke-width="6" />
+</svg>

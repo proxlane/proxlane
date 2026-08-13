@@ -237,7 +237,25 @@ for (const [variant, tokens] of [
 	}
 }
 
-// 7. No raw hex outside the token file. The one check that stops the system becoming a
+// 7. The favicon still wears the brand colour.
+//    It is a standalone SVG, so it cannot read the token layer and has to write the accent
+//    literally. That makes it the one file where the brand can drift alone and silently — the
+//    palette would stay self-consistent and the tab icon would be the old colour forever.
+const FAVICON = join(ROOT, 'apps/web/public/favicon.svg');
+if (existsSync(FAVICON)) {
+	const want = spec.accent;
+	const svg = readFileSync(FAVICON, 'utf8');
+	const found = [...svg.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0].toLowerCase());
+	if (found.length === 0) fail('favicon.svg declares no colour; it should carry the accent');
+	else if (want === undefined) fail('design.md no longer defines --map-accent');
+	else {
+		const stray = found.filter((h) => h !== want);
+		if (stray.length > 0)
+			fail(`favicon.svg uses ${stray.join(', ')}, design.md says the accent is ${want}`);
+	}
+}
+
+// 8. No raw hex outside the token file. The one check that stops the system becoming a
 //    suggestion: a component reaching for `#3b82f6` bypasses every rule above.
 const SEARCH = ['packages/ui/src', 'packages/route-viz/src', 'apps/web/src'];
 let scanned = 0;

@@ -18,7 +18,13 @@ export const Route = createRootRoute({
 					'Change one hostname. AGPL, self-hostable.',
 			},
 		],
-		links: [{ rel: 'stylesheet', href: appCss }],
+		links: [
+			{ rel: 'stylesheet', href: appCss },
+			// Declared, so the browser stops guessing at `/favicon.ico`. Undeclared it requested
+			// one anyway, took a 404, and logged a console error that cost the Lighthouse
+			// best-practices score — a real defect that only showed up against a built server.
+			{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+		],
 	}),
 	component: RootComponent,
 });
