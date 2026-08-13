@@ -13,7 +13,7 @@
 	"dependencies": {
 		"@base-ui/react": "catalog:",
 		"@fontsource-variable/hanken-grotesk": "catalog:",
-		"@fontsource/martian-mono": "catalog:",
+		"@fontsource/ibm-plex-mono": "catalog:",
 		"@proxlane/route-viz": "workspace:*",
 		"@proxlane/ui": "workspace:*",
 		"@tanstack/react-router": "catalog:",
@@ -28,6 +28,7 @@
 		"@types/node": "catalog:",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
+		"@vitejs/plugin-react": "catalog:",
 		"tailwindcss": "catalog:",
 		"typescript": "catalog:",
 		"vite": "catalog:"

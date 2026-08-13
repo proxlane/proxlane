@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 // TanStack Start, per `CLAUDE.md`'s decision. Not Next.js.
@@ -16,5 +17,9 @@ export default defineConfig({
 	// server that quietly relocates makes `pnpm dev` pass while pointing somewhere nobody is
 	// looking.
 	server: { port: 3787, strictPort: true },
-	plugins: [tailwindcss(), tanstackStart()],
+	// react() AFTER tanstackStart(), and the order is enforced by the router plugin itself.
+	// Start's dev mode requires a React Refresh runtime and returns 500 on EVERY page load
+	// without one — while SSR still renders, so the page looks correct and simply never
+	// hydrates. The error names `/@react-refresh` rather than the missing plugin.
+	plugins: [tailwindcss(), tanstackStart(), react()],
 });

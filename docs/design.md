@@ -53,6 +53,8 @@ left over.
 --map-line-1     #0B7285   provider line, teal
 --map-line-2     #E8590C   provider line, orange
 --map-line-3     #5F3DC4   provider line, violet
+--map-accent     #C2255C   the product's own colour: links, focus, selected state
+--map-surface    #FFFFFF   panels and code, laid on the paper
 ```
 
 Line colours are categorical, assigned per provider and reused everywhere: the map,
@@ -61,7 +63,9 @@ it holds across the whole product.
 
 **Type.** One humanist sans across the entire site, hierarchy from weight only,
 which is how transit systems work (Johnston, Frutiger, Transport). Hanken Grotesk or
-Public Sans at 400/500/700. Martian Mono for code and readouts. Deliberately no
+Public Sans at 400/500/700. IBM Plex Mono for code and readouts — humanist like the sans
+and, at a ~0.60em advance, a code face rather than the display mono it replaced, whose
+0.72em forced 79-character transcripts to need a 918px column. Deliberately no
 display face: the diagram is the display element.
 
 **Layout**

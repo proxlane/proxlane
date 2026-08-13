@@ -173,6 +173,8 @@ const SPEC_TO_TOKEN: Record<string, string> = {
 	'line-1': 'color-line-1',
 	'line-2': 'color-line-2',
 	'line-3': 'color-line-3',
+	accent: 'color-accent',
+	surface: 'color-surface',
 };
 for (const [specName, tokenName] of Object.entries(SPEC_TO_TOKEN)) {
 	const want = spec[specName];
@@ -198,6 +200,9 @@ const ROLES: ReadonlyArray<readonly [string, number, string]> = [
 	['color-line-1', 3, 'diagram stroke'],
 	['color-line-2', 3, 'diagram stroke'],
 	['color-line-3', 3, 'diagram stroke'],
+	// Type, fills and the focus ring — never a stroke on the map — so it is held to the text
+	// floor rather than the graphical one.
+	['color-accent', 4.5, 'accent text and focus ring'],
 ];
 for (const [variant, tokens] of [
 	['light', light],
@@ -208,15 +213,26 @@ for (const [variant, tokens] of [
 		fail(`${variant} has no --color-ground`);
 		continue;
 	}
-	for (const [role, min, what] of ROLES) {
-		const value = tokens[role];
-		if (value === undefined) continue;
-		const got = contrast(value, ground);
-		if (got < min) {
-			fail(
-				`${variant}: --${role} ${value} on ${ground} is ${got.toFixed(2)}:1, ` +
-					`below ${min}:1 for ${what}`,
-			);
+	// AGAINST EVERY GROUND TEXT ACTUALLY LANDS ON, not just the page one. Panels are drawn on
+	// `--color-surface`, so checking only `--color-ground` would be a measurement narrower than
+	// the claim it supports: the palette would pass while the code inside every panel — which
+	// is most of the text on the marketing page — went unchecked.
+	const surface = tokens['color-surface'];
+	const grounds: ReadonlyArray<readonly [string, string]> = [
+		['ground', ground],
+		...(surface === undefined ? [] : ([['surface', surface]] as const)),
+	];
+	for (const [groundName, groundValue] of grounds) {
+		for (const [role, min, what] of ROLES) {
+			const value = tokens[role];
+			if (value === undefined) continue;
+			const got = contrast(value, groundValue);
+			if (got < min) {
+				fail(
+					`${variant}: --${role} ${value} on ${groundName} ${groundValue} is ` +
+						`${got.toFixed(2)}:1, below ${min}:1 for ${what}`,
+				);
+			}
 		}
 	}
 }
@@ -263,5 +279,5 @@ if (failures.length > 0) {
 
 process.stdout.write(
 	`\n  tokens ok — ${Object.keys(light).length} light, ${Object.keys(dark).length} dark, ` +
-		`contrast checked on both grounds, ${scanned} source file(s) free of raw hex\n\n`,
+		`contrast checked on page and panel grounds, ${scanned} source file(s) free of raw hex\n\n`,
 );

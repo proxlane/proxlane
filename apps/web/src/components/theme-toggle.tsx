@@ -53,9 +53,31 @@ export function ThemeToggle() {
 					? 'Switch theme'
 					: `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`
 			}
-			className="rounded-[--radius-card] px-2 py-1 text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]"
+			// 44px, like every other nav control. A 16px icon in a 24px box is a miss on a phone.
+			className="-mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-card text-[color:var(--color-slate)] transition-colors hover:text-[color:var(--color-ink)]"
 		>
-			{theme === undefined ? '◐' : theme === 'dark' ? '☀' : '☾'}
+			{/* Drawn, not a glyph. ☀/☾ are unicode standing in for an icon system: they inherit
+			    whatever the font does, they will not match a stroke weight, and on some platforms
+			    they render as emoji. One consistent 1.5px stroke instead. */}
+			<svg
+				width="16"
+				height="16"
+				viewBox="0 0 16 16"
+				fill="none"
+				stroke="currentColor"
+				strokeWidth="1.5"
+				strokeLinecap="round"
+				aria-hidden="true"
+			>
+				{theme === 'dark' ? (
+					<>
+						<circle cx="8" cy="8" r="3.25" />
+						<path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.1 3.1l1.1 1.1M11.8 11.8l1.1 1.1M12.9 3.1l-1.1 1.1M4.2 11.8l-1.1 1.1" />
+					</>
+				) : (
+					<path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1Z" />
+				)}
+			</svg>
 		</button>
 	);
 }
