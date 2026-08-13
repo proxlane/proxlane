@@ -34,15 +34,19 @@ html {
 /* One orchestrated sequence on load, nothing on scroll — and nothing at all for a viewer who
  * has asked for stillness. `prefers-reduced-motion` renders the completed diagram immediately
  * rather than a slower version of the animation. */
-/* biome-ignore-all lint/complexity/noImportantStyles: a reduced-motion reset must outrank
-   animation shorthands and inline styles, which is the one place !important is the correct
-   tool rather than a shortcut. Dropping it would leave the reset advisory. */
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
 	*::after {
+		/* !important, on all three. A reduced-motion reset has to outrank animation
+		   shorthands and inline styles, and this is the one place it is the correct tool
+		   rather than a shortcut — without it the reset is advisory, which for a viewer
+		   with vestibular sensitivity is the same as absent. */
+		/* biome-ignore lint/complexity/noImportantStyles: see above */
 		animation-duration: 0.01ms !important;
+		/* biome-ignore lint/complexity/noImportantStyles: see above */
 		animation-iteration-count: 1 !important;
+		/* biome-ignore lint/complexity/noImportantStyles: see above */
 		transition-duration: 0.01ms !important;
 	}
 }
