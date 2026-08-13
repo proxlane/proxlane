@@ -68,6 +68,9 @@ const costTable: CostTable = {
 
 export const capabilities: ProviderCapabilities = {
 	id: '${id}',
+	// Which categorical line colour represents this provider everywhere: the route
+	// diagram, the dashboard charts, the /providers pages. A slot, never a hex.
+	line: 1,
 	renderJs: false,
 	countryCodes: 'all',
 	premiumTiers: new Set(['none']),

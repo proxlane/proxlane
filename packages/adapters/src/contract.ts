@@ -70,6 +70,19 @@ export type ProviderId = string;
 
 export interface ProviderCapabilities {
 	readonly id: ProviderId;
+	/**
+	 * Which categorical line colour represents this provider, everywhere.
+	 *
+	 * A SLOT, not a hex: it resolves to `--color-line-N` from the token layer, which has a
+	 * value per theme and is contrast-checked on both grounds. A hex here would bypass
+	 * `tokens:check` and would be wrong in one of the two variants.
+	 *
+	 * `design.md` puts this in the registry deliberately — "adding an adapter assigns its
+	 * colour once and every surface picks it up": the route diagram, the dashboard charts and
+	 * the /providers pages all read the same field. A developer learns "orange is ScrapingBee"
+	 * once and it holds across the product.
+	 */
+	readonly line: 1 | 2 | 3;
 	readonly renderJs: boolean;
 	readonly countryCodes: ReadonlySet<string> | 'all';
 	readonly premiumTiers: ReadonlySet<PremiumTier>;

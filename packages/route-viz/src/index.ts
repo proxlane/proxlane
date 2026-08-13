@@ -1,2 +1,5 @@
-// @proxlane/route-viz — scaffold only. See CLAUDE.md for the owner and docs/ for the spec.
-export const PACKAGE_NAME = '@proxlane/route-viz';
+// `@proxlane/route-viz` — the transit diagram.
+//
+// A package rather than a page, per `design.md`: consumed by the marketing site, the dashboard
+// and the SEO page generator, so one component serves four surfaces.
+export * from './route-diagram.js';

@@ -1,3 +1,10 @@
+// For a React APP built by Vite. `types` includes `vite/client`, so `import.meta.env` and
+// `?url` imports typecheck.
+//
+// A React LIBRARY uses `react-lib.json` instead. This config conflated "renders JSX" with
+// "is a Vite app" until `packages/route-viz` became the first thing that was one and not the
+// other, and failed with `Cannot find type definition file for 'vite/client'`. Adding vite as
+// a devDependency of a component library to satisfy a type reference would be the wrong fix.
 {
 	"$schema": "https://json.schemastore.org/tsconfig",
 	"extends": "./base.json",

@@ -22,6 +22,7 @@ const costTable: CostTable = {
 
 export const capabilities: ProviderCapabilities = {
 	id: 'scrapingbee',
+	line: 2,
 	renderJs: true,
 	// Only the documented set. Premium proxies reach many more countries, but
 	// ProviderCapabilities has ONE country set and no way to say "these on the standard

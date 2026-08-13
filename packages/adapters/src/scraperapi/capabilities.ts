@@ -24,6 +24,7 @@ const costTable: CostTable = {
 
 export const capabilities: ProviderCapabilities = {
 	id: 'scraperapi',
+	line: 1,
 	renderJs: true,
 	countryCodes: 'all',
 	premiumTiers: new Set(['none', 'residential', 'stealth']),

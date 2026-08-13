@@ -17,6 +17,7 @@ const costTable: CostTable = {
 
 export const capabilities: ProviderCapabilities = {
 	id: 'scrapfly',
+	line: 3,
 	renderJs: true,
 	countryCodes: 'all',
 	// `asp` is their anti-scraping-protection bypass, which is what 'stealth' means here.

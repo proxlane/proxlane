@@ -55,6 +55,14 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": ["**/tsconfig*.json", "tooling/tsconfig/*.json"],
+			"json": {
+				"parser": {
+					"allowComments": true
+				}
+			}
 		}
 	],
 	"assist": {

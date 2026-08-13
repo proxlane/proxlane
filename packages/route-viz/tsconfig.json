@@ -1,4 +1,4 @@
 {
-	"extends": "@proxlane/tsconfig/node.json",
+	"extends": "@proxlane/tsconfig/react-lib.json",
 	"include": ["src"]
 }
