@@ -1,0 +1,97 @@
+/* The token layer. Hand-authored, per `docs/design.md`.
+ *
+ * Tailwind v4 is CSS-first, so tokens live in `@theme` and every utility derives from them.
+ * That is the whole reason for this file: the default Tailwind palette is never imported, so
+ * nothing here can accidentally read as "a Tailwind site". `pnpm tokens:check` enforces that,
+ * along with the three failure conditions `design.md` names.
+ *
+ * ROLES, NOT COLOUR NAMES. `--color-ground` rather than `--color-white`, because the same role
+ * is near-white in one variant and near-black in the other. A component that reaches for a
+ * colour name has to know which variant it is in; one that reaches for a role does not.
+ *
+ * PROVIDER LINES ARE GRAPHICAL, NOT TEXT. They are strokes on the route diagram, and WCAG
+ * holds graphical objects to 3:1 rather than the 4.5:1 body text needs. Orange on the light
+ * ground is 3.43:1 — fine for a 3px line, wrong for a paragraph. `tokens:check` enforces the
+ * right threshold per role so that distinction cannot quietly erode.
+ */
+
+@import "tailwindcss";
+
+@theme {
+	/* ---- light, the default variant --------------------------------------------------
+	 * `design.md`: light-first is the deliberate contrarian choice in a dark-first category,
+	 * and the risk it names is warming into the AI "cream" cluster. The ground stays at
+	 * #FBFAF7 and never becomes #F4F1EA; that is one of the three machine-checked conditions.
+	 */
+	--color-ground: #fbfaf7;
+	--color-ink: #14171a;
+	--color-slate: #495057;
+	--color-rule: #dee2e6;
+
+	/* Categorical, assigned per provider in the adapter registry and reused on every
+	 * surface: the map, the dashboard charts, the docs. A developer learns "orange is
+	 * ScrapingBee" once and it holds everywhere. */
+	--color-line-1: #0b7285;
+	--color-line-2: #e8590c;
+	--color-line-3: #5f3dc4;
+
+	/* ---- type -------------------------------------------------------------------------
+	 * One humanist sans for everything, hierarchy from weight alone, which is how transit
+	 * systems do it (Johnston, Frutiger, Transport). No display face: the diagram is the
+	 * display element. NO SERIF ANYWHERE — the second machine-checked condition, because a
+	 * serif is what tips this palette into the cream cluster.
+	 */
+	--font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+	--font-mono: "Martian Mono", ui-monospace, "SF Mono", monospace;
+
+	--font-weight-normal: 400;
+	--font-weight-medium: 500;
+	--font-weight-bold: 700;
+
+	/* ---- geometry ---------------------------------------------------------------------
+	 * A transit map is drawn with a consistent stroke and rounded interchanges. These are
+	 * the diagram's units, shared with `packages/route-viz` so the hero and the dashboard
+	 * timeline are literally the same geometry.
+	 */
+	--radius-interchange: 9999px;
+	--radius-card: 4px;
+	--stroke-line: 3px;
+	--stroke-rule: 1px;
+}
+
+/* ---- dark ------------------------------------------------------------------------------
+ * Built in the same pass, never retrofitted — `design.md` build notes. A light marketing site
+ * with a dark dashboard reads as two products.
+ *
+ * `design.md` says "the line colours were chosen to hold up on both". MEASURED, THEY DO NOT.
+ * Against the #14171A ground the originals are teal 3.22:1, orange 5.03:1, violet 2.53:1 —
+ * and violet fails even the 3:1 floor for graphical objects. So the dark variant lifts each
+ * hue rather than reusing the value: same colour identity, legible ground. The claim in
+ * `design.md` is corrected in the same commit as this file.
+ */
+:root[data-theme="dark"] {
+	--color-ground: #14171a;
+	--color-ink: #fbfaf7;
+	/* #495057 is 2.20:1 here, unreadable. Lifted to clear body-text contrast. */
+	--color-slate: #adb5bd;
+	--color-rule: #343a40;
+
+	--color-line-1: #22b8cf; /* 7.56:1 */
+	--color-line-2: #ff922b; /* 8.05:1 */
+	--color-line-3: #9775fa; /* 5.35:1 */
+}
+
+/* Follows the OS until the viewer chooses, at which point `data-theme` wins in both
+ * directions — a toggle that cannot switch back to light is a toggle that is broken. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--color-ground: #14171a;
+		--color-ink: #fbfaf7;
+		--color-slate: #adb5bd;
+		--color-rule: #343a40;
+
+		--color-line-1: #22b8cf;
+		--color-line-2: #ff922b;
+		--color-line-3: #9775fa;
+	}
+}

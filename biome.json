@@ -45,7 +45,7 @@
 							"level": "error",
 							"options": {
 								"paths": {
-									"@proxlane/adapters": "packages/shared is the base layer and must depend on nothing internal. The outcome taxonomy lives in ./outcome.ts precisely so this import is unnecessary — importing adapters here inverts the graph and locks adapters out of shared forever. repo:check assertion 20 enforces the same rule at the manifest level.",
+									"@proxlane/adapters": "packages/shared is the base layer and must depend on nothing internal. The outcome taxonomy lives in ./outcome.ts precisely so this import is unnecessary \u2014 importing adapters here inverts the graph and locks adapters out of shared forever. repo:check assertion 20 enforces the same rule at the manifest level.",
 									"@proxlane/db": "packages/shared is the base layer and must depend on nothing internal.",
 									"@proxlane/detect": "packages/shared is the base layer and must depend on nothing internal."
 								}
@@ -61,6 +61,11 @@
 			"source": {
 				"organizeImports": "on"
 			}
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
 		}
 	}
 }
