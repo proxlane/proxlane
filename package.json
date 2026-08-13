@@ -22,7 +22,7 @@
 		"record": "node scripts/record.ts",
 		"k6:soak": "node scripts/not-implemented.ts k6:soak",
 		"lighthouse:assert": "node scripts/not-implemented.ts lighthouse:assert",
-		"tokens:check": "node scripts/not-implemented.ts tokens:check",
+		"tokens:check": "node scripts/tokens-check.ts",
 		"selfhost:smoke": "node scripts/selfhost-smoke.ts",
 		"pages:check": "node scripts/not-implemented.ts pages:check",
 		"content:lint": "node scripts/not-implemented.ts content:lint",

@@ -201,10 +201,8 @@
 		"brief": ".claude/agents/design-engineer.md",
 		"spec": "docs/design.md",
 		"subject": "scripts/tokens-check.ts",
-		"blockedBy": ["packages/ui/src/theme.css"],
-		"status": "not-implemented",
-		"gate": "No token file to check.",
-		"ci": "none"
+		"status": "implemented",
+		"ci": "pr"
 	},
 	"selfhost:smoke": {
 		"id": "selfhost:smoke",

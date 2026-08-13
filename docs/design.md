@@ -96,9 +96,21 @@ Those are checked by `pnpm tokens:check`, not by eye.
 
 **Second risk, a real one.** Developer tooling is overwhelmingly dark-first in 2026,
 and a light marketing site with a dark dashboard reads as two products. Resolve it
-by building the dark variant of this palette from the start: same line colours, ink
-ground at #14171A, paper roles inverted. The line colours were chosen to hold up on
-both.
+by building the dark variant of this palette from the start: ink ground at #14171A,
+paper roles inverted.
+
+**Correction, measured rather than assumed.** This section used to end "the line colours were
+chosen to hold up on both". They do not. Against the #14171A ground the light values are teal
+3.22:1, orange 5.03:1 and violet **2.53:1** — and violet fails even the 3:1 floor WCAG sets for
+graphical objects, before any question of text. So the dark variant lifts each hue instead of
+reusing the value: `#22B8CF`, `#FF922B`, `#9775FA`, at 7.56, 8.05 and 5.35:1. Same colour
+identity, legible ground. Secondary text needs the same treatment — #495057 is 2.20:1 on ink
+and becomes #ADB5BD.
+
+Provider lines are held to **3:1, not 4.5:1**, because they are 3px strokes rather than text;
+that is the WCAG threshold for graphical objects. Orange is 3.43:1 on paper, which is correct
+for a line and wrong for a paragraph, so the two roles are checked separately. `tokens:check`
+enforces the right threshold per role on both grounds.
 
 ---
 
