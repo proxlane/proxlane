@@ -6,8 +6,8 @@ description: Node, pnpm and an installed workspace. One definition, used by ever
 runs:
   using: composite
   steps:
-    - uses: pnpm/action-setup@v4
-    - uses: actions/setup-node@v4
+    - uses: pnpm/action-setup@v6
+    - uses: actions/setup-node@v5
       with:
         # .nvmrc carries the full version and repo:check asserts it matches engines.node,
         # so CI cannot silently run a different Node than a contributor does.

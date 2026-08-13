@@ -27,7 +27,7 @@ jobs:
     outputs:
       commands: ${{ steps.matrix.outputs.commands }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: matrix
         shell: bash
         run: |
@@ -50,7 +50,7 @@ jobs:
         command: ${{ fromJson(needs.prepare.outputs.commands) }}
     name: ${{ matrix.command }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - run: pnpm ${{ matrix.command }}
 
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
       - shell: bash
         run: |
@@ -80,7 +80,7 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
       # The gitleaks ACTION requires GITLEAKS_LICENSE for organisation repos; the CLI does
       # not. Same scanner, same rules, no licence server in the critical path of every PR.
@@ -104,12 +104,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
       # The scanner is a .ts file run through Node's native type stripping, so it needs the
       # pinned Node 24 — the runner's default is older and would fail to parse it. Pinning
       # via .nvmrc rather than a literal keeps it with the rest of the toolchain.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with: { node-version-file: '.nvmrc' }
       - shell: bash
         env:
@@ -128,7 +128,7 @@ jobs:
   build-docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - shell: bash
         run: |
           # amd64 only. arm64 builds in the release workflow on a native runner — buildx
@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
       - shell: bash
         run: |
