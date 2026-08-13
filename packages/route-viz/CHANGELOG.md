@@ -1,6 +1,6 @@
-# @proxlane/web
+# @proxlane/route-viz
 
-## 0.2.0
+## 0.1.0
 
 ### Minor Changes
 
@@ -37,25 +37,4 @@
 ### Patch Changes
 
 - 11b5428: Craft-floor pass: drawn icons instead of unicode glyphs, themed browser surfaces, the hero-metric card grid replaced with prose, and the single authored motion moment `design.md` asks for.
-- b391762: Implement `pnpm lighthouse:assert` against a real production build, and add the favicon whose
-  absence it found: browsers requested `/favicon.ico`, took a 404, and logged a console error
-  that cost the best-practices score. `tokens:check` asserts the favicon's hex still matches
-  `--map-accent`, since a standalone SVG cannot read the token layer and is the one file where
-  the brand can drift alone.
-- Updated dependencies [11b5428]
-- Updated dependencies [11b5428]
-- Updated dependencies [d299128]
-- Updated dependencies [c2e9478]
-  - @proxlane/ui@0.2.0
-  - @proxlane/route-viz@0.1.0
-
-## 0.1.0
-
-### Minor Changes
-
-- 8a9e9dc: TanStack Start replaces the Vite placeholder, consuming the token layer with self-hosted fonts, a theme resolved before first paint, and a hero that shows the one-hostname migration as a diff rather than describing it.
-
-### Patch Changes
-
-- Updated dependencies [ee399cc]
-  - @proxlane/ui@0.1.0
+- c2e9478: `@theme static`, without which Tailwind tree-shook two provider line colours out of the built CSS and the route diagram rendered a provider's leg invisible. `tokens:check` now refuses a bare `@theme`.

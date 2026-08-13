@@ -1,5 +1,12 @@
 # @proxlane/gateway
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [d299128]
+  - @proxlane/adapters@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

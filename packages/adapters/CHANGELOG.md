@@ -1,5 +1,11 @@
 # @proxlane/adapters
 
+## 0.3.0
+
+### Minor Changes
+
+- d299128: The route diagram: one request's journey drawn from attempt data, with provider line colours assigned in the adapter registry so every surface picks them up from one place.
+
 ## 0.2.0
 
 ### Minor Changes
