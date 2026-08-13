@@ -113,12 +113,18 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Package build | npm | `tsdown` | `^0.22` | pre-1.0, pin tight |
 | Containers | npm | `testcontainers` | `^12.1` | versions must match the compose file — assertion 8 |
 | Versioning | npm | `@changesets/cli` | `^2.31` | |
-| Lighthouse | npm | `@lhci/cli` | `^0.15` | drives `lighthouse:assert`. Needs a local Chrome, which is why that command is `ci: none` — the hosted runner has one, but the check is a design gate a designer runs, not a merge blocker |
+
+**Neither is `@lhci/cli`, for the same reason and with the same shape.** It pulls
+lighthouse → puppeteer-core → a Chrome downloader, which put four Dependabot alerts on a
+public repo — one with no patch available — for a command that is `ci: none` and that one role
+runs locally. Every contributor was downloading browser-fetching machinery on `pnpm install`
+to support a check almost none of them run. `lighthouse:assert` fetches it with `pnpm dlx` at
+the version pinned in `tooling/lighthouse/README.md`, and says so plainly when it cannot.
 
 **k6 is deliberately absent.** The npm package is a `0.0.0` placeholder; k6 is a Go binary
 from brew/apt. Giving it a row would need a fourth kind that no assertion covers, and if
 `repo:check` shelled out to `k6 version` then PR 1 would fail its own exit criterion from a
-clean clone. Its version is documented in `scripts/README.md`, and `k6:soak`'s stub reports
+clean clone. Its version is documented in `test/k6/README.md`, and `k6:soak`'s stub reports
 its absence.
 
 ## Target layout and ownership
