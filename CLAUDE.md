@@ -93,6 +93,11 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Key encryption | npm | `libsodium-wrappers` | `^0.8` | sealed provider keys, `operations.md` section 5 |
 | Auth | npm | `better-auth` | `^1.6` | generates its own Drizzle schema — sequence it *before* the hand-written one |
 | Web framework | npm | `@tanstack/react-start` | `^1.168` | |
+| Web router | npm | `@tanstack/react-router` | `^1.170` | Start's router, pinned separately because it releases on its own cadence |
+| Router codegen | npm | `@tanstack/router-plugin` | `^1.168` | generates the route tree at build time; file-based routes are otherwise untyped |
+| CSS build | npm | `@tailwindcss/vite` | `^4.3` | v4's Vite plugin. Major-matched to `tailwindcss`, or the `@theme` block silently does nothing |
+| Sans | npm | `@fontsource-variable/hanken-grotesk` | `^5.3` | self-hosted, per `design.md`'s type choice. Never a font CDN: a third-party request on every page load, on a site whose pitch is that it does not leak |
+| Mono | npm | `@fontsource/martian-mono` | `^5.3` | code and readouts |
 | React | npm | `react` | `^19.2` | |
 | React DOM | npm | `react-dom` | `^19.2` | |
 | React types | npm | `@types/react` | `^19.2` | major-matched to react |
