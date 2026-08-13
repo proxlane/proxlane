@@ -22,8 +22,9 @@ catalog:
   '@tanstack/react-router': ^1.170
   '@tanstack/router-plugin': ^1.168
   '@tailwindcss/vite': ^4.3
+  '@vitejs/plugin-react': ^6.0
   '@fontsource-variable/hanken-grotesk': ^5.3
-  '@fontsource/martian-mono': ^5.3
+  '@fontsource/ibm-plex-mono': ^5.3
   '@types/node': ^24
   '@types/react': ^19.2
   '@types/react-dom': ^19.2

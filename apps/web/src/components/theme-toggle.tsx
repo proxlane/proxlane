@@ -53,7 +53,8 @@ export function ThemeToggle() {
 					? 'Switch theme'
 					: `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`
 			}
-			className="rounded-[--radius-card] px-2 py-1 text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]"
+			// 44px, like every other nav control. A 16px icon in a 24px box is a miss on a phone.
+			className="-mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-card text-[color:var(--color-slate)] transition-colors hover:text-[color:var(--color-ink)]"
 		>
 			{/* Drawn, not a glyph. ☀/☾ are unicode standing in for an icon system: they inherit
 			    whatever the font does, they will not match a stroke weight, and on some platforms

@@ -48,6 +48,25 @@
 	--color-line-2: #e8590c;
 	--color-line-3: #5f3dc4;
 
+	/* THE PRODUCT'S OWN COLOUR, and it is a correction rather than a decoration.
+	 *
+	 * The focus ring, the caret, the selection and the migration's `curl` line were all drawn
+	 * in `--color-line-1`, which is not a neutral blue-green: it is SCRAPERAPI. A line colour
+	 * identifies a provider on every surface, so borrowing one for chrome quietly claimed that
+	 * focus and text selection belonged to an adapter.
+	 *
+	 * Raspberry because the three line hues already occupy teal, orange and violet, and
+	 * `design.md` names terracotta as the exact AI-default cluster to stay out of. It is never
+	 * a stroke on the map — type, fills and the focus ring only — so it cannot be mistaken for
+	 * a fourth provider.
+	 */
+	--color-accent: #c2255c;
+
+	/* Paper, distinct from the ground it sits on. Panels used the ground colour, so a code
+	 * block differed from the page by one hairline and a shadow, which is what read as white
+	 * on white. */
+	--color-surface: #ffffff;
+
 	/* ---- type -------------------------------------------------------------------------
 	 * One humanist sans for everything, hierarchy from weight alone, which is how transit
 	 * systems do it (Johnston, Frutiger, Transport). No display face: the diagram is the
@@ -55,7 +74,7 @@
 	 * serif is what tips this palette into the cream cluster.
 	 */
 	--font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
-	--font-mono: "Martian Mono", ui-monospace, "SF Mono", monospace;
+	--font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
 
 	--font-weight-normal: 400;
 	--font-weight-medium: 500;
@@ -66,17 +85,41 @@
 	 * the diagram's units, shared with `packages/route-viz` so the hero and the dashboard
 	 * timeline are literally the same geometry.
 	 */
-	/* Graph paper. A transit map is drawn ON something, and a grid is part of the metaphor
-	   rather than a texture borrowed from a component library. Built from the rule token so it
-	   is one colour decision, not two, and so it inverts with the theme. */
-	--grid-paper:
-		linear-gradient(var(--color-rule) 1px, transparent 1px),
-		linear-gradient(90deg, var(--color-rule) 1px, transparent 1px);
+	/* A line glows only on the dark ground. On near-white paper a coloured halo goes muddy and
+	 * reads as a print registration error, so the light value is `none` and the token — not a
+	 * media query at each call site — is what carries the difference. `currentColor` so each
+	 * line halos in its OWN hue; the group sets `color` to its stroke for exactly this. */
+	--glow-line: none;
 
 	--radius-interchange: 9999px;
 	--radius-card: 4px;
 	--stroke-line: 3px;
 	--stroke-rule: 1px;
+
+	/* ---- depth ---------------------------------------------------------------------------
+	 * A schematic field, and paper laid on top of it.
+	 *
+	 * NOT the graph paper this file used to carry. That one was drawn INSIDE the hero at the
+	 * rule colour and full strength, so a background texture became the loudest mark on the
+	 * page and ran through the caption. This one is behind everything, at a 96px cell, and is
+	 * mixed most of the way to the ground before it is ever painted — it should read as the
+	 * surface the page is drawn on, never as a thing on the page.
+	 *
+	 * `color-mix`, not a second hex: the field has no colour of its own to keep in sync, and
+	 * `tokens:check` bans a raw hex outside this file for exactly that reason.
+	 */
+	--field-line: color-mix(in oklab, var(--color-rule) 42%, var(--color-ground));
+	--field-grid:
+		linear-gradient(var(--field-line) 1px, transparent 1px),
+		linear-gradient(90deg, var(--field-line) 1px, transparent 1px);
+	--field-cell: 96px;
+
+	/* Paper sits above the field. Two stops: a hairline seat, and a wide soft one that only
+	 * separates rather than dramatises. Mixed from ink so it inverts with the theme instead of
+	 * staying black on a dark ground, where a black shadow is invisible and pointless. */
+	--shadow-panel:
+		0 1px 2px color-mix(in oklab, var(--color-ink) 7%, transparent),
+		0 10px 28px -14px color-mix(in oklab, var(--color-ink) 16%, transparent);
 }
 
 /* ---- dark ------------------------------------------------------------------------------
@@ -99,6 +142,12 @@
 	--color-line-1: #22b8cf; /* 7.56:1 */
 	--color-line-2: #ff922b; /* 8.05:1 */
 	--color-line-3: #9775fa; /* 5.35:1 */
+
+	/* #c2255c is 2.6:1 on the ink ground. Lifted, same identity. */
+	--glow-line: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
+	--color-accent: #f06595;
+	/* Lifted OFF the ground rather than dropped below it: a dark UI reads depth as light. */
+	--color-surface: #1a1e23;
 }
 
 /* THE one authored moment, per `design.md`: the route draws itself once, on load. Not a fade
@@ -118,6 +167,23 @@
 	}
 }
 
+/* A terminal caret.
+ *
+ * Runs 0 -> 1 rather than 1 -> 0 on purpose: the reduced-motion reset clamps every animation
+ * to one iteration at 0.01ms, which lands on the FINAL keyframe. Written the intuitive way
+ * round, asking for stillness would delete the cursor instead of steadying it.
+ */
+@keyframes proxlane-caret {
+	0%,
+	50% {
+		opacity: 0;
+	}
+	50.01%,
+	100% {
+		opacity: 1;
+	}
+}
+
 /* Follows the OS until the viewer chooses, at which point `data-theme` wins in both
  * directions — a toggle that cannot switch back to light is a toggle that is broken. */
 @media (prefers-color-scheme: dark) {
@@ -130,5 +196,8 @@
 		--color-line-1: #22b8cf;
 		--color-line-2: #ff922b;
 		--color-line-3: #9775fa;
+		--color-accent: #f06595;
+		--color-surface: #1a1e23;
+		--glow-line: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
 	}
 }
