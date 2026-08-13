@@ -17,7 +17,20 @@
 
 @import "tailwindcss";
 
-@theme {
+/* `static`, and it is load-bearing.
+ *
+ * A bare `@theme` TREE-SHAKES: Tailwind emits only the variables its scanner sees used in a
+ * utility class. Tokens referenced anywhere else — an SVG `stroke` attribute, a canvas call,
+ * a third-party component — are silently dropped from the output.
+ *
+ * That shipped. `--color-line-2` and `--color-line-3` were in this file, passed
+ * `tokens:check`, and were absent from the built CSS, so the route diagram rendered its
+ * second provider line invisible. `--color-line-1` survived only by coincidence: the curl
+ * diff happens to use it in a utility class.
+ *
+ * A design token that exists only when something else happens to reference it is not a token.
+ */
+@theme static {
 	/* ---- light, the default variant --------------------------------------------------
 	 * `design.md`: light-first is the deliberate contrarian choice in a dark-first category,
 	 * and the risk it names is warming into the AI "cream" cluster. The ground stays at

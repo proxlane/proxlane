@@ -50,7 +50,9 @@ const GEO = {
 	padX: 24,
 	padY: 28,
 	/** Where the first station sits, leaving room for the entry label. */
-	startX: 96,
+	/* Far enough right that the interchange curve, which bulges to startX-18, clears the
+	   entry label. At 96 the curve struck through the word `request`. */
+	startX: 132,
 	stationR: 6,
 	interchangeR: 8,
 } as const;
@@ -77,7 +79,8 @@ export function describeRoute(attempts: readonly RouteAttempt[], outcome: string
 
 export function RouteDiagram({ attempts, outcome, status, className }: RouteDiagramProps) {
 	const rows = Math.max(attempts.length, 1);
-	const height = GEO.padY * 2 + (rows - 1) * GEO.rowHeight + 16;
+	// padY once below, not twice: the rows already carry their own leading.
+	const height = GEO.padY + (rows - 1) * GEO.rowHeight + GEO.padY;
 	const endX = GEO.width - GEO.padX - 76;
 
 	return (
@@ -157,7 +160,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 							{attempt.provider}
 						</text>
 						<text
-							x={legEnd + 12}
+							x={legEnd + 16}
 							y={y + 4}
 							fill={succeeded ? 'var(--color-ink)' : 'var(--color-slate)'}
 							fontSize="12"
@@ -167,6 +170,19 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 								? `${status} ${attempt.outcome}`
 								: attempt.outcome}
 						</text>
+
+						{/* The terminus. A transit line ends AT a station; one that simply stops
+						    reads as an unfinished drawing. */}
+						{succeeded && (
+							<circle
+								cx={legEnd}
+								cy={y}
+								r={GEO.stationR}
+								fill="var(--color-ground)"
+								stroke={stroke}
+								strokeWidth="var(--stroke-line, 3)"
+							/>
+						)}
 
 						{/* A stop, not a station: this leg ended here and went no further. */}
 						{!succeeded && (
