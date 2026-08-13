@@ -81,7 +81,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 	const rows = Math.max(attempts.length, 1);
 	// padY once below, not twice: the rows already carry their own leading.
 	const height = GEO.padY + (rows - 1) * GEO.rowHeight + GEO.padY;
-	const endX = GEO.width - GEO.padX - 76;
+	const endX = GEO.width - GEO.padX - 64;
 
 	return (
 		<svg
@@ -111,7 +111,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 				const succeeded = isOk(attempt.outcome);
 				// A leg that failed stops short: the line does not reach the terminus, because it
 				// did not. Only the winning leg runs the full width.
-				const legEnd = succeeded ? endX : GEO.startX + 210;
+				const legEnd = succeeded ? endX : GEO.startX + 132;
 				const stroke = lineVar(attempt.line);
 
 				return (
@@ -134,7 +134,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 						    map instead of a flowchart. */}
 						{!last && (
 							<path
-								d={`M ${GEO.startX} ${y} q -18 0 -18 18 v ${GEO.rowHeight - 36} q 0 18 18 18`}
+								d={`M ${GEO.startX} ${y} q -${GEO.bulge} 0 -${GEO.bulge} ${GEO.bulge} v ${GEO.rowHeight - GEO.bulge * 2} q 0 ${GEO.bulge} ${GEO.bulge} ${GEO.bulge}`}
 								fill="none"
 								stroke={lineVar(attempts[i + 1]?.line ?? attempt.line)}
 								strokeWidth="var(--stroke-line, 3)"
@@ -152,7 +152,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 
 						<text
 							x={GEO.startX + 18}
-							y={y - 12}
+							y={y - 11}
 							fill="var(--color-ink)"
 							fontSize="13"
 							fontWeight="500"
@@ -160,7 +160,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 							{attempt.provider}
 						</text>
 						<text
-							x={legEnd + 16}
+							x={legEnd + 13}
 							y={y + 4}
 							fill={succeeded ? 'var(--color-ink)' : 'var(--color-slate)'}
 							fontSize="12"
