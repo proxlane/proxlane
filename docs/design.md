@@ -140,9 +140,21 @@ The rejected directions and the full comparison are in
 - **Styling: Tailwind v4** with a hand-authored token layer in CSS variables. v4's
   CSS-first config means tokens live in `@theme` and utilities derive from them, so there
   is no "Tailwind look" unless you use the default palette.
-- **Charts: visx.** Recharts has a recognisable default silhouette and the dashboard is
-  chart-heavy, so this is where a generic library shows most. (visx v4 shipped mid-2026
-  with React 19 support; the earlier concern about it stalling is out of date.)
+- **Charts: TanStack Charts**, replacing visx. Both are low-level rather than component
+  libraries, so both satisfy the original reason for the choice — Recharts has a recognisable
+  default silhouette and the dashboard is chart-heavy, which is where a generic library shows
+  most. Two things decide it for TanStack: it is themed by **CSS variables**, which is exactly
+  how the token layer works and what `tokens:check` enforces, whereas visx wants colours as
+  props and would mean reading tokens back out in JS; and it shares idioms with TanStack Table,
+  already chosen for the request log, so the dashboard's two hardest surfaces use one mental
+  model. It is a grammar of graphics — marks and channels, Observable Plot's model — not a set
+  of prebuilt charts.
+  **Package: `@tanstack/charts` with its React adapter.** Not `@tanstack/react-charts`, which
+  is a compatibility shim for the older project and says so in its own description.
+  **Not adopted yet, deliberately.** At the time of writing it is `0.12.0`, two weeks old, and
+  shipped eight releases in a fortnight. Nothing needs a chart until the dashboard does, and
+  the route diagram is hand-written SVG rather than a chart. Adopt at the first real chart, and
+  only if it has reached 1.0 by then; otherwise revisit visx.
 - **Tables: TanStack Table**, headless, styled by us. Non-negotiable given the request log
   is the core dashboard surface.
 - **Motion: Motion** (formerly Framer Motion), used sparingly per the build notes below.

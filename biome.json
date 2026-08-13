@@ -12,7 +12,8 @@
 			"!**/.output",
 			"!**/fixtures",
 			"!pnpm-lock.yaml",
-			"!docs/landing-mockup.html"
+			"!docs/landing-mockup.html",
+			"!**/routeTree.gen.ts"
 		]
 	},
 	"formatter": {

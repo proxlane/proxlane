@@ -1,0 +1,52 @@
+/* The app's only stylesheet. Everything visual derives from the token layer.
+ *
+ * `design.md`: application code imports the tokens from `@proxlane/ui`, never redefines them.
+ * `tokens:check` bans a raw hex anywhere under `apps/web/src`, so there is no second place a
+ * colour can come from.
+ */
+
+@import "@proxlane/ui/theme.css";
+
+/* Self-hosted, never a font CDN. A third-party request on every page load is the wrong look
+ * for a product whose pitch is that it does not leak what you scrape. */
+@import "@fontsource-variable/hanken-grotesk";
+@import "@fontsource/martian-mono/400.css";
+
+:root {
+	color-scheme: light dark;
+}
+
+html {
+	background: var(--color-ground);
+	color: var(--color-ink);
+	font-family: var(--font-sans);
+	/* Hierarchy from weight alone, which is how transit systems do it. */
+	font-weight: var(--font-weight-normal);
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Visible keyboard focus, on both variants. `design.md`'s quality floor, never announced. */
+:focus-visible {
+	outline: 2px solid var(--color-line-1);
+	outline-offset: 2px;
+}
+
+/* One orchestrated sequence on load, nothing on scroll — and nothing at all for a viewer who
+ * has asked for stillness. `prefers-reduced-motion` renders the completed diagram immediately
+ * rather than a slower version of the animation. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		/* !important, on all three. A reduced-motion reset has to outrank animation
+		   shorthands and inline styles, and this is the one place it is the correct tool
+		   rather than a shortcut — without it the reset is advisory, which for a viewer
+		   with vestibular sensitivity is the same as absent. */
+		/* biome-ignore lint/complexity/noImportantStyles: see above */
+		animation-duration: 0.01ms !important;
+		/* biome-ignore lint/complexity/noImportantStyles: see above */
+		animation-iteration-count: 1 !important;
+		/* biome-ignore lint/complexity/noImportantStyles: see above */
+		transition-duration: 0.01ms !important;
+	}
+}
