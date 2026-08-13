@@ -110,7 +110,12 @@ jobs:
       # pinned Node 24 — the runner's default is older and would fail to parse it. Pinning
       # via .nvmrc rather than a literal keeps it with the rest of the toolchain.
       - uses: actions/setup-node@v5
-        with: { node-version-file: '.nvmrc' }
+        # `package-manager-cache: false` is REQUIRED here, not tidiness. v5 turned that flag on
+        # by default; it reads `packageManager` from package.json and shells out to pnpm to
+        # locate the store. This job never installs pnpm — it only needs Node to run a .ts
+        # scanner — so the default made it fail with "Unable to locate executable file: pnpm".
+        # The composite action does not need it: it runs pnpm/action-setup first.
+        with: { node-version-file: '.nvmrc', package-manager-cache: false }
       - shell: bash
         env:
           # Our actual coordinates, never stored in the repo. Absent on fork PRs, which
