@@ -1,0 +1,62 @@
+{
+	"//": [
+		"The design quality floor, machine-checked.",
+		"",
+		"EVERY KEY UNDER `assertions` IS READ AS AN AUDIT NAME. JSON has no comments, and a `//` key",
+		"here does not become one — LHCI looks it up, fails to find an audit called `//`, and reports",
+		"a failure that has nothing to do with the page. All commentary therefore lives in this one",
+		"array, which sits outside `ci` and is never parsed.",
+		"",
+		"`docs/design.md` states one number outright — 'Lighthouse accessibility 100' — and that is",
+		"why accessibility is the assertion set to a perfect score. Best-practices and SEO are also",
+		"at 1 because the page currently earns it and there is no reason to bank a regression.",
+		"Performance is a floor rather than a perfect score: it is measured, and Lighthouse's own",
+		"variance would otherwise turn the gate into noise.",
+		"",
+		"Named audits sit alongside the category scores because a category can stay green while one",
+		"of them slips. `target-size` and `color-contrast` are the two this repo has already had to",
+		"fix by hand. `cumulative-layout-shift` is the one a design pass regresses most quietly — an",
+		"unreserved panel or a font swap does it invisibly, which is why the transcripts reserve",
+		"their finished height. Note the audit is `target-size`; Lighthouse 12 renamed it from",
+		"`tap-targets`, and an unknown audit name fails as a MISSING audit rather than being",
+		"skipped — which is the right behaviour and how this one was caught.",
+		"",
+		"MOBILE, which is Lighthouse's default and why no preset is named. design.md's floor is",
+		"'responsive to 360px' and the desktop preset does not run `target-size` at all — the audit",
+		"would silently not exist. Mobile also throttles CPU and network, so the performance floor",
+		"below is the harsher of the two numbers rather than the flattering one.",
+		"",
+		"The disabled audits are bundling advice, not design floors: they judge cache headers and",
+		"dead code on a preview server that ships neither the way production will."
+	],
+	"ci": {
+		"collect": {
+			"numberOfRuns": 3,
+			"settings": {
+				"chromeFlags": "--headless=new --no-sandbox --disable-gpu",
+				"disableStorageReset": false
+			}
+		},
+		"assert": {
+			"assertions": {
+				"categories:accessibility": ["error", { "minScore": 1 }],
+				"categories:best-practices": ["error", { "minScore": 1 }],
+				"categories:seo": ["error", { "minScore": 1 }],
+				"categories:performance": ["error", { "minScore": 0.95 }],
+
+				"color-contrast": ["error", { "minScore": 1 }],
+				"heading-order": ["error", { "minScore": 1 }],
+				"html-has-lang": ["error", { "minScore": 1 }],
+				"meta-description": ["error", { "minScore": 1 }],
+				"document-title": ["error", { "minScore": 1 }],
+				"target-size": ["error", { "minScore": 1 }],
+
+				"cumulative-layout-shift": ["error", { "maxNumericValue": 0.02 }],
+
+				"uses-long-cache-ttl": "off",
+				"unused-javascript": "off",
+				"legacy-javascript": "off"
+			}
+		}
+	}
+}

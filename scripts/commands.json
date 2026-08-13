@@ -190,8 +190,7 @@
 		"brief": ".claude/agents/design-engineer.md",
 		"spec": "docs/design.md",
 		"subject": "tooling/lighthouse/lighthouserc.json",
-		"status": "not-implemented",
-		"gate": "One blank route passes everything, so this is meaningless until the marketing site exists.",
+		"status": "implemented",
 		"ci": "none"
 	},
 	"tokens:check": {

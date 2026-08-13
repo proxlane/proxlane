@@ -180,8 +180,13 @@ with no data says what to run to make a first request, with the curl line ready 
   marketing site, the dashboard, and the SEO page generator.
 - Provider line colours live in the adapter registry alongside capabilities and cost
   tables, so adding an adapter assigns its colour once and every surface picks it up.
-- Motion: one orchestrated sequence on load, nothing on scroll.
-  `prefers-reduced-motion` renders the completed diagram immediately.
+- Motion: one orchestrated sequence on load, plus motion that ANSWERS the reader — the
+  page trunk drawing as it is scrolled, a transcript typing when it comes into view, a leg
+  receding when another is pointed at. This revises an earlier "nothing on scroll", which
+  was aimed at entrance animations that fire whether or not anyone is looking; that ban
+  stands. Motion tied to a pointer or to scroll POSITION is the drawing being legible,
+  not an effect played at someone.
+  `prefers-reduced-motion` renders every one of them completed and still.
 - Dark variant built in the same pass, not retrofitted.
 - Quality floor, never announced: responsive to 360px, visible keyboard focus,
   contrast checked on both variants, Lighthouse accessibility 100.
