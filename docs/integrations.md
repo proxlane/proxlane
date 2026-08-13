@@ -172,6 +172,28 @@ fixture is recorded:
   SEO pages all render from the same registry. Adding a capability to one provider
   updates routing, validation, and marketing pages in one commit.
 
+**If provider-specific parameters are ever passed through, they are a declared allowlist,
+never free-form JSON.** Nothing does this today and nothing needs to: `provider=X` already
+lets a caller pin the one provider whose feature they want. This is written down because the
+free-form version is what gets built in a hurry, and it is unsafe rather than merely untidy.
+
+The edge guard validates `url`. It cannot see a provider parameter that changes **what gets
+fetched or where the result goes** — an async `callback`, a secondary target, a proxy-pool
+override. A caller able to post arbitrary JSON into the provider request routes around the
+SSRF guard without ever touching `url`. It also inverts the house rule that adapters set
+every parameter explicitly, which is the rule that stops provider defaults leaking.
+
+So: each adapter declares the extra parameters it accepts and their types, in the registry,
+and anything undeclared is `BAD_REQUEST`. Two consequences to state at the same time, because
+they are the cost of the feature rather than a surprise: such a request **cannot fail over**,
+since the whole point is a capability only one provider has, and a pinned provider that is
+cooling therefore answers `NO_PROVIDER_AVAILABLE` instead of quietly using another. That
+trades availability for capability, and availability is the product's pitch — so it is the
+caller's explicit choice, never a default.
+
+Forcing a provider is the caller's decision, so this does not touch the rule that affiliate
+rate is never an input to routing.
+
 ## 3. Error taxonomy and failover semantics
 
 Everything an attempt can produce maps to exactly one outcome. Failover behavior is
