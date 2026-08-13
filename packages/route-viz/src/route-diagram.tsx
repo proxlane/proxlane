@@ -45,16 +45,20 @@ export interface RouteDiagramProps {
 
 /** Geometry, in the diagram's own units. Kept together so the map reads as one drawing. */
 const GEO = {
-	width: 720,
-	rowHeight: 56,
-	padX: 24,
-	padY: 28,
-	/** Where the first station sits, leaving room for the entry label. */
-	/* Far enough right that the interchange curve, which bulges to startX-18, clears the
-	   entry label. At 96 the curve struck through the word `request`. */
-	startX: 132,
-	stationR: 6,
-	interchangeR: 8,
+	/* A metro map is DENSE. The first version stretched two providers across 720 units inside a
+	   full-width box: long thin lines with the air let out of them. Transit diagrams compress
+	   distance deliberately — legibility comes from the interchange, not the length of the run. */
+	width: 460,
+	rowHeight: 48,
+	padX: 4,
+	padY: 22,
+	/** Clear of the interchange curve, which bulges to startX - bulge. At 96 it struck through
+	 * the word `request`. */
+	startX: 92,
+	stationR: 5.5,
+	interchangeR: 6.5,
+	/** How far the transfer curve swings left of the line before dropping. */
+	bulge: 14,
 } as const;
 
 const lineVar = (n: 1 | 2 | 3): string => `var(--color-line-${n})`;
