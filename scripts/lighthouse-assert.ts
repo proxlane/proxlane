@@ -28,6 +28,14 @@ const CONFIG_FLAG = process.argv.find((a) => a.startsWith('--config='))?.slice(9
 const CONFIG = join(ROOT, CONFIG_FLAG ?? 'tooling/lighthouse/lighthouserc.json');
 /** Not 3000 or 5173: a preview server fighting a dev server for a port fails as a timeout. */
 const PORT = 4317;
+/**
+ * Fetched at run time, not installed — see `tooling/lighthouse/README.md`.
+ *
+ * PINNED, because `pnpm dlx @lhci/cli` with no version silently tracks latest, and a quality
+ * gate whose thresholds were measured against one version should not quietly move to another.
+ * Bump it here and in that README together.
+ */
+const LHCI = '@lhci/cli@0.15.1';
 const URL = `http://localhost:${PORT}/`;
 
 function fail(message: string): never {
@@ -96,15 +104,22 @@ if (!html.includes('Your request, rerouted')) {
 }
 process.stdout.write(`  server-rendered HTML confirmed (${html.length} bytes)\n\n`);
 
+process.stdout.write(`  fetching ${LHCI} (not a dependency of this repo)\n`);
 const collected = run(
 	'pnpm',
-	['exec', 'lhci', 'collect', `--config=${CONFIG}`, `--url=${URL}`],
+	['dlx', LHCI, 'collect', `--config=${CONFIG}`, `--url=${URL}`],
 	ROOT,
 );
 stop();
-if (collected !== 0) fail('lighthouse could not collect a run (is a local Chrome installed?)');
+if (collected !== 0) {
+	fail(
+		'lighthouse could not collect a run.\n' +
+			'  It needs a local Chrome and a network fetch of the CLI on first use.\n' +
+			'  See tooling/lighthouse/README.md.',
+	);
+}
 
-const asserted = run('pnpm', ['exec', 'lhci', 'assert', `--config=${CONFIG}`], ROOT);
+const asserted = run('pnpm', ['dlx', LHCI, 'assert', `--config=${CONFIG}`], ROOT);
 if (asserted !== 0) fail('the page is below the design quality floor');
 
 process.stdout.write('\n  lighthouse ok — accessibility 100, and the floor holds\n\n');
