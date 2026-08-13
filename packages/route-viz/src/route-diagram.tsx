@@ -45,14 +45,20 @@ export interface RouteDiagramProps {
 
 /** Geometry, in the diagram's own units. Kept together so the map reads as one drawing. */
 const GEO = {
-	width: 720,
-	rowHeight: 56,
-	padX: 24,
-	padY: 28,
-	/** Where the first station sits, leaving room for the entry label. */
-	startX: 96,
-	stationR: 6,
-	interchangeR: 8,
+	/* A metro map is DENSE. The first version stretched two providers across 720 units inside a
+	   full-width box: long thin lines with the air let out of them. Transit diagrams compress
+	   distance deliberately — legibility comes from the interchange, not the length of the run. */
+	width: 460,
+	rowHeight: 48,
+	padX: 4,
+	padY: 22,
+	/** Clear of the interchange curve, which bulges to startX - bulge. At 96 it struck through
+	 * the word `request`. */
+	startX: 92,
+	stationR: 5.5,
+	interchangeR: 6.5,
+	/** How far the transfer curve swings left of the line before dropping. */
+	bulge: 14,
 } as const;
 
 const lineVar = (n: 1 | 2 | 3): string => `var(--color-line-${n})`;
@@ -77,8 +83,9 @@ export function describeRoute(attempts: readonly RouteAttempt[], outcome: string
 
 export function RouteDiagram({ attempts, outcome, status, className }: RouteDiagramProps) {
 	const rows = Math.max(attempts.length, 1);
-	const height = GEO.padY * 2 + (rows - 1) * GEO.rowHeight + 16;
-	const endX = GEO.width - GEO.padX - 76;
+	// padY once below, not twice: the rows already carry their own leading.
+	const height = GEO.padY + (rows - 1) * GEO.rowHeight + GEO.padY;
+	const endX = GEO.width - GEO.padX - 64;
 
 	return (
 		<svg
@@ -108,7 +115,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 				const succeeded = isOk(attempt.outcome);
 				// A leg that failed stops short: the line does not reach the terminus, because it
 				// did not. Only the winning leg runs the full width.
-				const legEnd = succeeded ? endX : GEO.startX + 210;
+				const legEnd = succeeded ? endX : GEO.startX + 132;
 				const stroke = lineVar(attempt.line);
 
 				return (
@@ -131,7 +138,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 						    map instead of a flowchart. */}
 						{!last && (
 							<path
-								d={`M ${GEO.startX} ${y} q -18 0 -18 18 v ${GEO.rowHeight - 36} q 0 18 18 18`}
+								d={`M ${GEO.startX} ${y} q -${GEO.bulge} 0 -${GEO.bulge} ${GEO.bulge} v ${GEO.rowHeight - GEO.bulge * 2} q 0 ${GEO.bulge} ${GEO.bulge} ${GEO.bulge}`}
 								fill="none"
 								stroke={lineVar(attempts[i + 1]?.line ?? attempt.line)}
 								strokeWidth="var(--stroke-line, 3)"
@@ -149,7 +156,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 
 						<text
 							x={GEO.startX + 18}
-							y={y - 12}
+							y={y - 11}
 							fill="var(--color-ink)"
 							fontSize="13"
 							fontWeight="500"
@@ -157,7 +164,7 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 							{attempt.provider}
 						</text>
 						<text
-							x={legEnd + 12}
+							x={legEnd + 13}
 							y={y + 4}
 							fill={succeeded ? 'var(--color-ink)' : 'var(--color-slate)'}
 							fontSize="12"
@@ -167,6 +174,19 @@ export function RouteDiagram({ attempts, outcome, status, className }: RouteDiag
 								? `${status} ${attempt.outcome}`
 								: attempt.outcome}
 						</text>
+
+						{/* The terminus. A transit line ends AT a station; one that simply stops
+						    reads as an unfinished drawing. */}
+						{succeeded && (
+							<circle
+								cx={legEnd}
+								cy={y}
+								r={GEO.stationR}
+								fill="var(--color-ground)"
+								stroke={stroke}
+								strokeWidth="var(--stroke-line, 3)"
+							/>
+						)}
 
 						{/* A stop, not a station: this leg ended here and went no further. */}
 						{!succeeded && (

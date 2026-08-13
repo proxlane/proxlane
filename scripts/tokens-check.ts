@@ -150,6 +150,19 @@ for (const m of css.matchAll(/--font-[a-z-]*:\s*([^;]+);/g)) {
 	}
 }
 
+// 3b. `@theme static`, not a bare `@theme`.
+//
+// This check reads the SOURCE, and Tailwind decides what reaches the OUTPUT. A bare `@theme`
+// emits only variables its scanner sees in a utility class, so a token used in an SVG
+// attribute is dropped — present here, absent in the bundle, and this check green either way.
+// That is exactly the shape of a measurement narrower than the claim it supports: two line
+// colours shipped missing and the diagram rendered a provider's leg invisible.
+if (!/@theme\s+static\b/.test(css)) {
+	fail(
+		'theme.css uses a bare `@theme`; use `@theme static` or Tailwind tree-shakes tokens that are only referenced outside utility classes',
+	);
+}
+
 // 4. The palette agrees with design.md, parsed rather than trusted.
 const spec = specPalette();
 if (Object.keys(spec).length < 5) fail('parsed fewer than 5 colours from design.md');
