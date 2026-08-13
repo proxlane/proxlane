@@ -15,6 +15,7 @@ import type { HttpTransport, TransportResult } from './transport.js';
 
 function caps(over: Partial<ProviderCapabilities> & { id: string }): ProviderCapabilities {
 	return {
+		line: 1,
 		renderJs: true,
 		countryCodes: 'all',
 		premiumTiers: new Set(['none']),

@@ -21,7 +21,11 @@
 	"devDependencies": {
 		"@proxlane/tsconfig": "workspace:*",
 		"@types/node": "catalog:",
+		"@types/react": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:"
+	},
+	"dependencies": {
+		"react": "catalog:"
 	}
 }

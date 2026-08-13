@@ -14,6 +14,7 @@ import type { HttpTransport } from './transport.js';
 
 function caps(id: string): ProviderCapabilities {
 	return {
+		line: 1,
 		id,
 		renderJs: true,
 		post: true,

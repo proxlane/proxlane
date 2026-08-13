@@ -1,3 +1,4 @@
+import { RouteDiagram } from '@proxlane/route-viz';
 import { createFileRoute } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/')({ component: Home });
@@ -12,6 +13,7 @@ function Home() {
 	return (
 		<div className="flex flex-col gap-24 py-16">
 			<Hero />
+			<Journey />
 			<Migration />
 			<Honesty />
 		</div>
@@ -42,6 +44,45 @@ function Hero() {
 					Read the source
 				</a>
 			</div>
+		</section>
+	);
+}
+
+/**
+ * The signature element: one request's journey, drawn from attempt data.
+ *
+ * `design.md` requires the hero visual and the dashboard's request timeline be the same
+ * component reading the same shape, because "a developer audience can tell the difference
+ * between a diagram of a system and a diagram from a system".
+ *
+ * The attempts below are a WORKED EXAMPLE, labelled as one. They are the shape the gateway
+ * actually returns — ScraperAPI soft-blocked, ScrapingBee served — but nobody made this
+ * request, and captioning it as live traffic would be the kind of claim this repo refuses.
+ * It becomes real the day the canary writes to the request log.
+ */
+function Journey() {
+	const attempts = [
+		{
+			provider: 'scraperapi',
+			outcome: 'SOFT_BLOCK',
+			line: 1 as const,
+			detectRuleId: 'cf-challenge',
+		},
+		{ provider: 'scrapingbee', outcome: 'OK', line: 2 as const, latencyMs: 1840 },
+	];
+	return (
+		<section className="flex flex-col gap-4">
+			<h2 className="font-medium text-sm text-[color:var(--color-slate)] uppercase tracking-wide">
+				What actually happened
+			</h2>
+			<div className="rounded-[--radius-card] border border-[color:var(--color-rule)] p-4">
+				<RouteDiagram attempts={attempts} outcome="OK" status={200} />
+			</div>
+			<p className="max-w-xl text-[color:var(--color-slate)] text-sm">
+				A worked example, in the shape the gateway returns. The first provider answered 200 with
+				a challenge page; the detector called it and the chain moved on. You are billed for both
+				attempts and told so.
+			</p>
 		</section>
 	);
 }

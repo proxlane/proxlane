@@ -172,6 +172,9 @@ importers:
       '@fontsource/martian-mono':
         specifier: 'catalog:'
         version: 5.3.0
+      '@proxlane/route-viz':
+        specifier: workspace:*
+        version: link:../../packages/route-viz
       '@proxlane/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -331,6 +334,10 @@ importers:
         version: 5.9.3
 
   packages/route-viz:
+    dependencies:
+      react:
+        specifier: 'catalog:'
+        version: 19.2.8
     devDependencies:
       '@proxlane/tsconfig':
         specifier: workspace:*
@@ -338,6 +345,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.18
       tsdown:
         specifier: 'catalog:'
         version: 0.22.14(tsx@4.23.12)(typescript@5.9.3)

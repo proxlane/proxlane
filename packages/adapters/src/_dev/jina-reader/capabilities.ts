@@ -18,6 +18,7 @@ const costTable: CostTable = {
 
 export const capabilities: ProviderCapabilities = {
 	id: 'jina-reader',
+	line: 3,
 	// True, but with a caveat the contract has no field for: it renders JS ALWAYS and offers
 	// no way to turn it off. `renderJs: false` therefore cannot be honoured, only ignored.
 	// Left as a comment rather than silently modelled, because a capability that lies is
