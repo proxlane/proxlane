@@ -58,6 +58,15 @@ export function versionedDirs(root: string): string[] {
 
 export interface Verdict {
 	readonly required: boolean;
+	/**
+	 * How many changed files were considered.
+	 *
+	 * ZERO IS NOT A PASS. Run before committing, `git diff base...HEAD` is empty and every
+	 * verdict below is vacuously false — which reads as "no changeset needed" and is how a PR
+	 * shipped claiming exactly that while two versioned packages had changed. Callers must
+	 * treat 0 as "unknown", never as "fine".
+	 */
+	readonly examined: number;
 	/** The publishable paths that triggered it, so the message can name them. */
 	readonly touched: string[];
 }
@@ -79,7 +88,7 @@ export function changesetRequired(
 		if (f.includes('/fixtures/') || f.includes('/corpus/')) return false;
 		return true;
 	});
-	return { required: touched.length > 0, touched };
+	return { required: touched.length > 0, touched, examined: changed.length };
 }
 
 if (import.meta.filename === process.argv[1]) {
@@ -88,12 +97,25 @@ if (import.meta.filename === process.argv[1]) {
 		process.stderr.write('usage: node scripts/changeset-required.ts <base-ref>\n');
 		process.exit(2);
 	}
+	// DIFFED AGAINST HEAD, SO STAGED-BUT-UNCOMMITTED WORK IS INVISIBLE. Run before committing
+	// and the diff is empty, the verdict is "no changeset needed", and it is meaningless — the
+	// same vacuous pass the non-zero-denominator rule forbids everywhere else in this repo. It
+	// reads as reassurance, which is worse than no answer, and it has already produced one PR
+	// that claimed no changeset was needed and was wrong.
 	const changed = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], {
 		cwd: ROOT,
 		encoding: 'utf8',
 	})
 		.split('\n')
 		.filter(Boolean);
+
+	if (changed.length === 0) {
+		process.stderr.write(
+			`\n  nothing to judge: no files differ from ${base}.\n` +
+				'  Staged work is not counted — this compares committed HEAD. Commit first.\n\n',
+		);
+		process.exit(2);
+	}
 
 	const dirs = versionedDirs(ROOT);
 	if (dirs.length === 0) {

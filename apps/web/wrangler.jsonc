@@ -1,0 +1,21 @@
+{
+	// The marketing site on Cloudflare Workers. `apps/web` ONLY.
+	//
+	// THE GATEWAY DOES NOT GO HERE and this file should never grow a second entry for it.
+	// Workers has no Node runtime and no undici, and undici's per-origin pools with per-provider
+	// timeouts are the stated reason `plan.md` section 3 chose Node over Bun in the first place.
+	// A gateway on Workers would rebuild its connection pools constantly and could not honour a
+	// 70 s terminal hop. `docs/self-hosting.md` covers where it does belong.
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "proxlane-web",
+	"compatibility_date": "2026-08-14",
+	// TanStack Start's server entry reaches for a few Node built-ins even on the edge build.
+	// Without this the deploy fails at bundle time on `node:async_hooks`.
+	"compatibility_flags": ["nodejs_compat"],
+	// Resolved from the package rather than a path into `dist`: Start owns the shape of its own
+	// server entry, and hardcoding the built filename breaks silently the first time it changes.
+	"main": "@tanstack/react-start/server-entry",
+	"observability": {
+		"enabled": true
+	}
+}

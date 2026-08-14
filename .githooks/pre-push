@@ -34,3 +34,29 @@ for cmd in build typecheck lint repo:check test:unit; do
 		exit 1
 	fi
 done
+
+# The changeset gate, which CI enforces and this hook did not — so the only way to learn you
+# had missed one was a red PR, by which point the PR body usually already claimed otherwise.
+# That happened. It is cheap to check here and it is the difference between a mistake you fix
+# before anyone sees it and one you fix in public.
+#
+# Exit 2 means "nothing to judge" — no commits differ from origin/main, which is normal when
+# pushing main itself. Only exit 1, a genuine missing changeset, blocks the push.
+printf '  %-12s ' "changeset"
+if git rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+	if node scripts/changeset-required.ts origin/main >"$LOG" 2>&1; then
+		echo "ok"
+	elif [ $? -eq 2 ]; then
+		echo "skipped (nothing differs from origin/main)"
+	else
+		echo "FAILED"
+		echo ""
+		tail -20 "$LOG"
+		echo ""
+		echo "  A versioned package changed with no changeset. Run 'pnpm changeset'."
+		echo "  Push aborted."
+		exit 1
+	fi
+else
+	echo "skipped (no origin/main ref)"
+fi

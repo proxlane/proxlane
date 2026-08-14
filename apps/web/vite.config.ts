@@ -1,3 +1,4 @@
+import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import react from '@vitejs/plugin-react';
@@ -21,5 +22,17 @@ export default defineConfig({
 	// Start's dev mode requires a React Refresh runtime and returns 500 on EVERY page load
 	// without one — while SSR still renders, so the page looks correct and simply never
 	// hydrates. The error names `/@react-refresh` rather than the missing plugin.
-	plugins: [tailwindcss(), tanstackStart(), react()],
+	// cloudflare() FIRST, then tanstackStart(), then react(). Both orderings are load-bearing
+	// and they were learned the hard way in opposite directions: Start must come before react()
+	// or its router plugin refuses to start, and cloudflare() must come before Start or Start
+	// resolves a Node server entry and the Worker bundle never forms.
+	//
+	// `viteEnvironment: { name: 'ssr' }` points the plugin at Start's SSR environment rather
+	// than letting it create its own, which is what makes one build serve both targets.
+	plugins: [
+		cloudflare({ viteEnvironment: { name: 'ssr' } }),
+		tailwindcss(),
+		tanstackStart(),
+		react(),
+	],
 });

@@ -5,10 +5,11 @@
 	"private": true,
 	"license": "AGPL-3.0-only",
 	"scripts": {
-		"dev": "vite dev",
 		"build": "vite build",
-		"typecheck": "tsc --noEmit -p tsconfig.json",
-		"clean": "rm -rf dist .output"
+		"clean": "rm -rf dist .output",
+		"deploy": "vite build && wrangler deploy",
+		"dev": "vite dev",
+		"typecheck": "tsc --noEmit -p tsconfig.json"
 	},
 	"dependencies": {
 		"@base-ui/react": "catalog:",
@@ -22,6 +23,7 @@
 		"react-dom": "catalog:"
 	},
 	"devDependencies": {
+		"@cloudflare/vite-plugin": "catalog:",
 		"@proxlane/tsconfig": "workspace:*",
 		"@tailwindcss/vite": "catalog:",
 		"@tanstack/router-plugin": "catalog:",
@@ -31,6 +33,7 @@
 		"@vitejs/plugin-react": "catalog:",
 		"tailwindcss": "catalog:",
 		"typescript": "catalog:",
-		"vite": "catalog:"
+		"vite": "catalog:",
+		"wrangler": "catalog:"
 	}
 }

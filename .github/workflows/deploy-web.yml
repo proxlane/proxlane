@@ -1,0 +1,47 @@
+# The marketing site to Cloudflare Workers. `apps/web` only.
+#
+# THE GATEWAY IS NOT DEPLOYED FROM HERE and must not be added. Workers has no Node runtime and
+# no undici, and undici's per-origin pools are the stated reason `plan.md` section 3 chose Node
+# over Bun. `docs/self-hosting.md` covers where the gateway belongs.
+name: deploy-web
+
+on:
+  push:
+    branches: [main]
+    # A narrowing, not a description: anything the site's build reads has to be listed, or a
+    # change lands on main and the deployed site quietly stays stale. That failure has already
+    # happened on this project's sibling repos — three weeks stale in one case.
+    paths:
+      - 'apps/web/**'
+      - 'packages/ui/**'
+      - 'packages/route-viz/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/deploy-web.yml'
+  # So the first deploy, and any rollback, does not require an empty commit.
+  workflow_dispatch:
+
+# Two merges in a minute must deploy in order rather than race. Unlike CI, a cancelled deploy
+# leaves the previous version live, so `cancel-in-progress` here would silently skip a release.
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      # Build through the repo's own script so the deploy cannot diverge from what `pnpm build`
+      # produces locally. `wrangler deploy` then uploads what is already on disk.
+      - run: pnpm --filter @proxlane/web build
+
+      - run: pnpm --filter @proxlane/web exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Only needed when the token can see more than one account, in which case wrangler
+          # refuses rather than guessing. Empty is fine and is the common case.
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
