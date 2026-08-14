@@ -109,8 +109,17 @@ function geometry(compact: boolean) {
 		 * read as unfinished, and a departures board aligns them for the same reason.
 		 */
 		/* Sized from a 0.72em advance, which is what this mono face actually measures — the
-		   first sizing assumed 0.62 and clipped `PROVIDER_ERROR` off the compact right edge. */
-		outcomeGutter: compact ? 128 : 150,
+		   first sizing assumed 0.62 and clipped `PROVIDER_ERROR` off the compact right edge.
+
+		   WIDENED FOR `429 GATEWAY_BUSY`, now the longest label at 16 characters. The previous
+		   sizing was cut to `PROVIDER_ERROR` at 14, which fitted 128 on compact exactly; the
+		   new label needs 16 x 12 x 0.72 = 138 there and 16 x 13 x 0.72 = 150 on wide — the
+		   latter landing on 899.8 of a 900 viewBox, i.e. clipped by arithmetic rather than by
+		   luck. Both now carry a margin instead of touching the edge.
+
+		   A terminus label is the one thing in this drawing that must never be cut: it is the
+		   answer. If a longer outcome ever lands, this is the number that moves. */
+		outcomeGutter: compact ? 144 : 162,
 		/** How far short of the terminus a failed leg stops. It did not get there. */
 		failLeg: compact ? 96 : 400,
 		stationR: 5,
@@ -218,6 +227,60 @@ export function RouteDiagram({
 			>
 				request
 			</text>
+
+			{/* NO LANE WAS ENTERED, which is a real answer and not an empty drawing.
+			    Everything below lives inside `attempts.map`, so a chain with no attempts used to
+			    render as a dot and the word `request` — a diagram that looks broken rather than
+			    one that says the request was refused before any provider was chosen.
+
+			    Drawn ENTIRELY IN INK, and that is the whole point. The origin stub above is
+			    already ink because "the request belongs to no provider yet"; the colour change at
+			    the first station is where it becomes somebody's line. A request the gateway sheds
+			    never gets that far, so it stays ink to the stop mark — the vocabulary already
+			    says what happened before a single label is read.
+
+			    The stop is struck at the same place a failed leg stops, so a shed request and a
+			    refused one line up in the same column across scenarios. */}
+			{attempts.length === 0 && (
+				<g>
+					<line
+						x1={geo.startX}
+						y1={firstY}
+						x2={geo.startX + geo.failLeg - 9}
+						y2={firstY}
+						stroke="var(--color-ink)"
+						strokeWidth="var(--stroke-line, 3)"
+						strokeLinecap="round"
+					/>
+					<g stroke="var(--color-ink)" strokeWidth="2.5" strokeLinecap="round">
+						<line
+							x1={geo.startX + geo.failLeg - 5.5}
+							y1={firstY - 5.5}
+							x2={geo.startX + geo.failLeg + 5.5}
+							y2={firstY + 5.5}
+						/>
+						<line
+							x1={geo.startX + geo.failLeg - 5.5}
+							y1={firstY + 5.5}
+							x2={geo.startX + geo.failLeg + 5.5}
+							y2={firstY - 5.5}
+						/>
+					</g>
+					{/* The status IS shown here, unlike on a failed leg. A failed leg's label is
+					    interim — the chain carried on — whereas this one is the answer the caller
+					    received, so it is a terminus and reads like the others do. */}
+					<text
+						x={outcomeX}
+						y={firstY + 4}
+						fill="var(--color-ink)"
+						fontSize={labelSize}
+						fontWeight="500"
+						fontFamily="var(--font-mono)"
+					>
+						{status === undefined ? outcome : `${status} ${outcome}`}
+					</text>
+				</g>
+			)}
 
 			{attempts.map((attempt, i) => {
 				const y = geo.padY + i * geo.rowHeight;
