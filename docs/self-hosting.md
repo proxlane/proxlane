@@ -129,11 +129,29 @@ request. It does not queue: a queued scrape holds its client's socket while its 
 runs down, and the queue itself is memory this ceiling exists to bound. `/health` is never
 shed, so an orchestrator will not restart a gateway whose only problem is that it is busy.
 
-**This is not yet checked at boot.** This page described a boot-time assertion against the
-cgroup v2 limit, plus an override variable for hosts that have no such file. Neither was ever
-built, and the variable is deliberately not named here so nobody sets one that nothing reads.
-The arithmetic above is yours to do: set the ceiling too high and you buy an OOM kill instead
-of a 429.
+**This is checked at boot.** The gateway reads the container's memory limit and refuses to
+start if the arithmetic does not fit, printing both numbers and the ceiling that would:
+
+```
+  This gateway is configured to need about 800 MB, and the container memory limit (cgroup v2)
+  is 512 MB. It would be OOM-killed under load rather than answering 429.
+
+      32 x 10 x 2.5 = 800 MB needed, 512 MB available
+
+  Either lower the ceiling:   PROXLANE_MAX_INFLIGHT=20
+  or give the container more memory.
+```
+
+It reads cgroup v2, then v1, and never falls back to total system memory: inside a limited
+container that reports the host's, which is the hole the check exists to close.
+
+When no limit is readable, which is normal outside a container, it prints the arithmetic and
+starts anyway. Set `PROXLANE_MEMORY_LIMIT_MB` to have it checked. That variable also overrides
+a limit that is readable, so an operator who finds the 2.5 factor too conservative states a
+real number rather than switching the check off.
+
+`npx proxlane doctor` reports the same budget from the same code, so it cannot tell you
+everything is fine about a gateway that will refuse to start.
 
 `restart: unless-stopped` is already set, so the container survives a reboot.
 
@@ -212,6 +230,7 @@ most:
 | `PROXLANE_DEADLINE_MS` | `90000` | Global per-request deadline |
 | `PROXLANE_BODY_CAP_MB` | `10` | Response body cap |
 | `PROXLANE_MAX_INFLIGHT` | `32` | Concurrent `/v1` requests, then 429 `GATEWAY_BUSY` |
+| `PROXLANE_MEMORY_LIMIT_MB` | unset | Declares the memory limit when no cgroup one is readable |
 | `PROXLANE_COOLDOWNS` | on | Set `off` to disable |
 | `PROXLANE_HEALTH` | **off** | Set `on` to enable provider health. Off by default because its calibration is not yet validated against real traffic |
 | `PROXLANE_VALKEY_URL` | unset | Shared state, required for more than one replica |

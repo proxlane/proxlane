@@ -6,4 +6,5 @@ export * from './edge-guard.js';
 export * from './error-body.js';
 export * from './health.js';
 export * from './id.js';
+export * from './memory.js';
 export * from './outcome.js';

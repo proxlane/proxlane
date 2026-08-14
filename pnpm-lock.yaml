@@ -294,6 +294,9 @@ importers:
       '@proxlane/adapters':
         specifier: workspace:*
         version: link:../adapters
+      '@proxlane/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@proxlane/tsconfig':
         specifier: workspace:*

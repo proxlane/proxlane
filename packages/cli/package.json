@@ -3,7 +3,7 @@
 	"version": "0.1.2",
 	"type": "module",
 	"license": "AGPL-3.0-only",
-	"description": "Proxlane CLI — doctor, the self-host support surface",
+	"description": "Proxlane CLI \u2014 doctor, the self-host support surface",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/proxlane/proxlane.git",
@@ -28,6 +28,7 @@
 		"typescript": "catalog:"
 	},
 	"dependencies": {
-		"@proxlane/adapters": "workspace:*"
+		"@proxlane/adapters": "workspace:*",
+		"@proxlane/shared": "workspace:*"
 	}
 }
