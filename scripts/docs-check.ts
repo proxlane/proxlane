@@ -22,6 +22,8 @@ const NAV_FILE = join(ROOT, 'apps/web/src/components/doc-page.tsx');
 const LLMS = join(ROOT, 'apps/web/public/llms.txt');
 const PUBLIC = join(ROOT, 'apps/web/public');
 const SITEMAP = join(ROOT, 'apps/web/public/sitemap.xml');
+const APP_CSS = join(ROOT, 'apps/web/src/styles/app.css');
+const COPY_TSX = join(ROOT, 'apps/web/src/components/copy-code.tsx');
 const GATEWAY_APP = join(ROOT, 'apps/gateway/src/app.ts');
 const API_DOC = join(CONTENT, 'api.md');
 
@@ -238,6 +240,39 @@ const read = (p: string) => readFileSync(p, 'utf8');
 	}
 	if (want.size === 0) fail('8', 'no docs artifacts to check');
 	else ok('8', n, 'agent-facing docs copies are byte-identical');
+}
+
+// ------------------------------------------- 9. classes applied by JS are styled in CSS
+//
+// THIS SHIPPED BROKEN. `copy-code.tsx` adds `doc-pre` and `doc-copy` to the DOM on mount, and
+// an edit to the stylesheet truncated the file and deleted both rules. An unstyled `copy`
+// button went to production on every code sample.
+//
+// Nothing could have caught it: a missing CSS rule is not a build error, the class only
+// exists after hydration so the server-rendered HTML is identical either way, and no test
+// renders a browser. The one mechanical fact available is that a class name the component
+// writes should appear in the stylesheet, so that is what this checks.
+{
+	if (!existsSync(APP_CSS) || !existsSync(COPY_TSX)) {
+		fail('9', 'apps/web/src/styles/app.css or components/copy-code.tsx is missing');
+	} else {
+		const css = read(APP_CSS);
+		// Class names assigned via `className =` or `classList.add(...)` in the component.
+		const applied = [
+			...new Set([
+				...[...read(COPY_TSX).matchAll(/classList\.add\('([a-z-]+)'\)/g)].map(
+					(m) => m[1] as string,
+				),
+				...[...read(COPY_TSX).matchAll(/className = '([a-z-]+)'/g)].map((m) => m[1] as string),
+			]),
+		];
+		if (applied.length === 0)
+			fail('9', 'parsed zero class names from copy-code.tsx — the parser stopped matching');
+		for (const cls of applied)
+			if (!css.includes(`.${cls}`))
+				fail('9', `copy-code.tsx applies .${cls} and app.css never styles it`);
+		ok('9', applied.length, 'classes applied at runtime are styled');
+	}
 }
 
 // -------------------------------------------------------------------------- report
