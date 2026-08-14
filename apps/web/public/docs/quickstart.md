@@ -15,7 +15,9 @@ curl "https://your-gateway/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
 ```
 
 ```python tab=Python
-import os, requests
+import os
+
+import requests
 
 res = requests.get(
     "https://your-gateway/v1",

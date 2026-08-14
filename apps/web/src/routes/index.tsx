@@ -219,7 +219,7 @@ const SCENARIOS: readonly Scenario[] = [
 		status: 429,
 		cost: '0.000000',
 		caption:
-			'The gateway was already at its in-flight ceiling, so it refused this request instead of queueing it — a proxy that queues silently becomes a latency black hole. Nothing was tried and nothing was charged. retry-after says when to come back, and the class is gateway, not provider: this one is ours, not a provider throttling you.',
+			'The gateway was already at its in-flight ceiling, so it refused this request instead of queueing it. A proxy that queues silently becomes a latency black hole. Nothing was tried and nothing was charged. retry-after says when to come back, and the class is gateway, not provider: this one is ours, not a provider throttling you.',
 	},
 ];
 
