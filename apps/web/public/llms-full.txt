@@ -1,0 +1,628 @@
+# Proxlane, full documentation
+
+> One endpoint in front of every scraping API. Automatic failover across ScraperAPI,
+> ScrapingBee and Scrapfly, with honest block detection. AGPL and self-hostable.
+
+Every documentation page concatenated, for a reader that would rather take one document
+than crawl seven. The rendered pages are at https://proxlane.dev/docs, and each page's raw markdown is
+served at its own URL with a `.md` suffix.
+
+The outcome reference is generated from the taxonomy rather than written, so it is not
+included here. Read it at https://proxlane.dev/docs/outcomes or run `npx proxlane outcomes --json`.
+
+
+---
+
+# Quickstart
+
+Source: https://proxlane.dev/docs/quickstart
+
+Proxlane is one endpoint in front of ScraperAPI, ScrapingBee and Scrapfly. If a provider
+blocks, errors or times out, Proxlane tries the next one. The response tells you what
+happened at every step.
+
+## Make a request
+
+```bash
+curl "https://your-gateway/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
+```
+
+The body is the target's body, unchanged. The headers carry everything else:
+
+```http
+HTTP/1.1 200 OK
+X-Outcome: OK
+X-Outcome-Class: ok
+X-Attempts: 2
+X-Provider-Used: scrapfly
+X-Cost-Estimate: 0.002800
+Server-Timing: gw;dur=1.7, up;dur=2451.0, total;dur=2452.7
+X-Request-Id: 01JD8F2K9WQ3
+```
+
+Read that as: two providers were tried, the second one served the page, and it cost 0.0028
+credits. Proxlane itself took 1.7 ms. The provider took the other 2.45 seconds.
+
+## Migrate an existing integration
+
+The query shape matches ScraperAPI's, so migrating is a hostname change.
+
+```bash
+# before
+curl "https://api.scraperapi.com?api_key=KEY&url=https://example.com&render=true"
+
+# after
+curl "https://your-gateway/v1?api_key=KEY&url=https://example.com&render=true"
+```
+
+One thing changes meaning. `api_key` is now the **gateway's** key. Your provider keys stay in
+the gateway's environment and are never sent by the client.
+
+## Authenticate with a header instead
+
+```bash
+curl -H "Authorization: Bearer $PROXLANE_API_KEY" \
+  "https://your-gateway/v1?url=https://example.com"
+```
+
+Prefer this in new code. `api_key` in the query string works, because that is what the
+providers Proxlane replaces accept. But query strings end up in access logs, proxy logs,
+`Referer` headers and error trackers. None of those should hold a credential.
+
+## Run the gateway
+
+```bash
+docker run -p 8787:8787 \
+  -e PROXLANE_API_KEY="$(openssl rand -hex 32)" \
+  -e SCRAPERAPI_KEY=... \
+  ghcr.io/proxlane/gateway:latest
+```
+
+You need at least one provider key. Providers you have no key for are left out of the chain.
+
+The gateway will not start without `PROXLANE_API_KEY`. Without it, anyone who can reach the
+port can spend your provider credits.
+
+## Next
+
+- [API reference](/docs/api) for every parameter and header.
+- [Outcomes](/docs/outcomes) for what each result means and whether you should retry.
+- [Self-hosting](https://github.com/proxlane/proxlane/blob/main/docs/self-hosting.md) for
+  Compose, VPS and reverse-proxy setups.
+
+If something looks wrong, run `npx proxlane doctor`. It prints what it checked and what it
+found, so the output is worth pasting into an issue.
+
+
+---
+
+# Hosting
+
+Source: https://proxlane.dev/docs/hosting
+
+The gateway is a stateless Node process. It needs outbound HTTPS and about a gigabyte of
+memory. Anything that runs a container will run it.
+
+What follows is ordered by how well it actually works.
+
+## Requirements
+
+To **run** the published image, all you need is Docker. Nothing else.
+
+| | Version | Why |
+|---|---|---|
+| Docker | any current release | The only requirement for running the image |
+| Memory | ~1 GB | See sizing below. This is the constraint that matters |
+| Outbound HTTPS | required | The gateway calls provider APIs |
+
+To **build from source or contribute**, the toolchain is pinned:
+
+| | Version | Notes |
+|---|---|---|
+| Node | 24.19.0 | Pinned exactly in `.nvmrc`. Node 22 is in maintenance |
+| pnpm | 10.34.5 | Pinned in `packageManager`. Not pnpm 11 |
+| Docker | any current release | Needed for the test containers |
+
+`pnpm bootstrap` checks all three against the pins and tells you which one is wrong before
+installing anything.
+
+You do **not** need provider API keys to contribute. Contract tests replay recorded fixtures,
+so a clone, Node, pnpm and Docker are enough to run the full suite.
+
+## Docker Compose
+
+The supported path, and the one the project tests.
+
+```bash
+git clone https://github.com/proxlane/proxlane
+cd proxlane
+cp .env.example .env        # set PROXLANE_API_KEY and one provider key
+docker compose -f docker/compose.yml --env-file .env up -d
+```
+
+Compose only passes through variables named in the file. Setting something in `.env` that
+the compose file does not forward does nothing. If a setting seems to be ignored, that is
+the first thing to check.
+
+## A VPS or droplet
+
+DigitalOcean, Hetzner, Linode and Scaleway all work the same way: install Docker, run the
+Compose file, put a reverse proxy in front for TLS.
+
+Point DNS at the box **before** you start the proxy. Caddy and certbot both answer an ACME
+challenge on a name that must already resolve. Start them first and the challenge fails, and
+some setups then back off for a while.
+
+Two lines of Caddy is enough:
+
+```
+proxy.example.com {
+    reverse_proxy 127.0.0.1:8787
+}
+```
+
+## Serverless platforms
+
+Possible, with real limits. Check them against your traffic before committing.
+
+The one that catches people is the request body cap. Several platforms cap responses at a
+few megabytes, well under the gateway's 10 MB default. Scraped pages are larger than people
+expect, especially rendered ones.
+
+Long deadlines are the other. A rendered scrape with failover can legitimately run for a
+minute. Platforms that cut execution short will cut it mid-chain.
+
+Full detail, including the current Vercel constraints, is in
+[self-hosting](https://github.com/proxlane/proxlane/blob/main/docs/self-hosting.md).
+
+## Cloudflare Workers
+
+**No.** Workers has no Node runtime and no undici.
+
+That is not a small gap. Undici's per-origin connection pools with per-provider timeouts are
+the reason this project runs on Node at all. On Workers the gateway would rebuild connections
+constantly and could not honour a long terminal attempt.
+
+The marketing site runs on Workers. The gateway does not.
+
+## Running more than one
+
+The gateway is stateless, so scaling out is just running more of them.
+
+Cooldowns and health are the exception. By default they live in the process, so two gateways
+would keep two opinions and route differently. Point both at Valkey and the state is shared:
+
+```bash
+PROXLANE_VALKEY_URL=redis://valkey:6379
+```
+
+Without it, the gateway refuses to start when `PROXLANE_REPLICAS` is greater than one. That
+is deliberate. Refusing is better than quietly misrouting.
+
+## Sizing
+
+Memory is the constraint. The gateway buffers each response body before the detector can
+read it, so plan for roughly:
+
+```
+PROXLANE_MAX_INFLIGHT × PROXLANE_BODY_CAP_MB × 2.5
+```
+
+At the defaults, 32 in flight and a 10 MB cap, that is about 800 MB.
+
+Lower the concurrency ceiling on a smaller box rather than raising the memory cap and hoping.
+Past the ceiling the gateway returns a clean 429. Past the memory limit it is killed.
+
+This is not checked at boot yet. The arithmetic is yours to do.
+
+## Checking a deployment
+
+```bash
+npx proxlane doctor
+```
+
+It reports what it checked, not just pass or fail, so the output is worth pasting into an
+issue. `--json` gives the same thing in a parseable form.
+
+
+---
+
+# API reference
+
+Source: https://proxlane.dev/docs/api
+
+Everything here is implemented. Parameters the gateway does not read are not listed, and
+`pnpm docs:check` fails the build if this page and the code disagree.
+
+## Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/v1` | Scrape a URL |
+| `POST` | `/v1` | Scrape a URL and forward a request body |
+| `GET` | `/health` | Liveness. Needs no key |
+| `GET` | `/health/providers` | Per-provider health. Needs `PROXLANE_HEALTH=on` to be meaningful |
+| `GET` | `/health/cooldowns` | What is cooling now, and what expired recently |
+
+`PUT` and `DELETE` on `/v1` return 404. They are not treated as `GET`.
+
+## Parameters
+
+| Parameter | Required | Values | Meaning |
+|---|---|---|---|
+| `url` | yes | absolute URL | The page to fetch |
+| `api_key` | yes | string | The gateway's key. `Authorization: Bearer` is preferred |
+| `render` | no | `true`, `1` | Run JavaScript on the target |
+| `premium` | no | `none`, `residential`, `stealth` | Proxy tier. Defaults to `none` |
+| `country_code` | no | ISO 3166-1 alpha-2 | Where the request should appear to come from |
+| `provider` | no | adapter id | Force one provider and disable failover |
+
+### url
+
+Rejected at the edge if it resolves to a private range, a denylisted host, or a cloud
+metadata address. That returns `TARGET_FORBIDDEN`.
+
+### render
+
+Only `true` and `1` enable rendering. Every other value, including leaving the parameter
+out, means false.
+
+This is deliberate. Presence alone never counts as true. Otherwise `render=false` would
+render the page and cost about five times as much.
+
+### provider
+
+A benchmarking escape hatch. It pins one provider, so there is no failover. If that provider
+cannot serve the request, you get `NO_PROVIDER_AVAILABLE` rather than a silent substitution.
+
+## POST requests
+
+The body is forwarded as text, byte for byte. Proxlane does not parse it. Guessing between
+JSON and form encoding would corrupt one of them.
+
+```bash
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  --data '{"q":"example"}' \
+  "https://your-gateway/v1?url=https://example.com/search"
+```
+
+Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TOO_LARGE`.
+
+## Response headers
+
+| Header | Sent | Meaning |
+|---|---|---|
+| `X-Outcome` | always | What happened. See [outcomes](/docs/outcomes) |
+| `X-Outcome-Class` | always | The coarse class. Branch on this one |
+| `X-Attempts` | always | How many providers were tried |
+| `X-Cost-Estimate` | always | Credits across all attempts |
+| `Server-Timing` | always | `gw` is Proxlane, `up` is the providers, `total` is both |
+| `X-Request-Id` | always | Quote this in a support thread |
+| `X-Provider-Used` | when one served | Omitted, never empty, if nothing served |
+| `X-Detect-Rule` | when a rule fired | Which block-page rule produced a `SOFT_BLOCK` |
+| `X-Provider-Health` | when health is on | `demoted-forced` means every provider was demoted and the least bad was used |
+| `Retry-After` | when known | Seconds, rounded up |
+
+Two of those are easy to misread.
+
+**`X-Cost-Estimate` covers every attempt**, not just the one that worked. A failover that
+burned two charged hops reports both.
+
+**`Retry-After` is never guessed.** If it is absent, Proxlane does not know when to retry. A
+number you can trust is worth more than a number that is always present.
+
+## Branching on results
+
+Branch on `X-Outcome-Class`, not `X-Outcome`.
+
+`X-Outcome` is open and gains members as adapters land. `X-Outcome-Class` has six values and
+does not grow. Code written against the class keeps working when the vocabulary expands.
+
+```typescript
+switch (res.headers.get('x-outcome-class')) {
+  case 'ok':       return res;           // you have the page
+  case 'blocked':  return retryLater();  // every provider was blocked
+  case 'target':   return giveUp();      // the site itself said no
+  case 'client':   throw new Error('fix the request');
+  case 'provider': // fallthrough: transient, safe to retry
+  case 'gateway':  return retryLater();
+}
+```
+
+## Errors
+
+When there is no page to return, the body is JSON instead of an empty success.
+
+```json
+{
+  "requestId": "01JD8F2K9WQ3",
+  "error": {
+    "code": "NO_PROVIDER_AVAILABLE",
+    "class": "gateway",
+    "message": "No adapter matches the capability, or the chain is exhausted",
+    "docs": "https://github.com/proxlane/proxlane#outcomes"
+  },
+  "attempts": [
+    { "provider": "scraperapi", "outcome": "SOFT_BLOCK", "detectRuleId": "cf-challenge" }
+  ]
+}
+```
+
+`error.code` is the outcome. One vocabulary covers failures at a provider and failures before
+one was reached.
+
+`UNAUTHORIZED` is the exception. It is not an outcome, because outcomes describe what
+happened to a scrape, and a request rejected at the door never became one.
+
+`attempts` lists what was tried and what each provider said. That is the grain you need when
+debugging a failover.
+
+## Backpressure
+
+Past its concurrency ceiling the gateway returns **429 `GATEWAY_BUSY`** with `Retry-After`.
+
+It sheds rather than queues. A queued scrape holds your socket open while its own deadline
+runs down, so you get a timeout with no explanation instead of a 429 you can act on.
+
+The class is `gateway`, not `provider`. No provider throttled you. `/health` is never shed,
+so a busy gateway does not fail its own health check.
+
+
+---
+
+# How failover works
+
+Source: https://proxlane.dev/docs/failover
+
+Most of the time you do not need this page. Read it when a result surprises you, or before
+you tune anything.
+
+## The chain
+
+Proxlane picks the providers that can serve your request, orders them, and tries them one at
+a time until one succeeds or the list runs out.
+
+A provider only enters the chain if it can do what you asked. Request `render=true` and
+providers without JavaScript rendering are excluded before anything is tried.
+
+Order comes from configuration, not the alphabet. `PROXLANE_PROVIDER_ORDER` sets it.
+Anything you leave out keeps a stable position behind the providers you name.
+
+## When Proxlane moves on
+
+Each outcome decides whether the chain continues. The rules live in one table, never in an
+adapter, so every provider behaves the same way.
+
+- **Provider failed.** 5xx, a timeout, a rate limit, a bad key. Try the next one.
+- **Blocked.** The page came back but the detector recognised a block page. Try the next one.
+- **The target answered.** A 404 or a 403 from the site itself is a real answer. Stop.
+- **Your request is wrong.** A malformed URL or a denylisted host. Stop.
+
+The third rule matters most. A 404 is not a failure to route around. Retrying it across three
+providers costs three times as much and returns the same 404.
+
+## Detection
+
+A blocked request usually returns HTTP 200 with a challenge page in the body. Status codes
+alone cannot see it, which is why Proxlane reads the body.
+
+When a rule matches, the outcome is `SOFT_BLOCK` and `X-Detect-Rule` names the rule. You get
+the reason, not just the verdict.
+
+Rules currently come from vendor signatures. They have not yet been tuned against a corpus
+of real block pages, so treat detection as good but not finished.
+
+## Cooldowns
+
+A provider that just refused a domain is skipped for a short window rather than paid to
+refuse again.
+
+Cooldowns are scoped, and the scope is the point:
+
+- **Domain cooldowns** are shared. A block is a fact about the site, so it is worth knowing
+  across the board.
+- **Account cooldowns** are private to one deployment. An expired key is a fact about your
+  account and must never affect anyone else.
+
+`GET /health/cooldowns` shows what is cooling and what recently expired. Cooldowns are on by
+default.
+
+## Deadlines
+
+Your request gets one global deadline. Each attempt gets a slice of it, sized to leave room
+for the attempts that follow.
+
+That is why a failover chain never outlives the client waiting on it. If the deadline runs
+out, the outcome is `BUDGET_EXCEEDED`.
+
+## Provider health
+
+Proxlane can also keep a running opinion of each provider and route around one that is
+degrading.
+
+**This is off by default.** The statistic assumes failures arrive independently, and real
+providers have bad hours instead. In simulation, a provider with a perfectly ordinary 5%
+average failure rate spends over 90% of its time demoted, because the failures clump.
+
+Turn it on with `PROXLANE_HEALTH=on` and watch `GET /health/providers`. Leave it off until
+you have traffic you can check it against.
+
+Cooldowns are separate and stay on. They react to something a provider just did, not to a
+prediction.
+
+## What you are charged for
+
+Every attempt, including the ones that failed.
+
+`X-Cost-Estimate` reports the total across the chain. A failover that burned two charged
+hops reports two. Reporting only the successful hop would understate what a retry costs, and
+the cost of retries is the thing worth watching.
+
+
+---
+
+# Using Proxlane from an agent
+
+Source: https://proxlane.dev/docs/agents
+
+Agents are bad at ambiguous failure. Give one a scraper that returns 200 with a challenge
+page and it will summarise the challenge page. Proxlane exists to make the failure legible,
+which is exactly what an agent needs.
+
+## The one rule
+
+Branch on `X-Outcome-Class`, and give the agent a different instruction per class.
+
+```typescript
+const res = await fetch(
+  `${GATEWAY}/v1?url=${encodeURIComponent(url)}`,
+  { headers: { Authorization: `Bearer ${key}` } },
+);
+
+switch (res.headers.get('x-outcome-class')) {
+  case 'ok':
+    return { text: await res.text() };
+  case 'target':
+    // The site answered. Do not retry, do not try another tool.
+    return { error: 'page does not exist or refused access', retryable: false };
+  case 'blocked':
+  case 'provider':
+  case 'gateway':
+    // Proxlane already failed over. Back off, do not loop.
+    return { error: 'temporarily unavailable', retryable: true };
+  case 'client':
+    return { error: 'the URL was rejected as invalid', retryable: false };
+}
+```
+
+Six classes, and the set never grows. New outcomes land inside existing classes, so this
+switch does not need revisiting.
+
+## Why `retryable` matters
+
+An agent that cannot tell "blocked" from "not found" does one of two bad things. It retries a
+404 until it runs out of budget, or it gives up on a page that was merely blocked once.
+
+`X-Outcome-Class` answers that in one string. `X-Outcome` tells you why, if you want it in
+the log.
+
+## Tell the agent what it got
+
+Pass the outcome through to the model rather than swallowing it. A tool result of
+
+```json
+{ "ok": false, "outcome": "HARD_BLOCK", "attempts": 3, "retryable": true }
+```
+
+produces better behaviour than an empty string, because the model can say "that site is
+blocking us" instead of inventing a summary of nothing.
+
+`X-Attempts` and `X-Cost-Estimate` are worth logging for the same reason. An agent loop that
+quietly costs three times what you expected is a failover loop nobody surfaced.
+
+## From the command line
+
+The CLI is a usable tool surface for agents that shell out.
+
+```bash
+proxlane scrape https://example.com --provider=scraperapi --json
+```
+
+`--json` is the point. Every command supports it, and it is the form a tool wrapper should
+parse. Exit codes distinguish usage errors from scrape failures.
+
+```bash
+proxlane outcomes --json     # the full taxonomy, for building a retry policy
+proxlane providers --json    # which providers are configured
+proxlane doctor --json       # diagnose a deployment
+```
+
+`proxlane scrape` calls a provider directly using keys from the environment. It does not go
+through the gateway, so there is no failover. It is a debugging and inspection tool, not a
+production path.
+
+## Machine-readable docs
+
+`llms.txt` at the site root lists every documentation page in a form intended for models:
+
+```
+https://proxlane.dev/llms.txt
+```
+
+## What does not exist yet
+
+There is **no MCP server** and no published SDK. `@proxlane/sdk` is a placeholder.
+
+Use the HTTP endpoint. It is a single GET, it needs no client library, and the headers are
+the interface.
+
+
+---
+
+# Use cases
+
+Source: https://proxlane.dev/docs/use-cases
+
+Proxlane is worth adding when you already scrape and the problem is reliability, cost or
+visibility. It is not a scraper. It routes to the ones you already pay for.
+
+## You already use a scraping API
+
+The common starting point. One provider works until it does not, and you find out from a
+customer rather than a dashboard.
+
+Proxlane changes the failure from "the job returned garbage" to "provider A was blocked,
+provider B served it, here is the rule that fired". Migration is a hostname change.
+
+## You want a second provider without writing a second integration
+
+Adding a fallback provider normally means a second client, a second set of parameters, a
+second error shape, and a decision about when to switch.
+
+Proxlane makes that one endpoint. Providers are configuration, not code. Add a key and the
+new provider joins the chain.
+
+## You cannot tell blocked from empty
+
+The expensive failure in scraping is the silent one. A block page returns HTTP 200 with a
+body, so anything checking status codes records a success and stores a challenge page.
+
+Proxlane reads the body and calls it `SOFT_BLOCK`, with `X-Detect-Rule` naming the rule that
+matched. Bad data stops entering your pipeline as though it were good.
+
+## You are feeding a model
+
+Retrieval pipelines are the worst place for a silent block, because the model will
+confidently summarise whatever it is given.
+
+Proxlane gives every fetch a verdict you can gate on. See
+[using Proxlane from an agent](/docs/agents).
+
+## You need to know what scraping actually costs
+
+`X-Cost-Estimate` reports the spend across every attempt, including failed ones. A failover
+that burned two charged hops reports two.
+
+That is the number that tells you a target has become expensive, which usually happens well
+before it starts failing outright.
+
+## You have a compliance or data-residency requirement
+
+Self-host it. The gateway is AGPL, runs in a container, and holds provider keys in its own
+environment. Nothing is sent to us, because there is no us in the request path.
+
+`country_code` selects where the request appears to come from, subject to provider coverage.
+
+## What it is not for
+
+**Not a scraper.** Proxlane does not parse HTML, manage crawl queues or schedule jobs. It
+makes one request and returns one response.
+
+**Not a proxy pool.** It routes to commercial scraping APIs. It does not manage IPs.
+
+**Not a way to avoid paying providers.** It uses your keys and your credits, and it reports
+what they cost.
+
+**Not a bypass tool.** Detection tells you that you were blocked. It does not defeat the
+block. What each provider does about anti-bot measures is between you and that provider,
+under their terms.

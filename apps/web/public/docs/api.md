@@ -1,0 +1,141 @@
+<!-- Source: https://proxlane.dev/docs/api — edit apps/web/content/docs/api.md -->
+---
+title: API reference
+summary: Every endpoint, parameter and header the gateway implements.
+---
+
+Everything here is implemented. Parameters the gateway does not read are not listed, and
+`pnpm docs:check` fails the build if this page and the code disagree.
+
+## Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/v1` | Scrape a URL |
+| `POST` | `/v1` | Scrape a URL and forward a request body |
+| `GET` | `/health` | Liveness. Needs no key |
+| `GET` | `/health/providers` | Per-provider health. Needs `PROXLANE_HEALTH=on` to be meaningful |
+| `GET` | `/health/cooldowns` | What is cooling now, and what expired recently |
+
+`PUT` and `DELETE` on `/v1` return 404. They are not treated as `GET`.
+
+## Parameters
+
+| Parameter | Required | Values | Meaning |
+|---|---|---|---|
+| `url` | yes | absolute URL | The page to fetch |
+| `api_key` | yes | string | The gateway's key. `Authorization: Bearer` is preferred |
+| `render` | no | `true`, `1` | Run JavaScript on the target |
+| `premium` | no | `none`, `residential`, `stealth` | Proxy tier. Defaults to `none` |
+| `country_code` | no | ISO 3166-1 alpha-2 | Where the request should appear to come from |
+| `provider` | no | adapter id | Force one provider and disable failover |
+
+### url
+
+Rejected at the edge if it resolves to a private range, a denylisted host, or a cloud
+metadata address. That returns `TARGET_FORBIDDEN`.
+
+### render
+
+Only `true` and `1` enable rendering. Every other value, including leaving the parameter
+out, means false.
+
+This is deliberate. Presence alone never counts as true. Otherwise `render=false` would
+render the page and cost about five times as much.
+
+### provider
+
+A benchmarking escape hatch. It pins one provider, so there is no failover. If that provider
+cannot serve the request, you get `NO_PROVIDER_AVAILABLE` rather than a silent substitution.
+
+## POST requests
+
+The body is forwarded as text, byte for byte. Proxlane does not parse it. Guessing between
+JSON and form encoding would corrupt one of them.
+
+```bash
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  --data '{"q":"example"}' \
+  "https://your-gateway/v1?url=https://example.com/search"
+```
+
+Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TOO_LARGE`.
+
+## Response headers
+
+| Header | Sent | Meaning |
+|---|---|---|
+| `X-Outcome` | always | What happened. See [outcomes](/docs/outcomes) |
+| `X-Outcome-Class` | always | The coarse class. Branch on this one |
+| `X-Attempts` | always | How many providers were tried |
+| `X-Cost-Estimate` | always | Credits across all attempts |
+| `Server-Timing` | always | `gw` is Proxlane, `up` is the providers, `total` is both |
+| `X-Request-Id` | always | Quote this in a support thread |
+| `X-Provider-Used` | when one served | Omitted, never empty, if nothing served |
+| `X-Detect-Rule` | when a rule fired | Which block-page rule produced a `SOFT_BLOCK` |
+| `X-Provider-Health` | when health is on | `demoted-forced` means every provider was demoted and the least bad was used |
+| `Retry-After` | when known | Seconds, rounded up |
+
+Two of those are easy to misread.
+
+**`X-Cost-Estimate` covers every attempt**, not just the one that worked. A failover that
+burned two charged hops reports both.
+
+**`Retry-After` is never guessed.** If it is absent, Proxlane does not know when to retry. A
+number you can trust is worth more than a number that is always present.
+
+## Branching on results
+
+Branch on `X-Outcome-Class`, not `X-Outcome`.
+
+`X-Outcome` is open and gains members as adapters land. `X-Outcome-Class` has six values and
+does not grow. Code written against the class keeps working when the vocabulary expands.
+
+```typescript
+switch (res.headers.get('x-outcome-class')) {
+  case 'ok':       return res;           // you have the page
+  case 'blocked':  return retryLater();  // every provider was blocked
+  case 'target':   return giveUp();      // the site itself said no
+  case 'client':   throw new Error('fix the request');
+  case 'provider': // fallthrough: transient, safe to retry
+  case 'gateway':  return retryLater();
+}
+```
+
+## Errors
+
+When there is no page to return, the body is JSON instead of an empty success.
+
+```json
+{
+  "requestId": "01JD8F2K9WQ3",
+  "error": {
+    "code": "NO_PROVIDER_AVAILABLE",
+    "class": "gateway",
+    "message": "No adapter matches the capability, or the chain is exhausted",
+    "docs": "https://github.com/proxlane/proxlane#outcomes"
+  },
+  "attempts": [
+    { "provider": "scraperapi", "outcome": "SOFT_BLOCK", "detectRuleId": "cf-challenge" }
+  ]
+}
+```
+
+`error.code` is the outcome. One vocabulary covers failures at a provider and failures before
+one was reached.
+
+`UNAUTHORIZED` is the exception. It is not an outcome, because outcomes describe what
+happened to a scrape, and a request rejected at the door never became one.
+
+`attempts` lists what was tried and what each provider said. That is the grain you need when
+debugging a failover.
+
+## Backpressure
+
+Past its concurrency ceiling the gateway returns **429 `GATEWAY_BUSY`** with `Retry-After`.
+
+It sheds rather than queues. A queued scrape holds your socket open while its own deadline
+runs down, so you get a timeout with no explanation instead of a 429 you can act on.
+
+The class is `gateway`, not `provider`. No provider throttled you. `/health` is never shed,
+so a busy gateway does not fail its own health check.

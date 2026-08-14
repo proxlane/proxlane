@@ -13,12 +13,15 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { artifacts } from './docs-artifacts.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CONTENT = join(ROOT, 'apps/web/content/docs');
 const ROUTES = join(ROOT, 'apps/web/src/routes/docs');
 const NAV_FILE = join(ROOT, 'apps/web/src/components/doc-page.tsx');
 const LLMS = join(ROOT, 'apps/web/public/llms.txt');
+const PUBLIC = join(ROOT, 'apps/web/public');
+const SITEMAP = join(ROOT, 'apps/web/public/sitemap.xml');
 const GATEWAY_APP = join(ROOT, 'apps/gateway/src/app.ts');
 const API_DOC = join(CONTENT, 'api.md');
 
@@ -186,6 +189,55 @@ const read = (p: string) => readFileSync(p, 'utf8');
 		if (routes.length === 0) fail('6', 'no routes to check llms.txt against');
 		else ok('6', routes.length, 'llms.txt lists every docs page');
 	}
+}
+
+// ------------------------------------------------------------- 7. the sitemap is complete
+//
+// THIS ONE HAS ALREADY FAILED IN PRODUCTION. Seven docs pages shipped while sitemap.xml still
+// listed exactly one URL, on a project whose entire growth model is search. Adding a page and
+// forgetting the sitemap has no symptom: the page works, and simply is never crawled.
+{
+	if (!existsSync(SITEMAP)) fail('7', 'apps/web/public/sitemap.xml is missing');
+	else {
+		const locs = [...read(SITEMAP).matchAll(/<loc>https:\/\/proxlane\.dev([^<]*)<\/loc>/g)].map(
+			(m) => (m[1] as string).replace(/\/$/, '') || '/',
+		);
+		const want = [
+			'/docs',
+			...readdirSync(ROUTES)
+				.filter((f) => f.endsWith('.tsx') && f !== 'index.tsx')
+				.map((f) => `/docs/${f.replace(/\.tsx$/, '')}`),
+		];
+		for (const w of want)
+			if (!locs.includes(w))
+				fail('7', `sitemap.xml does not list ${w}, so it will not be crawled`);
+		if (!locs.includes('/')) fail('7', 'sitemap.xml does not list the homepage');
+		if (want.length === 0) fail('7', 'no routes to check the sitemap against');
+		else ok('7', want.length + 1, 'indexable routes are in the sitemap');
+	}
+}
+
+// ------------------------------------------------ 8. the agent-facing copies are current
+//
+// `llms-full.txt` and the raw `.md` pages are generated and committed, so they can go stale
+// the moment a page is edited. Byte-identical, the same standard `.github/CODEOWNERS` is held
+// to — a "close enough" copy of the docs is a second source of truth.
+{
+	const want = artifacts();
+	let n = 0;
+	for (const [rel, content] of want) {
+		const path = join(PUBLIC, rel);
+		if (!existsSync(path))
+			fail(
+				'8',
+				`apps/web/public/${rel} is missing — run node scripts/docs-artifacts.ts --write`,
+			);
+		else if (read(path) !== content)
+			fail('8', `apps/web/public/${rel} is stale — run node scripts/docs-artifacts.ts --write`);
+		else n += 1;
+	}
+	if (want.size === 0) fail('8', 'no docs artifacts to check');
+	else ok('8', n, 'agent-facing docs copies are byte-identical');
 }
 
 // -------------------------------------------------------------------------- report

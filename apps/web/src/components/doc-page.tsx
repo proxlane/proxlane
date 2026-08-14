@@ -7,8 +7,9 @@
  * being restated — a reference page competing with the landing page for attention is a
  * reference page nobody finishes.
  */
-import { Link } from '@tanstack/react-router';
+import { Link, useLocation } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { ProseWithCopy } from './copy-code.js';
 
 export interface DocNavItem {
 	readonly to: string;
@@ -101,6 +102,7 @@ export function DocPage({
 					)}
 
 					{children}
+					<DocFooter />
 				</div>
 			</div>
 		</div>
@@ -108,14 +110,68 @@ export function DocPage({
 }
 
 /**
- * Rendered markdown.
+ * Where to go next, and how to fix what you just read.
  *
- * `dangerouslySetInnerHTML` over HTML this repo authored and this build produced, with
- * `markdown-it`'s `html: false` so a source file cannot inject a tag either. There is no
- * user input anywhere in this path — the only writers are people with commit access, and if
- * that stops being true the threat model has bigger problems than this element.
+ * Both are open-source documentation conventions that pay for themselves. Prev/next turns a
+ * pile of pages into a reading order, and an edit link converts "this paragraph is wrong"
+ * from an issue somebody might file into a pull request they can open in one click. The
+ * second only works because the pages are markdown in the repo.
+ */
+function DocFooter() {
+	const { pathname } = useLocation();
+	const here = pathname.replace(/\/$/, '') || '/docs';
+	const i = DOC_NAV.findIndex((n) => n.to === here);
+	const prev = i > 0 ? DOC_NAV[i - 1] : undefined;
+	const next = i >= 0 && i < DOC_NAV.length - 1 ? DOC_NAV[i + 1] : undefined;
+	// The overview has no markdown file, and neither does the generated outcome reference —
+	// pointing "edit this page" at a file that does not exist is worse than omitting the link.
+	const slug = here === '/docs' ? undefined : here.slice('/docs/'.length);
+	const editable = slug !== undefined && slug !== 'outcomes';
+
+	return (
+		<footer className="mt-16 max-w-[46rem] border-[color:var(--color-rule)] border-t pt-6">
+			{editable && (
+				<a
+					href={`https://github.com/proxlane/proxlane/edit/main/apps/web/content/docs/${slug}.md`}
+					className="inline-flex min-h-9 items-center text-[color:var(--color-slate)] text-sm transition-colors hover:text-[color:var(--color-ink)]"
+					rel="noreferrer"
+				>
+					Edit this page on GitHub
+				</a>
+			)}
+			{(prev !== undefined || next !== undefined) && (
+				<nav aria-label="Pagination" className="mt-4 flex flex-wrap justify-between gap-4">
+					{prev === undefined ? (
+						<span />
+					) : (
+						<Link to={prev.to} className="group max-w-[48%]">
+							<span className="block text-[color:var(--color-slate)] text-xs">Previous</span>
+							<span className="text-[color:var(--color-ink)] group-hover:text-[color:var(--color-accent)]">
+								{prev.title}
+							</span>
+						</Link>
+					)}
+					{next !== undefined && (
+						<Link to={next.to} className="group max-w-[48%] text-right">
+							<span className="block text-[color:var(--color-slate)] text-xs">Next</span>
+							<span className="text-[color:var(--color-ink)] group-hover:text-[color:var(--color-accent)]">
+								{next.title}
+							</span>
+						</Link>
+					)}
+				</nav>
+			)}
+		</footer>
+	);
+}
+
+/**
+ * Rendered markdown, with a copy button on every code block.
+ *
+ * The HTML is produced at build time from repo markdown with `markdown-it`'s `html: false`,
+ * so no user input reaches it. The buttons are attached to the rendered tree on mount rather
+ * than authored into the string; see `copy-code.tsx` for why that is the only option here.
  */
 export function Prose({ html }: { readonly html: string }) {
-	// biome-ignore lint/security/noDangerouslySetInnerHtml: build-time HTML from repo markdown, no user input
-	return <div className="doc-prose max-w-[46rem]" dangerouslySetInnerHTML={{ __html: html }} />;
+	return <ProseWithCopy html={html} />;
 }
