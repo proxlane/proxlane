@@ -1,0 +1,1303 @@
+{
+	"openapi": "3.1.0",
+	"info": {
+		"title": "Proxlane",
+		"version": "1",
+		"summary": "One endpoint in front of every scraping API.",
+		"description": "Routes a scrape across ScraperAPI, ScrapingBee and Scrapfly. When a provider blocks, errors or times out the next one is tried, and the response headers say what happened at every step.\n\nThis file is generated from the gateway's own outcome taxonomy, so the status codes and the X-Outcome enum below are the ones the router actually uses.\n\nSelf-hosted: there is no shared base URL. Point `servers` at your own gateway.",
+		"license": {
+			"name": "AGPL-3.0-only",
+			"identifier": "AGPL-3.0-only"
+		}
+	},
+	"externalDocs": {
+		"url": "https://proxlane.dev/docs",
+		"description": "Documentation"
+	},
+	"servers": [
+		{
+			"url": "{gateway}",
+			"description": "Your own deployment. The gateway is self-hosted; we run no shared one.",
+			"variables": {
+				"gateway": {
+					"default": "http://localhost:8787"
+				}
+			}
+		}
+	],
+	"security": [
+		{
+			"bearerAuth": []
+		},
+		{
+			"apiKeyQuery": []
+		}
+	],
+	"paths": {
+		"/v1": {
+			"get": {
+				"operationId": "scrape",
+				"summary": "Scrape a URL",
+				"description": "Fetches the target through the first capable provider, failing over on a block, a provider error or a timeout.",
+				"parameters": [
+					{
+						"name": "url",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uri"
+						},
+						"description": "The page to fetch. Rejected at the edge with TARGET_FORBIDDEN if it resolves to a private range, a denylisted host, or a cloud metadata address.",
+						"example": "https://example.com",
+						"in": "query"
+					},
+					{
+						"name": "api_key",
+						"required": false,
+						"schema": {
+							"type": "string"
+						},
+						"description": "The gateway's key, not a provider's. Accepted because it is what the providers this replaces accept, which is what makes migration a hostname change. Prefer the Authorization header: query strings reach access logs, proxy logs, Referer headers and error trackers.",
+						"in": "query"
+					},
+					{
+						"name": "render",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"true",
+								"1"
+							]
+						},
+						"description": "Run JavaScript on the target. Only \"true\" and \"1\" enable it; every other value, including omitting the parameter, means false. Presence alone is never truth, or render=false would render and cost about five times as much.",
+						"in": "query"
+					},
+					{
+						"name": "premium",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"none",
+								"residential",
+								"stealth"
+							],
+							"default": "none"
+						},
+						"description": "Proxy tier.",
+						"in": "query"
+					},
+					{
+						"name": "country_code",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"pattern": "^[A-Za-z]{2}$"
+						},
+						"description": "ISO 3166-1 alpha-2. Where the request should appear to come from, subject to provider coverage.",
+						"in": "query"
+					},
+					{
+						"name": "provider",
+						"required": false,
+						"schema": {
+							"type": "string"
+						},
+						"description": "Pin one provider and disable failover. A benchmarking escape hatch. If that provider cannot serve the request you get NO_PROVIDER_AVAILABLE rather than a silent substitution.",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The target's own response, passed through unchanged. That is the drop-in promise: code that already branches on a 404 keeps working, so a target's 404 arrives as a 404 and not as an error of ours.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"*/*": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "BAD_REQUEST: The client's request is malformed or impossible.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "The gateway key was missing or wrong. Deliberately NOT an outcome: outcomes describe what happened to a scrape, and a request rejected at the door never became one. Reusing AUTH_FAILED here would put gateway auth failures into provider health.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "TARGET_FORBIDDEN: Target rejected at our edge: private range, denylist, metadata address.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "TARGET_NOT_FOUND: Genuine 404, unless the provider has retry_404 semantics.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "RESPONSE_TOO_LARGE: Body exceeded the cap; see operations.md section 1.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TARGET_RATE_LIMITED: Target rate-limited us (429); backs off per domain rather than retrying. RATE_LIMITED: Provider 429 or concurrency cap. GATEWAY_BUSY: In-flight ceiling reached; the gateway shed this request rather than queue it.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "INVALID_REQUEST: Our translation produced a provider 400.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "SOFT_BLOCK: 200 but our detector fired; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. AUTH_FAILED: Provider 401/403 on the key. PROVIDER_DRIFT: Response failed its Zod schema.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "NO_PROVIDER_AVAILABLE: No adapter matches the capability, or the chain is exhausted.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"504": {
+						"description": "PROVIDER_TIMEOUT: Attempt exceeded its per-attempt budget. BUDGET_EXCEEDED: Global deadline or cost budget hit.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "scrapePost",
+				"summary": "Scrape a URL, forwarding a request body",
+				"description": "As GET, and the body is forwarded to the target as text, byte for byte. It is not parsed: guessing between JSON and form encoding would corrupt one of them. The response body cap applies to the request body too.",
+				"parameters": [
+					{
+						"name": "url",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uri"
+						},
+						"description": "The page to fetch. Rejected at the edge with TARGET_FORBIDDEN if it resolves to a private range, a denylisted host, or a cloud metadata address.",
+						"example": "https://example.com",
+						"in": "query"
+					},
+					{
+						"name": "api_key",
+						"required": false,
+						"schema": {
+							"type": "string"
+						},
+						"description": "The gateway's key, not a provider's. Accepted because it is what the providers this replaces accept, which is what makes migration a hostname change. Prefer the Authorization header: query strings reach access logs, proxy logs, Referer headers and error trackers.",
+						"in": "query"
+					},
+					{
+						"name": "render",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"true",
+								"1"
+							]
+						},
+						"description": "Run JavaScript on the target. Only \"true\" and \"1\" enable it; every other value, including omitting the parameter, means false. Presence alone is never truth, or render=false would render and cost about five times as much.",
+						"in": "query"
+					},
+					{
+						"name": "premium",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"none",
+								"residential",
+								"stealth"
+							],
+							"default": "none"
+						},
+						"description": "Proxy tier.",
+						"in": "query"
+					},
+					{
+						"name": "country_code",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"pattern": "^[A-Za-z]{2}$"
+						},
+						"description": "ISO 3166-1 alpha-2. Where the request should appear to come from, subject to provider coverage.",
+						"in": "query"
+					},
+					{
+						"name": "provider",
+						"required": false,
+						"schema": {
+							"type": "string"
+						},
+						"description": "Pin one provider and disable failover. A benchmarking escape hatch. If that provider cannot serve the request you get NO_PROVIDER_AVAILABLE rather than a silent substitution.",
+						"in": "query"
+					}
+				],
+				"requestBody": {
+					"required": false,
+					"content": {
+						"*/*": {
+							"schema": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "The target's own response, passed through unchanged. That is the drop-in promise: code that already branches on a 404 keeps working, so a target's 404 arrives as a 404 and not as an error of ours.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"*/*": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "BAD_REQUEST: The client's request is malformed or impossible.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "The gateway key was missing or wrong. Deliberately NOT an outcome: outcomes describe what happened to a scrape, and a request rejected at the door never became one. Reusing AUTH_FAILED here would put gateway auth failures into provider health.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "TARGET_FORBIDDEN: Target rejected at our edge: private range, denylist, metadata address.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "TARGET_NOT_FOUND: Genuine 404, unless the provider has retry_404 semantics.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "RESPONSE_TOO_LARGE: Body exceeded the cap; see operations.md section 1.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TARGET_RATE_LIMITED: Target rate-limited us (429); backs off per domain rather than retrying. RATE_LIMITED: Provider 429 or concurrency cap. GATEWAY_BUSY: In-flight ceiling reached; the gateway shed this request rather than queue it.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "INVALID_REQUEST: Our translation produced a provider 400.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "SOFT_BLOCK: 200 but our detector fired; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. AUTH_FAILED: Provider 401/403 on the key. PROVIDER_DRIFT: Response failed its Zod schema.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "NO_PROVIDER_AVAILABLE: No adapter matches the capability, or the chain is exhausted.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"504": {
+						"description": "PROVIDER_TIMEOUT: Attempt exceeded its per-attempt budget. BUDGET_EXCEEDED: Global deadline or cost budget hit.",
+						"headers": {
+							"X-Outcome": {
+								"$ref": "#/components/headers/X-Outcome"
+							},
+							"X-Outcome-Class": {
+								"$ref": "#/components/headers/X-Outcome-Class"
+							},
+							"X-Attempts": {
+								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Cost-Estimate": {
+								"$ref": "#/components/headers/X-Cost-Estimate"
+							},
+							"Server-Timing": {
+								"$ref": "#/components/headers/Server-Timing"
+							},
+							"X-Request-Id": {
+								"$ref": "#/components/headers/X-Request-Id"
+							},
+							"X-Provider-Used": {
+								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Detect-Rule": {
+								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Provider-Health": {
+								"$ref": "#/components/headers/X-Provider-Health"
+							},
+							"Retry-After": {
+								"$ref": "#/components/headers/Retry-After"
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/health": {
+			"get": {
+				"operationId": "health",
+				"summary": "Liveness",
+				"description": "Takes no key. Reports that the process is up and serving, not that it is fully configured: a gateway with no provider keys is correctly running and will answer NO_PROVIDER_AVAILABLE. Returns the provider COUNT, never the names, because which providers an operator pays for is not something to hand out. Never shed under load.",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "The process is serving.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"status",
+										"providers"
+									],
+									"properties": {
+										"status": {
+											"type": "string",
+											"enum": [
+												"ok"
+											]
+										},
+										"providers": {
+											"type": "integer",
+											"minimum": 0
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/health/providers": {
+			"get": {
+				"operationId": "providerHealth",
+				"summary": "Per-provider health state",
+				"description": "Only meaningful with PROXLANE_HEALTH=on, which is off by default because the statistic assumes independent failures and real providers have bad hours instead.",
+				"responses": {
+					"200": {
+						"description": "Health state per provider."
+					},
+					"401": {
+						"description": "The gateway key was missing or wrong.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/health/cooldowns": {
+			"get": {
+				"operationId": "cooldowns",
+				"summary": "What is cooling, and what recently expired",
+				"description": "Expired entries are included deliberately: the consecutive count is what makes the next cooldown on that key longer.",
+				"responses": {
+					"200": {
+						"description": "Cooling and recently expired entries."
+					},
+					"401": {
+						"description": "The gateway key was missing or wrong.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"components": {
+		"securitySchemes": {
+			"bearerAuth": {
+				"type": "http",
+				"scheme": "bearer",
+				"description": "The gateway's key. Preferred over the query parameter."
+			},
+			"apiKeyQuery": {
+				"type": "apiKey",
+				"in": "query",
+				"name": "api_key",
+				"description": "The drop-in migration surface. Works, but a query string is the worst place to put a credential."
+			}
+		},
+		"headers": {
+			"X-Outcome": {
+				"description": "What happened. Open: it gains members as adapters land, so branch on X-Outcome-Class instead.",
+				"schema": {
+					"$ref": "#/components/schemas/Outcome"
+				}
+			},
+			"X-Outcome-Class": {
+				"description": "The coarse class. Closed: these six never grow. This is the one to branch on.",
+				"schema": {
+					"$ref": "#/components/schemas/OutcomeClass"
+				}
+			},
+			"X-Attempts": {
+				"description": "How many providers were tried.",
+				"schema": {
+					"type": "integer",
+					"minimum": 0
+				}
+			},
+			"X-Cost-Estimate": {
+				"description": "Credits, summed across every attempt including the ones that failed. A failover that burned two charged hops reports both.",
+				"schema": {
+					"type": "string"
+				}
+			},
+			"Server-Timing": {
+				"description": "gw is gateway-internal time, up is time inside provider calls, total is both. Split by subtraction, so anything unaccounted for lands in gw where it is visible.",
+				"schema": {
+					"type": "string"
+				}
+			},
+			"X-Request-Id": {
+				"description": "Present on every response, including 401s. Echoes the caller's X-Request-Id when it is usable. Quote it in a support thread.",
+				"schema": {
+					"type": "string"
+				}
+			},
+			"X-Provider-Used": {
+				"description": "The provider that served. Absent, never empty, when nothing served.",
+				"schema": {
+					"type": "string"
+				}
+			},
+			"X-Detect-Rule": {
+				"description": "The block-page rule that fired. Present only when one did: emitting \"none\" everywhere would assert the detector ran and found nothing, which is untrue for a request that never reached a provider.",
+				"schema": {
+					"type": "string"
+				}
+			},
+			"X-Provider-Health": {
+				"description": "Present when health tracking is on. demoted-forced means every capable provider was demoted and the least bad was used anyway.",
+				"schema": {
+					"type": "string"
+				}
+			},
+			"Retry-After": {
+				"description": "Seconds, rounded up. Sent only when the gateway knows: a guessed value is worse than none, because a caller will believe it.",
+				"schema": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"schemas": {
+			"Outcome": {
+				"type": "string",
+				"description": "Open. Gains members as adapters land.",
+				"enum": [
+					"OK",
+					"SOFT_BLOCK",
+					"HARD_BLOCK",
+					"TARGET_NOT_FOUND",
+					"TARGET_ERROR",
+					"TARGET_RATE_LIMITED",
+					"PROVIDER_TIMEOUT",
+					"PROVIDER_ERROR",
+					"RATE_LIMITED",
+					"AUTH_FAILED",
+					"PROVIDER_DRIFT",
+					"INVALID_REQUEST",
+					"BAD_REQUEST",
+					"TARGET_FORBIDDEN",
+					"NO_PROVIDER_AVAILABLE",
+					"RESPONSE_TOO_LARGE",
+					"BUDGET_EXCEEDED",
+					"GATEWAY_BUSY"
+				]
+			},
+			"OutcomeClass": {
+				"type": "string",
+				"description": "Closed. These six never grow, which is why callers should branch here.",
+				"enum": [
+					"ok",
+					"blocked",
+					"target",
+					"provider",
+					"client",
+					"gateway"
+				]
+			},
+			"ErrorBody": {
+				"type": "object",
+				"required": [
+					"requestId",
+					"error"
+				],
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"error": {
+						"type": "object",
+						"required": [
+							"code",
+							"class",
+							"message",
+							"docs"
+						],
+						"properties": {
+							"code": {
+								"description": "The outcome, or UNAUTHORIZED. One vocabulary whether the failure happened at a provider or before one was reached.",
+								"type": "string"
+							},
+							"class": {
+								"$ref": "#/components/schemas/OutcomeClass"
+							},
+							"message": {
+								"type": "string"
+							},
+							"docs": {
+								"type": "string",
+								"format": "uri"
+							}
+						}
+					},
+					"attempts": {
+						"type": "array",
+						"description": "What was tried and what each provider said. The grain you need when debugging a failover.",
+						"items": {
+							"type": "object"
+						}
+					}
+				}
+			}
+		}
+	}
+}

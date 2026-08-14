@@ -13,7 +13,8 @@
 			"!**/fixtures",
 			"!pnpm-lock.yaml",
 			"!docs/landing-mockup.html",
-			"!**/routeTree.gen.ts"
+			"!**/routeTree.gen.ts",
+			"!apps/web/public/openapi.json"
 		]
 	},
 	"formatter": {

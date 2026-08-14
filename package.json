@@ -14,7 +14,7 @@
 		"conformance": "turbo run build --filter=@proxlane/adapters && node scripts/conformance.ts",
 		"content:lint": "node scripts/not-implemented.ts content:lint",
 		"dev": "turbo run dev --parallel",
-		"docs:check": "node scripts/docs-check.ts",
+		"docs:check": "node scripts/openapi.ts && node scripts/docs-check.ts",
 		"k6:soak": "node scripts/not-implemented.ts k6:soak",
 		"lighthouse:assert": "node scripts/lighthouse-assert.ts --config=tooling/lighthouse/lighthouserc.json",
 		"lint": "biome ci .",
