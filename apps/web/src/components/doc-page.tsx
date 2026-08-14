@@ -27,6 +27,7 @@ export const DOC_NAV: readonly DocNavItem[] = [
 	{ to: '/docs/failover', title: 'How failover works' },
 	{ to: '/docs/agents', title: 'Agents' },
 	{ to: '/docs/use-cases', title: 'Use cases' },
+	{ to: '/docs/changelog', title: 'Changelog' },
 ];
 
 export interface DocHeading {
@@ -222,7 +223,9 @@ function DocFooter() {
 	// The overview has no markdown file, and neither does the generated outcome reference —
 	// pointing "edit this page" at a file that does not exist is worse than omitting the link.
 	const slug = here === '/docs' ? undefined : here.slice('/docs/'.length);
-	const editable = slug !== undefined && slug !== 'outcomes';
+	// Generated pages have no markdown file behind them; an edit link would 404.
+	const GENERATED = new Set(['outcomes', 'changelog']);
+	const editable = slug !== undefined && !GENERATED.has(slug);
 
 	return (
 		<footer className="mt-16 max-w-[46rem] border-[color:var(--color-rule)] border-t pt-6">

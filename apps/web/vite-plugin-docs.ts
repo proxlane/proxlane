@@ -297,6 +297,12 @@ const EXTRA_RECORDS: readonly SearchRecord[] = [
 		text: 'One endpoint in front of every scraping API. Start here. Quickstart hosting API reference outcomes failover agents use cases.',
 	},
 	{
+		path: '/docs/changelog',
+		page: 'Changelog',
+		heading: 'Changelog',
+		text: 'What changed, per package, newest first. Release notes for the gateway, CLI, adapters, detection and shared packages, generated from changesets.',
+	},
+	{
 		path: '/docs/outcomes',
 		page: 'Outcomes',
 		heading: 'Outcomes',
@@ -371,6 +377,137 @@ function slug1(text: string, seen: Map<string, number>): string {
  * rather than requiring a dev-server restart — the thing that decides whether anyone actually
  * writes documentation.
  */
+// ------------------------------------------------------------------------- changelog
+
+/**
+ * The packages a reader of these docs actually consumes.
+ *
+ * Not every workspace package. `ui`, `route-viz`, `db` and the web app are internal, and a
+ * changelog that reports a token rename next to a routing change teaches people to stop
+ * reading it. Ordered by how likely someone is to care.
+ */
+const CHANGELOG_PACKAGES: readonly {
+	readonly dir: string;
+	readonly label: string;
+	readonly note: string;
+}[] = [
+	{ dir: 'apps/gateway', label: 'Gateway', note: 'The proxy itself. This is what you run.' },
+	{ dir: 'packages/cli', label: 'CLI', note: 'The `proxlane` command.' },
+	{
+		dir: 'packages/adapters',
+		label: 'Adapters',
+		note: 'Provider adapters and the capability registry.',
+	},
+	{ dir: 'packages/detect', label: 'Detection', note: 'Block-page heuristics.' },
+	{ dir: 'packages/shared', label: 'Shared', note: 'The outcome taxonomy and request types.' },
+];
+
+export interface ChangelogEntry {
+	readonly version: string;
+	readonly kind: 'Major' | 'Minor' | 'Patch';
+	readonly notes: readonly string[];
+	/** True when the release carried nothing but dependency bumps. */
+	readonly dependenciesOnly: boolean;
+}
+
+export interface ChangelogPackage {
+	readonly label: string;
+	readonly note: string;
+	readonly current: string;
+	readonly releases: readonly ChangelogEntry[];
+}
+
+/**
+ * Parse a changesets-generated CHANGELOG.md.
+ *
+ * DEPENDENCY BUMPS ARE FILTERED. Changesets writes "Updated dependencies [sha]" followed by
+ * the packages, which is accurate and useless to a reader: it says a number moved, not what
+ * changed. Roughly half the lines in these files are that. A release left with nothing is
+ * still listed, marked as dependencies only, because silently dropping a version makes the
+ * list look like it has gaps.
+ */
+export function parseChangelog(md: string): ChangelogEntry[] {
+	const out: ChangelogEntry[] = [];
+	// `## 1.2.3` starts a release; `### Minor Changes` sets the kind for what follows.
+	const sections = md.split(/^## (?=\d)/m).slice(1);
+	for (const section of sections) {
+		const version = /^([\d.]+)/.exec(section)?.[1];
+		if (version === undefined) continue;
+		let kind: ChangelogEntry['kind'] = 'Patch';
+		const notes: string[] = [];
+		let sawDependency = false;
+		let inDependencyBlock = false;
+
+		for (const raw of section.split('\n').slice(1)) {
+			const line = raw.trimEnd();
+			const heading = /^### (Major|Minor|Patch) Changes/.exec(line);
+			if (heading !== null) {
+				// The largest bump wins the label: a release with both minor and patch notes is a
+				// minor release.
+				const found = heading[1] as ChangelogEntry['kind'];
+				if (kind === 'Patch' || found === 'Major') kind = found;
+				continue;
+			}
+			if (/^- Updated dependencies/.test(line)) {
+				sawDependency = true;
+				inDependencyBlock = true;
+				continue;
+			}
+			// The indented package list that follows an "Updated dependencies" bullet.
+			if (inDependencyBlock && /^\s+- /.test(line)) continue;
+			const bullet = /^- (?:[0-9a-f]{7,}: )?(.*)$/.exec(line);
+			if (bullet !== null) {
+				inDependencyBlock = false;
+				const text = (bullet[1] ?? '').trim();
+				if (text !== '') notes.push(text);
+				continue;
+			}
+			// A wrapped continuation of the previous bullet.
+			if (!inDependencyBlock && /^\s{2,}\S/.test(line) && notes.length > 0) {
+				notes[notes.length - 1] = `${notes[notes.length - 1]} ${line.trim()}`;
+			}
+		}
+		out.push({
+			version,
+			kind,
+			notes,
+			dependenciesOnly: notes.length === 0 && sawDependency,
+		});
+	}
+	return out;
+}
+
+export function buildChangelog(root: string): ChangelogPackage[] {
+	const out: ChangelogPackage[] = [];
+	for (const pkg of CHANGELOG_PACKAGES) {
+		const file = join(root, pkg.dir, 'CHANGELOG.md');
+		const manifest = join(root, pkg.dir, 'package.json');
+		let md: string;
+		let current: string;
+		try {
+			md = readFileSync(file, 'utf8');
+			current = JSON.parse(readFileSync(manifest, 'utf8')).version ?? '0.0.0';
+		} catch {
+			// A package with no releases yet is not an error; it simply has nothing to show.
+			continue;
+		}
+		// Notes carry inline markdown — `code`, **bold**, links — so they are rendered here
+		// rather than shipped raw and shown with the backticks still in them. Inline only: a
+		// release note is a sentence, and `render` would wrap each in its own paragraph.
+		const inline = new MarkdownIt({ html: false, linkify: false, typographer: false });
+		const releases = parseChangelog(md).map((r) => ({
+			...r,
+			notes: r.notes.map((n) => inline.renderInline(n)),
+		}));
+		if (releases.length === 0) continue;
+		out.push({ label: pkg.label, note: pkg.note, current, releases });
+	}
+	return out;
+}
+
+const CHANGELOG_ID = 'virtual:docs-changelog';
+const RESOLVED_CHANGELOG_ID = `\0${CHANGELOG_ID}`;
+
 const SEARCH_ID = 'virtual:docs-search';
 const RESOLVED_SEARCH_ID = `\0${SEARCH_ID}`;
 
@@ -384,11 +521,17 @@ export function docsPlugin(options?: { readonly contentDir?: string }): Plugin {
 		// markdown parser reaches the browser. The leading NUL is Vite's convention for a
 		// resolved virtual id: it stops other plugins and the filesystem from claiming it.
 		resolveId(id) {
-			return id === SEARCH_ID ? RESOLVED_SEARCH_ID : null;
+			if (id === SEARCH_ID) return RESOLVED_SEARCH_ID;
+			if (id === CHANGELOG_ID) return RESOLVED_CHANGELOG_ID;
+			return null;
 		},
 		load(id) {
-			if (id !== RESOLVED_SEARCH_ID) return null;
-			return `export default ${JSON.stringify(buildSearchIndex(contentDir))}`;
+			if (id === RESOLVED_SEARCH_ID)
+				return `export default ${JSON.stringify(buildSearchIndex(contentDir))}`;
+			// `../..` from `apps/web` is the repo root, where the package CHANGELOGs live.
+			if (id === RESOLVED_CHANGELOG_ID)
+				return `export default ${JSON.stringify(buildChangelog('../..'))}`;
+			return null;
 		},
 		// Editing a page rebuilds the index rather than serving a stale one in dev.
 		configureServer(server) {

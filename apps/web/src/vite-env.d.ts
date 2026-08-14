@@ -15,3 +15,10 @@ declare module 'virtual:docs-search' {
 	const index: SearchRecord[];
 	export default index;
 }
+
+declare module 'virtual:docs-changelog' {
+	import type { ChangelogPackage } from '../vite-plugin-docs.js';
+
+	const changelog: ChangelogPackage[];
+	export default changelog;
+}
