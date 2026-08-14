@@ -127,26 +127,52 @@ reopen the hole the check exists to close.
 
 `restart: unless-stopped` is already set, so the container survives a reboot.
 
-## 3. Vercel, and other serverless hosts — not for the gateway
+## 3. Vercel — possible since June 2026, with three real constraints
 
-**The gateway is a stateful long-running service and does not belong on a serverless host.**
-This is a straight answer rather than a missing guide:
+**This page previously said the gateway did not belong on Vercel. That was wrong**, and the
+argument it rested on was wrong too: Vercel added Dockerfile deploys on 30 June 2026, and the
+duration limit I claimed would break it does not exist. Hobby allows 300 s, which is well past
+this gateway's 90 s default deadline.
 
-- **Connection pools do not survive.** The whole reason this project runs on Node rather than
-  Bun is undici's per-origin pools with per-provider timeouts. A function that is frozen
-  between invocations rebuilds them constantly, which costs exactly the latency the pools exist
-  to avoid.
-- **The requests are too long.** The default global deadline is 90 s and a terminal hop is
-  budgeted up to 70 s. That exceeds the function duration available on Vercel's Hobby tier.
-- **Cooldown state is in-process by default.** Each invocation would start with an empty view
-  of which providers are cooling off, so a blocked provider gets retried immediately, every
-  time. You can move that to Valkey with `PROXLANE_VALKEY_URL` — but at that point you are
-  running a stateful service and paying for a serverless wrapper around it.
-- **The boot memory check** expects a cgroup limit or an explicit `PROXLANE_MEMORY_LIMIT_MB`.
+You add a `Dockerfile.vercel` that listens on `$PORT`; Vercel builds it, stores it in its
+container registry, and runs it as an HTTP-backed function on Fluid compute. Our Dockerfile
+already reads `PORT`, so it is close to a drop-in.
 
-Use a machine: a droplet, a small VPS, Fly.io, Railway, Render, or anything else that runs a
-container continuously. **The marketing site (`apps/web`) is an ordinary TanStack Start app and
-deploys to Vercel fine** — it is only the gateway that does not fit.
+Three constraints do bite, and the first is the one that will actually catch you:
+
+**1. The 4.5 MB body cap.** Vercel caps request AND response bodies at 4.5 MB, returning
+`413 FUNCTION_PAYLOAD_TOO_LARGE` past it. Proxlane's default `PROXLANE_BODY_CAP_MB` is **10**,
+and a scraping gateway exists to return page bodies. Set it to 4 or lower:
+
+```
+PROXLANE_BODY_CAP_MB=4
+```
+
+Otherwise every large page becomes a platform error rather than a proxlane outcome, which is
+precisely the kind of unexplained failure the outcome taxonomy exists to prevent.
+
+**2. Autoscaling means many instances, and cooldowns are in-process.** Vercel scales to 30,000
+concurrent executions. Each instance keeps its own view of which providers are cooling off, so
+a provider that just refused one instance is retried immediately by the next. Set
+`PROXLANE_VALKEY_URL` to a managed Valkey or Redis.
+
+The gateway already refuses to boot when `PROXLANE_REPLICAS > 1` without Valkey, and an
+autoscaling fleet is that case whether or not you set the variable. Treat the refusal as the
+design telling you the truth.
+
+**3. Scale to zero.** Idle instances are reclaimed, so the first request after a quiet period
+pays a cold start and rebuilds undici's per-origin pools — the pools that are the reason this
+project runs on Node at all. Warm instances reuse them; a fleet that is constantly cycling does
+not. If your traffic is bursty and latency-sensitive, a small always-on machine still wins.
+
+Also worth knowing: **1,024 file descriptors are shared across concurrent executions** on an
+instance, and every provider connection consumes one. Keep `MAX_INFLIGHT` modest.
+
+Memory is not a problem: Hobby gives 2 GB against the roughly 800 MB the boot check wants at
+default settings.
+
+**The marketing site (`apps/web`) is an ordinary TanStack Start app** and deploys to Vercel with
+none of the above applying.
 
 ## 4. Running more than one gateway
 
