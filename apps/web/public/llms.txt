@@ -1,0 +1,33 @@
+# Proxlane
+
+> One endpoint in front of every scraping API. Routes requests across ScraperAPI, ScrapingBee
+> and Scrapfly with automatic failover, cost-aware routing and honest block detection. AGPL,
+> self-hostable, bring your own provider keys.
+
+Proxlane is a gateway, not a scraper. It makes one request and returns one response, and the
+response headers say what happened: which providers were tried, which served, what it cost,
+and whether a block page was detected.
+
+The header to branch on is `X-Outcome-Class`. It has six values and never grows.
+`X-Outcome` is more precise but gains members over time.
+
+## Docs
+
+- [Quickstart](https://proxlane.dev/docs/quickstart): Make your first request in about a minute.
+- [Hosting](https://proxlane.dev/docs/hosting): Where the gateway runs well, where it runs badly, and why.
+- [API reference](https://proxlane.dev/docs/api): Every endpoint, parameter and header the gateway implements.
+- [Outcomes](https://proxlane.dev/docs/outcomes): What every result means, what it returns, and whether to retry.
+- [How failover works](https://proxlane.dev/docs/failover): Chains, detection, cooldowns and deadlines.
+- [Using Proxlane from an agent](https://proxlane.dev/docs/agents): How to give an AI agent a scraping tool that fails honestly.
+- [Use cases](https://proxlane.dev/docs/use-cases): What Proxlane is good at, and what it is not for.
+
+## Source
+
+- [Repository](https://github.com/proxlane/proxlane): AGPL-3.0 for the gateway; Apache-2.0 for the adapter, detection and shared packages.
+- [Self-hosting guide](https://github.com/proxlane/proxlane/blob/main/docs/self-hosting.md): Compose, VPS, reverse proxies and known gaps.
+
+## Notes
+
+- There is no MCP server and no published SDK. Use the HTTP endpoint.
+- Proxlane does not defeat anti-bot measures. It reports when a provider was blocked.
+- Provider keys stay in the gateway's environment. Clients authenticate to the gateway.

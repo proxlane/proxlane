@@ -10,33 +10,141 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DocsIndexRouteImport } from './routes/docs/index'
+import { Route as DocsAgentsRouteImport } from './routes/docs/agents'
+import { Route as DocsApiRouteImport } from './routes/docs/api'
+import { Route as DocsFailoverRouteImport } from './routes/docs/failover'
+import { Route as DocsHostingRouteImport } from './routes/docs/hosting'
+import { Route as DocsOutcomesRouteImport } from './routes/docs/outcomes'
+import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
+import { Route as DocsUseCasesRouteImport } from './routes/docs/use-cases'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/docs/',
+  path: '/docs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsAgentsRoute = DocsAgentsRouteImport.update({
+  id: '/docs/agents',
+  path: '/docs/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsApiRoute = DocsApiRouteImport.update({
+  id: '/docs/api',
+  path: '/docs/api',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsFailoverRoute = DocsFailoverRouteImport.update({
+  id: '/docs/failover',
+  path: '/docs/failover',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsHostingRoute = DocsHostingRouteImport.update({
+  id: '/docs/hosting',
+  path: '/docs/hosting',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsOutcomesRoute = DocsOutcomesRouteImport.update({
+  id: '/docs/outcomes',
+  path: '/docs/outcomes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsQuickstartRoute = DocsQuickstartRouteImport.update({
+  id: '/docs/quickstart',
+  path: '/docs/quickstart',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsUseCasesRoute = DocsUseCasesRouteImport.update({
+  id: '/docs/use-cases',
+  path: '/docs/use-cases',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/docs/agents': typeof DocsAgentsRoute
+  '/docs/api': typeof DocsApiRoute
+  '/docs/failover': typeof DocsFailoverRoute
+  '/docs/hosting': typeof DocsHostingRoute
+  '/docs/outcomes': typeof DocsOutcomesRoute
+  '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/use-cases': typeof DocsUseCasesRoute
+  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/docs/agents': typeof DocsAgentsRoute
+  '/docs/api': typeof DocsApiRoute
+  '/docs/failover': typeof DocsFailoverRoute
+  '/docs/hosting': typeof DocsHostingRoute
+  '/docs/outcomes': typeof DocsOutcomesRoute
+  '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/use-cases': typeof DocsUseCasesRoute
+  '/docs': typeof DocsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/docs/agents': typeof DocsAgentsRoute
+  '/docs/api': typeof DocsApiRoute
+  '/docs/failover': typeof DocsFailoverRoute
+  '/docs/hosting': typeof DocsHostingRoute
+  '/docs/outcomes': typeof DocsOutcomesRoute
+  '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/use-cases': typeof DocsUseCasesRoute
+  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/docs/agents'
+    | '/docs/api'
+    | '/docs/failover'
+    | '/docs/hosting'
+    | '/docs/outcomes'
+    | '/docs/quickstart'
+    | '/docs/use-cases'
+    | '/docs/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/docs/agents'
+    | '/docs/api'
+    | '/docs/failover'
+    | '/docs/hosting'
+    | '/docs/outcomes'
+    | '/docs/quickstart'
+    | '/docs/use-cases'
+    | '/docs'
+  id:
+    | '__root__'
+    | '/'
+    | '/docs/agents'
+    | '/docs/api'
+    | '/docs/failover'
+    | '/docs/hosting'
+    | '/docs/outcomes'
+    | '/docs/quickstart'
+    | '/docs/use-cases'
+    | '/docs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DocsAgentsRoute: typeof DocsAgentsRoute
+  DocsApiRoute: typeof DocsApiRoute
+  DocsFailoverRoute: typeof DocsFailoverRoute
+  DocsHostingRoute: typeof DocsHostingRoute
+  DocsOutcomesRoute: typeof DocsOutcomesRoute
+  DocsQuickstartRoute: typeof DocsQuickstartRoute
+  DocsUseCasesRoute: typeof DocsUseCasesRoute
+  DocsIndexRoute: typeof DocsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +156,75 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/': {
+      id: '/docs/'
+      path: '/docs'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/agents': {
+      id: '/docs/agents'
+      path: '/docs/agents'
+      fullPath: '/docs/agents'
+      preLoaderRoute: typeof DocsAgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/api': {
+      id: '/docs/api'
+      path: '/docs/api'
+      fullPath: '/docs/api'
+      preLoaderRoute: typeof DocsApiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/failover': {
+      id: '/docs/failover'
+      path: '/docs/failover'
+      fullPath: '/docs/failover'
+      preLoaderRoute: typeof DocsFailoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/hosting': {
+      id: '/docs/hosting'
+      path: '/docs/hosting'
+      fullPath: '/docs/hosting'
+      preLoaderRoute: typeof DocsHostingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/outcomes': {
+      id: '/docs/outcomes'
+      path: '/docs/outcomes'
+      fullPath: '/docs/outcomes'
+      preLoaderRoute: typeof DocsOutcomesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/quickstart': {
+      id: '/docs/quickstart'
+      path: '/docs/quickstart'
+      fullPath: '/docs/quickstart'
+      preLoaderRoute: typeof DocsQuickstartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/use-cases': {
+      id: '/docs/use-cases'
+      path: '/docs/use-cases'
+      fullPath: '/docs/use-cases'
+      preLoaderRoute: typeof DocsUseCasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DocsAgentsRoute: DocsAgentsRoute,
+  DocsApiRoute: DocsApiRoute,
+  DocsFailoverRoute: DocsFailoverRoute,
+  DocsHostingRoute: DocsHostingRoute,
+  DocsOutcomesRoute: DocsOutcomesRoute,
+  DocsQuickstartRoute: DocsQuickstartRoute,
+  DocsUseCasesRoute: DocsUseCasesRoute,
+  DocsIndexRoute: DocsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

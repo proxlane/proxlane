@@ -1,0 +1,80 @@
+---
+title: Quickstart
+summary: Make your first request in about a minute.
+---
+
+Proxlane is one endpoint in front of ScraperAPI, ScrapingBee and Scrapfly. If a provider
+blocks, errors or times out, Proxlane tries the next one. The response tells you what
+happened at every step.
+
+## Make a request
+
+```bash
+curl "https://your-gateway/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
+```
+
+The body is the target's body, unchanged. The headers carry everything else:
+
+```http
+HTTP/1.1 200 OK
+X-Outcome: OK
+X-Outcome-Class: ok
+X-Attempts: 2
+X-Provider-Used: scrapfly
+X-Cost-Estimate: 0.002800
+Server-Timing: gw;dur=1.7, up;dur=2451.0, total;dur=2452.7
+X-Request-Id: 01JD8F2K9WQ3
+```
+
+Read that as: two providers were tried, the second one served the page, and it cost 0.0028
+credits. Proxlane itself took 1.7 ms. The provider took the other 2.45 seconds.
+
+## Migrate an existing integration
+
+The query shape matches ScraperAPI's, so migrating is a hostname change.
+
+```bash
+# before
+curl "https://api.scraperapi.com?api_key=KEY&url=https://example.com&render=true"
+
+# after
+curl "https://your-gateway/v1?api_key=KEY&url=https://example.com&render=true"
+```
+
+One thing changes meaning. `api_key` is now the **gateway's** key. Your provider keys stay in
+the gateway's environment and are never sent by the client.
+
+## Authenticate with a header instead
+
+```bash
+curl -H "Authorization: Bearer $PROXLANE_API_KEY" \
+  "https://your-gateway/v1?url=https://example.com"
+```
+
+Prefer this in new code. `api_key` in the query string works, because that is what the
+providers Proxlane replaces accept. But query strings end up in access logs, proxy logs,
+`Referer` headers and error trackers. None of those should hold a credential.
+
+## Run the gateway
+
+```bash
+docker run -p 8787:8787 \
+  -e PROXLANE_API_KEY="$(openssl rand -hex 32)" \
+  -e SCRAPERAPI_KEY=... \
+  ghcr.io/proxlane/gateway:latest
+```
+
+You need at least one provider key. Providers you have no key for are left out of the chain.
+
+The gateway will not start without `PROXLANE_API_KEY`. Without it, anyone who can reach the
+port can spend your provider credits.
+
+## Next
+
+- [API reference](/docs/api) for every parameter and header.
+- [Outcomes](/docs/outcomes) for what each result means and whether you should retry.
+- [Self-hosting](https://github.com/proxlane/proxlane/blob/main/docs/self-hosting.md) for
+  Compose, VPS and reverse-proxy setups.
+
+If something looks wrong, run `npx proxlane doctor`. It prints what it checked and what it
+found, so the output is worth pasting into an issue.

@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { docsPlugin } from './vite-plugin-docs.js';
 
 // TanStack Start, per `CLAUDE.md`'s decision. Not Next.js.
 //
@@ -30,6 +31,9 @@ export default defineConfig({
 	// `viteEnvironment: { name: 'ssr' }` points the plugin at Start's SSR environment rather
 	// than letting it create its own, which is what makes one build serve both targets.
 	plugins: [
+		// BEFORE everything: the docs transform must run on the raw file, and `enforce: 'pre'`
+		// on the plugin itself is what guarantees that regardless of position here.
+		docsPlugin(),
 		cloudflare({ viteEnvironment: { name: 'ssr' } }),
 		tailwindcss(),
 		tanstackStart(),

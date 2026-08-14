@@ -37,6 +37,10 @@ catalog:
   pg: ^8.23
   '@types/pg': ^8.21
 
+  # docs rendering — build time only, never in the Worker bundle
+  markdown-it: ^15.0
+  shiki: ^4.4
+
   # data
   drizzle-orm: ^0.45
   hono: ^4.12
