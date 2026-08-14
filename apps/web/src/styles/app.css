@@ -575,3 +575,23 @@ html[data-theme="dark"] .doc-prose .shiki span {
 	text-decoration: underline;
 	text-underline-offset: 0.2em;
 }
+
+/* The station the reader is at.
+ *
+ * `index.tsx` marks one section with `data-here` as it scrolls through the reading band, and
+ * these two rules are the whole effect: the artifact's border takes the accent, and the tick
+ * joining it to the trunk takes it too. Together they read as a position on the line, which
+ * is the point — a panel that merely lit up on its own would be a highlighted box, not a stop.
+ *
+ * The accent is MIXED WITH THE RULE rather than used neat. At full strength every scroll turns
+ * a quiet page into a flashing one, and the accent is the colour the call to action owns.
+ * A panel is being pointed at, not shouted about. */
+[data-station][data-here] [data-panel] {
+	border-color: color-mix(in oklab, var(--color-accent) 42%, var(--color-rule));
+	box-shadow:
+		var(--shadow-panel),
+		0 0 22px -10px color-mix(in oklab, var(--color-accent) 55%, transparent);
+}
+[data-station][data-here] [data-tick] {
+	background-color: color-mix(in oklab, var(--color-accent) 55%, var(--color-rule));
+}
