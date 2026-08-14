@@ -18,6 +18,7 @@ Short by design; the SessionStart hook prints it.
 | `docs/design.md` | anything in `apps/web`, `packages/ui`, or `packages/route-viz` |
 | `docs/operating.md` | writing content, or working on repo process, CI cadence, or releases |
 | `docs/plan.md` | you need a phase boundary, a scope call, or the reasoning behind one |
+| `docs/self-hosting.md` | anything a self-hoster runs: compose, droplets, env, the endpoints |
 | `docs/landing-mockup.html` | building the marketing hero |
 | `docs/affiliate-emails.md` | Phase 0 outreach only |
 

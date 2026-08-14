@@ -98,19 +98,23 @@ Full parameter reference: [docs.proxlane.dev](https://docs.proxlane.dev)
 ```bash
 git clone https://github.com/proxlane/proxlane
 cd proxlane
-cp .env.example .env   # add your provider keys
-docker compose up
+cp .env.example .env
+openssl rand -hex 32   # paste as PROXLANE_API_KEY in .env, then add your provider keys
+docker compose -f docker/compose.yml --env-file .env up -d --build
 ```
+
+`--env-file` is not decoration: Compose takes its project directory from the compose file's
+location, so without it your root `.env` is never read and the gateway refuses to boot.
+Full guide, including droplets and why the gateway does not belong on Vercel:
+[`docs/self-hosting.md`](docs/self-hosting.md).
 
 One gateway on :8787. No dashboard, no Postgres, no worker — none of them exist yet, and
 shipping empty services would be furniture rather than a deployment. Valkey ships commented
 out: it is what lets you run more than one gateway, and a single one does not need it.
 
-Your keys, your infrastructure, your scraped data. Nothing phones home unless you opt in.
-
-Self-hosters can optionally share anonymized per-domain routing statistics. In
-exchange you get the community routing table, which is the data that makes smart
-routing work. Opt in with `PROXLANE_SHARE_STATS=true`, off by default.
+Your keys, your infrastructure, your scraped data. **Nothing phones home** — there is no
+telemetry in the gateway or the CLI, and the only hosts either one contacts are the provider
+you configured and the URL you asked for.
 
 ## Providers
 
