@@ -21,6 +21,11 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 - [Using Proxlane from an agent](https://proxlane.dev/docs/agents): How to give an AI agent a scraping tool that fails honestly.
 - [Use cases](https://proxlane.dev/docs/use-cases): What Proxlane is good at, and what it is not for.
 
+## Other formats
+
+- [Everything in one file](https://proxlane.dev/llms-full.txt): every page concatenated.
+- Raw markdown per page: add `.md` to any docs URL, e.g. https://proxlane.dev/docs/api.md
+
 ## Source
 
 - [Repository](https://github.com/proxlane/proxlane): AGPL-3.0 for the gateway; Apache-2.0 for the adapter, detection and shared packages.

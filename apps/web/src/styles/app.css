@@ -295,11 +295,18 @@ body::before {
 	margin-block: 2.4em;
 }
 
-/* Shiki emits both palettes at once; this picks one. Without it the dark theme's colours are
- * present in the DOM and simply never applied, which reads as "highlighting is broken in dark
- * mode" rather than as a missing two-line switch. */
-html[data-theme="dark"] .shiki,
-html[data-theme="dark"] .shiki span {
-	background-color: var(--shiki-dark-bg) !important;
-	color: var(--shiki-dark) !important;
+/* Shiki emits both palettes at once, as CSS variables rather than inline colours — that is
+ * what `defaultColor: false` buys. So picking one is a plain declaration and needs no
+ * `!important`: there is no inline `color` to outrank, only `--shiki-light` and
+ * `--shiki-dark` sitting on each span waiting to be read.
+ *
+ * The background stays ours. Shiki also emits `--shiki-*-bg`, but the code block should match
+ * the panels around it rather than bring GitHub's surface colour into a hand-authored theme. */
+.doc-prose .shiki,
+.doc-prose .shiki span {
+	color: var(--shiki-light);
+}
+html[data-theme="dark"] .doc-prose .shiki,
+html[data-theme="dark"] .doc-prose .shiki span {
+	color: var(--shiki-dark);
 }

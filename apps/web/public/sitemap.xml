@@ -1,11 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- One route today. It is here anyway because it names the canonical host, which is the
-     part that matters while the site is reachable on both proxlane.dev and a workers.dev
-     subdomain. `apps/web/src/generators/**` takes this over when there are generated pages. -->
+<!-- Every indexable route. `docs:check` assertion 7 fails if a docs page is missing from
+     here, because adding pages and forgetting the sitemap is exactly what happened the first
+     time: seven pages shipped and this file still listed one.
+
+     `apps/web/src/generators/**` takes this over when there are generated pages. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://proxlane.dev/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://proxlane.dev/docs</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://proxlane.dev/docs/quickstart</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://proxlane.dev/docs/api</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://proxlane.dev/docs/outcomes</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://proxlane.dev/docs/hosting</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://proxlane.dev/docs/failover</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://proxlane.dev/docs/agents</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://proxlane.dev/docs/use-cases</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
   </url>
 </urlset>
