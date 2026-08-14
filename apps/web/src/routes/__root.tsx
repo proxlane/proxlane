@@ -35,7 +35,16 @@ export const Route = createRootRoute({
 			{ property: 'og:title', content: TITLE },
 			{ property: 'og:description', content: DESCRIPTION },
 			{ property: 'og:url', content: `${SITE}/` },
-			{ name: 'twitter:card', content: 'summary' },
+			{ property: 'og:image', content: `${SITE}/og.png` },
+			{ property: 'og:image:width', content: '2400' },
+			{ property: 'og:image:height', content: '1260' },
+			{
+				property: 'og:image:alt',
+				content:
+					'A request routed across three providers: blocked, errored, then served 200 OK.',
+			},
+			{ name: 'twitter:card', content: 'summary_large_image' },
+			{ name: 'twitter:image', content: `${SITE}/og.png` },
 			{ name: 'twitter:title', content: TITLE },
 			{ name: 'twitter:description', content: DESCRIPTION },
 		],

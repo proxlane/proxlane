@@ -14,24 +14,34 @@
  */
 export function Wordmark({ className }: { readonly className?: string }) {
 	return (
-		<span className={`inline-flex items-baseline tracking-[-0.03em] ${className ?? ''}`}>
+		<span className={`tracking-[-0.03em] ${className ?? ''}`}>
 			pr
-			{/* Sits on the baseline with the lowercase letters rather than centred on the line
-			    box, so it reads as a glyph and not as an icon that wandered into the word. */}
+			{/* MEASURED AGAINST THE FACE, not eyeballed. Hanken Grotesk at 500 puts its x-height
+			    at 0.513em and its `o` from 0.0101em below the baseline to 0.5231em above — a 1%
+			    overshoot at each end, which is what stops a round letter looking smaller than a
+			    flat one. So the ring is 0.5332em tall and hangs 0.0101em below the baseline, and
+			    it is a plain inline element: `vertical-align` puts a replaced element's bottom
+			    edge exactly on the baseline, which a flex `items-baseline` does not, because an
+			    SVG has no baseline of its own to align. That is why the first version floated. */}
 			<svg
-				width="0.62em"
-				height="0.62em"
+				width="0.5332em"
+				height="0.5332em"
 				viewBox="0 0 32 32"
 				aria-hidden="true"
-				className="mx-[0.045em] translate-y-[0.01em]"
+				style={{ verticalAlign: '-0.0101em' }}
+				className="mx-[0.006em] inline-block"
 			>
+				{/* Stroke 5.7 of 32 is ~0.095em, the stem weight of this face at 500. Heavier and
+				    it reads as an icon dropped into the word rather than as the letter it stands
+				    in for. r + half the stroke fills the box exactly, so the ring's outer edge is
+				    the glyph's outer edge. */}
 				<circle
 					cx="16"
 					cy="16"
-					r="10"
+					r="13.15"
 					fill="none"
 					stroke="var(--color-accent)"
-					strokeWidth="7"
+					strokeWidth="5.7"
 				/>
 			</svg>
 			xlane
