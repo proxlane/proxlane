@@ -5,7 +5,7 @@
 	"private": true,
 	"license": "AGPL-3.0-only",
 	"scripts": {
-		"dev": "node --watch src/index.ts",
+		"dev": "tsdown src/index.ts src/app.ts src/transport.ts --format esm --watch src --on-success \"node dist/index.mjs\"",
 		"build": "tsdown src/index.ts src/app.ts src/transport.ts --format esm --dts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"clean": "rm -rf dist"
