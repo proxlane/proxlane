@@ -105,14 +105,19 @@
 	 * mixed most of the way to the ground before it is ever painted — it should read as the
 	 * surface the page is drawn on, never as a thing on the page.
 	 *
+	 * TWO DIALS, both turned down after the first attempt read as aggressive: the mix from 42%
+	 * to 22%, and the cell from 96px to 128px. Density mattered as much as contrast — at 96px a
+	 * 1440px viewport carried fifteen columns of line, which is a lot of ruling to sit behind
+	 * type however faint each one is.
+	 *
 	 * `color-mix`, not a second hex: the field has no colour of its own to keep in sync, and
 	 * `tokens:check` bans a raw hex outside this file for exactly that reason.
 	 */
-	--field-line: color-mix(in oklab, var(--color-rule) 42%, var(--color-ground));
+	--field-line: color-mix(in oklab, var(--color-rule) 22%, var(--color-ground));
 	--field-grid:
 		linear-gradient(var(--field-line) 1px, transparent 1px),
 		linear-gradient(90deg, var(--field-line) 1px, transparent 1px);
-	--field-cell: 96px;
+	--field-cell: 128px;
 
 	/* Paper sits above the field. Two stops: a hairline seat, and a wide soft one that only
 	 * separates rather than dramatises. Mixed from ink so it inverts with the theme instead of

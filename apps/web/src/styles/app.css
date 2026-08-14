@@ -81,7 +81,7 @@ body::before {
 	z-index: -1;
 	background-image: var(--field-grid);
 	background-size: var(--field-cell) var(--field-cell);
-	mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 92%);
+	mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 78%);
 	pointer-events: none;
 }
 
