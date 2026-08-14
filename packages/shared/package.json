@@ -12,13 +12,17 @@
 		".": {
 			"types": "./dist/index.d.mts",
 			"default": "./dist/index.mjs"
+		},
+		"./outcome": {
+			"types": "./dist/outcome.d.mts",
+			"default": "./dist/outcome.mjs"
 		}
 	},
 	"files": [
 		"dist"
 	],
 	"scripts": {
-		"build": "tsdown src/index.ts --format esm --dts",
+		"build": "tsdown src/index.ts src/outcome.ts --format esm --dts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"clean": "rm -rf dist"
 	},

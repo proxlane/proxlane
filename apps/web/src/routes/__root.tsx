@@ -54,7 +54,11 @@ export const Route = createRootRoute({
 			// one anyway, took a 404, and logged a console error that cost the Lighthouse
 			// best-practices score — a real defect that only showed up against a built server.
 			{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-			{ rel: 'canonical', href: `${SITE}/` },
+			// NO `canonical` HERE, and no `og:url` either. Both are per-page facts, and the root
+			// route is every page — pinned to `${SITE}/` they told a crawler that /docs is a
+			// duplicate of the homepage and should be dropped from the index, which on a project
+			// whose entire growth model is search is the most expensive possible default. Each
+			// route declares its own via `docHead` in `src/lib/doc-head.ts`.
 		],
 	}),
 	component: RootComponent,
@@ -125,21 +129,21 @@ function SiteHeader() {
 				<Wordmark />
 			</Link>
 			<nav className="flex items-center gap-6 text-[color:var(--color-slate)] text-sm">
-				<a className={NAV_LINK} href="/docs">
+				<Link className={NAV_LINK} to="/docs">
 					docs
-				</a>
+				</Link>
 				<a className={NAV_LINK} href="https://github.com/proxlane/proxlane">
 					github
 				</a>
 				<ThemeToggle />
 				{/* Hidden on phones, where four controls and a wordmark do not fit across 342px and
 				    the hero's own call to action is one scroll away regardless. */}
-				<a
-					href="/docs"
+				<Link
+					to="/docs"
 					className="ml-1 hidden min-h-9 items-center rounded-card bg-[color:var(--color-accent)] px-3.5 font-medium text-[color:var(--color-ground)] text-sm transition-opacity hover:opacity-85 sm:inline-flex"
 				>
 					Get started
-				</a>
+				</Link>
 			</nav>
 		</header>
 	);

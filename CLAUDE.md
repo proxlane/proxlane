@@ -107,6 +107,8 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Workers build | npm | `@cloudflare/vite-plugin` | `^1.52` | deploys `apps/web` to Cloudflare Workers. **Must sit before `tanstackStart()` in the plugin list** — after it, Start resolves a Node server entry and the Worker bundle never forms |
 | Workers CLI | npm | `wrangler` | `^4.123` | `wrangler deploy`, and the schema `wrangler.jsonc` validates against. The gateway does NOT go here: Workers has no undici pools and no Node runtime |
 | React Refresh | npm | `@vitejs/plugin-react` | `^6.0` | TanStack Start's dev mode REQUIRES a React Refresh runtime and 500s on every page load without one. The error names `/@react-refresh`, not the missing plugin, so it reads as a Vite bug |
+| Markdown | npm | `markdown-it` | `^15.0` | the docs site renders `apps/web/content/docs/**`. CommonMark plus tables, which is the whole requirement. **No `@types/markdown-it`** — 15 bundles its own, and DefinitelyTyped is still on 14, so adding it would pin types a major behind the package |
+| Code highlighting | npm | `shiki` | `^4.4` | docs code blocks. **A devDependency of `apps/web`, deliberately**: highlighting runs in the Vite plugin at build time, so neither this nor `markdown-it` reaches the Worker bundle. Shiki at runtime would ship TextMate grammars and a regex engine to the edge to re-highlight the same static file on every isolate |
 | Sans | npm | `@fontsource-variable/hanken-grotesk` | `^5.3` | self-hosted, per `design.md`'s type choice. Never a font CDN: a third-party request on every page load, on a site whose pitch is that it does not leak |
 | Mono | npm | `@fontsource/ibm-plex-mono` | `^5.3` | code and readouts. **Not Martian Mono**, which is a display mono at a 0.72em advance — it forced 79-character transcripts to need a 918px column and clipped labels twice. Plex is humanist like the sans and ~0.60em |
 | React | npm | `react` | `^19.2` | |
@@ -158,6 +160,7 @@ faithfully reflects a table that is now wrong.
 | `apps/gateway/**` | Hono. The proxy. Hot path only | platform-engineer |
 | `apps/web/**` | TanStack Start. Landing, docs, dashboard, auth UI | design-engineer |
 | `apps/web/content/**` | hand-written MDX pages | seo-content |
+| `apps/web/content/docs/**` | the docs site's markdown. **After `apps/web/content/**`** — last match wins, and these are the reference pages, not marketing copy | docs-writer |
 | `apps/web/src/generators/**` | generated pages, sitemap, OG, affiliate flow | growth-engineer |
 | `apps/web/src/routes/docs/**` | docs site, `llms.txt`, markdown-at-`.md`, OpenAPI | docs-writer |
 | `apps/worker/**` | queues. Owned now, created by the PR that adds the first one | data-engineer |

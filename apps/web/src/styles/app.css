@@ -164,3 +164,142 @@ body::before {
 		transition-duration: 0.01ms !important;
 	}
 }
+
+/* Rendered markdown.
+ *
+ * Hand-authored rather than a typography plugin, for the same reason `packages/ui` wraps Base
+ * UI instead of taking a component library: a plugin ships opinions about a type scale this
+ * project has already decided, and overriding them costs more than writing the twenty rules
+ * that are actually needed.
+ *
+ * The measure is set on the container, not here, so tables and code blocks can break out of it
+ * while prose stays readable. */
+.doc-prose {
+	color: var(--color-slate);
+	line-height: 1.7;
+}
+.doc-prose > * + * {
+	margin-top: 1.1em;
+}
+.doc-prose h2,
+.doc-prose h3 {
+	color: var(--color-ink);
+	font-weight: 500;
+	letter-spacing: -0.01em;
+	/* Space above a heading, never below: the gap belongs to the section starting, and equal
+	   pads make a heading float between two blocks instead of introducing one. */
+	margin-top: 2.4em;
+	scroll-margin-top: 2rem;
+}
+.doc-prose h2 {
+	font-size: 1.3rem;
+}
+.doc-prose h3 {
+	font-size: 1.05rem;
+	margin-top: 1.9em;
+}
+.doc-prose h2 + *,
+.doc-prose h3 + * {
+	margin-top: 0.7em;
+}
+.doc-prose strong {
+	color: var(--color-ink);
+	font-weight: 500;
+}
+.doc-prose a {
+	color: var(--color-accent);
+	text-decoration: underline;
+	text-underline-offset: 0.2em;
+	/* The link colour already carries it; a full-strength rule under every link in a reference
+	   page turns the page into stripes. */
+	text-decoration-color: color-mix(in oklab, var(--color-accent) 35%, transparent);
+}
+.doc-prose a:hover {
+	text-decoration-color: var(--color-accent);
+}
+.doc-prose ul,
+.doc-prose ol {
+	padding-left: 1.3em;
+}
+.doc-prose ul {
+	list-style: disc;
+}
+.doc-prose ol {
+	list-style: decimal;
+}
+.doc-prose li + li {
+	margin-top: 0.4em;
+}
+.doc-prose li::marker {
+	color: var(--color-rule);
+}
+/* Inline code, not blocks: `pre code` is reset below so Shiki's own colours survive. */
+.doc-prose :not(pre) > code {
+	background: color-mix(in oklab, var(--color-ink) 6%, transparent);
+	border-radius: 4px;
+	color: var(--color-ink);
+	font-family: var(--font-mono);
+	font-size: 0.86em;
+	padding: 0.12em 0.36em;
+}
+.doc-prose pre {
+	background: var(--color-surface);
+	border: 1px solid var(--color-rule);
+	border-radius: var(--radius-card, 8px);
+	font-size: 0.84rem;
+	line-height: 1.6;
+	overflow-x: auto;
+	padding: 1rem 1.1rem;
+}
+.doc-prose pre code {
+	background: none;
+	font-family: var(--font-mono);
+	padding: 0;
+}
+.doc-prose table {
+	border-collapse: collapse;
+	display: block;
+	font-size: 0.9rem;
+	/* Tables are the one block allowed to exceed the measure, and they scroll rather than
+	   forcing the page to. A reference table squeezed into 46rem wraps every cell to three
+	   lines and stops being scannable, which is the only thing a table is for. */
+	overflow-x: auto;
+	width: 100%;
+}
+.doc-prose th {
+	color: var(--color-slate);
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+.doc-prose th,
+.doc-prose td {
+	border-bottom: 1px solid var(--color-rule);
+	padding: 0.6rem 1rem 0.6rem 0;
+	text-align: left;
+	vertical-align: top;
+}
+.doc-prose td:first-child {
+	color: var(--color-ink);
+	white-space: nowrap;
+}
+.doc-prose blockquote {
+	border-left: 2px solid var(--color-accent);
+	padding-left: 1rem;
+}
+.doc-prose hr {
+	border: 0;
+	border-top: 1px solid var(--color-rule);
+	margin-block: 2.4em;
+}
+
+/* Shiki emits both palettes at once; this picks one. Without it the dark theme's colours are
+ * present in the DOM and simply never applied, which reads as "highlighting is broken in dark
+ * mode" rather than as a missing two-line switch. */
+html[data-theme="dark"] .shiki,
+html[data-theme="dark"] .shiki span {
+	background-color: var(--shiki-dark-bg) !important;
+	color: var(--shiki-dark) !important;
+}

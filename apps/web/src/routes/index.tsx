@@ -2,7 +2,16 @@ import { describeRoute, type RouteAttempt, RouteDiagram } from '@proxlane/route-
 import { createFileRoute } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
-export const Route = createFileRoute('/')({ component: Home });
+export const Route = createFileRoute('/')({
+	// The homepage declares its own canonical and `og:url` now that the root no longer does.
+	// The root set them for every page, which told crawlers each docs page was a duplicate of
+	// this one; moving them per-route fixes that and must not drop them from here.
+	head: () => ({
+		meta: [{ property: 'og:url', content: 'https://proxlane.dev/' }],
+		links: [{ rel: 'canonical', href: 'https://proxlane.dev/' }],
+	}),
+	component: Home,
+});
 
 /**
  * The page has one job, per `design.md`: convince someone to change one hostname.
