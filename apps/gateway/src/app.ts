@@ -21,6 +21,7 @@ import type { ChainResult } from './chain.js';
 import { runChain } from './chain.js';
 import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
+import { InflightLimiter, retryAfterSeconds } from './inflight.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
 import type { HttpTransport } from './transport.js';
 
@@ -32,6 +33,14 @@ export interface AppDeps {
 	readonly apiKey: string;
 	readonly maxBodyBytes: number;
 	readonly defaultDeadlineMs: number;
+	/**
+	 * Concurrent `/v1` requests before the gateway sheds with `GATEWAY_BUSY`.
+	 *
+	 * Omit to run without a ceiling, which is what the unit and contract tests want: they
+	 * drive the handler directly and a limiter would make their concurrency meaningful. The
+	 * server always sets it — `index.ts` reads `PROXLANE_MAX_INFLIGHT`.
+	 */
+	readonly maxInflight?: number;
 	/** Omit to route without health. The gateway then behaves exactly as it did before. */
 	readonly health?: HealthStore;
 	/** Omit to route without cooldowns. */
@@ -312,22 +321,12 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		return c.json({ cooling, expired });
 	});
 
-	const handler = async (c: Context<Vars>) => {
-		if (!keyMatches(presentedKey(c), deps.apiKey)) {
-			// NOT an Outcome. The taxonomy describes what happened to a scrape; this request
-			// never became one. Reusing AUTH_FAILED here would put gateway auth failures into
-			// the provider health statistics.
-			return c.json(
-				errorBody({
-					requestId: c.get('requestId'),
-					code: 'UNAUTHORIZED',
-					message: 'api_key missing or incorrect',
-					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				}),
-				401,
-			);
-		}
+	// Undefined means no ceiling. Constructed once at boot, so a bad value throws before the
+	// server listens rather than on the first request that would have been shed.
+	const limiter =
+		deps.maxInflight === undefined ? undefined : new InflightLimiter(deps.maxInflight);
 
+	const served = async (c: Context<Vars>) => {
 		const url = c.req.query('url');
 		if (url === undefined || url === '') {
 			return c.json(
@@ -450,6 +449,70 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			status as 502,
 			headersFor(result, performance.now() - c.get('startedAt')),
 		);
+	};
+
+	const handler = async (c: Context<Vars>) => {
+		if (!keyMatches(presentedKey(c), deps.apiKey)) {
+			// NOT an Outcome. The taxonomy describes what happened to a scrape; this request
+			// never became one. Reusing AUTH_FAILED here would put gateway auth failures into
+			// the provider health statistics.
+			return c.json(
+				errorBody({
+					requestId: c.get('requestId'),
+					code: 'UNAUTHORIZED',
+					message: 'api_key missing or incorrect',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				}),
+				401,
+			);
+		}
+
+		// SHED AFTER AUTH, AND ONLY ON `/v1`.
+		//
+		// After auth, because a slot is a scarce resource and an unauthenticated caller must
+		// not be able to consume one. Shedding first would let anyone who can reach the port
+		// fill the ceiling with junk and starve the operator's own traffic — turning
+		// backpressure into the denial-of-service it exists to prevent. Auth is a hash and a
+		// constant-time compare, so the ordering costs nothing worth measuring.
+		//
+		// Only `/v1` because this handler is only registered there. `/health` must answer
+		// under load or the orchestrator restarts a gateway whose sole problem is that it is
+		// busy, which converts a shed request into an outage.
+		if (limiter !== undefined && !limiter.tryAcquire()) {
+			const busyMs = performance.now() - c.get('startedAt');
+			return c.json(
+				errorBody({
+					requestId: c.get('requestId'),
+					code: 'GATEWAY_BUSY',
+					message: `at the in-flight ceiling of ${limiter.max}; retry shortly`,
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				}),
+				429,
+				{
+					'X-Outcome': 'GATEWAY_BUSY',
+					// The point of the closed class: a caller already branching on `gateway` handles
+					// this without knowing the member exists.
+					'X-Outcome-Class': outcomeClass('GATEWAY_BUSY'),
+					// Zero. Nothing was tried, and reporting otherwise would put a phantom attempt
+					// in the failover metrics.
+					'X-Attempts': '0',
+					'Retry-After': String(retryAfterSeconds()),
+					// Emitted on the shed path too, so the soak's p95 covers requests the gateway
+					// refused. Leaving them out would measure only the requests that got a slot,
+					// which is the population that looks best.
+					'Server-Timing': serverTimingHeader(splitTimings(busyMs, [])),
+				},
+			);
+		}
+
+		try {
+			return await served(c);
+		} finally {
+			// FINALLY, not the success path. A throw that skipped this leaks a slot for the
+			// lifetime of the process, and enough of them wedge the gateway at a ceiling it
+			// never recovers from — a failure that is silent and reads exactly like load.
+			limiter?.release();
+		}
 	};
 
 	// Both verbs, one handler. GET is the drop-in surface; POST additionally forwards a body.

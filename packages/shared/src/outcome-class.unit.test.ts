@@ -112,6 +112,9 @@ describe('the mapping is pinned, because changing it is a breaking change', () =
 		NO_PROVIDER_AVAILABLE: 'gateway',
 		RESPONSE_TOO_LARGE: 'gateway',
 		BUDGET_EXCEEDED: 'gateway',
+		// `gateway`, not `provider`, even though the status is 429 like `RATE_LIMITED`. The
+		// status says what to do; the class says whose fault it is, and this one is ours.
+		GATEWAY_BUSY: 'gateway',
 	};
 
 	it('matches the published mapping exactly', () => {
