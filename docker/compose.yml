@@ -1,7 +1,11 @@
 # Self-host. One command, one service.
 #
 #   cp .env.example .env && $EDITOR .env
-#   docker compose -f docker/compose.yml up
+#   docker compose -f docker/compose.yml --env-file .env up -d --build
+#
+# --env-file IS REQUIRED and this header used to omit it. Compose derives the project
+# directory from the first -f file, so it looks for docker/.env and never reads the root .env
+# the line above just created — the run fails on the PROXLANE_API_KEY interpolation below.
 #
 # ONE SERVICE, and that is not an omission. The gateway currently touches no database: no
 # request log, no cooldown state, no key store. Shipping Postgres and Valkey here because
