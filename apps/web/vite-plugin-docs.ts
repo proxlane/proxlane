@@ -15,7 +15,8 @@
 // The transform is keyed on the `?docs` suffix so it cannot collide with anything else Vite
 // does with markdown, and so an accidental plain `import './x.md'` fails loudly.
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import MarkdownIt from 'markdown-it';
 import { createHighlighter } from 'shiki';
 import type { Plugin } from 'vite';
@@ -270,6 +271,99 @@ export async function renderDoc(file: string, slugName: string): Promise<Rendere
 	};
 }
 
+export interface SearchRecord {
+	/** Where to send the reader. Includes the fragment when the hit is inside a section. */
+	readonly path: string;
+	readonly page: string;
+	/** The section heading, or the page summary for the lead section. */
+	readonly heading: string;
+	/** Plain prose, lowercased at query time rather than here so excerpts keep their case. */
+	readonly text: string;
+}
+
+/**
+ * Pages the index cannot read from markdown, because they have none.
+ *
+ * The overview is a list of links and the outcome reference is generated from the taxonomy.
+ * Leaving them out would make search quietly incomplete, which is worse than not having it:
+ * a reader who searches "429" and gets nothing concludes the docs do not cover it.
+ * `docs:check` asserts every route appears in the index.
+ */
+const EXTRA_RECORDS: readonly SearchRecord[] = [
+	{
+		path: '/docs',
+		page: 'Overview',
+		heading: 'Documentation',
+		text: 'One endpoint in front of every scraping API. Start here. Quickstart hosting API reference outcomes failover agents use cases.',
+	},
+	{
+		path: '/docs/outcomes',
+		page: 'Outcomes',
+		heading: 'Outcomes',
+		text: 'What every result means, what it returns, and whether to retry. Every outcome, its HTTP status code, whether it fails over and whether it is billed. Branch on the class, which never grows. Status codes 200 400 403 413 429 502 503 504.',
+	},
+];
+
+/** Strip markdown to prose: no fences, no inline code ticks, no link syntax, no tables. */
+function toPlainText(md: string): string {
+	return md
+		.replace(/```[\s\S]*?```/g, ' ')
+		.replace(/^\|.*$/gm, ' ')
+		.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+		.replace(/[`*_>#]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+/**
+ * The search index, built from the same markdown the pages are.
+ *
+ * ONE RECORD PER SECTION, not per page. A page-level hit can only say "the answer is
+ * somewhere on the API reference", which for a long reference page is barely an answer; a
+ * section-level hit lands on the heading that contains it.
+ */
+export function buildSearchIndex(contentDir: string): SearchRecord[] {
+	const out: SearchRecord[] = [];
+	for (const file of readdirSync(contentDir)
+		.filter((f) => f.endsWith('.md'))
+		.sort()) {
+		const slug = file.replace(/\.md$/, '');
+		const src = readFileSync(join(contentDir, file), 'utf8');
+		const fm = /^---\n([\s\S]*?)\n---\n?/.exec(src);
+		const page = /^title:\s*(.+)$/m.exec(fm?.[1] ?? '')?.[1]?.trim() ?? slug;
+		const summary = /^summary:\s*(.+)$/m.exec(fm?.[1] ?? '')?.[1]?.trim() ?? '';
+		const body = fm === null ? src : src.slice(fm[0].length);
+
+		// Split on headings, keeping the heading with the prose beneath it.
+		const seen = new Map<string, number>();
+		const sections = body.split(/^(#{2,3})\s+(.+)$/m);
+		const lead = toPlainText(sections[0] ?? '');
+		out.push({
+			path: `/docs/${slug}`,
+			page,
+			heading: page,
+			text: `${summary} ${lead}`.trim(),
+		});
+		for (let i = 1; i < sections.length; i += 3) {
+			const heading = (sections[i + 1] ?? '').trim();
+			const text = toPlainText(sections[i + 2] ?? '');
+			if (heading === '') continue;
+			out.push({
+				path: `/docs/${slug}#${slug1(heading, seen)}`,
+				page,
+				heading,
+				text,
+			});
+		}
+	}
+	return [...out, ...EXTRA_RECORDS];
+}
+
+/** The same slug rule the renderer uses, so a search hit's fragment resolves to a real anchor. */
+function slug1(text: string, seen: Map<string, number>): string {
+	return slug(text, seen);
+}
+
 /**
  * `import doc from './x.md?docs'` gives a `RenderedDoc`.
  *
@@ -277,10 +371,34 @@ export async function renderDoc(file: string, slugName: string): Promise<Rendere
  * rather than requiring a dev-server restart — the thing that decides whether anyone actually
  * writes documentation.
  */
-export function docsPlugin(): Plugin {
+const SEARCH_ID = 'virtual:docs-search';
+const RESOLVED_SEARCH_ID = `\0${SEARCH_ID}`;
+
+export function docsPlugin(options?: { readonly contentDir?: string }): Plugin {
+	// Relative to the Vite root, which is `apps/web`. Passed in only by tests.
+	const contentDir = options?.contentDir ?? 'content/docs';
 	return {
 		name: 'proxlane-docs',
 		enforce: 'pre',
+		// `import index from 'virtual:docs-search'` gives the whole index, built here so no
+		// markdown parser reaches the browser. The leading NUL is Vite's convention for a
+		// resolved virtual id: it stops other plugins and the filesystem from claiming it.
+		resolveId(id) {
+			return id === SEARCH_ID ? RESOLVED_SEARCH_ID : null;
+		},
+		load(id) {
+			if (id !== RESOLVED_SEARCH_ID) return null;
+			return `export default ${JSON.stringify(buildSearchIndex(contentDir))}`;
+		},
+		// Editing a page rebuilds the index rather than serving a stale one in dev.
+		configureServer(server) {
+			server.watcher.add(contentDir);
+			server.watcher.on('change', (file) => {
+				if (!file.endsWith('.md')) return;
+				const mod = server.moduleGraph.getModuleById(RESOLVED_SEARCH_ID);
+				if (mod !== undefined) server.moduleGraph.invalidateModule(mod);
+			});
+		},
 		async transform(_code, id) {
 			if (!id.endsWith('.md?docs')) return null;
 			const file = id.slice(0, -'?docs'.length);

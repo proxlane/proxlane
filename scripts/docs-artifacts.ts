@@ -81,7 +81,7 @@ export function artifacts(): Map<string, string> {
 }
 
 // Only act when run directly; `docs:check` imports the builders above.
-if (process.argv[1] !== undefined && process.argv[1].endsWith('docs-artifacts.ts')) {
+if (process.argv[1]?.endsWith('docs-artifacts.ts') === true) {
 	const write = process.argv.includes('--write');
 	const stale: string[] = [];
 	for (const [rel, content] of artifacts()) {

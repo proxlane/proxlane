@@ -315,6 +315,53 @@ const read = (p: string) => readFileSync(p, 'utf8');
 	}
 }
 
+// ------------------------------------------------ 11. search covers every page
+//
+// The index is built from the markdown, so the two pages that have none — the overview, which
+// is a list of links, and the outcome reference, which is generated from the taxonomy — are
+// invisible to it unless they are added by hand. `EXTRA_RECORDS` in the plugin does that.
+//
+// A page missing from search does not look broken. It looks like the docs do not cover the
+// thing you searched for, which is worse: the reader stops rather than looking harder.
+//
+// Parsed as text rather than imported, because this script is zero-dependency by rule and the
+// plugin pulls in markdown-it, Shiki and Vite's types.
+{
+	if (!existsSync(DOCS_PLUGIN)) fail('11', 'apps/web/vite-plugin-docs.ts is missing');
+	else {
+		const plugin = read(DOCS_PLUGIN);
+		const extra = [...plugin.matchAll(/path: '(\/docs[a-z\-/]*)'/g)].map((m) => m[1] as string);
+		const md = new Set(
+			readdirSync(CONTENT)
+				.filter((f) => f.endsWith('.md'))
+				.map((f) => `/docs/${f.replace(/\.md$/, '')}`),
+		);
+		const routes = [
+			'/docs',
+			...readdirSync(ROUTES)
+				.filter((f) => f.endsWith('.tsx') && f !== 'index.tsx')
+				.map((f) => `/docs/${f.replace(/\.tsx$/, '')}`),
+		];
+		let n = 0;
+		for (const route of routes) {
+			if (md.has(route)) {
+				n += 1; // Indexed from its markdown.
+			} else if (extra.includes(route)) {
+				n += 1; // Indexed by hand, which is the only option for a generated page.
+			} else {
+				fail(
+					'11',
+					`${route} has no markdown and no EXTRA_RECORDS entry, so it is invisible to search`,
+				);
+			}
+		}
+		for (const e of extra)
+			if (!routes.includes(e)) fail('11', `EXTRA_RECORDS indexes ${e}, which is not a route`);
+		if (routes.length === 0) fail('11', 'no routes to check the search index against');
+		else ok('11', n, 'docs pages reachable by search');
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;
