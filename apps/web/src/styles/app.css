@@ -358,3 +358,76 @@ html[data-theme="dark"] .doc-prose .shiki span {
 	color: var(--color-accent);
 	opacity: 1;
 }
+
+/* Tabbed code samples. Switched by a hidden radio group, with no JavaScript.
+ *
+ * CSS CANNOT COUNT, which is why the rules below are written out per index rather than
+ * generated: `:has(> input[data-i="N"]:checked)` has to be paired with `[data-panel="N"]` by
+ * hand. `MAX_TABS` in the plugin is 4 to match, and a fifth tab is a build error rather than
+ * a panel that can never be shown.
+ *
+ * The inputs are moved off-screen rather than `display: none`, because a hidden input is not
+ * focusable and the keyboard would lose the control entirely. */
+.doc-tabs {
+	border: 1px solid var(--color-rule);
+	border-radius: var(--radius-card, 8px);
+	display: flex;
+	flex-wrap: wrap;
+	overflow: hidden;
+}
+.doc-tab-input {
+	height: 1px;
+	opacity: 0;
+	position: absolute;
+	width: 1px;
+}
+.doc-tab {
+	border-bottom: 1px solid var(--color-rule);
+	color: var(--color-slate);
+	cursor: pointer;
+	font-family: var(--font-mono);
+	font-size: 0.76rem;
+	padding: 0.55rem 0.9rem;
+	transition:
+		color 120ms ease,
+		box-shadow 120ms ease;
+	user-select: none;
+}
+.doc-tab:hover {
+	color: var(--color-ink);
+}
+/* The focus ring belongs on the label, since the input it belongs to is off-screen. Without
+   this the tab set is keyboard-operable and gives no sign of where focus is. */
+.doc-tab-input:focus-visible + .doc-tab {
+	color: var(--color-ink);
+	outline: 2px solid var(--color-accent);
+	outline-offset: -2px;
+}
+.doc-tab-panel {
+	display: none;
+	width: 100%;
+}
+/* The code block inside a tab set already sits in a bordered container, so it drops its own
+   border and corners rather than drawing a box inside a box. */
+.doc-tabs .doc-tab-panel pre {
+	border: 0;
+	border-radius: 0;
+	margin: 0;
+}
+.doc-tabs:has(> .doc-tab-input[data-i="0"]:checked) > [data-panel="0"],
+.doc-tabs:has(> .doc-tab-input[data-i="1"]:checked) > [data-panel="1"],
+.doc-tabs:has(> .doc-tab-input[data-i="2"]:checked) > [data-panel="2"],
+.doc-tabs:has(> .doc-tab-input[data-i="3"]:checked) > [data-panel="3"] {
+	display: block;
+}
+.doc-tabs:has(> .doc-tab-input[data-i="0"]:checked) > .doc-tab[data-i="0"],
+.doc-tabs:has(> .doc-tab-input[data-i="1"]:checked) > .doc-tab[data-i="1"],
+.doc-tabs:has(> .doc-tab-input[data-i="2"]:checked) > .doc-tab[data-i="2"],
+.doc-tabs:has(> .doc-tab-input[data-i="3"]:checked) > .doc-tab[data-i="3"] {
+	box-shadow: inset 0 -2px 0 var(--color-accent);
+	color: var(--color-ink);
+}
+/* The prose rule adds vertical rhythm between siblings; a tab set is one block. */
+.doc-prose .doc-tabs > * + * {
+	margin-top: 0;
+}

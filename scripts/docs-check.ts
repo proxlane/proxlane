@@ -24,6 +24,7 @@ const PUBLIC = join(ROOT, 'apps/web/public');
 const SITEMAP = join(ROOT, 'apps/web/public/sitemap.xml');
 const APP_CSS = join(ROOT, 'apps/web/src/styles/app.css');
 const COPY_TSX = join(ROOT, 'apps/web/src/components/copy-code.tsx');
+const DOCS_PLUGIN = join(ROOT, 'apps/web/vite-plugin-docs.ts');
 const GATEWAY_APP = join(ROOT, 'apps/gateway/src/app.ts');
 const API_DOC = join(CONTENT, 'api.md');
 
@@ -272,6 +273,45 @@ const read = (p: string) => readFileSync(p, 'utf8');
 			if (!css.includes(`.${cls}`))
 				fail('9', `copy-code.tsx applies .${cls} and app.css never styles it`);
 		ok('9', applied.length, 'classes applied at runtime are styled');
+	}
+}
+
+// -------------------------------------------- 10. the CSS can switch every tab the plugin allows
+//
+// Code tabs are switched with no JavaScript, which means CSS has to pair
+// `input[data-i="N"]:checked` with `[data-panel="N"]` for each index by hand — CSS cannot
+// count. `MAX_TABS` in the plugin and the number of rule pairs in the stylesheet are two
+// numbers that must agree, and nothing else relates them.
+//
+// Raise MAX_TABS alone and the fifth tab renders a panel that can never be shown: no error,
+// no warning, just a tab that does nothing when clicked. Same shape as assertion 9.
+{
+	if (!existsSync(DOCS_PLUGIN) || !existsSync(APP_CSS)) {
+		fail('10', 'apps/web/vite-plugin-docs.ts or src/styles/app.css is missing');
+	} else {
+		const max = Number(/const MAX_TABS = (\d+)/.exec(read(DOCS_PLUGIN))?.[1] ?? 0);
+		const css = read(APP_CSS);
+		if (max < 2) fail('10', `could not parse MAX_TABS from the docs plugin (read ${max})`);
+		else {
+			for (let i = 0; i < max; i++) {
+				// Quote-agnostic: the formatter normalises CSS attribute selectors, and an assertion
+				// that depends on which quote biome picked is an assertion about the formatter.
+				const checked = new RegExp(`\\.doc-tab-input\\[data-i=["']${i}["']\\]:checked`);
+				const panel = new RegExp(`\\[data-panel=["']${i}["']\\]`);
+				if (!checked.test(css))
+					fail('10', `MAX_TABS is ${max} but app.css has no :checked rule for tab ${i}`);
+				if (!panel.test(css))
+					fail('10', `MAX_TABS is ${max} but app.css never shows panel ${i}`);
+			}
+			// And no rule beyond the cap, which would be dead CSS implying support that the
+			// plugin refuses to emit.
+			if (new RegExp(`\\[data-panel=["']${max}["']\\]`).test(css))
+				fail(
+					'10',
+					`app.css styles panel ${max}, past MAX_TABS of ${max} — raise MAX_TABS or drop the rule`,
+				);
+			ok('10', max, 'code tab indices the CSS can switch');
+		}
 	}
 }
 

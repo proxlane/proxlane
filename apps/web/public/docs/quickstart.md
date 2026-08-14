@@ -10,8 +10,34 @@ happened at every step.
 
 ## Make a request
 
-```bash
+```bash tab=cURL
 curl "https://your-gateway/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
+```
+
+```python tab=Python
+import os, requests
+
+res = requests.get(
+    "https://your-gateway/v1",
+    params={"url": "https://example.com"},
+    headers={"Authorization": f"Bearer {os.environ['PROXLANE_API_KEY']}"},
+    timeout=120,
+)
+
+print(res.headers["X-Outcome"], res.headers["X-Attempts"], "attempts")
+html = res.text
+```
+
+```javascript tab=Node
+const url = new URL("https://your-gateway/v1");
+url.searchParams.set("url", "https://example.com");
+
+const res = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.PROXLANE_API_KEY}` },
+});
+
+console.log(res.headers.get("x-outcome"), res.headers.get("x-attempts"), "attempts");
+const html = await res.text();
 ```
 
 The body is the target's body, unchanged. The headers carry everything else:
@@ -47,9 +73,17 @@ the gateway's environment and are never sent by the client.
 
 ## Authenticate with a header instead
 
-```bash
+```bash tab=cURL
 curl -H "Authorization: Bearer $PROXLANE_API_KEY" \
   "https://your-gateway/v1?url=https://example.com"
+```
+
+```python tab=Python
+headers = {"Authorization": f"Bearer {os.environ['PROXLANE_API_KEY']}"}
+```
+
+```javascript tab=Node
+const headers = { Authorization: `Bearer ${process.env.PROXLANE_API_KEY}` };
 ```
 
 Prefer this in new code. `api_key` in the query string works, because that is what the

@@ -21,7 +21,17 @@ import { createHighlighter } from 'shiki';
 import type { Plugin } from 'vite';
 
 /** Only what the docs actually use. Every grammar loaded is bundle weight and startup cost. */
-const LANGS = ['bash', 'json', 'http', 'typescript'] as const;
+const LANGS = ['bash', 'json', 'http', 'typescript', 'javascript', 'python'] as const;
+
+/**
+ * The most tabs one group may carry.
+ *
+ * Switching is CSS-only, and CSS cannot count: each index needs its own static rule pairing
+ * `input[data-i="N"]:checked` with `[data-panel="N"]`. Four rules are written by hand in
+ * `app.css`, so a fifth tab would silently render a panel that can never be shown. Throwing
+ * here makes that a build failure with a file name instead.
+ */
+const MAX_TABS = 4;
 /** One theme per colour scheme; the CSS variables theme would need runtime tokens. */
 const THEMES = { light: 'github-light', dark: 'github-dark' } as const;
 
@@ -99,6 +109,63 @@ function highlighterFor() {
 	return highlighterOnce;
 }
 
+/**
+ * `bash tab=cURL` -> `cURL`. Anything without `tab=` is an ordinary code block.
+ *
+ * The label is free text after the marker so it reads as a language name rather than an id:
+ * `Node`, not `javascript`. A run of consecutive fences that all carry one becomes a tab set.
+ */
+function tabLabel(info: string): string | undefined {
+	const m = /\btab=(.+)$/.exec(info.trim());
+	return m?.[1]?.trim();
+}
+
+/**
+ * Tabbed code samples, switched with NO JAVASCRIPT.
+ *
+ * Every reference site worth copying offers the same request in several languages, and the
+ * usual implementation is a React island per group. This is a hidden radio group and four
+ * static CSS rules instead, which matters for two reasons: the markdown becomes finished HTML
+ * at build time and has no React in it, and a code sample that needs JavaScript to be visible
+ * is a code sample that is invisible when the bundle fails.
+ *
+ * Radios rather than buttons because the semantics are already right: one of a set, arrow-key
+ * navigable, labelled, and restorable by the browser. A `role="tablist"` of buttons would
+ * need script to do any of that.
+ */
+function renderTabs(
+	blocks: readonly { readonly label: string; readonly html: string }[],
+	group: number,
+	file: string,
+): string {
+	if (blocks.length > MAX_TABS) {
+		throw new Error(
+			`${file}: a code tab group has ${blocks.length} tabs; the CSS supports ${MAX_TABS}. ` +
+				'Add a rule pair in app.css and raise MAX_TABS, or use fewer languages.',
+		);
+	}
+	const name = `doc-tabs-${group}`;
+	const parts: string[] = [
+		`<div class="doc-tabs" role="group" aria-label="The same request in ${blocks.length} languages">`,
+	];
+	blocks.forEach((b, i) => {
+		const id = `${name}-${i}`;
+		parts.push(
+			`<input class="doc-tab-input" type="radio" name="${name}" id="${id}" data-i="${i}"${i === 0 ? ' checked' : ''}>`,
+			`<label class="doc-tab" for="${id}" data-i="${i}" data-lang="${escapeAttr(b.label)}">${escapeHtml(b.label)}</label>`,
+		);
+	});
+	blocks.forEach((b, i) => {
+		parts.push(`<div class="doc-tab-panel" data-panel="${i}">${b.html}</div>`);
+	});
+	parts.push('</div>');
+	return parts.join('');
+}
+
+const escapeHtml = (s: string): string =>
+	s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escapeAttr = (s: string): string => escapeHtml(s).replace(/"/g, '&quot;');
+
 export async function renderDoc(file: string, slugName: string): Promise<RenderedDoc> {
 	const { meta, body } = frontmatter(readFileSync(file, 'utf8'), file);
 	const highlighter = await highlighterFor();
@@ -117,6 +184,45 @@ export async function renderDoc(file: string, slugName: string): Promise<Rendere
 				defaultColor: false,
 			});
 		},
+	});
+
+	// TAB GROUPS, as a core rule rather than a fence renderer.
+	//
+	// The grouping question is "are these fences adjacent", which a per-fence renderer cannot
+	// answer: it sees one token and has no idea what follows. A core rule runs over the whole
+	// token stream after parsing, so it can find a run and replace it with one html_block.
+	let group = 0;
+	md.core.ruler.push('proxlane-tab-groups', (state) => {
+		const tokens = state.tokens;
+		for (let i = 0; i < tokens.length; i++) {
+			if (tokens[i]?.type !== 'fence') continue;
+			if (tabLabel(tokens[i]?.info ?? '') === undefined) continue;
+
+			let j = i;
+			while (
+				j < tokens.length &&
+				tokens[j]?.type === 'fence' &&
+				tabLabel(tokens[j]?.info ?? '') !== undefined
+			) {
+				j += 1;
+			}
+			// A lone tabbed fence is just a code block that happens to be labelled. Wrapping one
+			// panel in a tab strip is a control with nothing to switch to.
+			if (j - i < 2) continue;
+
+			const blocks = tokens.slice(i, j).map((t) => ({
+				label: tabLabel(t.info) as string,
+				// `renderToken` is not enough: the fence rule is what applies Shiki. Rendering the
+				// single token through the renderer gives the highlighted `<pre>` verbatim.
+				html: md.renderer.render([t], md.options, {}),
+			}));
+
+			const token = new state.Token('html_block', '', 0);
+			token.content = renderTabs(blocks, group, file);
+			group += 1;
+			tokens.splice(i, j - i, token);
+		}
+		return true;
 	});
 
 	const headings: DocHeading[] = [];

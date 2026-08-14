@@ -52,10 +52,30 @@ cannot serve the request, you get `NO_PROVIDER_AVAILABLE` rather than a silent s
 The body is forwarded as text, byte for byte. Proxlane does not parse it. Guessing between
 JSON and form encoding would corrupt one of them.
 
-```bash
+```bash tab=cURL
 curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   --data '{"q":"example"}' \
   "https://your-gateway/v1?url=https://example.com/search"
+```
+
+```python tab=Python
+res = requests.post(
+    "https://your-gateway/v1",
+    params={"url": "https://example.com/search"},
+    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    data='{"q":"example"}',
+)
+```
+
+```javascript tab=Node
+const res = await fetch(
+  `https://your-gateway/v1?url=${encodeURIComponent("https://example.com/search")}`,
+  {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ q: "example" }),
+  },
+);
 ```
 
 Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TOO_LARGE`.
@@ -90,15 +110,27 @@ Branch on `X-Outcome-Class`, not `X-Outcome`.
 `X-Outcome` is open and gains members as adapters land. `X-Outcome-Class` has six values and
 does not grow. Code written against the class keeps working when the vocabulary expands.
 
-```typescript
-switch (res.headers.get('x-outcome-class')) {
-  case 'ok':       return res;           // you have the page
-  case 'blocked':  return retryLater();  // every provider was blocked
-  case 'target':   return giveUp();      // the site itself said no
-  case 'client':   throw new Error('fix the request');
-  case 'provider': // fallthrough: transient, safe to retry
-  case 'gateway':  return retryLater();
+```typescript tab=TypeScript
+switch (res.headers.get("x-outcome-class")) {
+  case "ok":       return res;           // you have the page
+  case "blocked":  return retryLater();  // every provider was blocked
+  case "target":   return giveUp();      // the site itself said no
+  case "client":   throw new Error("fix the request");
+  case "provider": // fallthrough: transient, safe to retry
+  case "gateway":  return retryLater();
 }
+```
+
+```python tab=Python
+outcome_class = res.headers["X-Outcome-Class"]
+
+if outcome_class == "ok":
+    return res.text                      # you have the page
+if outcome_class == "target":
+    return None                          # the site itself said no
+if outcome_class == "client":
+    raise ValueError("fix the request")
+return retry_later()                     # blocked, provider or gateway
 ```
 
 ## Errors
