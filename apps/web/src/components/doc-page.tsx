@@ -8,7 +8,7 @@
  * reference page nobody finishes.
  */
 import { Link, useLocation } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { ProseWithCopy } from './copy-code.js';
 
 export interface DocNavItem {
@@ -50,26 +50,8 @@ export function DocPage({
 			{/* Three columns on wide, one on phone. The contents column is last in the DOM and
 			    pulled left by grid order, so a screen reader and a keyboard both reach the page
 			    itself before a list of links into it. */}
-			<div className="lg:grid lg:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] lg:gap-x-12">
-				<nav aria-label="Documentation" className="mb-10 lg:mb-0">
-					<ul className="flex flex-wrap gap-x-5 gap-y-1 lg:sticky lg:top-8 lg:flex-col lg:gap-x-0">
-						{DOC_NAV.map((item) => (
-							<li key={item.to}>
-								<Link
-									to={item.to}
-									className="inline-flex min-h-9 items-center text-[color:var(--color-slate)] text-sm transition-colors hover:text-[color:var(--color-ink)]"
-									activeProps={{
-										className:
-											'inline-flex min-h-9 items-center text-sm font-medium text-[color:var(--color-ink)]',
-									}}
-									activeOptions={{ exact: item.to === '/docs' }}
-								>
-									{item.title}
-								</Link>
-							</li>
-						))}
-					</ul>
-				</nav>
+			<div className="lg:grid lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] lg:gap-x-12">
+				<DocSidebar headings={headings} />
 
 				<div className="min-w-0">
 					<header className="mb-10">
@@ -81,12 +63,17 @@ export function DocPage({
 						</p>
 					</header>
 
+					{/* The on-page contents used to sit here, in the content column, as a bordered
+					    list above the prose. It read as a block quote rather than as navigation, and
+					    it scrolled away the moment you started reading — which is exactly when a
+					    table of contents becomes useful. It now lives in the sticky sidebar, nested
+					    under the page it belongs to. */}
 					{headings !== undefined && headings.length > 2 && (
-						<nav
-							aria-label="On this page"
-							className="mb-10 border-[color:var(--color-rule)] border-l pl-4"
-						>
-							<ul className="flex flex-col gap-1.5">
+						<nav aria-label="On this page" className="mb-10 lg:hidden">
+							<p className="text-[color:var(--color-slate)] text-xs uppercase tracking-wide">
+								On this page
+							</p>
+							<ul className="mt-2 flex flex-col gap-1.5 border-[color:var(--color-rule)] border-l pl-4">
 								{headings.map((h) => (
 									<li key={h.id} className={h.depth === 3 ? 'pl-4' : undefined}>
 										<a
@@ -106,6 +93,110 @@ export function DocPage({
 				</div>
 			</div>
 		</div>
+	);
+}
+
+/**
+ * Which heading you are currently reading.
+ *
+ * A contents list that does not track position is a list of links; one that does is a
+ * position indicator, and that is the difference between decoration and navigation.
+ *
+ * `rootMargin` pins the detection band near the top of the viewport rather than its middle.
+ * Without it the "current" section changes when a heading crosses the centre of the screen,
+ * which is long after the reader considers themselves inside it. `-45% bottom` means: the
+ * active heading is the last one to have passed the upper part of the viewport.
+ */
+function useActiveHeading(headings: readonly DocHeading[] | undefined): string | undefined {
+	const [active, setActive] = useState<string | undefined>(undefined);
+	useEffect(() => {
+		if (headings === undefined || headings.length === 0) return;
+		if (typeof IntersectionObserver === 'undefined') return;
+		const seen = new Map<string, boolean>();
+		const observer = new IntersectionObserver(
+			(entries) => {
+				for (const e of entries) seen.set(e.target.id, e.isIntersecting);
+				// The FIRST heading currently in the band, in document order. Using the last
+				// intersecting entry makes the highlight jump backwards when two are visible.
+				const current = headings.find((h) => seen.get(h.id) === true);
+				if (current !== undefined) setActive(current.id);
+			},
+			{ rootMargin: '0px 0px -45% 0px', threshold: 0 },
+		);
+		for (const h of headings) {
+			const el = document.getElementById(h.id);
+			if (el !== null) observer.observe(el);
+		}
+		return () => observer.disconnect();
+	}, [headings]);
+	return active;
+}
+
+/**
+ * The sidebar: the pages, and the current page's own headings nested beneath it.
+ *
+ * ONE NAVIGATION, TWO LEVELS, rather than two navigations in two places. The contents list
+ * used to sit in the content column and read as a quotation — it had no relationship to the
+ * page list opposite it, and a reader had to work out that the two were the same kind of
+ * thing. Nesting them says it: this is where you are, and this is what is inside it.
+ *
+ * Sticky with its own scroll, because a sidebar taller than the viewport that cannot scroll
+ * simply hides its last items.
+ */
+// `| undefined` rather than `?`: with `exactOptionalPropertyTypes` an optional prop will not
+// accept an explicitly-undefined value, and the caller always passes one.
+function DocSidebar({ headings }: { readonly headings: readonly DocHeading[] | undefined }) {
+	const { pathname } = useLocation();
+	const here = pathname.replace(/\/$/, '') || '/docs';
+	const active = useActiveHeading(headings);
+
+	return (
+		<nav aria-label="Documentation" className="mb-10 lg:mb-0">
+			{/* On phones this is a wrapping row of page links and nothing else: the headings are
+			    rendered in the content column instead, where they do not push the page down. */}
+			<ul className="flex flex-wrap gap-x-5 gap-y-1 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:flex-col lg:gap-x-0 lg:overflow-y-auto lg:pb-8">
+				{DOC_NAV.map((item) => {
+					const current = item.to === here;
+					return (
+						<li key={item.to}>
+							<Link
+								to={item.to}
+								className={`inline-flex min-h-9 items-center text-sm transition-colors ${
+									current
+										? 'font-medium text-[color:var(--color-ink)]'
+										: 'text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
+								}`}
+							>
+								{item.title}
+							</Link>
+							{current && headings !== undefined && headings.length > 1 && (
+								<ul className="mt-0.5 mb-2 hidden flex-col border-[color:var(--color-rule)] border-l lg:flex">
+									{headings.map((h) => (
+										<li key={h.id}>
+											<a
+												href={`#${h.id}`}
+												// The active marker is a border on the item, not a background:
+												// the rule is already there, so lighting up a segment of it reads
+												// as a position on a line rather than as a selected row.
+												className={`-ml-px block border-l-2 py-1 text-sm transition-colors ${
+													h.depth === 3 ? 'pl-6' : 'pl-3'
+												} ${
+													active === h.id
+														? 'border-[color:var(--color-accent)] text-[color:var(--color-ink)]'
+														: 'border-transparent text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
+												}`}
+											>
+												{h.text}
+											</a>
+										</li>
+									))}
+								</ul>
+							)}
+						</li>
+					);
+				})}
+			</ul>
+		</nav>
 	);
 }
 
