@@ -21,6 +21,7 @@ import type { ChainResult } from './chain.js';
 import { runChain } from './chain.js';
 import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
+import { serverTimingHeader, splitTimings } from './server-timing.js';
 import type { HttpTransport } from './transport.js';
 
 export interface AppDeps {
@@ -102,9 +103,9 @@ function keyMatches(presented: string, expected: string): boolean {
  * unhandled throw. Threading it through handlers by hand would miss exactly those, and those
  * are the ones people open issues about.
  */
-type Vars = { Variables: { requestId: string } };
+type Vars = { Variables: { requestId: string; startedAt: number } };
 
-function headersFor(r: ChainResult): Record<string, string> {
+function headersFor(r: ChainResult, totalMs: number): Record<string, string> {
 	// Spend across EVERY attempt, not just the winning one. A failover that cost two charged
 	// hops and reports the price of one is the number that makes margin look better than it
 	// is — see plan.md section 7's unbilled-spend metric.
@@ -117,6 +118,10 @@ function headersFor(r: ChainResult): Record<string, string> {
 		'X-Outcome-Class': outcomeClass(r.outcome),
 		'X-Attempts': String(r.attempts.length),
 		'X-Cost-Estimate': (total / 1_000_000).toFixed(6),
+		// Gateway time, provider time, and the total, split by subtraction. `operations.md`
+		// section 1 gates p95 on `gw;dur=` specifically, because end-to-end time measures the
+		// provider's afternoon rather than our routing.
+		'Server-Timing': serverTimingHeader(splitTimings(totalMs, r.attempts)),
 		...(r.provider === undefined ? {} : { 'X-Provider-Used': r.provider }),
 		// Present ONLY when a rule fired. Still no `none`: emitting that on every response
 		// would assert the detector ran and found nothing, which is untrue for a request that
@@ -152,6 +157,10 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	app.use('*', async (c, next) => {
 		const id = requestIdFrom(c.req.header('x-request-id'));
 		c.set('requestId', id);
+		// Stamped in the middleware rather than the handler so it covers auth, parsing and the
+		// edge guard too. Timing only the chain would exclude the gateway work most likely to
+		// regress, and the whole point of the number is that it is ours.
+		c.set('startedAt', performance.now());
 		await next();
 		c.header('X-Request-Id', id);
 	});
@@ -418,7 +427,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		if (carriesBody(result.outcome) && result.result?.body !== undefined) {
 			const contentType = result.result.contentType ?? 'application/octet-stream';
 			return c.body(result.result.body as unknown as ArrayBuffer, status as 200, {
-				...headersFor(result),
+				...headersFor(result, performance.now() - c.get('startedAt')),
 				'Content-Type': contentType,
 			});
 		}
@@ -439,7 +448,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
 			}),
 			status as 502,
-			headersFor(result),
+			headersFor(result, performance.now() - c.get('startedAt')),
 		);
 	};
 
