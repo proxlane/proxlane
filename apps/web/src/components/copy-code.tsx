@@ -16,6 +16,7 @@
  * code is selectable, exactly as it is now.
  */
 import { useEffect, useRef } from 'react';
+import { syncCodeTabs } from './tab-sync.js';
 
 export function useCopyButtons(scope: React.RefObject<HTMLElement | null>) {
 	useEffect(() => {
@@ -80,6 +81,11 @@ export function useCopyButtons(scope: React.RefObject<HTMLElement | null>) {
 export function ProseWithCopy({ html }: { readonly html: string }) {
 	const ref = useRef<HTMLDivElement>(null);
 	useCopyButtons(ref);
+	// Code tabs work without this; it only keeps several groups on one language. See tab-sync.
+	useEffect(() => {
+		const root = ref.current;
+		return root === null ? undefined : syncCodeTabs(root);
+	}, []);
 	return (
 		<div
 			ref={ref}
