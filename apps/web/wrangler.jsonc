@@ -15,6 +15,14 @@
 	// Resolved from the package rather than a path into `dist`: Start owns the shape of its own
 	// server entry, and hardcoding the built filename breaks silently the first time it changes.
 	"main": "@tanstack/react-start/server-entry",
+	// The real domain. Cloudflare creates and manages the DNS record for a custom domain, so
+	// this is the DNS change, not just a routing hint. The workers.dev subdomain keeps working
+	// alongside it, which is why `<link rel="canonical">` exists in the document head: two
+	// origins serving identical HTML is a duplicate-content problem unless one is declared.
+	//
+	// If the zone is not in this Cloudflare account the deploy fails here and says so, which is
+	// the right failure: loud, before anything is served.
+	"routes": [{ "pattern": "proxlane.dev", "custom_domain": true }],
 	"observability": {
 		"enabled": true
 	}

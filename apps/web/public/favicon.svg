@@ -1,8 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- The interchange station, the same mark the header wears. A favicon is a standalone file
-       and cannot read the token layer, so the accent is written literally here — and
-       `tokens:check` asserts this hex still equals `--map-accent` in docs/design.md, because a
-       brand colour that drifts in exactly one file is the drift nobody notices. -->
+  <!-- Three provider lines and one interchange: the product at 16px. A standalone file cannot
+       read the token layer, so every value below is written literally and `tokens:check`
+       asserts each one is still a colour docs/design.md defines. It carries its own dark
+       variant because a favicon sits on browser chrome we do not control, and the light
+       station fill would otherwise punch a pale hole in a dark tab. -->
   <title>proxlane</title>
-  <circle cx="16" cy="16" r="10" fill="none" stroke="#C2255C" stroke-width="6" />
+  <style>
+    .l1 { stroke: #0B7285 } .l2 { stroke: #E8590C } .l3 { stroke: #5F3DC4 }
+    .stn { stroke: #C2255C; fill: #FBFAF7 }
+    @media (prefers-color-scheme: dark) {
+      .l1 { stroke: #22B8CF } .l2 { stroke: #FF922B } .l3 { stroke: #9775FA }
+      .stn { stroke: #F06595; fill: #14171A }
+    }
+  </style>
+  <g stroke-width="4" stroke-linecap="round">
+    <path class="l1" d="M2 9 H30" />
+    <path class="l2" d="M2 18 H30" />
+    <path class="l3" d="M2 27 H30" />
+  </g>
+  <circle class="stn" cx="16" cy="18" r="6.5" stroke-width="4.5" />
 </svg>

@@ -1,0 +1,8 @@
+# Ours, deliberately. Without this file Cloudflare serves its own, which on this deployment
+# was 25 lines of AI content-signal terms nobody here wrote or agreed to. A policy document
+# on your own domain should be one you chose.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://proxlane.dev/sitemap.xml
