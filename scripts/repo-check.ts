@@ -1370,6 +1370,47 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------------------------------- 27: no script runs bare node on `src/**` TypeScript
+//
+// THIS SHIPPED BROKEN AND NOTHING NOTICED. `apps/gateway`'s dev script was
+// `node --watch src/index.ts`, and `pnpm dev` is a Commands-table entry marked implemented.
+// It could never have worked: application source uses the TypeScript emit convention, where
+// a sibling import is written `./app.js`, and Node's type stripping does NOT rewrite that to
+// `./app.ts`. The gateway crashed on its first import, every time.
+//
+// It went unseen because `pnpm dev` is `turbo run dev --parallel` with persistent tasks — the
+// web app starts, the gateway dies, and the command keeps running. The one thing that would
+// have caught it is starting the gateway, which no check does.
+//
+// `scripts/` and `test/k6` are exempt by construction: they import with explicit `.ts`
+// extensions and are compiled with `allowImportingTsExtensions`, which is the other valid
+// convention. The rule is only about `src/**`.
+{
+	const offenders: string[] = [];
+	let scanned = 0;
+	for (const dir of listWorkspaceDirs()) {
+		const manifestPath = join(dir, 'package.json');
+		if (!has(manifestPath)) continue;
+		const scripts: Record<string, string> = JSON.parse(read(manifestPath)).scripts ?? {};
+		for (const [name, body] of Object.entries(scripts)) {
+			scanned += 1;
+			// `node …  src/anything.ts`, with or without flags between.
+			if (/\bnode\b[^&|]*\bsrc\/[^\s]*\.ts\b/.test(body)) {
+				offenders.push(`${dir}/package.json "${name}": ${body}`);
+			}
+		}
+	}
+	if (scanned === 0) fail('27', 'found no package scripts to check — the scan matched nothing');
+	for (const o of offenders) {
+		fail(
+			'27',
+			`${o}\n      bare node cannot load src/**: those files import siblings as \`./x.js\`, ` +
+				'and type stripping does not rewrite that to `.ts`. Build first, or run the output.',
+		);
+	}
+	ok('27', scanned, 'package scripts do not run bare node on src TypeScript');
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;
