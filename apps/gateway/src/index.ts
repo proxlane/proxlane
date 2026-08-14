@@ -19,6 +19,16 @@ const DEFAULT_DEADLINE_MS = Number(env('PROXLANE_DEADLINE_MS') ?? 90_000);
 // Empty would read as 0 here, i.e. a body cap of nothing, which rejects every response.
 const MAX_BODY_BYTES = Number(env('PROXLANE_BODY_CAP_MB') ?? 10) * 1024 * 1024;
 
+// The in-flight ceiling. 32 is `plan.md`'s sizing for this deployment: ~1 GB of container
+// memory against a 10 MB body cap at the 2.5x buffering factor `operations.md` section 1
+// uses, i.e. 1024 / (10 * 2.5) ≈ 40, rounded down to leave headroom.
+//
+// Raising it without raising the memory limit trades a 429 for an OOM kill, which is the
+// worse failure by a distance: the 429 refuses one request and the OOM drops every in-flight
+// scrape and restarts the process. `InflightLimiter` rejects a non-positive or fractional
+// value at construction, so a typo here fails the boot rather than the ceiling.
+const MAX_INFLIGHT = Number(env('PROXLANE_MAX_INFLIGHT') ?? 32);
+
 /**
  * Read an env var, treating empty as absent.
  *
@@ -235,6 +245,7 @@ const app = createApp({
 	candidates,
 	apiKey,
 	maxBodyBytes: MAX_BODY_BYTES,
+	maxInflight: MAX_INFLIGHT,
 	defaultDeadlineMs: DEFAULT_DEADLINE_MS,
 	orgId: ORG_ID,
 	...(health === undefined ? {} : { health }),
@@ -248,6 +259,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  state:     ${redis === undefined ? 'in-process (single replica only)' : 'valkey (shared)'}\n` +
 			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'off by default; PROXLANE_HEALTH=on to enable'}\n` +
 			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on — GET /health/cooldowns' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
+			`  inflight:  ${MAX_INFLIGHT} concurrent, then 429 GATEWAY_BUSY (PROXLANE_MAX_INFLIGHT)\n` +
 			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);

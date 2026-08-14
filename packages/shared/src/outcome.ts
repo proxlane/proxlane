@@ -63,7 +63,8 @@ export type Outcome =
 	| 'TARGET_FORBIDDEN'
 	| 'NO_PROVIDER_AVAILABLE'
 	| 'RESPONSE_TOO_LARGE'
-	| 'BUDGET_EXCEEDED';
+	| 'BUDGET_EXCEEDED'
+	| 'GATEWAY_BUSY';
 
 export const OUTCOMES = [
 	'OK',
@@ -83,6 +84,7 @@ export const OUTCOMES = [
 	'NO_PROVIDER_AVAILABLE',
 	'RESPONSE_TOO_LARGE',
 	'BUDGET_EXCEEDED',
+	'GATEWAY_BUSY',
 ] as const satisfies readonly Outcome[];
 
 /**
@@ -361,6 +363,28 @@ export const FAILOVER = {
 		cooldown: 'none',
 		pages: false,
 		meaning: 'Global deadline or cost budget hit',
+	},
+	// DISTINCT FROM `RATE_LIMITED`, and the distinction is the whole reason this member
+	// exists. `RATE_LIMITED` is class `provider`: a provider refused US, it writes an `acct`
+	// cooldown, and it fails over — trying someone else is exactly right when one provider
+	// caps us. Reusing it for our own capacity ceiling would be wrong three times over: it
+	// would blame a provider for a fact about this process, write a cooldown against an
+	// account that did nothing, and fail over to another provider because WE are full, which
+	// spends the budget backpressure exists to protect.
+	//
+	// Class is `gateway`, which already existed, so `OutcomeClass` does not grow and no
+	// caller's switch breaks — the property the closed class was designed for.
+	GATEWAY_BUSY: {
+		class: 'gateway',
+		httpStatus: 429,
+		chargeable: false,
+		// Never. The request is shed BEFORE a provider is chosen, so there is no next hop to
+		// try; the chain does not run at all. Retrying is the client's job, and `Retry-After`
+		// is how we ask for it.
+		failover: false,
+		cooldown: 'none',
+		pages: false,
+		meaning: 'In-flight ceiling reached; the gateway shed this request rather than queue it',
 	},
 } as const satisfies Record<Outcome, OutcomePolicy>;
 

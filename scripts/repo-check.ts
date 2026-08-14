@@ -1307,6 +1307,69 @@ function matchesOwner(pattern: string, file: string): boolean {
 	ok('25', checked25, 'documented compose invocations can find the root .env');
 }
 
+// ------------------------------------------------------------- 26: the landing page's count
+//
+// The landing page states how many outcomes and classes the taxonomy has, and `apps/web`
+// DELIBERATELY does not import `@proxlane/shared` to find out — the page copies the four
+// labels it renders rather than taking a runtime dependency on the taxonomy, and that
+// decision is documented at the copy site. The cost of it is a hand-typed number that goes
+// stale the moment a member lands, on the one page every visitor reads.
+//
+// `GATEWAY_BUSY` is what proved it: adding it made the page's "Seventeen outcomes" wrong,
+// and the sentence it appears in is specifically the promise that adding an outcome breaks
+// nothing. Nothing would have caught it. This binds the claim to the arrays without binding
+// the bundle to the package.
+{
+	const PAGE = 'apps/web/src/routes/index.tsx';
+	const TAXONOMY = 'packages/shared/src/outcome.ts';
+
+	// Counts the quoted members of `export const NAME = [ ... ] as const`. Parsed rather than
+	// imported for the same reason the page does not import: this script is zero-dependency
+	// and runs before anything is built.
+	const countMembers = (src: string, name: string): number => {
+		const block = new RegExp(`export const ${name} = \\[([^\\]]*)\\]`).exec(src);
+		if (block === null) return 0;
+		// Both cases: outcomes are SCREAMING_CASE, classes are lowercase. Matching only the
+		// former is what the zero-denominator guard below caught on the first run.
+		return (block[1]?.match(/'[a-zA-Z_]+'/g) ?? []).length;
+	};
+
+	if (!has(PAGE) || !has(TAXONOMY)) {
+		fail('26', `${PAGE} or ${TAXONOMY} is missing, so the taxonomy claim cannot be checked`);
+	} else {
+		const taxonomy = read(TAXONOMY);
+		const outcomes = countMembers(taxonomy, 'OUTCOMES');
+		const classes = countMembers(taxonomy, 'OUTCOME_CLASSES');
+		// Non-zero denominator: a regex that silently matched nothing would make this assertion
+		// pass by comparing 0 to 0 forever.
+		if (outcomes === 0 || classes === 0) {
+			fail(
+				'26',
+				`could not parse OUTCOMES (${outcomes}) or OUTCOME_CLASSES (${classes}) from ` +
+					`${TAXONOMY} — the array shape changed and this check stopped checking`,
+			);
+		} else {
+			const claim = /(\d+) outcomes, (\d+) classes/.exec(read(PAGE));
+			if (claim === null) {
+				fail(
+					'26',
+					`${PAGE} no longer states "<n> outcomes, <n> classes". If the sentence was ` +
+						'reworded, reword this assertion with it rather than deleting it.',
+				);
+			} else if (Number(claim[1]) !== outcomes || Number(claim[2]) !== classes) {
+				fail(
+					'26',
+					`${PAGE} claims ${claim[1]} outcomes and ${claim[2]} classes; ` +
+						`${TAXONOMY} has ${outcomes} and ${classes}. ` +
+						'Owner: design-engineer for the copy, platform-engineer for the taxonomy.',
+				);
+			} else {
+				ok('26', outcomes + classes, 'the landing page’s taxonomy count is true');
+			}
+		}
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

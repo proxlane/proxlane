@@ -152,7 +152,47 @@ function routingChecks(): Check[] {
 				? 'on. A provider that just refused a domain is skipped, with Retry-After when all are'
 				: 'OFF (PROXLANE_COOLDOWNS=off). Every request retries providers that just refused it',
 		},
+		backpressureCheck(),
 	];
+}
+
+/**
+ * The in-flight ceiling, and the arithmetic nobody does until the container is OOM-killed.
+ *
+ * Two support questions in one, and both are B9-shaped — more than one exchange to answer
+ * from the outside. "Why am I getting 429s when the providers are fine?" is answered by the
+ * ceiling and the fact that `GATEWAY_BUSY` is class `gateway`, not `provider`. "Why does the
+ * container keep restarting?" is answered by the memory line: the gateway buffers every body
+ * before the detector reads it, so the working set is roughly `maxInflight * bodyCap * 2.5`,
+ * and there is no boot-time check enforcing it yet.
+ *
+ * Prints the numbers rather than a verdict, per B9: `backpressure: ok` in an issue thread
+ * tells a maintainer nothing.
+ */
+function backpressureCheck(): Check {
+	const raw = env('PROXLANE_MAX_INFLIGHT');
+	const max = Number(raw ?? 32);
+	const capMb = Number(env('PROXLANE_BODY_CAP_MB') ?? 10);
+	// The same rule `InflightLimiter` enforces, so `doctor` predicts the boot rather than
+	// disagreeing with it.
+	const ok = Number.isInteger(max) && max >= 1;
+	if (!ok) {
+		return {
+			name: 'backpressure',
+			ok: false,
+			detail: `PROXLANE_MAX_INFLIGHT=${raw ?? '(unset)'}, which is not a positive integer`,
+			fix: 'set it to a positive whole number, or unset it for the default of 32. The gateway refuses to boot on anything else',
+		};
+	}
+	const wantMb = Math.round(max * capMb * 2.5);
+	return {
+		name: 'backpressure',
+		ok: true,
+		detail:
+			`${max} concurrent /v1 requests, then 429 GATEWAY_BUSY with Retry-After. ` +
+			`Sheds rather than queues; /health is never shed. At a ${capMb} MB body cap this ` +
+			`wants roughly ${wantMb} MB for the container — not checked at boot, so size it yourself`,
+	};
 }
 
 /**

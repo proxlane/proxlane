@@ -37,6 +37,11 @@ services:
       SCRAPFLY_KEY: ${SCRAPFLY_KEY:-}
       PROXLANE_DEADLINE_MS: ${PROXLANE_DEADLINE_MS:-90000}
       PROXLANE_BODY_CAP_MB: ${PROXLANE_BODY_CAP_MB:-10}
+      # Concurrent /v1 requests before the gateway answers 429 GATEWAY_BUSY. Sheds rather
+      # than queues, and never applies to /health — an orchestrator must not restart a
+      # gateway whose only problem is that it is busy. Sized against the memory limit
+      # below: maxInflight * bodyCapMb * 2.5 should fit inside it.
+      PROXLANE_MAX_INFLIGHT: ${PROXLANE_MAX_INFLIGHT:-32}
       # Routing state. These four were documented in .env.example and NOT listed here, so
       # setting them did nothing on the one deployment path this project ships: compose only
       # passes a variable into the container if it is named in this block.
