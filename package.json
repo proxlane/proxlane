@@ -15,7 +15,7 @@
 		"content:lint": "node scripts/not-implemented.ts content:lint",
 		"dev": "turbo run dev --parallel",
 		"docs:check": "node scripts/openapi.ts && node scripts/docs-check.ts",
-		"k6:soak": "node scripts/not-implemented.ts k6:soak",
+		"k6:soak": "node scripts/k6-soak.ts test/k6/soak.js",
 		"lighthouse:assert": "node scripts/lighthouse-assert.ts --config=tooling/lighthouse/lighthouserc.json",
 		"lint": "biome ci .",
 		"new-adapter": "node scripts/new-adapter.ts",

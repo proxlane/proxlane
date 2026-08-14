@@ -30,11 +30,11 @@ Owner decisions and external answers. None is unblocked by writing code.
 - **Secret scanning depth** — core scanning and push protection are on. Non-provider
   patterns and validity checks accept a 200 from the API and stay disabled; they need
   paid Secret Protection. Buy it, or accept that a bespoke key shape goes unscanned.
-- **Where `k6:soak` runs** — the box sits at ~66% CPU / ~51% IO pressure during normal
-  scrape windows, so a gateway-internal p95 gate measured there measures the neighbours.
-  Dedicated ephemeral box, or restate the threshold honestly. The command is still a stub and
-  is **blocked by this decision, not by code**: building the harness against an unanswerable
-  threshold is the wasted work. *Before it is a launch gate.*
+- **Where `k6:soak` runs** — the harness is built and green; only the venue is undecided.
+  The box sits at ~66% CPU / ~51% IO pressure, and gateway-internal time excludes network but
+  includes event-loop starvation, so a p95 measured there measures the neighbours. Provider
+  variance is already gone: the soak runs against a local mock. Dedicated ephemeral box, or
+  restate the threshold honestly. *Before it is a launch gate.*
 - **Hosted credit margin** — `plan.md` §7. The rate does not clear its costs once failover
   attempts are counted. Blocks the ledger and all Stripe work. Phase 3; figures are private.
 - **A private fixture corpus** — `plan.md` §19 bars recording any named commercial target

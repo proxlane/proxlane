@@ -1,0 +1,17 @@
+{
+	"name": "@proxlane/k6-harness",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json"
+	},
+	"devDependencies": {
+		"@hono/node-server": "catalog:",
+		"@proxlane/adapters": "workspace:*",
+		"@proxlane/gateway": "workspace:*",
+		"@proxlane/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"typescript": "catalog:"
+	}
+}

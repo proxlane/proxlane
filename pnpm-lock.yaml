@@ -452,6 +452,27 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
+  test/k6:
+    devDependencies:
+      '@hono/node-server':
+        specifier: 'catalog:'
+        version: 2.1.0(hono@4.13.1)
+      '@proxlane/adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
+      '@proxlane/gateway':
+        specifier: workspace:*
+        version: link:../../apps/gateway
+      '@proxlane/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
   tooling/containers:
     devDependencies:
       '@proxlane/tsconfig':

@@ -3,6 +3,9 @@ packages:
   - packages/*
   - tooling/*
   - scripts
+  # The load harness. Its own package so it can resolve workspace deps; devex-engineer owns
+  # it, and platform-engineer runs it.
+  - test/k6
 
 # Every npm dependency routes through the catalog. A package cannot add an unpinned
 # dependency without adding a key here, and repo:check asserts this list against the

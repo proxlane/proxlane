@@ -178,9 +178,7 @@
 		"brief": ".claude/agents/platform-engineer.md",
 		"spec": "docs/operations.md#1",
 		"subject": "test/k6/soak.js",
-		"blockedBy": ["apps/gateway/src/server-timing.ts"],
-		"status": "not-implemented",
-		"gate": "50 VUs, 30 min, p95 from Server-Timing, RSS slope, 429 assertion at maxInflight. devex-engineer builds the harness; platform-engineer's exit criterion runs it. k6 is a Go binary from brew/apt, not an npm package.",
+		"status": "implemented",
 		"ci": "none"
 	},
 	"lighthouse:assert": {

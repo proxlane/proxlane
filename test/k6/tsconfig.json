@@ -1,0 +1,7 @@
+{
+	// `scripts.json`, not `node.json`: this harness is run by `node file.ts` directly, so its
+	// internal imports carry a `.ts` extension. Node's type stripping does not rewrite `./x.js`
+	// to `./x.ts`, which is the same thing that breaks the gateway's own `dev` script.
+	"extends": "@proxlane/tsconfig/scripts.json",
+	"include": ["*.ts"]
+}

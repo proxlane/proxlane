@@ -6,7 +6,7 @@
 	"license": "AGPL-3.0-only",
 	"scripts": {
 		"dev": "node --watch src/index.ts",
-		"build": "tsdown src/index.ts --format esm",
+		"build": "tsdown src/index.ts src/app.ts src/transport.ts --format esm --dts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"clean": "rm -rf dist"
 	},
@@ -24,5 +24,16 @@
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
 		"@proxlane/vitest-config": "workspace:*"
+	},
+	"exports": {
+		".": "./dist/index.mjs",
+		"./app": {
+			"types": "./dist/app.d.mts",
+			"default": "./dist/app.mjs"
+		},
+		"./transport": {
+			"types": "./dist/transport.d.mts",
+			"default": "./dist/transport.mjs"
+		}
 	}
 }
