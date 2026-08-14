@@ -174,8 +174,9 @@ instance, and every provider connection consumes one. Keep `MAX_INFLIGHT` modest
 Memory is not a problem: Hobby gives 2 GB against the roughly 800 MB the boot check wants at
 default settings.
 
-**The marketing site (`apps/web`) is an ordinary TanStack Start app** and deploys to Vercel with
-none of the above applying.
+**The marketing site (`apps/web`) is an ordinary TanStack Start app** and none of the above
+applies to it. It deploys to Cloudflare Workers from `.github/workflows/deploy-web.yml`; Vercel
+would work equally well.
 
 ## 4. Running more than one gateway
 

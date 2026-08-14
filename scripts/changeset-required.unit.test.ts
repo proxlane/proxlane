@@ -129,3 +129,22 @@ describe('versionedDirs, read from the real workspace', () => {
 		rmSync(tmp, { recursive: true, force: true });
 	});
 });
+
+describe('an empty diff is not a pass', () => {
+	// The failure this encodes: `changeset-required.ts` was run after `git add` but before
+	// committing. It diffs `base...HEAD`, so it saw nothing, reported "no changeset needed",
+	// and that sentence went into a PR body where CI promptly contradicted it.
+	it('reports that it examined nothing rather than reporting nothing is required', () => {
+		const v = changesetRequired([], ['apps/web']);
+		expect(v.examined).toBe(0);
+		// `required` is false, which is exactly why `examined` has to be checked: the two are
+		// indistinguishable from the boolean alone.
+		expect(v.required).toBe(false);
+	});
+
+	it('distinguishes that from a real run where nothing versioned changed', () => {
+		const v = changesetRequired(['README.md', 'docs/self-hosting.md'], ['apps/web']);
+		expect(v.examined).toBe(2);
+		expect(v.required).toBe(false);
+	});
+});
