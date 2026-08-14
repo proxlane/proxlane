@@ -125,6 +125,14 @@
 	--shadow-panel:
 		0 1px 2px color-mix(in oklab, var(--color-ink) 7%, transparent),
 		0 10px 28px -14px color-mix(in oklab, var(--color-ink) 16%, transparent);
+
+	/* The wash behind a modal.
+	 *
+	 * NOT mixed from `--color-ink`, and that is the whole point of it being its own token. Ink
+	 * inverts with the theme, so a scrim derived from it is near-black on light and near-WHITE
+	 * on dark — which does not dim the page, it fogs it grey. A scrim always darkens, in both
+	 * themes, because its job is to push the page behind the thing in front of it. */
+	--color-scrim: rgb(16 18 21 / 0.45);
 }
 
 /* ---- dark ------------------------------------------------------------------------------
@@ -153,6 +161,8 @@
 	--color-accent: #f06595;
 	/* Lifted OFF the ground rather than dropped below it: a dark UI reads depth as light. */
 	--color-surface: #1a1e23;
+	/* Deeper on dark. The same 45% over an already-dark page barely separates the dialog. */
+	--color-scrim: rgb(4 6 8 / 0.66);
 }
 
 /* THE one authored moment, per `design.md`: the route draws itself once, on load. Not a fade
@@ -203,6 +213,7 @@
 		--color-line-3: #9775fa;
 		--color-accent: #f06595;
 		--color-surface: #1a1e23;
+		--color-scrim: rgb(4 6 8 / 0.66);
 		--glow-line: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
 	}
 }
