@@ -111,6 +111,7 @@ const OUTCOME_CLASS: Record<string, string> = {
 	SOFT_BLOCK: 'blocked',
 	HARD_BLOCK: 'blocked',
 	PROVIDER_ERROR: 'provider',
+	GATEWAY_BUSY: 'gateway',
 };
 
 interface Scenario {
@@ -199,6 +200,18 @@ const SCENARIOS: readonly Scenario[] = [
 		caption:
 			'Every provider blocked. The chain reports the last outcome rather than inventing one, and no provider served, so x-provider-used is absent from the response rather than empty. You are still told what was tried, and still charged for it.',
 	},
+	{
+		id: 'shed',
+		label: 'shed',
+		// Zero attempts, and that is the fact the scenario exists to show. The ceiling is
+		// checked before a provider is chosen, so nothing was tried and nothing was spent.
+		attempts: [],
+		outcome: 'GATEWAY_BUSY',
+		status: 429,
+		cost: '0.000000',
+		caption:
+			'The gateway was already at its in-flight ceiling, so it refused this request instead of queueing it — a proxy that queues silently becomes a latency black hole. Nothing was tried and nothing was charged. retry-after says when to come back, and the class is gateway, not provider: this one is ours, not a provider throttling you.',
+	},
 ];
 
 type ScenarioId = (typeof SCENARIOS)[number]['id'];
@@ -212,14 +225,28 @@ type ScenarioId = (typeof SCENARIOS)[number]['id'];
  */
 function headersFor(s: Scenario): readonly (readonly [string, string])[] {
 	const served = s.attempts.find((a) => a.outcome === 'OK');
+	type Row = readonly [string, string];
+	// Provider time is the sum of every hop, gateway time is what the router itself spent, and
+	// the total is the two together — the same subtraction the real header is built from, so
+	// these add up on screen the way they add up in a response.
+	const upstreamMs = s.attempts.reduce((n, a) => n + (a.latencyMs ?? 0), 0);
+	const gatewayMs = s.attempts.length === 0 ? 0.4 : 1.1 + s.attempts.length * 0.3;
+	const ms = (n: number) => (Math.round(n * 10) / 10).toString();
 	return [
 		['x-outcome', s.outcome],
 		['x-outcome-class', OUTCOME_CLASS[s.outcome] ?? 'gateway'],
 		['x-attempts', String(s.attempts.length)],
-		...(served === undefined
-			? []
-			: ([['x-provider-used', served.provider]] as readonly (readonly [string, string])[])),
+		...(served === undefined ? [] : ([['x-provider-used', served.provider]] as Row[])),
 		['x-cost-estimate', s.cost],
+		// Only when the gateway actually knows. A guessed Retry-After is worse than none,
+		// because a caller will believe it — the response builder takes the same position.
+		...(s.outcome === 'GATEWAY_BUSY' ? ([['retry-after', '1']] as Row[]) : []),
+		// On every response. `gw` is the number operations.md gates p95 on, and the one that
+		// answers "was it you or the provider" without anyone having to ask.
+		[
+			'server-timing',
+			`gw;dur=${ms(gatewayMs)}, up;dur=${ms(upstreamMs)}, total;dur=${ms(gatewayMs + upstreamMs)}`,
+		],
 	];
 }
 
