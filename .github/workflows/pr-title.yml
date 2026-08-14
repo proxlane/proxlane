@@ -32,12 +32,42 @@ jobs:
           BASE: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          git fetch origin "${BASE}" --depth=1 >/dev/null 2>&1 || true
+
+          # NO SHALLOW FETCH OF THE BASE. There used to be a
+          # `git fetch origin "$BASE" --depth=1 || true` here, and it was the bug:
+          # `fetch-depth: 0` above already fetches every ref with full history, and the extra
+          # depth-1 fetch TRUNCATED `origin/main` to a single commit. Git then cannot see its
+          # ancestors, so the moment a branch contained a merge commit — which is what the
+          # "Update branch" button creates — `origin/main..HEAD` stopped meaning "this PR" and
+          # resolved to nearly the entire history. PR #69 was failed by its own repository's
+          # first commit, "proxlane: an open-source scraping proxy gateway", from 2026.
+          # The `|| true` hid any fetch error on top of that.
+
+          # MERGE BASE, not a two-dot range. Explicit about the question being asked: which
+          # commits does this branch add. It stays correct whether the branch was rebased or
+          # had the base merged into it, which the two-dot form does not.
+          MERGE_BASE=$(git merge-base "origin/${BASE}" HEAD)
           # --no-merges, because on a pull_request event actions/checkout checks out the
           # SYNTHETIC merge commit ("Merge <sha> into <sha>"), which is in this range, is not
           # a Conventional Commit, and never lands on main. Squash merge is mandated by
           # operating.md B3, so a genuine merge subject should not appear here either.
-          SUBJECTS=$(git log --no-merges --format=%s "origin/${BASE}..HEAD")
+          SUBJECTS=$(git log --no-merges --format=%s "${MERGE_BASE}..HEAD")
+
+          # A SANITY BOUND ON THE RANGE ITSELF. If this ever walks the whole history again the
+          # failure should say so, rather than blaming a commit from years ago for not being a
+          # Conventional Commit and sending the author looking in the wrong place. `operating.md`
+          # caps PRs at roughly 400 lines, so a branch with more than 50 commits is a broken
+          # range long before it is a real pull request.
+          COUNT=$(printf '%s\n' "$SUBJECTS" | grep -c . || true)
+          if [ "$COUNT" -gt 50 ]; then
+            echo "::error::the commit range looks wrong: ${COUNT} subjects between ${MERGE_BASE} and HEAD."
+            echo "  This check lints the commits THIS pull request adds. That many means the range"
+            echo "  resolved too widely — usually a shallow or missing origin/${BASE} ref — not that"
+            echo "  the branch really contains ${COUNT} commits."
+            exit 1
+          fi
+          echo "linting ${COUNT} commit subject(s) added since ${MERGE_BASE}"
+
           # The rules themselves live in scripts/commit-subject.ts, with unit tests, so that
           # .githooks/commit-msg enforces exactly this before a push rather than after one.
           node scripts/commit-subject.ts --title "$TITLE" --pr "$PR" --subjects "$SUBJECTS"
