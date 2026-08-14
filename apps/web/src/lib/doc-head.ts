@@ -6,7 +6,9 @@
 export const SITE = 'https://proxlane.dev';
 
 export function docHead(title: string, summary: string, path: string) {
-	const full = `${title} — Proxlane docs`;
+	// A middle dot, not an em dash. Browser tabs truncate hard, and an em dash reads as part of
+	// the title rather than as a separator at that size.
+	const full = `${title} · Proxlane docs`;
 	return {
 		meta: [
 			{ title: full },

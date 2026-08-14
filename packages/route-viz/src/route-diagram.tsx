@@ -243,28 +243,25 @@ export function RouteDiagram({
 			    refused one line up in the same column across scenarios. */}
 			{attempts.length === 0 && (
 				<g>
+					{/* RUNS THE FULL WIDTH, unlike a failed provider leg.
+					    A failed leg stops short because it did not reach the terminus — there was a
+					    provider out there and it did not deliver. A shed request has no such
+					    distance to fall short of: the gateway IS the endpoint, and it refused at the
+					    door. Stopping short here drew a line ending in mid-air with the outcome
+					    stranded far to its right, which reads as a rendering fault rather than as a
+					    refusal. */}
 					<line
 						x1={geo.startX}
 						y1={firstY}
-						x2={geo.startX + geo.failLeg - 9}
+						x2={endX - 9}
 						y2={firstY}
 						stroke="var(--color-ink)"
 						strokeWidth="var(--stroke-line, 3)"
 						strokeLinecap="round"
 					/>
 					<g stroke="var(--color-ink)" strokeWidth="2.5" strokeLinecap="round">
-						<line
-							x1={geo.startX + geo.failLeg - 5.5}
-							y1={firstY - 5.5}
-							x2={geo.startX + geo.failLeg + 5.5}
-							y2={firstY + 5.5}
-						/>
-						<line
-							x1={geo.startX + geo.failLeg - 5.5}
-							y1={firstY + 5.5}
-							x2={geo.startX + geo.failLeg + 5.5}
-							y2={firstY - 5.5}
-						/>
+						<line x1={endX - 5.5} y1={firstY - 5.5} x2={endX + 5.5} y2={firstY + 5.5} />
+						<line x1={endX - 5.5} y1={firstY + 5.5} x2={endX + 5.5} y2={firstY - 5.5} />
 					</g>
 					{/* The status IS shown here, unlike on a failed leg. A failed leg's label is
 					    interim — the chain carried on — whereas this one is the answer the caller
