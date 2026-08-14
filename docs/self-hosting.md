@@ -31,7 +31,7 @@ cp .env.example .env
 openssl rand -hex 32          # paste the result as PROXLANE_API_KEY in .env
 $EDITOR .env                  # and add whichever provider keys you have
 
-docker compose -f docker/compose.yml --env-file .env up -d --build
+docker compose -f docker/compose.yml --env-file .env up -d
 ```
 
 **`--env-file .env` is not optional, and this is the one thing most likely to trip you up.**
@@ -45,8 +45,9 @@ required variable PROXLANE_API_KEY is missing a value
 
 `--project-directory .` works too. Pick one; do not omit both.
 
-`--build` is needed today because the published image is not yet public — see
-[Known gaps](#known-gaps).
+No `--build`: Compose pulls `ghcr.io/proxlane/gateway:latest` from the registry even though
+the compose file also declares a `build:`, because Compose v2 prefers a resolvable image. The
+build path is still there if you want it — add `--build`.
 
 ### Check it came up
 
@@ -91,9 +92,11 @@ provider failed. An exhausted chain reports the last provider's outcome instead.
 Identical to the above; a droplet is just a machine with Docker on it. What changes is what
 surrounds it.
 
-**Do not build on a small box.** The build compiles the whole monorepo and will strain a
-1 GB droplet. Build elsewhere and push to your own registry, or build once and `docker save` /
-`docker load`. This is the failure this project has already had on its own infrastructure.
+**Do not build on a small box.** The published image is public, so the compose file above pulls
+rather than builds and this mostly takes care of itself. If you do build — a fork, a patch —
+build elsewhere and push to your own registry, or build once and `docker save` / `docker load`.
+Compiling the monorepo will strain a 1 GB droplet, a failure this project has already had on
+its own infrastructure.
 
 **Do not expose 8787.** Bind it to loopback and put a reverse proxy in front for TLS. In
 `docker/compose.yml`:
@@ -224,7 +227,7 @@ runs. Every command in the CLI takes `--json`.
 
 ```bash
 git pull
-docker compose -f docker/compose.yml --env-file .env up -d --build
+docker compose -f docker/compose.yml --env-file .env up -d
 ```
 
 The gateway is 0.x. Breaking changes are minor bumps until `GatewayRequest` and the outcome
@@ -234,9 +237,6 @@ taxonomy have gone two consecutive releases unchanged; read the changelog before
 
 Recorded because they affect anyone following this page, not to be tidied away:
 
-- **`ghcr.io/proxlane/gateway` is not publicly pullable.** The release workflow pushes it, but
-  the package is private, so an anonymous pull gets a 403 and `--build` is mandatory. Making
-  the GHCR package public removes the build step for everyone.
 - **`pnpm selfhost:smoke` does not exercise this path.** It injects `PROXLANE_API_KEY` through
   the process environment instead of reading `.env`, so it passes while the documented
   `--env-file` behaviour above goes unchecked. The check and the instructions test different
