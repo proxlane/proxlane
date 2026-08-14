@@ -31,6 +31,28 @@ function ok(assertion: string, n: number, what: string): void {
 function read(p: string): string {
 	return readFileSync(join(ROOT, p), 'utf8');
 }
+/**
+ * Every TypeScript source under a directory, concatenated.
+ *
+ * Used only to answer "does anything actually read this environment variable". Grepping the
+ * built output would miss a variable read at boot in a package that has not been built, and
+ * grepping .env.example alone is what let PROXLANE_SHARE_STATS survive: it was in neither.
+ */
+function tsSources(rel: string): string {
+	const out: string[] = [];
+	const walk = (dir: string): void => {
+		for (const name of readdirSync(dir)) {
+			if (name === 'node_modules' || name === 'dist' || name === '.output') continue;
+			const full = join(dir, name);
+			if (statSync(full).isDirectory()) walk(full);
+			else if (name.endsWith('.ts') || name.endsWith('.tsx'))
+				out.push(readFileSync(full, 'utf8'));
+		}
+	};
+	walk(join(ROOT, rel));
+	return out.join('\n');
+}
+
 function has(p: string): boolean {
 	return existsSync(join(ROOT, p));
 }
@@ -1168,6 +1190,121 @@ function matchesOwner(pattern: string, file: string): boolean {
 		}
 	}
 	ok('22', checked22, 'literally-named owned paths exist');
+}
+
+// ------------------------------------------------------------------ 23, 24, 25: the docs
+//
+// THREE ASSERTIONS, ONE PER BUG FOUND BY ACTUALLY RUNNING THE README. Writing
+// `docs/self-hosting.md` meant executing every command against a fresh clone, and all three of
+// these had been wrong for some time while every check stayed green:
+//
+//   the quickstart could not work      `docker compose up` from the root exits "no
+//                                      configuration file provided", and the -f form silently
+//                                      reads docker/.env rather than the .env you just made
+//   PROXLANE_SHARE_STATS did not exist the README documented an opt-in telemetry flag that
+//                                      appears nowhere in the code
+//   a command that had been renamed    nothing tied prose to package.json
+//
+// Prose is the one part of this repo nothing executed. These do not make the docs correct —
+// only running them does — but they close the three ways they were provably wrong.
+{
+	const DOCS = ['README.md', 'docs/self-hosting.md'];
+	const present = DOCS.filter((d) => has(d));
+	if (present.length === 0) fail('23', 'no user-facing docs found to check');
+
+	const scripts = Object.keys(
+		(JSON.parse(read('package.json')) as { scripts?: Record<string, string> }).scripts ?? {},
+	);
+	// pnpm built-ins and bins, which are not root scripts and never will be.
+	const NOT_SCRIPTS = new Set([
+		'install',
+		'add',
+		'remove',
+		'exec',
+		'dlx',
+		'why',
+		'run',
+		'changeset',
+		'create',
+		'init',
+		'update',
+		'list',
+		'outdated',
+		'publish',
+		'store',
+		'setup',
+		'link',
+		'test',
+	]);
+
+	let checked23 = 0;
+	let checked24 = 0;
+	let checked25 = 0;
+
+	// The env vars the code or the shipped config actually knows about.
+	const knownEnv = [
+		read('.env.example'),
+		has('docker/compose.yml') ? read('docker/compose.yml') : '',
+		has('docker/compose.dev.yml') ? read('docker/compose.dev.yml') : '',
+		...['apps', 'packages'].flatMap((d) => (has(d) ? [tsSources(d)] : [])),
+	].join('\n');
+
+	for (const doc of present) {
+		const text = read(doc);
+
+		// 23. A `pnpm <script>` in prose is a promise the root package.json has to keep.
+		for (const m of text.matchAll(/\bpnpm (?:run )?([a-z][a-z0-9:-]*)/g)) {
+			const name = m[1];
+			if (name === undefined || NOT_SCRIPTS.has(name)) continue;
+			checked23++;
+			if (!scripts.includes(name))
+				fail(
+					'23',
+					`${doc} tells the reader to run \`pnpm ${name}\`, which is not a root script`,
+				);
+		}
+
+		// 24. An env var in prose is a promise something reads it.
+		for (const m of text.matchAll(
+			/\b(PROXLANE_[A-Z0-9_]+|SCRAPERAPI_KEY|SCRAPINGBEE_KEY|SCRAPFLY_KEY|DATABASE_URL|VALKEY_URL|MAX_INFLIGHT|BODY_CAP_MB)\b/g,
+		)) {
+			const name = m[1];
+			if (name === undefined) continue;
+			checked24++;
+			if (!knownEnv.includes(name))
+				fail(
+					'24',
+					`${doc} documents ${name}, which appears in no config and no source. ` +
+						'PROXLANE_SHARE_STATS was documented as an opt-in telemetry flag for months ' +
+						'and never existed.',
+				);
+		}
+
+		// 25. Compose derives its project directory from the first -f file, so an invocation
+		//     naming docker/compose.yml reads docker/.env and ignores the root .env the reader
+		//     was just told to create. It fails on the PROXLANE_API_KEY interpolation.
+		for (const line of text.split('\n')) {
+			if (!/docker compose\b/.test(line) || !/-f docker\//.test(line)) continue;
+			checked25++;
+			if (!/--env-file|--project-directory/.test(line))
+				fail(
+					'25',
+					`${doc} runs \`docker compose -f docker/...\` without --env-file or ` +
+						'--project-directory, so the root .env is never read and the gateway refuses ' +
+						`to boot:\n      ${line.trim()}`,
+				);
+		}
+	}
+
+	if (checked23 === 0)
+		fail('23', 'no `pnpm <script>` found in the docs — the scan matched nothing');
+	if (checked24 === 0)
+		fail('24', 'no environment variable found in the docs — the scan matched nothing');
+	if (checked25 === 0)
+		fail('25', 'no compose invocation found in the docs — the scan matched nothing');
+	ok('23', checked23, 'documented pnpm scripts exist');
+	ok('24', checked24, 'documented environment variables are read by something');
+	ok('25', checked25, 'documented compose invocations can find the root .env');
 }
 
 // -------------------------------------------------------------------------- report

@@ -22,6 +22,13 @@ Short by design; the SessionStart hook prints it.
 | `docs/landing-mockup.html` | building the marketing hero |
 | `docs/affiliate-emails.md` | Phase 0 outreach only |
 
+**Prose is checked too.** `repo:check` assertions 23–25 hold the README and
+`docs/self-hosting.md` to reality: a documented `pnpm <script>` must exist, a documented
+environment variable must be read by something, and a documented `docker compose -f docker/…`
+must carry `--env-file` or `--project-directory` or it silently reads `docker/.env` instead of
+the one the reader was told to create. All three were added after running the README end to
+end and finding all three wrong.
+
 **Do not read `docs/archive/`.** It holds decisions already extracted into the files
 above — the rejected design directions and read-once strategy prose. It exists so the
 reasoning survives, not so it gets loaded.

@@ -62,13 +62,13 @@ publishing anyway.
 ## Quickstart
 
 ```bash
-curl "https://api.proxlane.dev/v1?api_key=$PROXLANE_KEY&url=https://example.com"
+curl "https://api.proxlane.dev/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
 ```
 
 JavaScript rendering and geotargeting:
 
 ```bash
-curl "https://api.proxlane.dev/v1?api_key=$PROXLANE_KEY\
+curl "https://api.proxlane.dev/v1?api_key=$PROXLANE_API_KEY\
 &url=https://example.com&render=true&country_code=de"
 ```
 
@@ -100,7 +100,7 @@ git clone https://github.com/proxlane/proxlane
 cd proxlane
 cp .env.example .env
 openssl rand -hex 32   # paste as PROXLANE_API_KEY in .env, then add your provider keys
-docker compose -f docker/compose.yml --env-file .env up -d --build
+docker compose -f docker/compose.yml --env-file .env up -d
 ```
 
 `--env-file` is not decoration: Compose takes its project directory from the compose file's
