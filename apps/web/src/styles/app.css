@@ -477,7 +477,9 @@ html[data-theme="dark"] .doc-prose .shiki span {
 	width: 100%;
 }
 .doc-search-dialog::backdrop {
-	background: color-mix(in oklab, var(--color-ink) 45%, transparent);
+	/* A dedicated token, not a mix of ink: ink inverts with the theme, so the first version
+	   was 45% near-white on dark and fogged the page grey instead of dimming it. */
+	background: var(--color-scrim);
 }
 .doc-search-field {
 	align-items: center;
