@@ -45,6 +45,10 @@ const EXPECTED: Record<Outcome, 'success' | 'failure' | 'ignore'> = {
 	NO_PROVIDER_AVAILABLE: 'ignore',
 	RESPONSE_TOO_LARGE: 'ignore',
 	BUDGET_EXCEEDED: 'ignore',
+	// Ours, and the most clearly ours of all: the request never reached a provider, so there
+	// is no provider to attribute it to. Counting a shed request as a failure would demote
+	// providers for being popular.
+	GATEWAY_BUSY: 'ignore',
 };
 
 describe('health attribution covers the taxonomy', () => {

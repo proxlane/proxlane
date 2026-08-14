@@ -218,6 +218,7 @@ defined per outcome, centrally, never inside adapters.
 | `NO_PROVIDER_AVAILABLE` | `gateway` | No adapter matches, or the chain is exhausted | 503 | no | n/a | no | no |
 | `RESPONSE_TOO_LARGE` | `gateway` | Body exceeded the cap | 413 | no | no | no | no |
 | `BUDGET_EXCEEDED` | `gateway` | Global deadline or cost budget hit | 504 | no | no | no | no |
+| `GATEWAY_BUSY` | `gateway` | In-flight ceiling reached; shed rather than queued | 429 + `Retry-After` | no | **no** | no | no |
 
 **Health attribution is a property of the (provider, outcome) pair, not the outcome alone.**
 
@@ -263,6 +264,11 @@ a request that is simply wrong, so all of it landed on `INVALID_REQUEST`:
   `NO_PROVIDER_AVAILABLE`.
 - Oversized bodies used to reuse `BUDGET_EXCEEDED`, which also means deadline. Split out
   as `RESPONSE_TOO_LARGE`.
+- Backpressure had no outcome, and the obvious substitute was wrong. `RATE_LIMITED` is
+  class `provider`: it means a provider capped **us**, it writes an `acct` cooldown, and it
+  fails over — which is right when one provider refuses and actively wrong when the gateway
+  itself is full, because failing over spends the budget the ceiling exists to protect. Now
+  `GATEWAY_BUSY`, class `gateway`, no failover, no cooldown.
 
 The HTTP column is not decoration: the product's promise is drop-in compatibility, so the
 status a client sees is part of the public surface, and no document defined it.
@@ -457,7 +463,7 @@ the time an `Outcome` exists, "whose fault" is answered.
 | nothing — a property of a hop, not a provider | `PROVIDER_TIMEOUT` |
 | nothing — target facts, handled by `cd:blk` | `SOFT_BLOCK`, `HARD_BLOCK`, `TARGET_NOT_FOUND`, `TARGET_ERROR`, `TARGET_RATE_LIMITED` |
 | nothing — account facts, handled by `cd:acct` | `AUTH_FAILED`, `RATE_LIMITED` |
-| nothing — ours or the client's | `INVALID_REQUEST`, `BAD_REQUEST`, `TARGET_FORBIDDEN`, `NO_PROVIDER_AVAILABLE`, `RESPONSE_TOO_LARGE`, `BUDGET_EXCEEDED` |
+| nothing — ours or the client's | `INVALID_REQUEST`, `BAD_REQUEST`, `TARGET_FORBIDDEN`, `NO_PROVIDER_AVAILABLE`, `RESPONSE_TOO_LARGE`, `BUDGET_EXCEEDED`, `GATEWAY_BUSY` |
 
 `PROVIDER_TIMEOUT` is excluded despite being a provider fact. It is a property of a provider
 *at a hop*: section 5 gives a non-terminal attempt 22 s and a terminal one 75 s. Degrading a

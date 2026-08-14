@@ -118,15 +118,22 @@ proxy.example.com {
 answer an ACME challenge on a name that already resolves; starting them first fails the
 challenge and some setups then back off for a while.
 
-**Sizing.** Memory is the constraint, and the gateway checks it at boot: it asserts
-`MAX_INFLIGHT * BODY_CAP_MB * 2.5 < available`, reading the cgroup v2 limit. At the defaults
-(32 in flight, 10 MB body cap) that wants roughly 800 MB for the container. Lower
-`MAX_INFLIGHT` on a smaller box rather than raising the limit and hoping.
+**Sizing.** Memory is the constraint. The gateway buffers each response body before the
+detector can read it, so the working set is roughly
+`PROXLANE_MAX_INFLIGHT * PROXLANE_BODY_CAP_MB * 2.5`. At the defaults — 32 in flight, 10 MB
+body cap — that wants roughly 800 MB for the container. Lower `PROXLANE_MAX_INFLIGHT` on a
+smaller box rather than raising the cap and hoping.
 
-If no cgroup limit is readable — which is normal outside a container — set
-`PROXLANE_MEMORY_LIMIT_MB` explicitly. The check deliberately does not fall back to
-`os.totalmem()`, because inside a limited container that reports the host's memory and would
-reopen the hole the check exists to close.
+Past the ceiling the gateway answers **429 `GATEWAY_BUSY`** with `Retry-After` and sheds the
+request. It does not queue: a queued scrape holds its client's socket while its own deadline
+runs down, and the queue itself is memory this ceiling exists to bound. `/health` is never
+shed, so an orchestrator will not restart a gateway whose only problem is that it is busy.
+
+**This is not yet checked at boot.** This page described a boot-time assertion against the
+cgroup v2 limit, plus an override variable for hosts that have no such file. Neither was ever
+built, and the variable is deliberately not named here so nobody sets one that nothing reads.
+The arithmetic above is yours to do: set the ceiling too high and you buy an OOM kill instead
+of a 429.
 
 `restart: unless-stopped` is already set, so the container survives a reboot.
 
@@ -204,8 +211,7 @@ most:
 | `PORT` | `8787` | |
 | `PROXLANE_DEADLINE_MS` | `90000` | Global per-request deadline |
 | `PROXLANE_BODY_CAP_MB` | `10` | Response body cap |
-| `MAX_INFLIGHT` | `32` | Concurrency ceiling; feeds the boot memory check |
-| `PROXLANE_MEMORY_LIMIT_MB` | unset | Required when no cgroup limit is readable |
+| `PROXLANE_MAX_INFLIGHT` | `32` | Concurrent `/v1` requests, then 429 `GATEWAY_BUSY` |
 | `PROXLANE_COOLDOWNS` | on | Set `off` to disable |
 | `PROXLANE_HEALTH` | **off** | Set `on` to enable provider health. Off by default because its calibration is not yet validated against real traffic |
 | `PROXLANE_VALKEY_URL` | unset | Shared state, required for more than one replica |
