@@ -105,7 +105,7 @@ docker compose -f docker/compose.yml --env-file .env up -d --build
 
 `--env-file` is not decoration: Compose takes its project directory from the compose file's
 location, so without it your root `.env` is never read and the gateway refuses to boot.
-Full guide, including droplets and why the gateway does not belong on Vercel:
+Full guide, including droplets and what Vercel's container support does and does not cover:
 [`docs/self-hosting.md`](docs/self-hosting.md).
 
 One gateway on :8787. No dashboard, no Postgres, no worker — none of them exist yet, and
