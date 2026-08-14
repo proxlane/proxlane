@@ -310,3 +310,51 @@ html[data-theme="dark"] .doc-prose .shiki,
 html[data-theme="dark"] .doc-prose .shiki span {
 	color: var(--shiki-dark);
 }
+
+/* The copy button, added to each `<pre>` on mount by `copy-code.tsx`.
+ *
+ * These rules were written once and then deleted by accident, in the same commit that removed
+ * two `!important` declarations from the Shiki block above: that edit truncated the file from
+ * the Shiki comment onward, and this block sat after it. The button shipped to production
+ * with no styles — an unstyled `copy` sitting in the corner of every code sample. Nothing
+ * caught it, because a missing CSS rule is not a build error and the class only appears in
+ * the DOM after hydration, so the server-rendered HTML looks identical either way.
+ *
+ * Visible on hover and on keyboard focus, never only on hover: a control that appears solely
+ * under a pointer cannot be reached by tab, and this is the control on a reference page most
+ * likely to be used from the keyboard. */
+.doc-pre {
+	position: relative;
+}
+.doc-copy {
+	background: var(--color-ground);
+	border: 1px solid var(--color-rule);
+	border-radius: 5px;
+	color: var(--color-slate);
+	cursor: pointer;
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	line-height: 1;
+	opacity: 0;
+	padding: 0.32rem 0.5rem;
+	position: absolute;
+	right: 0.55rem;
+	top: 0.55rem;
+	transition:
+		opacity 120ms ease,
+		color 120ms ease,
+		border-color 120ms ease;
+}
+.doc-pre:hover .doc-copy,
+.doc-copy:focus-visible {
+	opacity: 1;
+}
+.doc-copy:hover {
+	border-color: var(--color-accent);
+	color: var(--color-accent);
+}
+.doc-copy[data-state="done"] {
+	border-color: var(--color-accent);
+	color: var(--color-accent);
+	opacity: 1;
+}
