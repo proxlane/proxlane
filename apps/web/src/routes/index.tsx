@@ -517,6 +517,35 @@ function Line({ children }: { readonly children: ReactNode }) {
  * The lead is a bolded opening clause and a muted remainder, one paragraph. A flat grey block
  * gives a reader nothing to land on; a heading plus a second heading is two things competing.
  */
+/**
+ * Is this station the one the reader is at?
+ *
+ * The page is a transit line, so the section you have scrolled to is the stop you are
+ * standing at, and its artifact is what you are meant to be looking at. Lighting it up is the
+ * metaphor doing work rather than being described.
+ *
+ * The band is 20%-40% down the viewport, not the middle. A section becomes active when its
+ * content reaches the place people actually read, which is above centre; keyed to the centre
+ * it lights up long after you have started reading it.
+ *
+ * Returns false when IntersectionObserver is unavailable, so every panel simply renders in
+ * its resting state. The highlight is emphasis, never the only way to tell panels apart.
+ */
+function useAtStation(ref: React.RefObject<HTMLElement | null>): boolean {
+	const [here, setHere] = useState(false);
+	useEffect(() => {
+		const node = ref.current;
+		if (node === null || typeof IntersectionObserver === 'undefined') return;
+		const io = new IntersectionObserver(([entry]) => setHere(entry?.isIntersecting === true), {
+			rootMargin: '-20% 0px -60% 0px',
+			threshold: 0,
+		});
+		io.observe(node);
+		return () => io.disconnect();
+	}, [ref]);
+	return here;
+}
+
 function Station({
 	label,
 	title,
@@ -539,6 +568,8 @@ function Station({
 	readonly wide?: boolean;
 	readonly children: ReactNode;
 }) {
+	const section = useRef<HTMLElement>(null);
+	const here = useAtStation(section);
 	const heading = (
 		<>
 			<p className="font-mono text-[color:var(--color-accent)] text-xs">{label}</p>
@@ -555,10 +586,18 @@ function Station({
 	);
 
 	return (
-		<section className="relative sm:pl-14">
+		<section
+			ref={section}
+			data-station
+			data-here={here ? '' : undefined}
+			className="relative sm:pl-14"
+		>
+			{/* The tick joining this stop to the trunk. It takes the accent with the panel, so the
+			    highlight reads as a position on the line rather than as a box that lit up. */}
 			<span
 				aria-hidden="true"
-				className="absolute top-[9px] left-[7px] hidden h-px w-7 bg-[color:var(--color-rule)] sm:block"
+				data-tick
+				className="absolute top-[9px] left-[7px] hidden h-px w-7 bg-[color:var(--color-rule)] transition-colors duration-300 sm:block"
 			/>
 			{wide ? (
 				<div>
@@ -805,7 +844,10 @@ function Panel({
 	readonly children: ReactNode;
 }) {
 	return (
-		<div className="overflow-hidden rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] shadow-panel transition-colors duration-200 hover:border-[color:var(--color-slate)]">
+		<div
+			data-panel
+			className="overflow-hidden rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] shadow-panel transition-[border-color,box-shadow] duration-300 hover:border-[color:var(--color-slate)]"
+		>
 			{/* min-h on the BAR, not on the copy button. The bar used to take its height from the
 			    button, which meant a panel without one — the registry — had a label sitting flat on
 			    the border with no padding at all. Height must not depend on an optional child. */}
