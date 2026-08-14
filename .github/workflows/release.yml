@@ -35,14 +35,44 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # `secrets` cannot be read in a step `if:`, so the presence test is hoisted to `env`,
+      # which can. This is what makes the App optional rather than required.
+      HAS_APP: ${{ secrets.RELEASE_APP_ID != '' && secrets.RELEASE_APP_PRIVATE_KEY != '' }}
     outputs:
       published: ${{ steps.changesets.outputs.published }}
       version: ${{ steps.version.outputs.version }}
     steps:
+      # A PR OPENED WITH `GITHUB_TOKEN` TRIGGERS NO WORKFLOWS. That is GitHub's anti-recursion
+      # rule, and it meant the release PR arrived with zero checks while `main`'s ruleset
+      # requires `ci-complete` with no bypass actor — so every release had to be closed and
+      # reopened by hand to make CI run. A GitHub App installation token is a different
+      # identity and does trigger them.
+      #
+      # An App rather than a PAT deliberately: this mints a token that lives one hour, and the
+      # only thing at rest is the App's private key. A PAT with `contents:write` on `main`
+      # would be a standing credential, which is the posture this project removed when it
+      # dropped the npm token for OIDC.
+      #
+      # OPTIONAL BY DESIGN. With the secrets absent every step below falls back to
+      # `GITHUB_TOKEN`, and the release still works exactly as it did — it just needs the
+      # manual close/reopen again. Nothing breaks if the App is removed or its key rotated out.
+      - name: mint a release token
+        id: app
+        if: env.HAS_APP == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v5
         with:
           # Changesets needs the history to work out what changed since the last tag.
           fetch-depth: 0
+          # Checked out with the App token so the branch push carries that identity too. Push
+          # and PR must agree: a branch pushed as `github-actions[bot]` still suppresses the
+          # workflow run even when the PR itself is opened by the App.
+          token: ${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}
       - uses: ./.github/actions/setup
 
       # The rehearsal, run before anything is published rather than after. `release:dry`
@@ -94,7 +124,10 @@ jobs:
           title: 'chore(release): version packages'
           createGithubReleases: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The App token when it exists, `GITHUB_TOKEN` when it does not. This is the line
+          # that decides whether the release PR arrives with CI already running or needs a
+          # human to close and reopen it.
+          GITHUB_TOKEN: ${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}
           # No NODE_AUTH_TOKEN. `changeset publish` spawns `pnpm publish`, which rewrites
           # `workspace:*` and hands off to the npm CLI — and the npm CLI performs the OIDC
           # exchange itself using `id-token: write` above. Both halves are required: publishing
