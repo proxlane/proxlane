@@ -237,22 +237,27 @@ for (const [variant, tokens] of [
 	}
 }
 
-// 7. The favicon still wears the brand colour.
-//    It is a standalone SVG, so it cannot read the token layer and has to write the accent
-//    literally. That makes it the one file where the brand can drift alone and silently — the
-//    palette would stay self-consistent and the tab icon would be the old colour forever.
+// 7. The favicon is drawn from the palette and nothing else.
+//    It is a standalone SVG, so it cannot read the token layer and has to write every colour
+//    literally — the one file where the brand can drift alone and silently while the palette
+//    stays self-consistent. It carries a `prefers-color-scheme` block of its own, because a
+//    favicon sits on browser chrome this project does not control, so BOTH variants count as
+//    legitimate. Anything outside the two is a colour nobody chose.
 const FAVICON = join(ROOT, 'apps/web/public/favicon.svg');
 if (existsSync(FAVICON)) {
-	const want = spec.accent;
-	const svg = readFileSync(FAVICON, 'utf8');
-	const found = [...svg.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0].toLowerCase());
-	if (found.length === 0) fail('favicon.svg declares no colour; it should carry the accent');
-	else if (want === undefined) fail('design.md no longer defines --map-accent');
-	else {
-		const stray = found.filter((h) => h !== want);
-		if (stray.length > 0)
-			fail(`favicon.svg uses ${stray.join(', ')}, design.md says the accent is ${want}`);
-	}
+	const palette = new Set(
+		[...Object.values(light), ...Object.values(dark)]
+			.filter((v) => /^#[0-9a-fA-F]{6}$/.test(v))
+			.map((v) => v.toLowerCase()),
+	);
+	if (palette.size < 8) fail(`parsed only ${palette.size} palette colours to check against`);
+	const found = [...readFileSync(FAVICON, 'utf8').matchAll(/#[0-9a-fA-F]{6}/g)].map((m) =>
+		m[0].toLowerCase(),
+	);
+	if (found.length === 0) fail('favicon.svg declares no colour at all');
+	const stray = [...new Set(found)].filter((h) => !palette.has(h));
+	if (stray.length > 0)
+		fail(`favicon.svg uses ${stray.join(', ')}, which the palette does not define`);
 }
 
 // 8. No raw hex outside the token file. The one check that stops the system becoming a

@@ -273,12 +273,12 @@ describe('doctor knows about routing state', () => {
 		const off = await withEnv({ PROXLANE_HEALTH: undefined });
 		expect(find(off, 'provider health')?.detail).toMatch(/off \(the default\)/);
 		const on = await withEnv({ PROXLANE_HEALTH: 'on' });
-		expect(find(on, 'provider health')?.detail).toMatch(/^on —/);
+		expect(find(on, 'provider health')?.detail).toMatch(/^on\b/);
 	});
 
 	it('states the cooldown default too, and that it is the opposite one', async () => {
 		const on = await withEnv({ PROXLANE_COOLDOWNS: undefined });
-		expect(find(on, 'cooldowns')?.detail).toMatch(/^on —/);
+		expect(find(on, 'cooldowns')?.detail).toMatch(/^on\b/);
 		const off = await withEnv({ PROXLANE_COOLDOWNS: 'off' });
 		expect(find(off, 'cooldowns')?.detail).toMatch(/OFF/);
 	});

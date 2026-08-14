@@ -1,6 +1,6 @@
 ---
 name: use-proxlane
-description: Use proxlane from a script or an agent — scrape a URL through a provider, choose a provider by capability, look up what an outcome means for retry and billing, or diagnose a broken setup. Covers both surfaces (the CLI and the self-hosted HTTP gateway), the JSON contract, and the exit codes.
+description: Use proxlane from a script or an agent: scrape a URL through a provider, choose a provider by capability, look up what an outcome means for retry and billing, or diagnose a broken setup. Covers both surfaces (the CLI and the self-hosted HTTP gateway), the JSON contract, and the exit codes.
 ---
 
 # Using proxlane
@@ -9,8 +9,8 @@ Two surfaces, same semantics underneath. Pick by what you have:
 
 | | use it when |
 |---|---|
-| **CLI** — `npx proxlane` | one-off work, debugging, or you have no gateway running |
-| **HTTP** — `GET /v1` | you are self-hosting the gateway and want failover across providers |
+| **CLI**, `npx proxlane` | one-off work, debugging, or you have no gateway running |
+| **HTTP**, `GET /v1` | you are self-hosting the gateway and want failover across providers |
 
 The CLI runs **one provider, one attempt**. The gateway runs the **failover chain**. That is the real difference; everything else matches.
 
@@ -20,14 +20,14 @@ The CLI runs **one provider, one attempt**. The gateway runs the **failover chai
 
 | exit | HTTP | means |
 |---|---|---|
-| `0` | 2xx | good — proceed |
+| `0` | 2xx | good, proceed |
 | `1` | 4xx/5xx | the command worked, the **answer** is bad. Read the outcome. **Not a crash.** |
 | `2` | 400 | you called it wrong. Retrying the same call will not help. |
-| `3` | 401 | the environment is wrong — no key. Stop and fix setup. |
+| `3` | 401 | the environment is wrong, no key. Stop and fix setup. |
 
 Conflating `1` and `2` is the common mistake: it turns "this URL is blocked" into "my invocation is broken", and produces retry loops that can never succeed.
 
-**Read the envelope, not the prose.** CLI success is `{ok, command, data}` on **stdout**; failure is `{ok:false, command, error:{code, message}}` on **stderr** — still JSON, so parse stderr rather than giving up on it.
+**Read the envelope, not the prose.** CLI success is `{ok, command, data}` on **stdout**; failure is `{ok:false, command, error:{code, message}}` on **stderr**, still JSON, so parse stderr rather than giving up on it.
 
 ## Learn the taxonomy once, at the start
 

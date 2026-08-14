@@ -197,7 +197,7 @@ const SCENARIOS: readonly Scenario[] = [
 		outcome: 'HARD_BLOCK',
 		cost: '0.004600',
 		caption:
-			'Every provider blocked. The chain reports the last outcome rather than inventing one, and no provider served — so x-provider-used is absent from the response instead of empty. You are still told what was tried, and still charged for it.',
+			'Every provider blocked. The chain reports the last outcome rather than inventing one, and no provider served, so x-provider-used is absent from the response rather than empty. You are still told what was tried, and still charged for it.',
 	},
 ];
 
@@ -284,7 +284,7 @@ const QUICKSTART_BLOCKS: readonly Block[] = [
 		out: `
   ok   key:scraperapi     $SCRAPERAPI_KEY set (32 chars)
   ok   key:scrapingbee    $SCRAPINGBEE_KEY set (80 chars)
-  ok   cooldowns          on — a provider that just refused a domain is skipped
+  ok   cooldowns          on. A provider that just refused a domain is skipped
 `,
 	},
 	{ cmd: 'npx proxlane scrape https://example.com --provider=scraperapi --json' },
@@ -296,10 +296,10 @@ const QUICKSTART_COPY = 'npx proxlane scrape https://example.com --provider=scra
 
 /** Straight from `.claude/skills/use-proxlane/SKILL.md`, which ships in the repo. */
 const EXIT_CODES = [
-	['0', 'good — proceed'],
+	['0', 'good, proceed'],
 	['1', 'the command worked, the answer is bad. Read the outcome. Not a crash.'],
 	['2', 'you called it wrong. Retrying the same call will not help.'],
-	['3', 'the environment is wrong — no key. Stop and fix setup.'],
+	['3', 'the environment is wrong, no key. Stop and fix setup.'],
 ] as const;
 
 const CURL_BEFORE = 'curl "https://api.scraperapi.com?api_key=KEY&url=..."';

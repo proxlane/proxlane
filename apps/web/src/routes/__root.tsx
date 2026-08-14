@@ -2,21 +2,42 @@
 import { createRootRoute, HeadContent, Link, Outlet, Scripts } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { ThemeToggle } from '../components/theme-toggle.js';
+import { Mark, Wordmark } from '../components/wordmark.js';
 import appCss from '../styles/app.css?url';
+
+/**
+ * The canonical origin, and the reason it is a constant.
+ *
+ * The site answers on a `workers.dev` subdomain as well as its own domain, so without an
+ * explicit canonical a search engine gets to pick, and may pick the one nobody links to.
+ * Everything below derives from this, so there is one place to change when it moves.
+ */
+const SITE = 'https://proxlane.dev';
+const DESCRIPTION =
+	'Route scraping requests across ScraperAPI, ScrapingBee and Scrapfly with automatic ' +
+	'failover, cost-aware routing and honest success detection. Change one hostname. ' +
+	'AGPL, self-hostable.';
+const TITLE = 'Proxlane: one endpoint in front of every scraping API';
 
 export const Route = createRootRoute({
 	head: () => ({
 		meta: [
 			{ charSet: 'utf-8' },
 			{ name: 'viewport', content: 'width=device-width, initial-scale=1' },
-			{ title: 'Proxlane — one endpoint in front of every scraping API' },
-			{
-				name: 'description',
-				content:
-					'Route scraping requests across ScraperAPI, ScrapingBee and Scrapfly with ' +
-					'automatic failover, cost-aware routing and honest success detection. ' +
-					'Change one hostname. AGPL, self-hostable.',
-			},
+			{ title: TITLE },
+			{ name: 'description', content: DESCRIPTION },
+			// Open Graph and Twitter. No `og:image` yet: a card that references a missing image
+			// renders worse than one with no image at all, and OG image generation belongs to
+			// `apps/web/src/generators/**`. `summary` rather than `summary_large_image` for the
+			// same reason — the large card is mostly image.
+			{ property: 'og:type', content: 'website' },
+			{ property: 'og:site_name', content: 'Proxlane' },
+			{ property: 'og:title', content: TITLE },
+			{ property: 'og:description', content: DESCRIPTION },
+			{ property: 'og:url', content: `${SITE}/` },
+			{ name: 'twitter:card', content: 'summary' },
+			{ name: 'twitter:title', content: TITLE },
+			{ name: 'twitter:description', content: DESCRIPTION },
 		],
 		links: [
 			{ rel: 'stylesheet', href: appCss },
@@ -24,6 +45,7 @@ export const Route = createRootRoute({
 			// one anyway, took a 404, and logged a console error that cost the Lighthouse
 			// best-practices score — a real defect that only showed up against a built server.
 			{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+			{ rel: 'canonical', href: `${SITE}/` },
 		],
 	}),
 	component: RootComponent,
@@ -88,21 +110,10 @@ function SiteHeader() {
 		<header className="flex items-center justify-between gap-6 py-5">
 			<Link
 				to="/"
-				className="inline-flex min-h-11 items-center gap-2.5 font-medium text-[color:var(--color-ink)] text-lg tracking-tight"
+				aria-label="proxlane, home"
+				className="inline-flex min-h-11 items-center font-medium text-[color:var(--color-ink)] text-lg"
 			>
-				{/* An interchange station, which is the mark the design system already owns —
-				    inventing a logo here would be inventing a second visual language. */}
-				<svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true">
-					<circle
-						cx="7.5"
-						cy="7.5"
-						r="5"
-						fill="none"
-						stroke="var(--color-accent)"
-						strokeWidth="3"
-					/>
-				</svg>
-				proxlane
+				<Wordmark />
 			</Link>
 			<nav className="flex items-center gap-6 text-[color:var(--color-slate)] text-sm">
 				<a className={NAV_LINK} href="/docs">
@@ -139,7 +150,12 @@ function SiteFooter() {
 				Gateway, web and CLI are AGPL-3.0-only. The SDK, adapters, detect and shared are
 				Apache-2.0, so you can write an adapter without inheriting copyleft.
 			</p>
-			<p className="font-mono text-xs">proxlane</p>
+			{/* The mark, not the wordmark. The footer is where a reader has finished and the
+			    signature belongs; the tri-line station is the thing worth leaving them with. */}
+			<p className="flex items-center gap-2.5 font-mono text-xs">
+				<Mark className="size-[15px] shrink-0" />
+				proxlane
+			</p>
 		</footer>
 	);
 }

@@ -101,8 +101,8 @@ function stateChecks(): Check[] {
 		detail:
 			url === undefined
 				? `in-process${raw === '' ? ' (PROXLANE_VALKEY_URL is set but empty, which reads as unset)' : ''}` +
-					' — correct for one gateway, lost on restart'
-				: `valkey at ${redactUrl(url)} — shared, survives restart`,
+					' (correct for one gateway, lost on restart)'
+				: `valkey at ${redactUrl(url)}, shared and surviving restart`,
 	});
 
 	const replicasOk = Number.isFinite(n) && n >= 1 && (n === 1 || url !== undefined);
@@ -142,15 +142,15 @@ function routingChecks(): Check[] {
 			name: 'provider health',
 			ok: true,
 			detail: health
-				? 'on — the chain re-ranks by health; read GET /health/providers'
-				: 'off (the default) — set PROXLANE_HEALTH=on to enable, and read GET /health/providers',
+				? 'on. The chain re-ranks by health; read GET /health/providers'
+				: 'off (the default). Set PROXLANE_HEALTH=on to enable, then read GET /health/providers',
 		},
 		{
 			name: 'cooldowns',
 			ok: true,
 			detail: cooldowns
-				? 'on — a provider that just refused a domain is skipped, with Retry-After when all are'
-				: 'OFF (PROXLANE_COOLDOWNS=off) — every request retries providers that just refused it',
+				? 'on. A provider that just refused a domain is skipped, with Retry-After when all are'
+				: 'OFF (PROXLANE_COOLDOWNS=off). Every request retries providers that just refused it',
 		},
 	];
 }
@@ -198,12 +198,12 @@ async function valkeyReachable(): Promise<Check | undefined> {
 		detail:
 			reached === null
 				? `${host}:${port} accepted a connection in ${Date.now() - started}ms`
-				: `${host}:${port} — ${reached}`,
+				: `${host}:${port}, ${reached}`,
 		...(reached === null
 			? {}
 			: {
 					fix:
-						'the gateway fails OPEN, so it will still serve — but health and cooldowns are ' +
+						'the gateway fails OPEN, so it will still serve, but health and cooldowns are ' +
 						'lost. Check the service is up and the URL is reachable from this host.',
 				}),
 	};
@@ -220,9 +220,7 @@ export async function doctor(json: boolean): Promise<number> {
 	const reach = await valkeyReachable();
 	if (reach !== undefined) checks.push(reach);
 	if (checks.length === 0) {
-		process.stderr.write(
-			'doctor ran zero checks — that is a bug, not a clean bill of health\n',
-		);
+		process.stderr.write('doctor ran zero checks. That is a bug, not a clean bill of health\n');
 		return EXIT.FAILED;
 	}
 	const failed = checks.filter((c) => !c.ok);
