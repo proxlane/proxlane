@@ -42,6 +42,19 @@ export interface Attempt {
 	readonly budgetMs: number;
 	readonly latencyMs?: number;
 	/**
+	 * Wall time this attempt spent inside the provider call, always set.
+	 *
+	 * NOT `latencyMs`, which the transport reports and only exists when a response came back.
+	 * A timeout burns its whole budget and reports no latency at all, so anything summing
+	 * `latencyMs` to work out "time not spent in the gateway" counts a 22-second timeout as
+	 * zero and attributes it to us. That is the wrong direction for a p95 gate: the slower the
+	 * provider, the worse the gateway would look.
+	 *
+	 * Measured around `transport.execute` and nothing else, so adapter parsing and the
+	 * detector — our work — stay outside it.
+	 */
+	readonly upstreamMs: number;
+	/**
 	 * What this attempt cost, when the adapter could say.
 	 *
 	 * Per ATTEMPT, not per request, because a failed hop is often still charged — ScraperAPI
@@ -390,6 +403,8 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					provider: adapter.capabilities.id,
 					outcome: 'INVALID_REQUEST',
 					budgetMs: budget.perAttemptMs,
+					// The request was never sent, so no time was spent upstream.
+					upstreamMs: 0,
 				});
 				return {
 					outcome: 'INVALID_REQUEST',
@@ -398,10 +413,14 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				};
 			}
 
+			// `performance.now()` rather than `Date.now()`: monotonic, so an NTP step mid-request
+			// cannot produce a negative duration and a nonsense `Server-Timing` figure.
+			const upstreamStart = performance.now();
 			const res = await deps.transport.execute(wire, {
 				budgetMs: budget.perAttemptMs,
 				maxBodyBytes: deps.maxBodyBytes,
 			});
+			const upstreamMs = performance.now() - upstreamStart;
 
 			let parsed: ParsedResult | undefined;
 			let outcome: Outcome;
@@ -494,6 +513,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				provider: adapter.capabilities.id,
 				outcome,
 				budgetMs: budget.perAttemptMs,
+				upstreamMs,
 				...(res.kind === 'response' ? { latencyMs: res.latencyMs } : {}),
 				...(parsed === undefined ? {} : { costMicrocredits: parsed.cost.microcredits }),
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
