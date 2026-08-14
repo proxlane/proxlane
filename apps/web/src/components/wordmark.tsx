@@ -23,25 +23,39 @@ export function Wordmark({ className }: { readonly className?: string }) {
 			    it is a plain inline element: `vertical-align` puts a replaced element's bottom
 			    edge exactly on the baseline, which a flex `items-baseline` does not, because an
 			    SVG has no baseline of its own to align. That is why the first version floated. */}
+			{/* AN ELLIPSE, NOT A CIRCLE, and the margins are not symmetric. Both were wrong in
+			    the first version and both are measured off the face:
+
+			      o ink      0.4863em wide x 0.5332em tall   (this `o` is an oval)
+			      bearings   0.0292em left, 0.0294em right   (symmetric)
+			      kerning    ro -0.0220em, ox -0.0350em      (very much not)
+
+			    A perfect circle at the o's HEIGHT is 9% too wide, which crowds the r and the x.
+			    And an SVG gets no kerning, so the pair adjustments the font would apply are
+			    baked into the margins instead: 0.0292 - 0.0220 on the left, 0.0294 - 0.0350 on
+			    the right, which is legitimately negative — the x tucks under the o. */}
 			<svg
-				width="0.5332em"
+				width="0.4863em"
 				height="0.5332em"
-				viewBox="0 0 32 32"
+				viewBox="0 0 486 533"
 				aria-hidden="true"
-				style={{ verticalAlign: '-0.0101em' }}
-				className="mx-[0.006em] inline-block"
+				style={{
+					verticalAlign: '-0.0101em',
+					marginLeft: '0.0072em',
+					marginRight: '-0.0056em',
+				}}
+				className="inline-block"
 			>
-				{/* Stroke 5.7 of 32 is ~0.095em, the stem weight of this face at 500. Heavier and
-				    it reads as an icon dropped into the word rather than as the letter it stands
-				    in for. r + half the stroke fills the box exactly, so the ring's outer edge is
-				    the glyph's outer edge. */}
-				<circle
-					cx="16"
-					cy="16"
-					r="13.15"
+				{/* 95 of 486 units is 0.095em, the stem weight of this face at 500. The radii are
+				    inset by half the stroke so the ink's outer edge is exactly the glyph box. */}
+				<ellipse
+					cx="243"
+					cy="266.5"
+					rx="195.5"
+					ry="219"
 					fill="none"
 					stroke="var(--color-accent)"
-					strokeWidth="5.7"
+					strokeWidth="95"
 				/>
 			</svg>
 			xlane
