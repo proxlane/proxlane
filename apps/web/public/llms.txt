@@ -20,6 +20,7 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 - [How failover works](https://proxlane.dev/docs/failover): Chains, detection, cooldowns and deadlines.
 - [Using Proxlane from an agent](https://proxlane.dev/docs/agents): How to give an AI agent a scraping tool that fails honestly.
 - [Use cases](https://proxlane.dev/docs/use-cases): What Proxlane is good at, and what it is not for.
+- [Changelog](https://proxlane.dev/docs/changelog): What changed, per package, newest first.
 
 ## Other formats
 

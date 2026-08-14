@@ -46,6 +46,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://proxlane.dev/docs/changelog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://proxlane.dev/docs/use-cases</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

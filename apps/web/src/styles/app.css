@@ -553,3 +553,23 @@ html[data-theme="dark"] .doc-prose .shiki span {
 	font-size: 0.85rem;
 	padding: 0.9rem 0.6rem;
 }
+
+/* Release notes carry inline markdown rendered at build time, so the code spans and emphasis
+ * inside them need the same treatment as prose without inheriting the block rhythm. */
+.doc-changelog-note code {
+	background: color-mix(in oklab, var(--color-ink) 6%, transparent);
+	border-radius: 4px;
+	color: var(--color-ink);
+	font-family: var(--font-mono);
+	font-size: 0.86em;
+	padding: 0.12em 0.36em;
+}
+.doc-changelog-note strong {
+	color: var(--color-ink);
+	font-weight: 500;
+}
+.doc-changelog-note a {
+	color: var(--color-accent);
+	text-decoration: underline;
+	text-underline-offset: 0.2em;
+}
