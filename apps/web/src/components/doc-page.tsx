@@ -10,6 +10,7 @@
 import { Link, useLocation } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useState } from 'react';
 import { ProseWithCopy } from './copy-code.js';
+import { DocSearch } from './doc-search.js';
 
 export interface DocNavItem {
 	readonly to: string;
@@ -152,50 +153,54 @@ function DocSidebar({ headings }: { readonly headings: readonly DocHeading[] | u
 
 	return (
 		<nav aria-label="Documentation" className="mb-10 lg:mb-0">
-			{/* On phones this is a wrapping row of page links and nothing else: the headings are
-			    rendered in the content column instead, where they do not push the page down. */}
-			<ul className="flex flex-wrap gap-x-5 gap-y-1 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:flex-col lg:gap-x-0 lg:overflow-y-auto lg:pb-8">
-				{DOC_NAV.map((item) => {
-					const current = item.to === here;
-					return (
-						<li key={item.to}>
-							<Link
-								to={item.to}
-								className={`inline-flex min-h-9 items-center text-sm transition-colors ${
-									current
-										? 'font-medium text-[color:var(--color-ink)]'
-										: 'text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
-								}`}
-							>
-								{item.title}
-							</Link>
-							{current && headings !== undefined && headings.length > 1 && (
-								<ul className="mt-0.5 mb-2 hidden flex-col border-[color:var(--color-rule)] border-l lg:flex">
-									{headings.map((h) => (
-										<li key={h.id}>
-											<a
-												href={`#${h.id}`}
-												// The active marker is a border on the item, not a background:
-												// the rule is already there, so lighting up a segment of it reads
-												// as a position on a line rather than as a selected row.
-												className={`-ml-px block border-l-2 py-1 text-sm transition-colors ${
-													h.depth === 3 ? 'pl-6' : 'pl-3'
-												} ${
-													active === h.id
-														? 'border-[color:var(--color-accent)] text-[color:var(--color-ink)]'
-														: 'border-transparent text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
-												}`}
-											>
-												{h.text}
-											</a>
-										</li>
-									))}
-								</ul>
-							)}
-						</li>
-					);
-				})}
-			</ul>
+			{/* Sticky wrapper, so search sits above the page list and both stay in view. On phones
+			    this is a wrapping row of page links: the headings are rendered in the content
+			    column instead, where they do not push the page down. */}
+			<div className="lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:overflow-y-auto lg:pb-8">
+				<DocSearch />
+				<ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1 lg:flex-col lg:gap-x-0">
+					{DOC_NAV.map((item) => {
+						const current = item.to === here;
+						return (
+							<li key={item.to}>
+								<Link
+									to={item.to}
+									className={`inline-flex min-h-9 items-center text-sm transition-colors ${
+										current
+											? 'font-medium text-[color:var(--color-ink)]'
+											: 'text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
+									}`}
+								>
+									{item.title}
+								</Link>
+								{current && headings !== undefined && headings.length > 1 && (
+									<ul className="mt-0.5 mb-2 hidden flex-col border-[color:var(--color-rule)] border-l lg:flex">
+										{headings.map((h) => (
+											<li key={h.id}>
+												<a
+													href={`#${h.id}`}
+													// The active marker is a border on the item, not a background:
+													// the rule is already there, so lighting up a segment of it reads
+													// as a position on a line rather than as a selected row.
+													className={`-ml-px block border-l-2 py-1 text-sm transition-colors ${
+														h.depth === 3 ? 'pl-6' : 'pl-3'
+													} ${
+														active === h.id
+															? 'border-[color:var(--color-accent)] text-[color:var(--color-ink)]'
+															: 'border-transparent text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
+													}`}
+												>
+													{h.text}
+												</a>
+											</li>
+										))}
+									</ul>
+								)}
+							</li>
+						);
+					})}
+				</ul>
+			</div>
 		</nav>
 	);
 }

@@ -8,3 +8,10 @@ declare module '*.md?docs' {
 	const doc: RenderedDoc;
 	export default doc;
 }
+
+declare module 'virtual:docs-search' {
+	import type { SearchRecord } from '../vite-plugin-docs.js';
+
+	const index: SearchRecord[];
+	export default index;
+}
