@@ -26,6 +26,7 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 
 - [Everything in one file](https://proxlane.dev/llms-full.txt): every page concatenated.
 - Raw markdown per page: add `.md` to any docs URL, e.g. https://proxlane.dev/docs/api.md
+- [OpenAPI 3.1 description](https://proxlane.dev/openapi.json): every endpoint, parameter, header and status code.
 
 ## Source
 

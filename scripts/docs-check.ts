@@ -25,6 +25,7 @@ const SITEMAP = join(ROOT, 'apps/web/public/sitemap.xml');
 const APP_CSS = join(ROOT, 'apps/web/src/styles/app.css');
 const COPY_TSX = join(ROOT, 'apps/web/src/components/copy-code.tsx');
 const DOCS_PLUGIN = join(ROOT, 'apps/web/vite-plugin-docs.ts');
+const OPENAPI = join(ROOT, 'apps/web/public/openapi.json');
 const GATEWAY_APP = join(ROOT, 'apps/gateway/src/app.ts');
 const API_DOC = join(CONTENT, 'api.md');
 
@@ -359,6 +360,62 @@ const read = (p: string) => readFileSync(p, 'utf8');
 			if (!routes.includes(e)) fail('11', `EXTRA_RECORDS indexes ${e}, which is not a route`);
 		if (routes.length === 0) fail('11', 'no routes to check the search index against');
 		else ok('11', n, 'docs pages reachable by search');
+	}
+}
+
+// ------------------------------------------------- 12. the OpenAPI spec matches the gateway
+//
+// The spec is generated from the taxonomy, so its status codes and enums cannot drift. Its
+// PARAMETERS list is hand-written, because a generator cannot know what a parameter means —
+// and that is the half that goes stale. A parameter added to the handler and not described
+// leaves the spec quietly incomplete, and an incomplete spec is worse than none: a client
+// generated from it is missing a feature its author has no reason to suspect exists.
+//
+// Read as JSON rather than imported, keeping this script dependency-free.
+{
+	if (!existsSync(OPENAPI)) {
+		fail('12', 'apps/web/public/openapi.json is missing — run node scripts/openapi.ts --write');
+	} else if (!existsSync(GATEWAY_APP)) {
+		fail('12', 'apps/gateway/src/app.ts not found');
+	} else {
+		const spec = JSON.parse(read(OPENAPI)) as {
+			paths: Record<string, Record<string, { parameters?: { name: string }[] }>>;
+			components: { headers: Record<string, unknown> };
+		};
+		const src = read(GATEWAY_APP);
+		const described = new Set((spec.paths['/v1']?.get?.parameters ?? []).map((p) => p.name));
+		const read_ = [
+			...new Set([...src.matchAll(/c\.req\.query\('([a-z_]+)'\)/g)].map((m) => m[1] as string)),
+		];
+		if (read_.length === 0) fail('12', 'parsed zero query parameters from the gateway');
+		for (const p of read_)
+			if (!described.has(p))
+				fail('12', `the gateway reads \`${p}\` and openapi.json does not describe it`);
+		for (const p of described)
+			if (!read_.includes(p))
+				fail('12', `openapi.json describes \`${p}\`, which the gateway never reads`);
+
+		// Response headers, same argument.
+		const setHeaders = [
+			...new Set(
+				[...src.matchAll(/'(X-[A-Za-z-]+|Retry-After|Server-Timing)':/g)].map(
+					(m) => m[1] as string,
+				),
+			),
+		];
+		for (const h of setHeaders)
+			if (!(h in spec.components.headers))
+				fail('12', `the gateway sets \`${h}\` and openapi.json does not document it`);
+
+		// And the routes it serves.
+		const routes = [
+			...new Set([...src.matchAll(/app\.(?:get|post)\('([^']+)'/g)].map((m) => m[1] as string)),
+		];
+		for (const r of routes)
+			if (!(r in spec.paths))
+				fail('12', `the gateway serves \`${r}\` and openapi.json omits it`);
+
+		ok('12', read_.length + setHeaders.length + routes.length, 'OpenAPI matches the gateway');
 	}
 }
 

@@ -6,6 +6,11 @@ summary: Every endpoint, parameter and header the gateway implements.
 Everything here is implemented. Parameters the gateway does not read are not listed, and
 `pnpm docs:check` fails the build if this page and the code disagree.
 
+There is also a machine-readable description at
+[`/openapi.json`](https://proxlane.dev/openapi.json). It is generated from the same outcome
+taxonomy the router uses, so its status codes and enums are the real ones. Point a client
+generator at it, or open it in any OpenAPI viewer.
+
 ## Endpoints
 
 | Method | Path | Purpose |
