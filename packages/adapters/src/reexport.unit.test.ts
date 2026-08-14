@@ -43,6 +43,12 @@ const REASONS = {
 	 */
 	EDGE_GUARD: 'edge guard: runs before adapter selection',
 	/**
+	 * How much memory a DEPLOYMENT needs is a property of the gateway's configuration — its
+	 * concurrency ceiling and body cap — not of any adapter. An adapter that could read this
+	 * would be reading the operator's container limit, which is none of its business.
+	 */
+	SIZING: 'deployment sizing: a property of the gateway process, not of an adapter',
+	/**
 	 * Ids are minted once per request by the gateway. An adapter minting one would produce an
 	 * id that appears in no log and joins to no row.
 	 */
@@ -90,6 +96,23 @@ const EXCLUSIONS: ReadonlyArray<readonly [reason: string, names: readonly string
 		],
 	],
 	[REASONS.EDGE_GUARD, ['EdgeVerdict', 'guardTargetUrl']],
+	[
+		REASONS.SIZING,
+		[
+			'BUFFER_FACTOR',
+			'CGROUP_V1_PATH',
+			'CGROUP_V2_PATH',
+			'LIMIT_ENV',
+			'MemoryBudget',
+			'MemoryLimit',
+			'MemorySource',
+			'assessMemory',
+			'budgetMb',
+			'describeSource',
+			'overBudgetMessage',
+			'readMemoryLimit',
+		],
+	],
 	[
 		REASONS.REQUEST_ID,
 		['createIdGenerator', 'isValidRequestId', 'requestIdFrom', 'uuidv7', 'uuidv7Time'],

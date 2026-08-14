@@ -42,6 +42,10 @@ services:
       # gateway whose only problem is that it is busy. Sized against the memory limit
       # below: maxInflight * bodyCapMb * 2.5 should fit inside it.
       PROXLANE_MAX_INFLIGHT: ${PROXLANE_MAX_INFLIGHT:-32}
+      # Only needed when no cgroup limit is readable, or to declare a different one. The
+      # gateway refuses to boot if maxInflight x bodyCap x 2.5 does not fit inside it, because
+      # the alternative is an OOM kill with nothing in our logs to explain it.
+      PROXLANE_MEMORY_LIMIT_MB: ${PROXLANE_MEMORY_LIMIT_MB:-}
       # Routing state. These four were documented in .env.example and NOT listed here, so
       # setting them did nothing on the one deployment path this project ships: compose only
       # passes a variable into the container if it is named in this block.

@@ -3,9 +3,16 @@
 // Every decision lives elsewhere — the chain decides routing, FAILOVER decides retries,
 // the adapters decide translation. This file exists so that `pnpm dev` runs the real thing.
 
+import { readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { serve } from '@hono/node-server';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
+import {
+	assessMemory,
+	describeSource,
+	overBudgetMessage,
+	readMemoryLimit,
+} from '@proxlane/shared';
 import { Redis } from 'ioredis';
 import { createApp } from './app.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
@@ -28,6 +35,8 @@ const MAX_BODY_BYTES = Number(env('PROXLANE_BODY_CAP_MB') ?? 10) * 1024 * 1024;
 // scrape and restarts the process. `InflightLimiter` rejects a non-positive or fractional
 // value at construction, so a typo here fails the boot rather than the ceiling.
 const MAX_INFLIGHT = Number(env('PROXLANE_MAX_INFLIGHT') ?? 32);
+/** Filled by the sizing check below, printed in the boot banner. */
+let MEMORY_NOTE = '';
 
 /**
  * Read an env var, treating empty as absent.
@@ -91,6 +100,52 @@ const ORG_ID = env('PROXLANE_ORG_ID') ?? 'self';
 // the state is shared and replicas are fine.
 if (VALKEY_URL === undefined) {
 	assertSingleWriter(env('PROXLANE_REPLICAS') ?? '1');
+}
+
+// WILL THIS FIT IN THE MEMORY IT HAS? Checked before anything is allocated.
+//
+// The gateway buffers every response body for the detector, so the working set is roughly
+// `maxInflight * bodyCap * 2.5`. Over the container's limit that is not a slow degradation,
+// it is an OOM kill: every in-flight scrape dropped, nothing logged by us, and the only
+// evidence a line in the host's dmesg.
+//
+// REFUSING IS THE HOUSE STYLE, and it is the same call made for a missing API key and for
+// more than one replica without shared state: a loud failure that names the fix beats a
+// deployment that misbehaves under load. The escape hatch is not a flag but
+// PROXLANE_MEMORY_LIMIT_MB — an operator who thinks the arithmetic is too conservative states
+// their real limit, rather than being handed a switch that ends up on everywhere.
+//
+// UNKNOWN NEVER REFUSES. There is no cgroup file on macOS, on any BSD, or on bare-metal Linux
+// without cgroup v2, and `pnpm dev` is a contract command that has to run on a laptop.
+{
+	const readIfPresent = (path: string): string | undefined => {
+		try {
+			return readFileSync(path, 'utf8');
+		} catch {
+			return undefined;
+		}
+	};
+	const budget = assessMemory(
+		MAX_INFLIGHT,
+		MAX_BODY_BYTES / 1024 / 1024,
+		readMemoryLimit(readIfPresent, env),
+	);
+	if (budget.verdict === 'over') {
+		process.stderr.write(overBudgetMessage(budget, MAX_INFLIGHT, MAX_BODY_BYTES / 1024 / 1024));
+		process.exit(2);
+	}
+	if (budget.verdict === 'unknown') {
+		// Once, at boot, and not on every request. It is information, not a problem.
+		process.stderr.write(
+			`\n  NOTE: no container memory limit is readable, so the sizing check was skipped.\n` +
+				`  This configuration wants about ${budget.needMb} MB. Set PROXLANE_MEMORY_LIMIT_MB to\n` +
+				`  have it checked, or lower PROXLANE_MAX_INFLIGHT on a small box.\n\n`,
+		);
+	}
+	MEMORY_NOTE =
+		budget.verdict === 'unknown'
+			? `~${budget.needMb} MB wanted, ${describeSource(budget.limit.source)}`
+			: `~${budget.needMb} MB of ${budget.limit.limitMb} MB (${describeSource(budget.limit.source)})`;
 }
 
 const apiKey = env('PROXLANE_API_KEY');
@@ -260,6 +315,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'off by default; PROXLANE_HEALTH=on to enable'}\n` +
 			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on — GET /health/cooldowns' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
 			`  inflight:  ${MAX_INFLIGHT} concurrent, then 429 GATEWAY_BUSY (PROXLANE_MAX_INFLIGHT)\n` +
+			`  memory:    ${MEMORY_NOTE}\n` +
 			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);

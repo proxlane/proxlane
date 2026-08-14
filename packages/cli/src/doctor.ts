@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { REGISTRY } from '@proxlane/adapters';
+import { assessMemory, describeSource, readMemoryLimit } from '@proxlane/shared';
 import { EXIT, emit, style } from './output.js';
 
 // `proxlane doctor` — the self-host support surface.
@@ -74,6 +76,15 @@ function egressCheck(): Check {
 }
 
 /** Empty string means unset, exactly as the gateway reads it. See apps/gateway/src/index.ts. */
+/** Absent, unreadable and empty are the same answer here: no limit we can trust. */
+function readIfPresent(path: string): string | undefined {
+	try {
+		return readFileSync(path, 'utf8');
+	} catch {
+		return undefined;
+	}
+}
+
 function env(name: string): string | undefined {
 	const v = process.env[name];
 	return v === undefined || v.trim() === '' ? undefined : v;
@@ -184,14 +195,27 @@ function backpressureCheck(): Check {
 			fix: 'set it to a positive whole number, or unset it for the default of 32. The gateway refuses to boot on anything else',
 		};
 	}
-	const wantMb = Math.round(max * capMb * 2.5);
+	// The SAME function the gateway boots against, so doctor cannot report a budget the
+	// gateway disagrees with. That divergence is the classic diagnostic-tool bug: it says
+	// everything is fine while the thing it diagnoses refuses to start.
+	const budget = assessMemory(max, capMb, readMemoryLimit(readIfPresent, env));
+	const sizing =
+		budget.verdict === 'unknown'
+			? `wants ~${budget.needMb} MB; no container limit is readable, so the gateway skips the check`
+			: `wants ~${budget.needMb} MB of ${budget.limit.limitMb} MB from ${describeSource(budget.limit.source)}`;
 	return {
 		name: 'backpressure',
-		ok: true,
+		// `over` is what the gateway refuses to boot on, so doctor reports it as a failure and
+		// says the same thing rather than a cheerful summary of a broken configuration.
+		ok: budget.verdict !== 'over',
 		detail:
 			`${max} concurrent /v1 requests, then 429 GATEWAY_BUSY with Retry-After. ` +
-			`Sheds rather than queues; /health is never shed. At a ${capMb} MB body cap this ` +
-			`wants roughly ${wantMb} MB for the container — not checked at boot, so size it yourself`,
+			`Sheds rather than queues; /health is never shed. At a ${capMb} MB body cap it ${sizing}`,
+		...(budget.verdict === 'over'
+			? {
+					fix: `the gateway will refuse to boot. Lower PROXLANE_MAX_INFLIGHT to about ${Math.max(1, Math.floor((budget.limit.limitMb ?? 0) / (capMb * 2.5)))}, or give the container more memory`,
+				}
+			: {}),
 	};
 }
 
