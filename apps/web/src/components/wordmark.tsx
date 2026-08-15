@@ -16,6 +16,14 @@ export function Wordmark({ className }: { readonly className?: string }) {
 	return (
 		<span className={`tracking-[-0.03em] ${className ?? ''}`}>
 			pr
+			{/* THE `o` AS TEXT, hidden visually because the ring below draws it.
+			    Without this the element's text content is "prxlane": the ring is an `aria-hidden`
+			    SVG, so anyone copying the wordmark, any text extractor, and any model reading the
+			    page gets the brand name misspelled. On a project that publishes `llms.txt` so that
+			    models read its docs, having the name wrong in the page's own text is the one place
+			    it cannot be allowed to be wrong. The `Link` around it carries an `aria-label`, so
+			    this fixes the copied and extracted text rather than the announced name. */}
+			<span className="sr-only">o</span>
 			{/* MEASURED AGAINST THE FACE, not eyeballed. Hanken Grotesk at 500 puts its x-height
 			    at 0.513em and its `o` from 0.0101em below the baseline to 0.5231em above — a 1%
 			    overshoot at each end, which is what stops a round letter looking smaller than a
