@@ -160,8 +160,9 @@ function SiteFooter() {
 			    `ch` cap runs a good deal wider than the count suggests, and 68 still measured
 			    long against every other paragraph. */}
 			<p className="max-w-[56ch] leading-relaxed">
-				Gateway, web and CLI are AGPL-3.0-only. The SDK, adapters, detect and shared are
-				Apache-2.0, so you can write an adapter without inheriting copyleft.
+				The adapter, detection, SDK and shared packages are Apache-2.0, so you can write an
+				adapter without inheriting copyleft. Everything else, the gateway included, is
+				AGPL-3.0-only.
 			</p>
 			{/* The mark, not the wordmark. The footer is where a reader has finished and the
 			    signature belongs; the tri-line station is the thing worth leaving them with. */}

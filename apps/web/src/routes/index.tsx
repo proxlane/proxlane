@@ -45,11 +45,21 @@ function Home() {
 					wide
 					title="No signup, nothing to paste"
 					lead={[
-						'Every adapter declares its env var.',
-						'The key already in your environment is found without configuration. The CLI runs one provider and names the result; the gateway is what adds the chain and the detector.',
+						'One hostname, and the chain is running.',
+						'The keys already in your environment are found without configuration. This is the gateway: three providers, failover, and the detector, in the first command you type.',
 					]}
 				>
 					<Quickstart />
+				</Station>
+				<Station
+					label="detection"
+					title="A 200 is not a success"
+					lead={[
+						'Every competitor reports a block page as a success,',
+						'because saying otherwise costs them a number. Three behaviours instead of the adjective.',
+					]}
+				>
+					<Honesty />
 				</Station>
 				<Station
 					label="migration"
@@ -72,6 +82,16 @@ function Home() {
 					<Response scenario={scenario} />
 				</Station>
 				<Station
+					label="pricing"
+					title="Free on your own keys"
+					lead={[
+						'You pay your providers directly. We are not in the payment path.',
+						'The gateway is AGPL and runs on your own machine. There is no account to create and nothing to enter a card into.',
+					]}
+				>
+					<Pricing />
+				</Station>
+				<Station
 					label="lines"
 					title="Three providers, three lines"
 					lead={[
@@ -91,16 +111,6 @@ function Home() {
 					]}
 				>
 					<Agents />
-				</Station>
-				<Station
-					label="detection"
-					title="A 200 is not a success"
-					lead={[
-						'Every competitor reports a block page as a success,',
-						'because saying otherwise costs them a number. Three behaviours instead of the adjective.',
-					]}
-				>
-					<Honesty />
 				</Station>
 			</Line>
 		</div>
@@ -166,7 +176,7 @@ const SCENARIOS: readonly Scenario[] = [
 		status: 200,
 		cost: '0.004200',
 		caption:
-			'The first provider answered 200 with a challenge page and the detector named the rule that caught it; the second failed outright; the third served. All three attempts are billed, and all three are reported.',
+			'The first provider answered 200 with a challenge page and the detector named the rule that caught it; the second failed outright; the third served. Your providers charge for all three, so Proxlane reports all three. It takes no cut of any of it.',
 	},
 	{
 		id: 'direct',
@@ -176,7 +186,7 @@ const SCENARIOS: readonly Scenario[] = [
 		status: 200,
 		cost: '0.001400',
 		caption:
-			'The ordinary case, and the one the cost model is built around: the first provider served, the chain stopped, and you were charged for one attempt.',
+			'The ordinary case: the first provider served, the chain stopped, and your provider charged you for one attempt.',
 	},
 	{
 		id: 'exhausted',
@@ -207,7 +217,7 @@ const SCENARIOS: readonly Scenario[] = [
 		outcome: 'HARD_BLOCK',
 		cost: '0.004600',
 		caption:
-			'Every provider blocked. The chain reports the last outcome rather than inventing one, and no provider served, so x-provider-used is absent from the response rather than empty. You are still told what was tried, and still charged for it.',
+			'Every provider blocked. The chain reports the last outcome rather than inventing one, and no provider served, so x-provider-used is absent from the response rather than empty. You are still told what was tried, and your providers still charge for it.',
 	},
 	{
 		id: 'shed',
@@ -313,6 +323,12 @@ const CLI_OUTPUT = `{
  * There is no paste step, and that is the single most useful fact for someone arriving with
  * a scraping problem: every adapter declares a `keyEnvVar` in the capability registry, so the
  * key already in your environment is found without configuration.
+ *
+ * IT ENDS ON THE GATEWAY, not on the CLI. This sequence used to finish with
+ * `proxlane scrape --provider=scraperapi`, which pins ONE provider and disables failover — so
+ * the page's first hands-on moment demonstrated the product with its main feature switched
+ * off, and the prose beside it had to admit as much. Three commands now: find the keys, run
+ * the gateway, watch a request fail over. `x-attempts: 2` is the whole pitch in one line.
  */
 const QUICKSTART_BLOCKS: readonly Block[] = [
 	{ cmd: 'npx proxlane doctor' },
@@ -323,12 +339,27 @@ const QUICKSTART_BLOCKS: readonly Block[] = [
   ok   cooldowns          on. A provider that just refused a domain is skipped
 `,
 	},
-	{ cmd: 'npx proxlane scrape https://example.com --provider=scraperapi --json' },
+	{ cmd: 'docker run -p 8787:8787 --env-file .env ghcr.io/proxlane/gateway' },
+	{
+		out: `
+  proxlane gateway on :8787
+  providers: scraperapi > scrapfly > scrapingbee (in order)
+`,
+	},
+	{ cmd: 'curl -sD- "localhost:8787/v1?api_key=$KEY&url=https://example.com"' },
+	{
+		out: `
+  HTTP/1.1 200 OK
+  x-outcome        OK
+  x-attempts       2
+  x-provider-used  scrapfly
+`,
+	},
 ];
 
 const AGENT_BLOCKS: readonly Block[] = [{ cmd: CLI_COMMAND }, { out: CLI_OUTPUT }];
 
-const QUICKSTART_COPY = 'npx proxlane scrape https://example.com --provider=scraperapi --json';
+const QUICKSTART_COPY = 'docker run -p 8787:8787 --env-file .env ghcr.io/proxlane/gateway';
 
 /** Straight from `.claude/skills/use-proxlane/SKILL.md`, which ships in the repo. */
 const EXIT_CODES = [
@@ -361,6 +392,33 @@ function Hero({
 				One endpoint in front of every scraping API. When a provider gets blocked, the next one
 				runs, and you are told which, and why.
 			</p>
+
+			{/* THE PROBLEM, BEFORE THE DIAGRAM.
+			    The page used to open on a mechanism and never said why anyone needs it: seven
+			    sections, five of them internals, all written for someone who had already decided.
+			    A visitor who has not hit this problem has no reason to read the taxonomy.
+
+			    Three sentences, no adjectives, and every one of them a fact this project can
+			    stand behind. The third is the sharpest and is the one nobody else will print. */}
+			<div className="mt-10 max-w-[62ch] border-[color:var(--color-accent)] border-l-2 pl-5 sm:mt-12">
+				<p className="text-[0.9375rem] leading-relaxed sm:text-base">
+					<span className="font-medium">No provider works on every target.</span>{' '}
+					<span className="text-[color:var(--color-slate)]">
+						Teams end up with two or three accounts and a pile of glue code that switches
+						between them. Providers degrade for hours before they fail outright, and they will
+						never fail over to a competitor.
+					</span>
+				</p>
+				<p className="mt-3 text-[0.9375rem] leading-relaxed sm:text-base">
+					<span className="font-medium">
+						And a blocked request looks like a successful one.
+					</span>{' '}
+					<span className="text-[color:var(--color-slate)]">
+						A captcha page arrives as HTTP 200 with a body. Anything checking status codes
+						records a success and stores the challenge page.
+					</span>
+				</p>
+			</div>
 
 			{/* THE SAME FRAME AS EVERY OTHER ARTIFACT. It was the one unframed thing on a page
 			    where the curl, the headers and the registry all sit in a labelled panel — and its
@@ -623,6 +681,72 @@ function Station({
 }
 
 /**
+ * What this costs, which the page did not say at all.
+ *
+ * A visitor could not tell whether Proxlane charged them, and the failover caption saying
+ * "all three attempts are billed" read as a threat rather than as a fact about providers.
+ *
+ * THE THIRD ROW IS DELIBERATELY MARKED UNAVAILABLE. `CLAUDE.md` puts hosted credits in phase
+ * three, gated on a margin decision that `plan.md` section 7 has not settled, and the house
+ * rule is that shipped behaviour only gets advertised. The rate is printed because the README
+ * already commits to it; the availability is printed because pretending it is buyable today
+ * would be the exact dishonesty this product is positioned against.
+ */
+function Pricing() {
+	const rows: readonly {
+		readonly plan: string;
+		readonly price: string;
+		readonly note: string;
+		readonly available: boolean;
+	}[] = [
+		{
+			plan: 'Bring your own keys',
+			price: 'Free forever',
+			note: 'Your provider keys, your provider bill. Proxlane adds nothing to it.',
+			available: true,
+		},
+		{
+			plan: 'Self-host',
+			price: 'Free forever',
+			note: 'AGPL-3.0. One container, your infrastructure, no telemetry.',
+			available: true,
+		},
+		{
+			plan: 'Hosted credits',
+			price: 'Provider cost + 5%',
+			note: 'Not available yet. One bill instead of three, when it lands.',
+			available: false,
+		},
+	];
+	return (
+		<Panel label="pricing">
+			<ul className="flex flex-col">
+				{rows.map((row) => (
+					<li
+						key={row.plan}
+						className="flex flex-col gap-1 border-[color:var(--color-rule)] border-b py-3 last:border-b-0 sm:flex-row sm:items-baseline sm:gap-4"
+					>
+						<span className="min-w-[11rem] font-medium text-[color:var(--color-ink)] text-sm">
+							{row.plan}
+						</span>
+						<span
+							className={`min-w-[9rem] font-mono text-xs ${
+								row.available
+									? 'text-[color:var(--color-accent)]'
+									: 'text-[color:var(--color-slate)]'
+							}`}
+						>
+							{row.price}
+						</span>
+						<span className="text-[color:var(--color-slate)] text-sm">{row.note}</span>
+					</li>
+				))}
+			</ul>
+		</Panel>
+	);
+}
+
+/**
  * Copy to clipboard, with the one state that matters shown.
  *
  * A code block a developer cannot copy is a picture of code. The confirmation is a label
@@ -869,7 +993,7 @@ function Panel({
  */
 function Quickstart() {
 	return (
-		<Panel label="terminal" copy={QUICKSTART_COPY} what="the scrape command">
+		<Panel label="terminal" copy={QUICKSTART_COPY} what="the run command">
 			<Transcript blocks={QUICKSTART_BLOCKS} />
 		</Panel>
 	);
