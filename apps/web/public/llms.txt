@@ -18,6 +18,7 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 - [API reference](https://proxlane.dev/docs/api): Every endpoint, parameter and header the gateway implements.
 - [Outcomes](https://proxlane.dev/docs/outcomes): What every result means, what it returns, and whether to retry.
 - [How failover works](https://proxlane.dev/docs/failover): Chains, detection, cooldowns and deadlines.
+- [Bring your own provider](https://proxlane.dev/docs/adapters): Add a provider Proxlane has never heard of, and it joins the chain.
 - [Using Proxlane from an agent](https://proxlane.dev/docs/agents): How to give an AI agent a scraping tool that fails honestly.
 - [Use cases](https://proxlane.dev/docs/use-cases): What Proxlane is good at, and what it is not for.
 - [Changelog](https://proxlane.dev/docs/changelog): What changed, per package, newest first.
