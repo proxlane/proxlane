@@ -145,7 +145,85 @@ jobs:
           #
           # No `if` any more. If the file is missing the build fails, which is the correct
           # answer for a job named build-docker.
-          docker build --platform linux/amd64 -f Dockerfile .
+          docker build --platform linux/amd64 -f Dockerfile -t proxlane:ci .
+
+      # AND THEN RUN IT. Building an image proves it compiles, not that it starts.
+      #
+      # `pnpm dev` was broken for the gateway indefinitely and no check noticed, because
+      # nothing in CI boots the gateway: the e2e suite builds `createApp` directly and never
+      # touches `src/index.ts`, so the boot path — env parsing, the memory check, provider
+      # ordering, the refusal to run without a key — was covered by nothing that runs on a PR.
+      # `selfhost:smoke` does cover it and is `ci: none` because it is slow; this is the cheap
+      # half, and the image is already built by the step above so it costs seconds.
+      #
+      # The job keeps its name. It is referenced by `main`'s ruleset as a required check, and
+      # renaming it would leave every PR waiting on a check that no longer reports.
+      - name: boot the image it just built
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # 1. It must REFUSE to start with no gateway key. This is the one failure that is
+          #    unrecoverable in production — an open proxy funded by whoever deployed it — so
+          #    a regression here is worse than a crash.
+          if docker run --rm --name proxlane-open proxlane:ci >/dev/null 2>&1; then
+            echo "::error::the gateway started without PROXLANE_API_KEY, which makes it an open proxy"
+            exit 1
+          fi
+          echo "  refuses to start without a key"
+
+          # 2. With a key it must serve. No provider keys on purpose: a gateway with none is
+          #    correctly running and answers NO_PROVIDER_AVAILABLE, which is what a stranger
+          #    evaluating this with `docker run` actually sees first.
+          docker run -d --name proxlane-smoke -p 8787:8787 \
+            -e PROXLANE_API_KEY=ci-smoke-key proxlane:ci
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8787/health >/dev/null 2>&1; then break; fi
+            if [ "$i" = "30" ]; then
+              echo "::error::the gateway never answered /health within 30s"
+              docker logs proxlane-smoke || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          HEALTH=$(curl -fsS http://127.0.0.1:8787/health)
+          echo "  /health -> $HEALTH"
+          case "$HEALTH" in
+            *'"status":"ok"'*) ;;
+            *) echo "::error::unexpected /health body: $HEALTH"; exit 1 ;;
+          esac
+
+          # 3. The scrape surface answers, and answers with the taxonomy rather than a stack
+          #    trace. No providers configured, so NO_PROVIDER_AVAILABLE is the correct answer.
+          OUT=$(curl -sS -o /dev/null -w '%{http_code} %header{x-outcome} %header{x-outcome-class}' \
+            "http://127.0.0.1:8787/v1?api_key=ci-smoke-key&url=https://example.com")
+          echo "  /v1 -> $OUT"
+          case "$OUT" in
+            "503 NO_PROVIDER_AVAILABLE gateway") ;;
+            *) echo "::error::unexpected /v1 response: $OUT"; docker logs proxlane-smoke; exit 1 ;;
+          esac
+
+          # 4. A wrong key is refused. Cheap, and it is the other half of "not an open proxy".
+          CODE=$(curl -sS -o /dev/null -w '%{http_code}' \
+            "http://127.0.0.1:8787/v1?api_key=wrong&url=https://example.com")
+          [ "$CODE" = "401" ] || { echo "::error::a wrong key got $CODE, not 401"; exit 1; }
+          echo "  a wrong key is refused"
+
+          # 5. The boot banner is the operator's first diagnostic. If it stops naming what it
+          #    configured, support questions start with a blank page.
+          docker logs proxlane-smoke 2>&1 | grep -q "proxlane gateway on" \
+            || { echo "::error::the boot banner is missing"; docker logs proxlane-smoke; exit 1; }
+          echo "  boot banner present"
+
+      - name: gateway logs
+        if: always()
+        run: docker logs proxlane-smoke 2>&1 | tail -40 || true
+
+      - name: stop
+        if: always()
+        run: docker rm -f proxlane-smoke proxlane-open >/dev/null 2>&1 || true
 
   security-review:
     runs-on: ubuntu-latest
