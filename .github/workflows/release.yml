@@ -286,8 +286,14 @@ jobs:
           outputs: type=image,name=ghcr.io/proxlane/gateway,push-by-digest=true,name-canonical=true,push=true
       - name: keep the digest
         run: |
+          set -euo pipefail
           mkdir -p /tmp/digests
-          touch "/tmp/digests/${{ steps.build.outputs.digest }}"
+          # STRIP THE `sha256:` PREFIX. upload-artifact rejects a colon in a filename, so
+          # naming the file after the raw digest failed the job after a successful build:
+          # "The path for one of the files in artifact is not valid ... Contains the following
+          # character: Colon". The manifest step already expected the bare hex.
+          DIGEST='${{ steps.build.outputs.digest }}'
+          touch "/tmp/digests/${DIGEST#sha256:}"
       - uses: actions/upload-artifact@v4
         with:
           name: digest-${{ matrix.slug }}
