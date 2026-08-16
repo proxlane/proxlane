@@ -38,7 +38,10 @@ jobs:
     env:
       # `secrets` cannot be read in a step `if:`, so the presence test is hoisted to `env`,
       # which can. This is what makes the App optional rather than required.
-      HAS_APP: ${{ secrets.RELEASE_APP_ID != '' && secrets.RELEASE_APP_PRIVATE_KEY != '' }}
+      HAS_APP: ${{ (secrets.RELEASE_APP_CLIENT_ID != '' || secrets.RELEASE_APP_ID != '') && secrets.RELEASE_APP_PRIVATE_KEY != '' }}
+      # Which identifier is available. These are DIFFERENT VALUES, not two names for one:
+      # `client-id` wants the App's Client ID string, `app-id` wants its numeric App ID.
+      HAS_CLIENT_ID: ${{ secrets.RELEASE_APP_CLIENT_ID != '' }}
     outputs:
       published: ${{ steps.changesets.outputs.published }}
       version: ${{ steps.version.outputs.version }}
@@ -57,9 +60,32 @@ jobs:
       # OPTIONAL BY DESIGN. With the secrets absent every step below falls back to
       # `GITHUB_TOKEN`, and the release still works exactly as it did — it just needs the
       # manual close/reopen again. Nothing breaks if the App is removed or its key rotated out.
+      # TWO STEPS, ONE OF WHICH RUNS, because the action's two identifier inputs take
+      # different values rather than being two spellings of one.
+      #
+      #   client-id   "GitHub App Client ID"   the Iv23… string
+      #   app-id      "GitHub App ID"          the numeric id, and now carries
+      #                                        deprecationMessage: "Use 'client-id' instead."
+      #
+      # So the fix for the deprecation warning is NOT renaming the key. Passing the numeric id
+      # to `client-id` would be handing the action a value it does not describe, in the one
+      # workflow whose failure mode is an unpublishable release.
+      #
+      # Add a `RELEASE_APP_CLIENT_ID` secret, from the App's settings page, and the first step
+      # takes over and the warning stops. Until then the second keeps working exactly as it
+      # did. Neither input is required by the action, so this is a supported configuration
+      # rather than a trick.
       - name: mint a release token
-        id: app
-        if: env.HAS_APP == 'true'
+        id: app_client
+        if: env.HAS_APP == 'true' && env.HAS_CLIENT_ID == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: mint a release token (legacy app id)
+        id: app_legacy
+        if: env.HAS_APP == 'true' && env.HAS_CLIENT_ID != 'true'
         uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
@@ -72,7 +98,7 @@ jobs:
           # Checked out with the App token so the branch push carries that identity too. Push
           # and PR must agree: a branch pushed as `github-actions[bot]` still suppresses the
           # workflow run even when the PR itself is opened by the App.
-          token: ${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app_client.outputs.token || steps.app_legacy.outputs.token || secrets.GITHUB_TOKEN }}
       - uses: ./.github/actions/setup
 
       # The rehearsal, run before anything is published rather than after. `release:dry`
@@ -127,7 +153,7 @@ jobs:
           # The App token when it exists, `GITHUB_TOKEN` when it does not. This is the line
           # that decides whether the release PR arrives with CI already running or needs a
           # human to close and reopen it.
-          GITHUB_TOKEN: ${{ steps.app.outputs.token || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app_client.outputs.token || steps.app_legacy.outputs.token || secrets.GITHUB_TOKEN }}
           # No NODE_AUTH_TOKEN. `changeset publish` spawns `pnpm publish`, which rewrites
           # `workspace:*` and hands off to the npm CLI — and the npm CLI performs the OIDC
           # exchange itself using `id-token: write` above. Both halves are required: publishing
