@@ -1,16 +1,16 @@
 {
 	"kind": "exchange",
 	"category": "target-rate-limited",
-	"recordedAt": "2026-08-11T20:48:36.707Z",
+	"recordedAt": "2026-08-16T16:21:48.066Z",
 	"adapter": "scraperapi",
 	"target": {
-		"url": "https://httpbin.dev/status/429",
+		"url": "https://httpbingo.org/status/429",
 		"renderJs": false
 	},
 	"expect": "TARGET_RATE_LIMITED",
 	"request": {
 		"method": "GET",
-		"url": "https://api.scraperapi.com/?url=https%3A%2F%2Fhttpbin.dev%2Fstatus%2F429&render=false&premium=false&ultra_premium=false&device_type=desktop&autoparse=false&follow_redirect=true&retry_404=false&keep_headers=false",
+		"url": "https://api.scraperapi.com/?url=https%3A%2F%2Fhttpbingo.org%2Fstatus%2F429&render=false&premium=false&ultra_premium=false&device_type=desktop&autoparse=false&follow_redirect=true&retry_404=false&keep_headers=false",
 		"headers": {
 			"x-sapi-api_key": "REDACTED",
 			"accept": "*/*"

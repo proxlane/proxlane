@@ -1,0 +1,34 @@
+{
+	"kind": "exchange",
+	"category": "target-rate-limited",
+	"recordedAt": "2026-08-16T16:26:07.864Z",
+	"adapter": "brightdata",
+	"target": {
+		"url": "https://httpbingo.org/status/429",
+		"renderJs": false
+	},
+	"expect": "TARGET_RATE_LIMITED",
+	"request": {
+		"method": "POST",
+		"url": "https://api.brightdata.com/request",
+		"headers": {
+			"authorization": "REDACTED",
+			"content-type": "application/json"
+		}
+	},
+	"response": {
+		"status": 200,
+		"headers": {
+			"access-control-allow-origin": "*",
+			"connection": "keep-alive",
+			"content-length": "226",
+			"content-type": "application/json; charset=utf-8",
+			"date": "VOLATILE",
+			"etag": "W/\"e2-PclrWnwsXucjOx/G+f3QJ4TQwD0\"",
+			"server": "nginx",
+			"vary": "Accept-Encoding"
+		},
+		"bodyBase64": "eyJzdGF0dXNfY29kZSI6NTAyLCJoZWFkZXJzIjp7IngtYnJkLWVycm9yIjoicmVzcG9uc2Ugc3RhdHVzIHdhcyByZWplY3RlZDogNDI5IHN0YXR1cyBjb2RlIiwieC1icmQtZXJyb3ItY29kZSI6Imh0dHBfc3RhdHVzIiwiZGF0ZSI6IlN1biwgMTYgQXVnIDIwMjYgMTY6MjY6MDcgR01UIiwiY29ubmVjdGlvbiI6ImNsb3NlIiwidHJhbnNmZXItZW5jb2RpbmciOiJjaHVua2VkIn0sImJvZHkiOiIifQ==",
+		"bodyBytes": 226
+	}
+}

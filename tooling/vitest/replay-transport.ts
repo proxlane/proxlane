@@ -132,10 +132,18 @@ export function createReplayTransport(entries: readonly ReplayEntry[]): ReplayTr
 				// adapter bug rather than a harness bug.
 				if (e.host !== '' && askedHost !== '' && e.host !== askedHost) return false;
 				const t = e.recording.target;
-				const present = req.url.includes(t.url) || req.url.includes(encodeURIComponent(t.url));
+				// THE BODY IS PART OF THE REQUEST. A provider whose API is POST-with-a-JSON-body
+				// sends every request to one identical URL and varies only the body, so matching
+				// on the URL alone finds nothing at all — every hop raised NoRecordingError.
+				//
+				// This is the same assumption the conformance suite made, from the same cause:
+				// all three launch providers put their parameters in a query string, so "the
+				// request is the URL" held by coincidence rather than by contract.
+				const where = `${req.url}\n${req.body ?? ''}`;
+				const present = where.includes(t.url) || where.includes(encodeURIComponent(t.url));
 				// renderJs is part of the identity too: replaying a non-rendered recording for a
 				// rendered request would silently answer a different question.
-				return present && matchesRenderJs(req.url, t.renderJs);
+				return present && matchesRenderJs(where, t.renderJs);
 			});
 			if (hit === undefined) {
 				throw new NoRecordingError(
@@ -180,7 +188,12 @@ function safeHost(url: string): string {
 	}
 }
 
-function matchesRenderJs(url: string, recordedRenderJs: boolean): boolean {
-	const asked = /(?:render_js|render|renderJs)=true/i.test(url);
+function matchesRenderJs(where: string, recordedRenderJs: boolean): boolean {
+	// Two spellings, because a query string says `render=true` and a JSON body says
+	// `"render":true`. Matching only the first read every POST-body request as non-rendered,
+	// so a rendered recording could never be served to the request that asked for it.
+	const asked =
+		/(?:render_js|render|renderJs)=true/i.test(where) ||
+		/"(?:render_js|render|renderJs)"\s*:\s*true/i.test(where);
 	return asked === recordedRenderJs;
 }

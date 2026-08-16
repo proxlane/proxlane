@@ -179,12 +179,27 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 
 		// The target url must survive intact, query string and all. Losing it is the bug that
 		// silently scrapes the wrong page.
+		//
+		// THE BODY COUNTS TOO. This looked in the url and nowhere else, which held only because
+		// all three launch providers happen to take their parameters as a query string. A
+		// provider whose API is POST-with-a-JSON-body — Bright Data's Web Unlocker is one —
+		// carries the target url in `wire.body`, so this failed it for doing nothing wrong.
+		//
+		// That was not a Bright Data problem. It was this suite encoding "parameters live in
+		// the url" as if it were part of the contract, when the contract says no such thing.
 		const url = new URL(wire.url);
+		const body = wire.body ?? '';
 		const carried = [...url.searchParams.values()].some((v) => v.includes(req.url));
 		const inPath = wire.url.includes(encodeURIComponent(req.url)) || wire.url.includes(req.url);
-		if (!carried && !inPath) fail('translate', 'the target url is not present in the request');
+		const inBody =
+			body.includes(req.url) || body.includes(JSON.stringify(req.url).slice(1, -1));
+		if (!carried && !inPath && !inBody)
+			fail('translate', 'the target url is not present in the request');
 
-		seen.add(JSON.stringify({ u: wire.url, h: wire.headers }));
+		// The body is part of a request's identity for the same reason. Without it every POST
+		// adapter looks like it builds one identical request for every input, and the
+		// defaults-never-leak check below reports capabilities as ignored when they are not.
+		seen.add(JSON.stringify({ u: wire.url, h: wire.headers, b: body }));
 	}
 
 	// ------------------------------------------------- provider defaults never leak

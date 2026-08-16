@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "success-json",
-	"recordedAt": "2026-08-07T21:47:46.530Z",
+	"recordedAt": "2026-08-16T16:22:56.884Z",
 	"adapter": "scrapingbee",
 	"target": {
 		"url": "https://httpbin.dev/json",
@@ -33,7 +33,7 @@
 			"spb-content-length": "421",
 			"spb-content-type": "application/json; encoding=utf-8",
 			"spb-cost": "1",
-			"spb-date": "Fri, 07 Aug 2026 21:47:46 GMT",
+			"spb-date": "Sun, 16 Aug 2026 16:22:56 GMT",
 			"spb-initial-status-code": "200",
 			"spb-permissions-policy": "fullscreen=(self), autoplay=*, geolocation=(), camera=(), ch-ua=*, ch-ua-arch=*, ch-ua-bitness=*, ch-ua-full-version=*, ch-ua-full-version-list=*, ch-ua-mobile=*, ch-ua-model=*, ch-ua-platform=*, ch-ua-platform-version=*, ch-ua-wow64=*, ch-ua-form-factors=*, ch-viewport-width=*, ch-viewport-height=*, ch-dpr=*, ch-width=*, ch-prefers-reduced-motion=*, ch-prefers-color-scheme=*, ch-downlink=*, ch-ect=*, ch-rtt=*, ch-save-data=*, ch-device-memory=*",
 			"spb-referrer-policy": "strict-origin-when-cross-origin",
