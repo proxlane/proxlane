@@ -59,6 +59,11 @@ const SECTIONS: readonly {
 				blurb: 'Chains, detection, cooldowns and deadlines.',
 			},
 			{
+				to: '/docs/adapters',
+				title: 'Bring your own provider',
+				blurb: 'Add a provider we have never heard of.',
+			},
+			{
 				to: '/docs/agents',
 				title: 'Using it from an agent',
 				blurb: 'Giving an AI agent a scraper that fails honestly.',

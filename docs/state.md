@@ -26,7 +26,6 @@ first real run is **2026-08-17** and the gate clears **2026-08-31**. Count sched
 ## Blocked on
 
 Owner decisions and external answers. None is unblocked by writing code.
-
 - **Secret scanning depth** — core scanning and push protection are on. Non-provider
   patterns and validity checks accept a 200 from the API and stay disabled; they need
   paid Secret Protection. Buy it, or accept that a bespoke key shape goes unscanned.
@@ -40,9 +39,10 @@ Owner decisions and external answers. None is unblocked by writing code.
 - **A private fixture corpus** — `plan.md` §19 bars recording any named commercial target
   into this repo, and the private half that would hold block and captcha fixtures does not
   exist. Unowned build.
-- **Keyless paths and provider ToS** — `plan.md` §18. Needs provider permission in writing
-  and Swedish counsel. *Interim default:* `npx proxlane try`, the blocked-domain checker
-  and the playground are neither built nor documented as available.
+- **Keyless paths and provider ToS** — `plan.md` §18. Needs provider permission in writing and
+  Swedish counsel. `npx proxlane try`, the blocked-domain checker, the playground and a **free
+  fallback** stay unbuilt; `_dev/jina-reader` stays out of `REGISTRY`. `/docs/adapters` ships
+  the custom-adapter story instead, which needs nobody's permission.
 - **Comparative content vs affiliate terms** — `affiliate-emails.md` Q3. Two launch
   providers must confirm in writing. *External.*
 - **Credits refundability** — `operations.md` §4. Confirm with the accountant before the

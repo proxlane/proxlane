@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
+import { Route as DocsAdaptersRouteImport } from './routes/docs/adapters'
 import { Route as DocsAgentsRouteImport } from './routes/docs/agents'
 import { Route as DocsApiRouteImport } from './routes/docs/api'
 import { Route as DocsChangelogRouteImport } from './routes/docs/changelog'
@@ -28,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const DocsIndexRoute = DocsIndexRouteImport.update({
   id: '/docs/',
   path: '/docs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsAdaptersRoute = DocsAdaptersRouteImport.update({
+  id: '/docs/adapters',
+  path: '/docs/adapters',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsAgentsRoute = DocsAgentsRouteImport.update({
@@ -73,6 +79,7 @@ const DocsUseCasesRoute = DocsUseCasesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/docs/adapters': typeof DocsAdaptersRoute
   '/docs/agents': typeof DocsAgentsRoute
   '/docs/api': typeof DocsApiRoute
   '/docs/changelog': typeof DocsChangelogRoute
@@ -85,6 +92,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/docs/adapters': typeof DocsAdaptersRoute
   '/docs/agents': typeof DocsAgentsRoute
   '/docs/api': typeof DocsApiRoute
   '/docs/changelog': typeof DocsChangelogRoute
@@ -98,6 +106,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/docs/adapters': typeof DocsAdaptersRoute
   '/docs/agents': typeof DocsAgentsRoute
   '/docs/api': typeof DocsApiRoute
   '/docs/changelog': typeof DocsChangelogRoute
@@ -112,6 +121,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/docs/adapters'
     | '/docs/agents'
     | '/docs/api'
     | '/docs/changelog'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/docs/adapters'
     | '/docs/agents'
     | '/docs/api'
     | '/docs/changelog'
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/docs/adapters'
     | '/docs/agents'
     | '/docs/api'
     | '/docs/changelog'
@@ -149,6 +161,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DocsAdaptersRoute: typeof DocsAdaptersRoute
   DocsAgentsRoute: typeof DocsAgentsRoute
   DocsApiRoute: typeof DocsApiRoute
   DocsChangelogRoute: typeof DocsChangelogRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/docs'
       fullPath: '/docs/'
       preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/adapters': {
+      id: '/docs/adapters'
+      path: '/docs/adapters'
+      fullPath: '/docs/adapters'
+      preLoaderRoute: typeof DocsAdaptersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs/agents': {
@@ -237,6 +257,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DocsAdaptersRoute: DocsAdaptersRoute,
   DocsAgentsRoute: DocsAgentsRoute,
   DocsApiRoute: DocsApiRoute,
   DocsChangelogRoute: DocsChangelogRoute,

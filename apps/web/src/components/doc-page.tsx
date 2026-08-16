@@ -25,6 +25,7 @@ export const DOC_NAV: readonly DocNavItem[] = [
 	{ to: '/docs/api', title: 'API reference' },
 	{ to: '/docs/outcomes', title: 'Outcomes' },
 	{ to: '/docs/failover', title: 'How failover works' },
+	{ to: '/docs/adapters', title: 'Bring your own provider' },
 	{ to: '/docs/agents', title: 'Agents' },
 	{ to: '/docs/use-cases', title: 'Use cases' },
 	{ to: '/docs/changelog', title: 'Changelog' },
