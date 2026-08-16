@@ -7,7 +7,7 @@ runs:
   using: composite
   steps:
     - uses: pnpm/action-setup@v6
-    - uses: actions/setup-node@v5
+    - uses: actions/setup-node@v7
       with:
         # .nvmrc carries the full version and repo:check asserts it matches engines.node,
         # so CI cannot silently run a different Node than a contributor does.

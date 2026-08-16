@@ -95,7 +95,7 @@ jobs:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           # Changesets needs the history to work out what changed since the last tag.
           fetch-depth: 0
@@ -144,7 +144,7 @@ jobs:
       - name: publish
         id: changesets
         if: inputs.dry_run != true
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           # `version` writes the bumps and changelogs; `publish` runs when there is nothing
           # left to version, i.e. on the merge of the release PR. One job, both halves.
@@ -153,6 +153,14 @@ jobs:
           commit: 'chore(release): version packages'
           title: 'chore(release): version packages'
           createGithubReleases: true
+          # v2 BREAKING CHANGE, and the one that would have broken releases silently: a custom
+          # token must now be passed through this input. Under v1 it was read from the
+          # GITHUB_TOKEN environment variable below. Left as an env var, the action would have
+          # fallen back to the default token, the release PR would come from
+          # github-actions[bot] again, and GitHub's anti-recursion rule means it would arrive
+          # with zero checks against a ruleset that requires them — the exact failure the App
+          # was introduced to fix.
+          github-token: ${{ steps.app_client.outputs.token || steps.app_legacy.outputs.token || secrets.GITHUB_TOKEN }}
         env:
           # The App token when it exists, `GITHUB_TOKEN` when it does not. This is the line
           # that decides whether the release PR arrives with CI already running or needs a
@@ -267,15 +275,15 @@ jobs:
       packages: write
       id-token: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -294,7 +302,7 @@ jobs:
           # character: Colon". The manifest step already expected the bare hex.
           DIGEST='${{ steps.build.outputs.digest }}'
           touch "/tmp/digests/${DIGEST#sha256:}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: digest-${{ matrix.slug }}
           path: /tmp/digests/*
@@ -309,13 +317,13 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: digest-*
           merge-multiple: true
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
