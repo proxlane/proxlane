@@ -1,5 +1,18 @@
 # @proxlane/gateway
 
+## 0.3.2
+
+### Patch Changes
+
+- fcca935: Fix the image publish. The per-architecture digest was written to a filename containing a
+  colon, which `upload-artifact` rejects, so both builds succeeded and then failed at the upload
+  step. Native arm64 itself works: it produced a digest in under a minute, against the hour the
+  emulated build ran without finishing.
+- 8a79315: Publish the image on a gateway release. The image job was gated on npm having published
+  something, but the gateway is `private: true` and never publishes, so every gateway-only
+  release skipped it and ghcr fell two minor versions behind. The image is also now tagged with
+  the gateway's own version rather than the CLI's.
+
 ## 0.3.1
 
 ### Patch Changes
