@@ -202,35 +202,106 @@ jobs:
 
   # Images follow the npm publish rather than racing it, so a tag that exists on ghcr always
   # has a matching package on npm.
+  #
+  # NATIVE RUNNERS, ONE PER ARCHITECTURE, not one job emulating arm64 under QEMU.
+  #
+  # This was `platforms: linux/amd64,linux/arm64` on a single amd64 runner. The comment
+  # predicted it would be "5-10x slower"; measured on the 0.3.0 release it ran over an hour
+  # without finishing and had to be cancelled, leaving npm published and ghcr two minor
+  # versions behind. A release that publishes half of itself is worse than one that fails.
+  #
+  # `ubuntu-24.04-arm` has been generally available and free on public repositories since
+  # August 2025. `plan.md` anticipated exactly this and said to verify before relying on it:
+  # this repo is public, so it qualifies. If that ever changes the job fails loudly with no
+  # runner matching the label, which is the right failure.
+  #
+  # Each arch pushes BY DIGEST and the manifest is assembled afterwards. That is the
+  # documented pattern for multi-runner builds: neither job may push a tag, because the
+  # second to finish would overwrite the first and the image would silently become
+  # single-architecture.
   images:
     needs: release
     if: needs.release.outputs.published == 'true'
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            slug: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            slug: arm64
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
       id-token: write
     steps:
       - uses: actions/checkout@v5
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
-          # arm64 is in the RELEASE workflow only, never in PR CI, because it is emulated
-          # under QEMU and slow. Self-hosters run Pi and Ampere boxes — `operations.md`
-          # says so — which is a deliberate divergence from the amd64-only siblings.
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.platform }}
+          # Scoped per architecture. One shared scope has the two jobs evicting each other's
+          # layers, which costs more than the cache saves.
+          cache-from: type=gha,scope=${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.slug }}
+          outputs: type=image,name=ghcr.io/proxlane/gateway,push-by-digest=true,name-canonical=true,push=true
+      - name: keep the digest
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${{ steps.build.outputs.digest }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.slug }}
+          path: /tmp/digests/*
+          retention-days: 1
+          if-no-files-found: error
+
+  # The manifest list. Until this runs, the digests above are unreferenced by any tag.
+  manifest:
+    needs: [release, images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: assemble and push the tags
+        run: |
+          set -euo pipefail
+          cd /tmp/digests
           # `:latest` exists and B8 documents it as the unstable choice; the compose file
           # pins a version.
-          tags: |
-            ghcr.io/proxlane/gateway:${{ needs.release.outputs.version }}
-            ghcr.io/proxlane/gateway:latest
+          docker buildx imagetools create \
+            -t ghcr.io/proxlane/gateway:${{ needs.release.outputs.version }} \
+            -t ghcr.io/proxlane/gateway:latest \
+            $(printf 'ghcr.io/proxlane/gateway@sha256:%s ' *)
+      - name: prove both architectures are in the manifest
+        run: |
+          set -euo pipefail
+          # Without this a dropped digest ships a single-arch image under a multi-arch tag,
+          # and the first Pi to pull it is the one that finds out.
+          ARCHES=$(docker buildx imagetools inspect \
+            ghcr.io/proxlane/gateway:${{ needs.release.outputs.version }} --raw \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=JSON.parse(s);console.log((m.manifests||[]).map(x=>x.platform&&x.platform.architecture).filter(a=>a&&a!=="unknown").sort().join(","))})')
+          echo "  manifest architectures: $ARCHES"
+          [ "$ARCHES" = "amd64,arm64" ] || { echo "::error::expected amd64,arm64 — got $ARCHES"; exit 1; }
