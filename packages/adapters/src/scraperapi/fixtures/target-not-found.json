@@ -1,16 +1,16 @@
 {
 	"kind": "exchange",
 	"category": "target-not-found",
-	"recordedAt": "2026-08-07T21:28:22.030Z",
+	"recordedAt": "2026-08-16T16:20:05.461Z",
 	"adapter": "scraperapi",
 	"target": {
-		"url": "https://httpbin.dev/status/404",
+		"url": "https://httpbingo.org/status/404",
 		"renderJs": false
 	},
 	"expect": "TARGET_NOT_FOUND",
 	"request": {
 		"method": "GET",
-		"url": "https://api.scraperapi.com/?url=https%3A%2F%2Fhttpbin.dev%2Fstatus%2F404&render=false&premium=false&ultra_premium=false&device_type=desktop&autoparse=false&follow_redirect=true&retry_404=false&keep_headers=false",
+		"url": "https://api.scraperapi.com/?url=https%3A%2F%2Fhttpbingo.org%2Fstatus%2F404&render=false&premium=false&ultra_premium=false&device_type=desktop&autoparse=false&follow_redirect=true&retry_404=false&keep_headers=false",
 		"headers": {
 			"x-sapi-api_key": "REDACTED",
 			"accept": "*/*"
@@ -27,9 +27,9 @@
 			"content-encoding": "gzip",
 			"content-type": "text/html; charset=utf-8",
 			"date": "VOLATILE",
-			"etag": "W/\"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk\"",
+			"etag": "W/\"13-cNLPhv5QYUClnV/bccPZqVm8MUQ\"",
 			"sa-credit-cost": "1",
-			"sa-final-url": "https://httpbin.dev/status/404",
+			"sa-final-url": "https://httpbingo.org/status/404",
 			"sa-proxy-hash": "undefined",
 			"sa-statuscode": "404",
 			"strict-transport-security": "max-age=15724800; includeSubDomains",
@@ -38,7 +38,7 @@
 			"x-powered-by": "Express",
 			"x-robots-tag": "none"
 		},
-		"bodyBase64": "",
-		"bodyBytes": 0
+		"bodyBase64": "VGltZW91dCB3YXMgcmVhY2hlZA==",
+		"bodyBytes": 19
 	}
 }

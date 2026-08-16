@@ -90,22 +90,39 @@ export const TARGETS: readonly Target[] = [
 		why: 'non-HTML body: detection must not run on it',
 	},
 	{
+		// httpbingo.org, NOT httpbin.dev, for the three status categories.
+		//
+		// httpbin.dev sits behind Cloudflare. The first three adapters fetch it without complaint,
+		// but a provider whose whole job is recognising protection pages does not: Bright Data's
+		// Unlocker answered `reject_block` on every /status/ path and never returned the status
+		// the category asked for, so three fixtures recorded HARD_BLOCK — true of the request,
+		// useless as a fixture.
+		//
+		// A per-adapter override was the obvious fix and was wrong. The failover tests drive a
+		// chain across providers against ONE target, so giving each adapter its own target left
+		// hop two with no recording for hop one's URL. One matrix, one target per category, is a
+		// property those tests depend on.
+		//
+		// httpbingo.org is the same API without the Cloudflare front and passes these through
+		// untouched. `success-*` and `slow-target` stay on httpbin.dev: they record correctly for
+		// every provider, and httpbingo caps /delay at 10s, which would quietly change what
+		// slow-target means.
 		category: 'target-not-found',
-		url: 'https://httpbin.dev/status/404',
+		url: 'https://httpbingo.org/status/404',
 		renderJs: false,
 		expect: 'TARGET_NOT_FOUND',
 		why: 'never fails over — a real 404 is a real 404 at the next provider too',
 	},
 	{
 		category: 'target-error',
-		url: 'https://httpbin.dev/status/503',
+		url: 'https://httpbingo.org/status/503',
 		renderJs: false,
 		expect: 'TARGET_ERROR',
 		why: 'the target is broken, not the provider. Fails over once',
 	},
 	{
 		category: 'target-rate-limited',
-		url: 'https://httpbin.dev/status/429',
+		url: 'https://httpbingo.org/status/429',
 		renderJs: false,
 		expect: 'TARGET_RATE_LIMITED',
 		// Recordable, unlike a block page — which is why this outcome gets a real fixture and

@@ -7,4 +7,5 @@ export const REGISTRY: Record<string, () => Promise<Adapter>> = {
 	scraperapi: () => import('./scraperapi/index.js').then((m) => m.ScraperapiAdapter),
 	scrapingbee: () => import('./scrapingbee/index.js').then((m) => m.ScrapingbeeAdapter),
 	scrapfly: () => import('./scrapfly/index.js').then((m) => m.ScrapflyAdapter),
+	brightdata: () => import('./brightdata/index.js').then((m) => m.BrightdataAdapter),
 };

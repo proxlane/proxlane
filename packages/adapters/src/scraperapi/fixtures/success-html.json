@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "success-html",
-	"recordedAt": "2026-08-07T21:28:20.799Z",
+	"recordedAt": "2026-08-16T16:19:59.122Z",
 	"adapter": "scraperapi",
 	"target": {
 		"url": "https://httpbin.dev/html",

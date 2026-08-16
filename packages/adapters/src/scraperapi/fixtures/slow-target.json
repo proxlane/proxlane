@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "slow-target",
-	"recordedAt": "2026-08-07T21:50:37.347Z",
+	"recordedAt": "2026-08-16T16:22:44.208Z",
 	"adapter": "scraperapi",
 	"target": {
 		"url": "https://httpbin.dev/delay/30",
