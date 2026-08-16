@@ -1,5 +1,30 @@
 # @proxlane/route-viz
 
+## 0.2.0
+
+### Minor Changes
+
+- af9df16: Draw the chain that never entered a lane. A route with no attempts used to render as a dot
+  and the word `request`, which reads as a broken drawing rather than as a request the gateway
+  refused before choosing a provider. It now runs in ink to a stop mark and labels the outcome:
+  ink is already the colour of a request that belongs to no provider, so the vocabulary says
+  what happened before a label is read.
+
+  The outcome gutter widens for `429 GATEWAY_BUSY`, now the longest terminus label at 16
+  characters. The previous sizing was cut to `PROVIDER_ERROR` and would have clipped the new
+  one on both widths.
+
+  The landing page gains the shed scenario and shows `server-timing` in the response readout,
+  which the gateway emits on every response and the page did not mention.
+
+### Patch Changes
+
+- e744d94: Three fixes from a visual pass. The docs page title used an em dash as a separator, which
+  reads as part of the title in a truncated browser tab; it is a middle dot now. The shed
+  request in the route diagram stopped short of its own outcome label, leaving a line ending in
+  mid-air; it now reaches the terminus column, because a shed request has no provider to fall
+  short of. And a Python sample imported two modules on one line, against PEP 8.
+
 ## 0.1.0
 
 ### Minor Changes

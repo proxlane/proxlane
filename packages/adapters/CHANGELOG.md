@@ -1,5 +1,14 @@
 # @proxlane/adapters
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [abf833f]
+- Updated dependencies [c48afba]
+- Updated dependencies [4ed05a5]
+  - @proxlane/shared@0.3.0
+
 ## 0.3.0
 
 ### Minor Changes

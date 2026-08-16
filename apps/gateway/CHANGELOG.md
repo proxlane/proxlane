@@ -1,5 +1,64 @@
 # @proxlane/gateway
 
+## 0.3.0
+
+### Minor Changes
+
+- c48afba: Enforce the in-flight ceiling. Past `PROXLANE_MAX_INFLIGHT` concurrent `/v1` requests the
+  gateway answers 429 `GATEWAY_BUSY` with `Retry-After` and sheds, rather than queueing —
+  a queued scrape burns its own deadline waiting and the queue is memory the ceiling bounds.
+  `/health` is never shed. The variable was documented since the scaffold and read by nothing.
+
+  `GATEWAY_BUSY` is a new outcome, class `gateway`. Deliberately not `RATE_LIMITED`, which is
+  class `provider`, writes an account cooldown and fails over — all three wrong when the
+  gateway itself is full. `OutcomeClass` does not grow, so a caller branching on the class is
+  unaffected.
+
+- 4ed05a5: Check at boot that the gateway fits in the memory it has been given. It reads the container's
+  limit from cgroup v2 then v1, and refuses to start when `maxInflight * bodyCap * 2.5` exceeds
+  it, printing both numbers and the ceiling that would fit. It never falls back to
+  `os.totalmem()`, which reports the host's memory inside a limited container.
+
+  When no limit is readable, which is normal off a container, it prints the arithmetic and
+  starts, so `pnpm dev` still works. `PROXLANE_MEMORY_LIMIT_MB` declares a limit where there is
+  none and overrides one where there is. `proxlane doctor` reports the same budget from the same
+  code. `.env.example` and `docs/self-hosting.md` described this check for months before it
+  existed; both now describe what it does.
+
+- cd6dabb: Emit `Server-Timing: gw;dur=…, up;dur=…, total;dur=…` on every `/v1` response. `gw` is
+  gateway-internal time — the number `operations.md` section 1 gates p95 on, and the one a user
+  needs when asking whether the gateway or the provider was slow. Split by subtraction, so a
+  segment nobody instrumented lands in `gw` where it is visible rather than going unmeasured.
+
+  Each attempt now records `upstreamMs`, which is wall time inside the provider call and unlike
+  `latencyMs` is set even when the hop times out.
+
+### Patch Changes
+
+- ce5f243: Fix `pnpm dev` for the gateway. It ran `node --watch src/index.ts`, which could never work:
+  application source imports siblings as `./app.js`, and Node's type stripping does not rewrite
+  that to `.ts`, so the process died on its first import. It builds and runs the output now.
+  `repo:check` assertion 27 fails on any script that runs bare node against `src/**` TypeScript.
+- 94d6a7a: Build the load harness `operations.md` section 9 asks for: a local mock provider that returns
+  slow responses, 429s, huge bodies and challenge pages on demand, the real gateway wired to it
+  over a real socket, and a k6 soak that gates on p95 of `Server-Timing: gw;dur=`, RSS slope
+  from minute 10, and the concurrency ceiling actually shedding. `pnpm k6:soak` is implemented;
+  22 of 25 commands are now real.
+
+  The gateway gains `./app` and `./transport` export paths so the harness can build the real app
+  from the shipped artifact rather than importing source.
+
+- d155542: Cover the two things nothing tested. The real HTTP transport now has an e2e against a
+  deliberately hostile server, including a regression test for the measured bug where a body
+  trickling in after the headers ran six times its budget. And `build-docker` now boots the
+  image it builds, asserting the gateway refuses to start without a key, serves `/health`,
+  answers `/v1` with the taxonomy, and prints its banner. `selfhost:smoke` runs weekly.
+- Updated dependencies [abf833f]
+- Updated dependencies [c48afba]
+- Updated dependencies [4ed05a5]
+  - @proxlane/shared@0.3.0
+  - @proxlane/adapters@0.3.1
+
 ## 0.2.1
 
 ### Patch Changes

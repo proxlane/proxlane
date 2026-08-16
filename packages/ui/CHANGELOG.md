@@ -1,5 +1,14 @@
 # @proxlane/ui
 
+## 0.2.2
+
+### Patch Changes
+
+- 799fb1e: Fix the search dialog's backdrop in dark mode. It was mixed from `--color-ink`, which inverts
+  with the theme, so on dark it was 45% near-white and fogged the page grey instead of dimming
+  it. Adds a `--color-scrim` token that darkens in both themes, deeper on dark where the page is
+  already dark.
+
 ## 0.2.1
 
 ### Patch Changes
