@@ -1,5 +1,45 @@
 # @proxlane/shared
 
+## 0.3.0
+
+### Minor Changes
+
+- abf833f: Add the docs site. `/docs` was linked from the header and the primary call to action and had
+  no route at all, so both 404ed on the live site.
+
+  Pages are markdown in `apps/web/content/docs`, versioned and reviewed like code, rendered to
+  HTML at build time by a Vite plugin. Neither `markdown-it` nor Shiki reaches the Worker
+  bundle. The outcome reference is generated from the taxonomy instead, because a hand-written
+  copy of the thing callers write switch statements against is the one page that must not drift.
+
+  `pnpm docs:check` is now real: it asserts every page has a file, a route and a nav entry,
+  that every query parameter and response header the gateway implements is documented, that
+  internal links resolve, and that `llms.txt` lists exactly the pages that exist.
+
+  `@proxlane/shared` gains a `./outcome` subpath export, so the taxonomy can be imported
+  without pulling the edge guard and `node:crypto` into a browser bundle.
+
+- c48afba: Enforce the in-flight ceiling. Past `PROXLANE_MAX_INFLIGHT` concurrent `/v1` requests the
+  gateway answers 429 `GATEWAY_BUSY` with `Retry-After` and sheds, rather than queueing —
+  a queued scrape burns its own deadline waiting and the queue is memory the ceiling bounds.
+  `/health` is never shed. The variable was documented since the scaffold and read by nothing.
+
+  `GATEWAY_BUSY` is a new outcome, class `gateway`. Deliberately not `RATE_LIMITED`, which is
+  class `provider`, writes an account cooldown and fails over — all three wrong when the
+  gateway itself is full. `OutcomeClass` does not grow, so a caller branching on the class is
+  unaffected.
+
+- 4ed05a5: Check at boot that the gateway fits in the memory it has been given. It reads the container's
+  limit from cgroup v2 then v1, and refuses to start when `maxInflight * bodyCap * 2.5` exceeds
+  it, printing both numbers and the ceiling that would fit. It never falls back to
+  `os.totalmem()`, which reports the host's memory inside a limited container.
+
+  When no limit is readable, which is normal off a container, it prints the arithmetic and
+  starts, so `pnpm dev` still works. `PROXLANE_MEMORY_LIMIT_MB` declares a limit where there is
+  none and overrides one where there is. `proxlane doctor` reports the same budget from the same
+  code. `.env.example` and `docs/self-hosting.md` described this check for months before it
+  existed; both now describe what it does.
+
 ## 0.2.0
 
 ### Minor Changes
