@@ -44,7 +44,11 @@ jobs:
       HAS_CLIENT_ID: ${{ secrets.RELEASE_APP_CLIENT_ID != '' }}
     outputs:
       published: ${{ steps.changesets.outputs.published }}
-      version: ${{ steps.version.outputs.version }}
+      # The GATEWAY's version, and whether this commit changed it. Both exist because the
+      # gateway is `private: true`: it is versioned and gets a CHANGELOG, but `changeset
+      # publish` never publishes it, so `published` is false for a gateway-only release.
+      gatewayVersion: ${{ steps.gateway.outputs.version }}
+      gatewayChanged: ${{ steps.gateway.outputs.changed }}
     steps:
       # A PR OPENED WITH `GITHUB_TOKEN` TRIGGERS NO WORKFLOWS. That is GitHub's anti-recursion
       # rule, and it meant the release PR arrived with zero checks while `main`'s ruleset
@@ -195,10 +199,30 @@ jobs:
         if: steps.changesets.outputs.published == 'true'
         run: node scripts/verify-trusted-publish.ts '${{ steps.changesets.outputs.publishedPackages }}'
 
-      - name: read the released version
-        id: version
+      # THE GATEWAY'S OWN VERSION, not the CLI's.
+      #
+      # This read `packages/cli/package.json` and tagged the gateway image with it, so
+      # `ghcr.io/proxlane/gateway:0.1.1` was the CLI's 0.1.1 while the gateway was on 0.3.1.
+      # Two independently versioned things sharing one number, and the number belonged to the
+      # other one.
+      - name: read the gateway version, and whether it moved
+        id: gateway
         shell: bash
-        run: echo "version=$(node -p "require('./packages/cli/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./apps/gateway/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # A gateway-only release publishes nothing to npm, so `published` is false and the
+          # image job used to be skipped. The artifact a gateway release produces IS the
+          # image, so the signal has to be its version changing, not npm.
+          PREVIOUS=$(git show HEAD~1:apps/gateway/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || echo "none")
+          if [ "$VERSION" != "$PREVIOUS" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "  gateway $PREVIOUS -> $VERSION, the image will be built"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "  gateway unchanged at $VERSION, no image to build"
+          fi
 
   # Images follow the npm publish rather than racing it, so a tag that exists on ghcr always
   # has a matching package on npm.
@@ -221,7 +245,12 @@ jobs:
   # single-architecture.
   images:
     needs: release
-    if: needs.release.outputs.published == 'true'
+    # EITHER signal. npm publishing and image publishing are different events: a release that
+    # only touches the gateway publishes no package but must still ship an image, and a
+    # release that only touches the SDK publishes a package and needs no new image. Gated on
+    # `published` alone, every gateway-only release since 0.1.1 silently skipped this job,
+    # which is why ghcr sat two minor versions behind for weeks.
+    if: needs.release.outputs.published == 'true' || needs.release.outputs.gatewayChanged == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -292,7 +321,7 @@ jobs:
           # `:latest` exists and B8 documents it as the unstable choice; the compose file
           # pins a version.
           docker buildx imagetools create \
-            -t ghcr.io/proxlane/gateway:${{ needs.release.outputs.version }} \
+            -t ghcr.io/proxlane/gateway:${{ needs.release.outputs.gatewayVersion }} \
             -t ghcr.io/proxlane/gateway:latest \
             $(printf 'ghcr.io/proxlane/gateway@sha256:%s ' *)
       - name: prove both architectures are in the manifest
@@ -301,7 +330,7 @@ jobs:
           # Without this a dropped digest ships a single-arch image under a multi-arch tag,
           # and the first Pi to pull it is the one that finds out.
           ARCHES=$(docker buildx imagetools inspect \
-            ghcr.io/proxlane/gateway:${{ needs.release.outputs.version }} --raw \
+            ghcr.io/proxlane/gateway:${{ needs.release.outputs.gatewayVersion }} --raw \
             | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=JSON.parse(s);console.log((m.manifests||[]).map(x=>x.platform&&x.platform.architecture).filter(a=>a&&a!=="unknown").sort().join(","))})')
           echo "  manifest architectures: $ARCHES"
           [ "$ARCHES" = "amd64,arm64" ] || { echo "::error::expected amd64,arm64 — got $ARCHES"; exit 1; }
