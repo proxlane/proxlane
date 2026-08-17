@@ -260,9 +260,14 @@ describe('one error shape, whatever went wrong', () => {
 			body.error.class,
 		);
 		expect(body.error.message.length).toBeGreaterThan(0);
-		// A link that exists. `docs.proxlane.dev` does not resolve, and shipping a dead one on
-		// every failure would be a broken promise at request rate.
-		expect(body.error.docs).toMatch(/^https:\/\/github\.com\/proxlane\/proxlane\//);
+		// A link that exists, which is the standard this assertion has always held and the only
+		// reason it used to name GitHub: `docs.proxlane.dev` has no DNS record, and shipping a
+		// dead link on every failure is a broken promise at request rate. The docs site is served
+		// from the apex, so the destination moved and the standard did not.
+		//
+		// Not verified over the network here — a test that needs DNS fails from a clean clone on
+		// a plane. `docs:check` proves the path resolves to a route that exists, offline.
+		expect(body.error.docs).toBe('https://proxlane.dev/docs/outcomes');
 	});
 
 	// The HEADERS, not the body. A caller is told to branch on `X-Outcome-Class` — the docs say

@@ -12,7 +12,13 @@
  * *is* the taxonomy, and a hand-maintained copy of it is precisely the artifact that goes
  * stale and then misleads someone at three in the morning.
  */
-import { FAILOVER, OUTCOME_CLASSES, OUTCOMES, type Outcome } from '@proxlane/shared/outcome';
+import {
+	CLASS_ADVICE,
+	FAILOVER,
+	OUTCOME_CLASSES,
+	OUTCOMES,
+	type Outcome,
+} from '@proxlane/shared/outcome';
 import { createFileRoute } from '@tanstack/react-router';
 import { DocPage } from '../../components/doc-page.js';
 import { docHead } from '../../lib/doc-head.js';
@@ -21,23 +27,6 @@ const TITLE = 'Outcomes';
 const SUMMARY = 'What every result means, what it returns, and whether to retry.';
 
 /** What a caller should actually do. One line per class, and the reason for it. */
-const ADVICE: Record<string, { readonly label: string; readonly what: string }> = {
-	ok: { label: 'Use it', what: 'Real content that passed validation.' },
-	blocked: {
-		label: 'Retry later',
-		what: 'Every provider was blocked. Trying again immediately will be blocked again.',
-	},
-	target: {
-		label: 'Do not retry',
-		what: 'The site itself answered. A 404 is still a 404 through another provider.',
-	},
-	provider: {
-		label: 'Already retried',
-		what: 'Proxlane failed over for you. Seeing this means the whole chain was exhausted.',
-	},
-	client: { label: 'Fix the request', what: 'Retrying an invalid request cannot help.' },
-	gateway: { label: 'Retry later', what: 'Our side. Honour Retry-After when it is present.' },
-};
 
 function Table({ rows }: { readonly rows: readonly Outcome[] }) {
 	return (
@@ -109,7 +98,7 @@ function Outcomes() {
 
 			{OUTCOME_CLASSES.map((cls) => {
 				const rows = OUTCOMES.filter((o) => FAILOVER[o].class === cls);
-				const advice = ADVICE[cls];
+				const advice = CLASS_ADVICE[cls];
 				return (
 					<section key={cls} className="mt-10 max-w-[46rem]">
 						<h3
@@ -118,14 +107,16 @@ function Outcomes() {
 						>
 							{cls}
 						</h3>
-						{advice !== undefined && (
-							<p className="mt-1.5 text-[color:var(--color-slate)] text-sm">
-								<span className="font-medium text-[color:var(--color-ink)]">
-									{advice.label}.
-								</span>{' '}
-								{advice.what}
-							</p>
-						)}
+						{/* No `undefined` guard, and that is the gain from moving these into
+						    `@proxlane/shared`. They were a `Record<string, …>` local to this file, so a
+						    new outcome class silently rendered no advice; `CLASS_ADVICE` is
+						    `satisfies Record<OutcomeClass, …>`, so it now fails to compile instead. */}
+						<p className="mt-1.5 text-[color:var(--color-slate)] text-sm">
+							<span className="font-medium text-[color:var(--color-ink)]">
+								{advice.action}.
+							</span>{' '}
+							{advice.what}
+						</p>
 						<div className="mt-4">
 							<Table rows={rows} />
 						</div>

@@ -11,7 +11,7 @@
 // Zero dependencies, like every other script here: it must run before anything is built.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { artifacts } from './docs-artifacts.ts';
 
@@ -416,6 +416,63 @@ const read = (p: string) => readFileSync(p, 'utf8');
 				fail('12', `the gateway serves \`${r}\` and openapi.json omits it`);
 
 		ok('12', read_.length + setHeaders.length + routes.length, 'OpenAPI matches the gateway');
+	}
+}
+
+// ---------------- 13: every docs URL the code emits points at a page that exists
+//
+// THE GATEWAY PUTS A LINK ON EVERY ERROR RESPONSE. A dead one is a broken promise at request
+// rate, which is why `error.docs` used to point at GitHub — `docs.proxlane.dev` has no DNS
+// record and the comment said so. The docs site turned out to be live at the apex all along,
+// so the link now goes to `/docs/outcomes`, and this is what keeps that honest.
+//
+// Checked STATICALLY, against the route files and the rendered anchors. A test that resolved
+// the URL over the network would fail from a clean clone offline, and CI would then be
+// asserting that GitHub's DNS works.
+{
+	const SHARED = join(ROOT, 'packages/shared/src');
+	const outcomeSrc = join(SHARED, 'outcome.ts');
+	const errorSrc = join(SHARED, 'error-body.ts');
+	if (!existsSync(outcomeSrc) || !existsSync(errorSrc)) {
+		fail('13', 'packages/shared/src/{outcome,error-body}.ts not found');
+	} else {
+		const src = read(outcomeSrc) + read(errorSrc);
+		// Every `https://proxlane.dev/...` the package can produce, plus the DOCS_BASE template
+		// forms. Literal paths only — an interpolated class is checked as an anchor below.
+		const paths = [
+			...new Set(
+				[...src.matchAll(/\$\{DOCS_BASE\}(\/[a-z0-9/-]*)/g)].map((m) => m[1] as string),
+			),
+		];
+		if (paths.length === 0) {
+			fail('13', 'parsed no DOCS_BASE paths from shared — the URL shape changed');
+		}
+		let verified = 0;
+		for (const path of paths) {
+			// `/docs/outcomes` -> `routes/docs/outcomes.tsx`; `/docs` -> `routes/docs/index.tsx`.
+			const slug = path.replace(/^\/docs\/?/, '');
+			const file = slug === '' ? join(ROUTES, 'index.tsx') : join(ROUTES, `${slug}.tsx`);
+			if (!existsSync(file)) {
+				fail('13', `shared emits ${path}, and ${relative(ROOT, file)} does not exist`);
+			} else verified += 1;
+		}
+		// `docsUrlFor` deep-links to `#<class>`, so every class must render an anchor. The
+		// outcomes route renders `<h3 id={cls}>` over OUTCOME_CLASSES, which is what makes that
+		// total — assert the mechanism rather than six literals, or adding a class breaks the
+		// links silently.
+		if (/docsUrlFor/.test(src)) {
+			const outcomesRoute = join(ROUTES, 'outcomes.tsx');
+			if (!existsSync(outcomesRoute)) {
+				fail('13', 'docsUrlFor targets /docs/outcomes, whose route file is missing');
+			} else if (!/id=\{cls\}/.test(read(outcomesRoute))) {
+				fail(
+					'13',
+					'docsUrlFor deep-links to #<class>, and routes/docs/outcomes.tsx no longer ' +
+						'renders `id={cls}` — every one of those links is now dead',
+				);
+			} else verified += 1;
+		}
+		if (verified > 0) ok('13', verified, 'docs URLs emitted by the code resolve to real pages');
 	}
 }
 

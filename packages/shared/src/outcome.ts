@@ -146,6 +146,60 @@ type _ClassesAreExhaustive = OutcomeClass extends (typeof OUTCOME_CLASSES)[numbe
 const _classesExhaustive: _ClassesAreExhaustive = true;
 void _classesExhaustive;
 
+/**
+ * The live site, and the only place a URL in this package is built from.
+ *
+ * `proxlane.dev` — the APEX, deliberately. `docs.proxlane.dev` and `api.proxlane.dev` have no
+ * DNS record at all, and this package used to point at GitHub with a comment explaining that
+ * the docs domain did not resolve. The docs site is live at `proxlane.dev/docs/**`; it was the
+ * subdomain that never existed. Checked with `dig`, not assumed.
+ */
+export const DOCS_BASE = 'https://proxlane.dev';
+
+/**
+ * WHAT TO DO ABOUT IT, per class. The one question the policy fields do not answer.
+ *
+ * `failover` says what the GATEWAY does internally. It does not say what the CALLER should do,
+ * and the two are close enough to be confused: `failover: true` on a `blocked` outcome means
+ * proxlane already tried every provider, so a caller reading "it fails over" and retrying is
+ * asking for the same answer at the same price. That gap is why this exists.
+ *
+ * Keyed by CLASS, not by outcome. The class is the closed vocabulary a caller is told to branch
+ * on, and the remedy genuinely is the same for every member of one: a 404 and a target 500 are
+ * both the site's own answer. Per-outcome advice would be sixteen strings restating six.
+ *
+ * These strings were written for the docs site and lived in `apps/web`'s outcomes route, which
+ * meant the CLI — the surface written for an agent, the reader most in need of them — could not
+ * reach them. One copy, here beside the taxonomy they describe.
+ */
+export const CLASS_ADVICE = {
+	ok: { action: 'Use it', what: 'Real content that passed validation.' },
+	blocked: {
+		action: 'Retry later',
+		what: 'Every provider was blocked. Trying again immediately will be blocked again.',
+	},
+	target: {
+		action: 'Do not retry',
+		what: 'The site itself answered. A 404 is still a 404 through another provider.',
+	},
+	provider: {
+		action: 'Already retried',
+		what: 'Proxlane failed over for you. Seeing this means the whole chain was exhausted.',
+	},
+	client: { action: 'Fix the request', what: 'Retrying an invalid request cannot help.' },
+	gateway: { action: 'Retry later', what: 'Our side. Honour Retry-After when it is present.' },
+} as const satisfies Record<OutcomeClass, { readonly action: string; readonly what: string }>;
+
+/**
+ * Where to read more about one outcome.
+ *
+ * Deep-links to the class heading, which is a real anchor: `/docs/outcomes` renders
+ * `<h3 id={cls}>` for every member of OUTCOME_CLASSES, so every URL this can produce resolves.
+ */
+export function docsUrlFor(outcome: Outcome | (string & {})): string {
+	return `${DOCS_BASE}/docs/outcomes#${outcomeClass(outcome)}`;
+}
+
 /** Which cooldown namespace an outcome writes to, if any. */
 export type CooldownScope =
 	/** Shared across orgs, keyed (provider, domain). A block is a property of the domain. */
