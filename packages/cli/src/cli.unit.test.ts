@@ -283,6 +283,57 @@ describe('doctor knows about routing state', () => {
 		expect(find(off, 'cooldowns')?.detail).toMatch(/OFF/);
 	});
 
+	it('states the terminal retry and the two outcomes it applies to', async () => {
+		const on = await withEnv({ PROXLANE_TERMINAL_RETRIES: undefined });
+		const detail = find(on, 'terminal retry')?.detail ?? '';
+		expect(detail).toMatch(/PROVIDER_ERROR and PROVIDER_TIMEOUT/);
+		// The billing half of the answer. "Why two charges for one request" is the support
+		// question this exists to end, and it cannot be ended without naming the headers.
+		expect(detail).toMatch(/X-Cost-Estimate/);
+		const off = await withEnv({ PROXLANE_TERMINAL_RETRIES: '0' });
+		expect(find(off, 'terminal retry')?.detail).toMatch(/^off\b/);
+	});
+
+	it('says whether there is any failover at all, which the retry count alone does not', async () => {
+		// The question an operator does not know to ask. With one key the first hop IS the
+		// terminal hop, so the whole failover story in the README does not apply to them.
+		const one = await withEnv({
+			SCRAPERAPI_KEY: 'k',
+			SCRAPINGBEE_KEY: undefined,
+			SCRAPFLY_KEY: undefined,
+			BRIGHTDATA_KEY: undefined,
+		});
+		expect(find(one, 'terminal retry')?.detail).toMatch(/ONE provider key/);
+		const two = await withEnv({
+			SCRAPERAPI_KEY: 'k',
+			SCRAPINGBEE_KEY: 'k',
+			SCRAPFLY_KEY: undefined,
+			BRIGHTDATA_KEY: undefined,
+		});
+		expect(find(two, 'terminal retry')?.detail).toMatch(/2 provider keys/);
+	});
+
+	it('warns when one provider is configured and the retry is switched off', async () => {
+		// Nothing is misconfigured, so it stays `ok` — but that combination means a single
+		// transient provider error fails the request outright, with no second chance anywhere.
+		const r = await withEnv({
+			PROXLANE_TERMINAL_RETRIES: '0',
+			SCRAPERAPI_KEY: 'k',
+			SCRAPINGBEE_KEY: undefined,
+			SCRAPFLY_KEY: undefined,
+			BRIGHTDATA_KEY: undefined,
+		});
+		expect(find(r, 'terminal retry')?.ok).toBe(true);
+		expect(find(r, 'terminal retry')?.fix).toMatch(/Add a second provider key/);
+	});
+
+	it('fails a retry count it cannot use, rather than reading it as the default', async () => {
+		const r = await withEnv({ PROXLANE_TERMINAL_RETRIES: '99' });
+		const c = find(r, 'terminal retry');
+		expect(c?.ok).toBe(false);
+		expect(c?.fix).toMatch(/between 0 and 10/);
+	});
+
 	it('reports an unreachable store as a FAILURE, not a note', async () => {
 		// Port 1 refuses immediately on every platform. The distinction that matters is
 		// "misconfigured" versus "Valkey is unwell", and an operator cannot act without it.

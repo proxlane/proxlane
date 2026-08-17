@@ -116,7 +116,9 @@ At the defaults, 32 in flight and a 10 MB cap, that is about 800 MB.
 Lower the concurrency ceiling on a smaller box rather than raising the memory cap and hoping.
 Past the ceiling the gateway returns a clean 429. Past the memory limit it is killed.
 
-This is not checked at boot yet. The arithmetic is yours to do.
+The gateway does this arithmetic at boot. If the container has a readable memory limit and
+the configuration wants more than it, the gateway refuses to start rather than waiting to be
+OOM-killed. Where no limit is readable, it prints the number it wanted and boots.
 
 ## Checking a deployment
 

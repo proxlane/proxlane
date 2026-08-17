@@ -55,6 +55,8 @@ export interface AppDeps {
 	 * other, which is the cross-org contamination the two namespaces exist to prevent.
 	 */
 	readonly orgId?: string;
+	/** Extra goes at the last capable provider. See `chain.ts`. Defaults to 1; 0 disables. */
+	readonly terminalRetries?: number;
 	/**
 	 * Where `error.docs` points. Defaults to the GitHub taxonomy section, which exists;
 	 * `docs.proxlane.dev` does not resolve and README.md says so.
@@ -412,6 +414,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			...(deps.health === undefined ? {} : { health: deps.health }),
 			...(deps.cooldowns === undefined ? {} : { cooldowns: deps.cooldowns }),
 			...(deps.orgId === undefined ? {} : { orgId: deps.orgId }),
+			...(deps.terminalRetries === undefined ? {} : { terminalRetries: deps.terminalRetries }),
 		});
 
 		const policy = policyFor(result.outcome);

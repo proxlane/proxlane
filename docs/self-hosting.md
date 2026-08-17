@@ -225,12 +225,13 @@ most:
 | Variable | Default | Notes |
 |---|---|---|
 | `PROXLANE_API_KEY` | none | **Required.** Refuses to boot without it |
-| `SCRAPERAPI_KEY` `SCRAPINGBEE_KEY` `SCRAPFLY_KEY` | none | BYOK. All optional |
+| `SCRAPERAPI_KEY` `SCRAPINGBEE_KEY` `SCRAPFLY_KEY` `BRIGHTDATA_KEY` | none | BYOK. All optional. Bright Data's is `<zone>:<token>` |
 | `PORT` | `8787` | |
 | `PROXLANE_DEADLINE_MS` | `90000` | Global per-request deadline |
 | `PROXLANE_BODY_CAP_MB` | `10` | Response body cap |
 | `PROXLANE_MAX_INFLIGHT` | `32` | Concurrent `/v1` requests, then 429 `GATEWAY_BUSY` |
 | `PROXLANE_MEMORY_LIMIT_MB` | unset | Declares the memory limit when no cgroup one is readable |
+| `PROXLANE_TERMINAL_RETRIES` | `1` | Extra goes at the **last** provider only, on `PROVIDER_ERROR` and `PROVIDER_TIMEOUT`. `0` disables, max 10 |
 | `PROXLANE_COOLDOWNS` | on | Set `off` to disable |
 | `PROXLANE_HEALTH` | **off** | Set `on` to enable provider health. Off by default because its calibration is not yet validated against real traffic |
 | `PROXLANE_VALKEY_URL` | unset | Shared state, required for more than one replica |
