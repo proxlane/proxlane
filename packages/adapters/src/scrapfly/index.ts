@@ -9,7 +9,7 @@ import type {
 } from '../contract.js';
 import { carriesBody } from '../contract.js';
 import { capabilities } from './capabilities.js';
-import { ScrapflyEnvelope } from './schema.js';
+import { ScrapflyAccountError, ScrapflyEnvelope } from './schema.js';
 
 // Both functions are PURE. No I/O, no clock, no randomness.
 
@@ -96,6 +96,32 @@ function outcomeForErrorCode(code: string): Outcome | undefined {
 	return undefined;
 }
 
+/**
+ * A no-`result` failure whose error code says it was the TARGET, not us and not them.
+ *
+ * `ERR::SCRAPE::CONFIG_ERROR` at HTTP 400 is Scrapfly's channel for "your request is wrong",
+ * and status alone therefore reads it as INVALID_REQUEST — an outcome that pages a human and
+ * stops the chain. A host that does not resolve arrives through the same door, and it is
+ * neither: `TARGET_ERROR` is defined as "Target site 5xx or DNS dead".
+ *
+ * Found by running it. The same NXDOMAIN produced TARGET_ERROR from ScraperAPI and
+ * ScrapingBee, INVALID_REQUEST here, and PROVIDER_ERROR from Bright Data — so the caller's
+ * answer depended on which provider happened to be first, and one of the four paged the
+ * maintainer over a typo in a URL.
+ *
+ * THE MESSAGE IS LOAD-BEARING, which is worth stating because nothing else in this adapter
+ * reads prose. `code` alone cannot separate a dead host from a genuinely malformed parameter,
+ * and `api_param: "url"` is set for both. If they reword it, this falls back to the status
+ * and the old behaviour returns — loudly, since INVALID_REQUEST pages. The fixture is what
+ * holds it.
+ */
+function outcomeForAccountError(e: ScrapflyAccountError): Outcome | undefined {
+	if (e.code === 'ERR::SCRAPE::CONFIG_ERROR' && /invalid hostname/i.test(e.message ?? '')) {
+		return 'TARGET_ERROR';
+	}
+	return undefined;
+}
+
 function parse(res: ProviderHttpResponse): ParsedResult {
 	const fallbackCost = {
 		microcredits: capabilities.costTable.base,
@@ -116,7 +142,12 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		// whole signal. Distinguished structurally rather than by status, because a target 403
 		// and an out-of-credits 403 are the same number and very different facts.
 		if (typeof json === 'object' && json !== null && !('result' in json)) {
-			return { outcome: outcomeForProvider(res.status), cost: fallbackCost };
+			// The error code first, the status only as a fallback. The status is the coarser
+			// signal and it puts a dead target host into the same bucket as a bug in our
+			// translation.
+			const err = ScrapflyAccountError.safeParse(json);
+			const named = err.success ? outcomeForAccountError(err.data) : undefined;
+			return { outcome: named ?? outcomeForProvider(res.status), cost: fallbackCost };
 		}
 		// A `result` that does not match the schema is drift: the fields parse() depends on
 		// changed under us, and guessing past that is how a silent misparse ships.

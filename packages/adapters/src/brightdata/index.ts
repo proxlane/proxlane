@@ -163,6 +163,22 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		if (code === 'reject_block') {
 			return { outcome: 'HARD_BLOCK', upstreamStatusCode: envelope.status_code, cost: COST };
 		}
+		// A HOST THAT DOES NOT EXIST, which arrives as `proxy_error` — the same code Bright
+		// Data uses for its own network trouble. Left in the catch-all below it became
+		// PROVIDER_ERROR: a dead domain blamed on the provider, cooling it down for everyone
+		// and, since PROVIDER_ERROR is the retryable one, buying a second identical failure at
+		// the terminal hop.
+		//
+		// The header comment on this file already claimed DNS was handled as a target fact. It
+		// said so and did not do it, which is the shape worth watching — the reasoning was
+		// right and only the `http_status` branch above implemented it.
+		//
+		// Matched on the message because `proxy_error` genuinely does cover both. A reword
+		// falls back to PROVIDER_ERROR, which is the previous behaviour rather than something
+		// new; the fixture is what keeps it from happening quietly.
+		if (code === 'proxy_error' && /could not resolve host/i.test(message)) {
+			return { outcome: 'TARGET_ERROR', upstreamStatusCode: envelope.status_code, cost: COST };
+		}
 		// Anything else Bright Data names is its own failure to deliver a page.
 		return { outcome: 'PROVIDER_ERROR', upstreamStatusCode: envelope.status_code, cost: COST };
 	}

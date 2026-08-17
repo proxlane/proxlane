@@ -1,0 +1,34 @@
+{
+	"kind": "exchange",
+	"category": "dead-host",
+	"recordedAt": "2026-08-17T08:36:40.119Z",
+	"adapter": "brightdata",
+	"target": {
+		"url": "https://not-a-real-host.invalid/",
+		"renderJs": false
+	},
+	"expect": "TARGET_ERROR",
+	"request": {
+		"method": "POST",
+		"url": "https://api.brightdata.com/request",
+		"headers": {
+			"authorization": "REDACTED",
+			"content-type": "application/json"
+		}
+	},
+	"response": {
+		"status": 200,
+		"headers": {
+			"access-control-allow-origin": "*",
+			"connection": "keep-alive",
+			"content-length": "395",
+			"content-type": "application/json; charset=utf-8",
+			"date": "VOLATILE",
+			"etag": "W/\"18b-lPx4800nmUrAyt3oUTiXr6PKMog\"",
+			"server": "nginx",
+			"vary": "Accept-Encoding"
+		},
+		"bodyBase64": "eyJzdGF0dXNfY29kZSI6NTAyLCJoZWFkZXJzIjp7IngtYnJkLWVycm9yIjoiQ291bGQgbm90IHJlc29sdmUgaG9zdCBub3QtYS1yZWFsLWhvc3QuaW52YWxpZC4gQ2hlY2sgaG9zdCBuYW1lIGlzIGNvcnJlY3RseSBzcGVsbGVkIGFuZCByZXRyeS4gSWYgaG9zdCBpcyBwcm9wZXJseSBzcGVsbGVkIG9yIGNhbiBvbmx5IGJlIHJlc29sdmVkIGZyb20gYSBzcGVjaWZpYyByZWdpb24gY29udGFjdCBicmlnaHRkYXRhIHN1cHBvcnQgZm9yIEROUyBzdXBwb3J0LiIsIngtYnJkLWVycm9yLWNvZGUiOiJwcm94eV9lcnJvciIsImRhdGUiOiJNb24sIDE3IEF1ZyAyMDI2IDA4OjM2OjQwIEdNVCIsImNvbm5lY3Rpb24iOiJjbG9zZSIsInRyYW5zZmVyLWVuY29kaW5nIjoiY2h1bmtlZCJ9LCJib2R5IjoiIn0=",
+		"bodyBytes": 395
+	}
+}
