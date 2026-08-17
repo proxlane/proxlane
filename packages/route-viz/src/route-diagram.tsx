@@ -205,15 +205,20 @@ export function RouteDiagram({
 			    the first station is then meaningful — that is the point where your request becomes
 			    somebody's line. Filled marker for the origin, hollow for an interchange, ringed for
 			    a terminus: three station types, the same vocabulary a map already uses. */}
-			<line
-				x1={originX}
-				y1={firstY}
-				x2={geo.startX}
-				y2={firstY}
-				stroke="var(--color-ink)"
-				strokeWidth="var(--stroke-line, 3)"
-				strokeLinecap="round"
-			/>
+			{/* Skipped when nothing was attempted: the shed branch below draws its own stub,
+			    stopping short of its cross the way a failed leg does. Drawing both put a solid
+			    ink run straight through the middle of the cross arms. */}
+			{attempts.length > 0 && (
+				<line
+					x1={originX}
+					y1={firstY}
+					x2={geo.startX}
+					y2={firstY}
+					stroke="var(--color-ink)"
+					strokeWidth="var(--stroke-line, 3)"
+					strokeLinecap="round"
+				/>
+			)}
 			<circle cx={originX} cy={firstY} r={compact ? 3.5 : 4} fill="var(--color-ink)" />
 
 			<text
@@ -243,26 +248,68 @@ export function RouteDiagram({
 			    refused one line up in the same column across scenarios. */}
 			{attempts.length === 0 && (
 				<g>
-					{/* RUNS THE FULL WIDTH, unlike a failed provider leg.
-					    A failed leg stops short because it did not reach the terminus — there was a
-					    provider out there and it did not deliver. A shed request has no such
-					    distance to fall short of: the gateway IS the endpoint, and it refused at the
-					    door. Stopping short here drew a line ending in mid-air with the outcome
-					    stranded far to its right, which reads as a rendering fault rather than as a
-					    refusal. */}
+					{/* STRUCK AT THE DOOR, and the distance is the whole message.
+					    This used to run the FULL WIDTH to the terminus column — the geometry of the
+					    winning leg. So the one request that entered no lane at all was drawn
+					    travelling further than a provider that failed, and further than a
+					    single-hop success. In a transit diagram length is distance covered, and the
+					    panel whose entire point is "nothing was tried and nothing was charged"
+					    showed the longest journey on the page.
+
+					    `startX` is where the first provider's line begins, so the cross belongs
+					    exactly there: the gateway refused before the request became anybody's line.
+					    Nothing is drawn beyond it in ink, because nothing happened beyond it.
+
+					    The old reasoning for stretching it was real — a line ending in mid-air with
+					    the outcome stranded to its right reads as a rendering fault — but the fix for
+					    that is to say what the empty space IS, not to fill it with a journey. Hence
+					    the dashed rule below. */}
 					<line
-						x1={geo.startX}
+						x1={originX}
 						y1={firstY}
-						x2={endX - 9}
+						x2={geo.startX - 9}
 						y2={firstY}
 						stroke="var(--color-ink)"
 						strokeWidth="var(--stroke-line, 3)"
 						strokeLinecap="round"
 					/>
 					<g stroke="var(--color-ink)" strokeWidth="2.5" strokeLinecap="round">
-						<line x1={endX - 5.5} y1={firstY - 5.5} x2={endX + 5.5} y2={firstY + 5.5} />
-						<line x1={endX - 5.5} y1={firstY + 5.5} x2={endX + 5.5} y2={firstY - 5.5} />
+						<line
+							x1={geo.startX - 5.5}
+							y1={firstY - 5.5}
+							x2={geo.startX + 5.5}
+							y2={firstY + 5.5}
+						/>
+						<line
+							x1={geo.startX - 5.5}
+							y1={firstY + 5.5}
+							x2={geo.startX + 5.5}
+							y2={firstY - 5.5}
+						/>
 					</g>
+					{/* THE JOURNEY THAT DID NOT HAPPEN, and it is the SAME leader a failed leg uses.
+					    Identical token, opacity, weight and dash to the leader above, deliberately:
+					    a failed leg already draws a hairline guide from its cross to the outcome
+					    column, and a shed request needs exactly that and nothing new. Reusing it
+					    means the four scenarios share one vocabulary for "the line stopped here,
+					    the label over there".
+
+					    SLATE AT HALF OPACITY, NOT `--color-rule` — the first version of this used
+					    rule and the leader beside it already records why that is wrong: rule is
+					    #dee2e6 on the light ground, about 1.25:1, which as thin dots is not faint
+					    but absent. It looked correct in dark mode and would have shipped an empty
+					    plate to every light-mode reader. */}
+					<line
+						x1={geo.startX + 11}
+						y1={firstY}
+						x2={outcomeX - 10}
+						y2={firstY}
+						stroke="var(--color-slate)"
+						strokeOpacity="0.5"
+						strokeWidth="var(--stroke-rule, 1)"
+						strokeDasharray="1 4"
+						strokeLinecap="round"
+					/>
 					{/* The status IS shown here, unlike on a failed leg. A failed leg's label is
 					    interim — the chain carried on — whereas this one is the answer the caller
 					    received, so it is a terminus and reads like the others do. */}
