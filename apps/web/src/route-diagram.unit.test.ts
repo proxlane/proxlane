@@ -27,8 +27,7 @@ const render = (props: Parameters<typeof RouteDiagram>[0]): string =>
 function lines(svg: string): { x1: number; x2: number; stroke: string; dashed: boolean }[] {
 	return [...svg.matchAll(/<line[^>]*>/g)].map((m) => {
 		const tag = m[0];
-		const attr = (n: string /** biome-ignore lint/performance/useTopLevelRegex: per-attr */) =>
-			new RegExp(`${n}="([^"]*)"`).exec(tag)?.[1] ?? '';
+		const attr = (n: string) => new RegExp(`${n}="([^"]*)"`).exec(tag)?.[1] ?? '';
 		return {
 			x1: Number(attr('x1')),
 			x2: Number(attr('x2')),
