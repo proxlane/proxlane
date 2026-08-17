@@ -236,7 +236,7 @@ export function buildSpec(): string {
 					operationId: 'health',
 					summary: 'Liveness',
 					description:
-						'Takes no key. Reports that the process is up and serving, not that it is fully configured: a gateway with no provider keys is correctly running and will answer NO_PROVIDER_AVAILABLE. Returns the provider COUNT, never the names, because which providers an operator pays for is not something to hand out. Never shed under load.',
+						'Takes no key. Reports that the process is up and serving, not that it is fully configured: a gateway with no provider keys is correctly running and will answer NO_PROVIDER_AVAILABLE. Returns the provider COUNT, never the names, because which providers an operator pays for is not something to hand out. Never shed under load. `version` is the running build, so a deploy can be verified: publishing an image is not deploying it, and an orchestrator keeps serving the digest it started with until something issues an update.',
 					security: [],
 					responses: {
 						// NO 4xx, and a linter will say so. This endpoint takes no key, no parameters
@@ -249,9 +249,10 @@ export function buildSpec(): string {
 								'application/json': {
 									schema: {
 										type: 'object',
-										required: ['status', 'providers'],
+										required: ['status', 'version', 'providers'],
 										properties: {
 											status: { type: 'string', enum: ['ok'] },
+											version: { type: 'string', example: '0.4.0' },
 											providers: { type: 'integer', minimum: 0 },
 										},
 									},

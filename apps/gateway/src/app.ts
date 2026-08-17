@@ -32,6 +32,7 @@ import type { HealthStore } from './health-store.js';
 import { InflightLimiter, retryAfterSeconds } from './inflight.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
 import type { HttpTransport } from './transport.js';
+import { VERSION } from './version.js';
 
 export interface AppDeps {
 	readonly transport: HttpTransport;
@@ -242,7 +243,24 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	//
 	// The COUNT, never the names: this endpoint takes no key, and which providers an operator
 	// pays for is not something to hand out. A count is enough to diagnose.
-	app.get('/health', (c) => c.json({ status: 'ok', providers: deps.candidates.length }));
+	// THE VERSION IS HERE SO A DEPLOY CAN BE VERIFIED, which is the reason it was added.
+	//
+	// Publishing an image is not deploying it: an orchestrator pins the digest a service started
+	// with, so moving a tag changes nothing until something issues an update. Two sibling
+	// projects ran three days and three weeks stale on exactly that, and neither had any way to
+	// ask what was live. `deploy-gateway.yml` now polls this field until it matches the version
+	// it just published, which turns "we posted to the deploy hook" into "the new build is
+	// serving".
+	//
+	// Unauthenticated, like the rest of this endpoint, and that is a narrower disclosure than it
+	// looks: releases and image tags are public on a public repo, so the version is already
+	// knowable by anyone who cares. It is NOT the same as the provider list, which stays behind
+	// the key because which providers an operator pays for is commercial and is not published
+	// anywhere. An authenticated version would also mean handing the runtime key to a deploy
+	// job, which is a worse trade than reporting a number that is already public.
+	app.get('/health', (c) =>
+		c.json({ status: 'ok', version: VERSION, providers: deps.candidates.length }),
+	);
 
 	// The operator's view of what the router believes. Unlike `/health`, this one NAMES
 	// providers — an operator debugging "why is everything slow" needs to know which provider
