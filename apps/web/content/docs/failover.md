@@ -41,6 +41,27 @@ the reason, not just the verdict.
 Rules currently come from vendor signatures. They have not yet been tuned against a corpus
 of real block pages, so treat detection as good but not finished.
 
+## The end of the chain
+
+Failover is the retry. Moving to a different provider costs the same one request and is
+likelier to work, so Proxlane never asks the same provider twice while another one is left.
+
+The last provider is different, because there is nothing after it. There Proxlane asks once
+more, and only when the provider failed to answer at all: `PROVIDER_ERROR` or
+`PROVIDER_TIMEOUT`. A block is still a block on the second ask, a 404 is still a 404, and a
+bad key is still a bad key.
+
+```
+PROXLANE_TERMINAL_RETRIES=1     # the default. 0 turns it off, 10 is the ceiling
+```
+
+This matters most with a single provider key, where the first hop is also the last one and
+there is no failover at all. `npx proxlane doctor` says which case you are in.
+
+The retry is skipped when the deadline no longer has room for a full attempt, so it cannot
+turn a clear `PROVIDER_ERROR` into a confusing `BUDGET_EXCEEDED`. It is a real request: it
+appears in `X-Attempts` and it is counted in `X-Cost-Estimate`.
+
 ## Cooldowns
 
 A provider that just refused a domain is skipped for a short window rather than paid to

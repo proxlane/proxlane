@@ -687,6 +687,37 @@ every hop but the last, where they get their full 75s. With the global default r
 **120s** (`operations.md` section 1), the default chain is 22 + 22 + 75 = 119s, so N=3
 fits. Clients set their own via the `timeout` param.
 
+### One retry at the terminal hop, and nowhere else
+
+The chain never asks a provider twice while another is left. Failover already is the retry:
+a different provider costs the same one request and is likelier to work, because it is
+different infrastructure. It is also largely redundant — section 1 records that the launch
+providers retry internally before answering, ScraperAPI for up to 70 seconds, so a failure
+arriving here has already survived that.
+
+The terminal hop has nothing to fail over to, and that is the normal shape of a deployment
+with one provider key rather than an edge case. There the chain re-runs the same index:
+
+```
+PROXLANE_TERMINAL_RETRIES  default 1, range 0..10, per REQUEST not per provider
+retryable                  PROVIDER_ERROR, PROVIDER_TIMEOUT — nothing else
+guard                      remaining > provider.fastTimeoutMs, checked BEFORE the request
+```
+
+Three properties the implementation has to keep:
+
+- **Provider-infrastructure outcomes only.** A block, a 404 and a bad credential are the
+  same on the second ask; retrying them is asking to be refused twice and billed twice.
+- **Deadline-checked first.** A retry is a hop `reserve(hopsLeft)` never budgeted for.
+  Without the guard it eats the tail of the deadline and reports `BUDGET_EXCEEDED`, which
+  hides the real outcome behind a symptom of the retry itself.
+- **Counted.** The failed attempt stays in `attempts` and in `X-Cost-Estimate`. It was
+  charged, so it is reported.
+
+The cooldown the failed attempt just armed does not suppress the retry: the chain reads the
+snapshot taken before the walk. Arming a cooldown and honouring it one line later would make
+the setting inert on precisely the outcomes it exists for.
+
 ### The logged grain is the attempt, not the request
 
 A `requests` row records only the **winning** provider. A request that goes

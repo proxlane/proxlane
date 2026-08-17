@@ -504,6 +504,12 @@ describe('a lost probe claim does not hide the demoted fallback', () => {
 	it('does not re-attempt a provider when the chain is re-ranked', async () => {
 		// Re-ranking restarts the walk, so anything already tried has to be excluded or a
 		// failover would pay for the same provider twice.
+		//
+		// `terminalRetries: 0` because the terminal retry is the OTHER, deliberate way the same
+		// provider gets attempted twice, and it would satisfy this assertion by accident — `a`
+		// ends up alone in the chain here, which makes it the terminal hop. Leaving it on would
+		// turn a regression test into a test of two features at once, and it would go green for
+		// the wrong reason on the day the re-rank bug came back.
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		expired(cd, blk('b'));
 		await cd.claim(blk('b'), Date.now());
@@ -512,7 +518,7 @@ describe('a lost probe claim does not hide the demoted fallback', () => {
 				['a', 'PROVIDER_ERROR'],
 				['b', 'OK'],
 			],
-			{ cooldowns: cd },
+			{ cooldowns: cd, terminalRetries: 0 },
 		);
 		const tried = r.attempts.map((x) => x.provider);
 		expect(new Set(tried).size, `a provider was attempted twice: ${tried.join(', ')}`).toBe(

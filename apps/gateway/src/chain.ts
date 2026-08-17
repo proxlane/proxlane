@@ -34,6 +34,41 @@ import type { HttpTransport } from './transport.js';
  */
 const MIN_RETRY_AFTER_MS = 1000;
 
+/**
+ * How many extra goes the LAST capable provider gets before the chain gives up.
+ *
+ * NOT a general retry, and the distinction is the whole design. Failover already is the
+ * retry: on a transient provider failure the chain moves to a different provider, which
+ * costs the same one request and is likelier to work because it is different infrastructure.
+ * Retrying the same provider first would spend money to ask a machine that just failed.
+ *
+ * It is also mostly redundant. `integrations.md` records that the launch providers retry
+ * internally before answering — ScraperAPI for up to 70 seconds — so a failure that reaches
+ * us has already survived that. Asking again usually buys another identical failure.
+ *
+ * The gap is the terminal hop, where there is no next provider. That is not an edge case: a
+ * deployment with one provider key is the common starting shape, and there the chain either
+ * retries or returns nothing. Measured against Bright Data while writing its adapter,
+ * `no_free_workers` and a bare HTML 502 from its edge both cleared on an immediate retry —
+ * fast front-door failures rather than scrape failures, which is exactly the class where one
+ * more go is worth a request.
+ */
+const DEFAULT_TERMINAL_RETRIES = 1;
+
+/**
+ * Which outcomes are worth another go at the same provider.
+ *
+ * Provider-class only, and not all of them. A target's 404 is a 404 on the retry. A block is
+ * a block. `AUTH_FAILED` is a credential, and `RATE_LIMITED` means it just told us to stop —
+ * retrying either is asking to be refused twice and billed twice.
+ *
+ * What is left is the provider failing to answer at all, which is the transient case.
+ */
+const RETRYABLE_AT_TERMINAL: ReadonlySet<Outcome> = new Set([
+	'PROVIDER_ERROR',
+	'PROVIDER_TIMEOUT',
+]);
+
 export interface Attempt {
 	readonly provider: string;
 	readonly outcome: Outcome;
@@ -107,6 +142,13 @@ export interface ChainDeps {
 	 * right now, or hosted becomes a migration.
 	 */
 	readonly orgId?: string;
+	/**
+	 * Extra goes at the LAST capable provider. Defaults to 1; 0 disables it.
+	 *
+	 * Per request, not per provider: two providers do not get two retries each. See
+	 * DEFAULT_TERMINAL_RETRIES for why the terminal hop is the only place this applies.
+	 */
+	readonly terminalRetries?: number;
 }
 
 /**
@@ -312,6 +354,8 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 
 	let lastOutcome: Outcome = 'NO_PROVIDER_AVAILABLE';
 	let onceUsed = false;
+	/** Spent across the whole request, not per provider. See TERMINAL_RETRIES. */
+	let terminalRetriesLeft = deps.terminalRetries ?? DEFAULT_TERMINAL_RETRIES;
 
 	for (let i = 0; i < attemptable.length; i++) {
 		const entry = attemptable[i] as (typeof attemptable)[number];
@@ -551,6 +595,37 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			}
 
 			if (isLastHop) {
+				// ONE MORE GO, but only here and only for a provider that failed to answer.
+				//
+				// Guarded on three things, all of which have to hold:
+				//   the outcome is transient provider infrastructure, not a target or a credential
+				//   the retry budget for this request is not spent
+				//   there is time left, checked BEFORE spending a request rather than after
+				//
+				// The deadline check is the one that matters. `hopBudget` sizes each hop to leave
+				// room for the hops that follow, and a retry is a hop nobody budgeted for — so
+				// without this it would eat the tail of the deadline and turn a clean
+				// PROVIDER_ERROR into a BUDGET_EXCEEDED, which sends someone debugging the wrong
+				// system. Retrying only while a full fast-cap still fits keeps that impossible.
+				//
+				// The cooldown this attempt just armed does NOT block the retry, deliberately.
+				// `cooldownFor` reads the snapshot taken before the walk, so the fresh record is
+				// invisible here — and that is the behaviour we want: the cooldown is about the
+				// NEXT request, and the alternative is arming a cooldown and then honouring it
+				// one line later, which would make this setting do nothing on the outcomes it
+				// exists for.
+				if (
+					terminalRetriesLeft > 0 &&
+					RETRYABLE_AT_TERMINAL.has(outcome) &&
+					guarded.deadlineMs - (now() - startedAt) > adapter.capabilities.fastTimeoutMs
+				) {
+					terminalRetriesLeft -= 1;
+					// Re-run the SAME index. The attempt already pushed is kept: it was billed and
+					// it happened, and a cost estimate that hides a retry is the number this
+					// project exists not to print.
+					i -= 1;
+					continue;
+				}
 				return {
 					outcome,
 					attempts,

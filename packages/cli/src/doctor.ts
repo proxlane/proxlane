@@ -164,7 +164,57 @@ function routingChecks(): Check[] {
 				: 'OFF (PROXLANE_COOLDOWNS=off). Every request retries providers that just refused it',
 		},
 		backpressureCheck(),
+		terminalRetryCheck(),
 	];
+}
+
+/**
+ * The extra go at the last provider, and — more usefully — whether there IS a last provider.
+ *
+ * B9-shaped in both directions. "Why does one request show two attempts and two charges?" is
+ * answered by naming the setting and the two outcomes that trigger it. The harder question is
+ * the one an operator does not know to ask: with a single key configured, every request's
+ * first hop is also its terminal hop, so there is no failover at all and this retry is the
+ * only thing standing between a transient provider error and a failed scrape. Counting the
+ * keys is what turns that from documentation into a diagnostic.
+ */
+function terminalRetryCheck(): Check {
+	const raw = env('PROXLANE_TERMINAL_RETRIES');
+	const n = Number(raw ?? 1);
+	const valid = Number.isInteger(n) && n >= 0 && n <= 10;
+	if (!valid) {
+		return {
+			name: 'terminal retry',
+			ok: false,
+			detail: `PROXLANE_TERMINAL_RETRIES=${raw ?? '(unset)'}, which is not a whole number from 0 to 10`,
+			fix: 'set it between 0 and 10, or unset it for the default of 1. The gateway refuses to boot on anything else',
+		};
+	}
+	const keyed = Object.keys(REGISTRY).filter((id) => {
+		const v = process.env[`${id.toUpperCase().replace(/-/g, '_')}_KEY`];
+		return v !== undefined && v !== '';
+	}).length;
+	const what =
+		n === 0
+			? 'off. A provider that fails at the end of the chain ends the request'
+			: `${n} extra ${n === 1 ? 'go' : 'goes'} at the LAST provider, on PROVIDER_ERROR and PROVIDER_TIMEOUT only. ` +
+				'Each one is a real request and appears in X-Attempts and X-Cost-Estimate';
+	const chain =
+		keyed === 0
+			? 'no provider keys are set, so nothing routes at all'
+			: keyed === 1
+				? 'ONE provider key is set, so there is no failover — the first hop is the terminal hop on every request'
+				: `${keyed} provider keys are set, so a failure moves to the next provider before this applies`;
+	return {
+		name: 'terminal retry',
+		ok: true,
+		detail: `${what}. ${chain}`,
+		...(keyed === 1 && n === 0
+			? {
+					fix: 'with one provider and no retry, a single transient provider error fails the request. Add a second provider key, or unset PROXLANE_TERMINAL_RETRIES for the default of 1',
+				}
+			: {}),
+	};
 }
 
 /**

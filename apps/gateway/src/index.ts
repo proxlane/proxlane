@@ -70,6 +70,27 @@ const HEALTH_ENABLED = (env('PROXLANE_HEALTH') ?? 'off') === 'on';
 // ninety seconds ago costs money and usually gets refused again.
 const COOLDOWNS_ENABLED = (env('PROXLANE_COOLDOWNS') ?? 'on') !== 'off';
 
+/**
+ * Extra goes at the LAST capable provider before the chain gives up. 0 disables it.
+ *
+ * Deliberately NOT a general retry knob, and the name says so. Anywhere but the terminal
+ * hop, failing over to a different provider is both cheaper and likelier to work than asking
+ * the same one twice — see `chain.ts`. What this tunes is the case with nowhere left to go,
+ * which is what a single-provider deployment is on every request.
+ *
+ * Bounded rather than trusted: a fat-fingered 500 here would spend a request per go until
+ * the deadline stopped it, and the deadline is the only thing that would. Ten is far above
+ * any real setting and well below a bill.
+ */
+const TERMINAL_RETRIES = Number(env('PROXLANE_TERMINAL_RETRIES') ?? 1);
+if (!Number.isInteger(TERMINAL_RETRIES) || TERMINAL_RETRIES < 0 || TERMINAL_RETRIES > 10) {
+	process.stderr.write(
+		`\n  PROXLANE_TERMINAL_RETRIES must be a whole number from 0 to 10.\n` +
+			`  Got: ${JSON.stringify(env('PROXLANE_TERMINAL_RETRIES'))}\n\n`,
+	);
+	process.exit(1);
+}
+
 // Valkey is what makes more than one replica possible: both stores become shared instead of
 // process-local. Set PROXLANE_VALKEY_URL to use it.
 //
@@ -303,6 +324,7 @@ const app = createApp({
 	maxInflight: MAX_INFLIGHT,
 	defaultDeadlineMs: DEFAULT_DEADLINE_MS,
 	orgId: ORG_ID,
+	terminalRetries: TERMINAL_RETRIES,
 	...(health === undefined ? {} : { health }),
 	...(cooldowns === undefined ? {} : { cooldowns }),
 });
@@ -315,6 +337,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'off by default; PROXLANE_HEALTH=on to enable'}\n` +
 			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on — GET /health/cooldowns' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
 			`  inflight:  ${MAX_INFLIGHT} concurrent, then 429 GATEWAY_BUSY (PROXLANE_MAX_INFLIGHT)\n` +
+			`  retries:   ${TERMINAL_RETRIES === 0 ? 'none — failover only' : `${TERMINAL_RETRIES} extra at the last provider`} (PROXLANE_TERMINAL_RETRIES)\n` +
 			`  memory:    ${MEMORY_NOTE}\n` +
 			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
