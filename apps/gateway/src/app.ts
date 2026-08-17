@@ -15,8 +15,16 @@ import {
 	outcomeClass,
 	policyFor,
 } from '@proxlane/adapters';
-import { errorBody, requestIdFrom } from '@proxlane/shared';
+import {
+	type ErrorCode,
+	errorBody,
+	errorClassFor,
+	GATEWAY_ERROR_CODES,
+	requestIdFrom,
+} from '@proxlane/shared';
 import { type Context, Hono } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { MIN_USEFUL_ATTEMPT_MS } from './budget.js';
 import type { ChainResult } from './chain.js';
 import { runChain } from './chain.js';
 import type { CooldownStore } from './cooldown-store.js';
@@ -116,6 +124,57 @@ function keyMatches(presented: string, expected: string): boolean {
  */
 type Vars = { Variables: { requestId: string; startedAt: number } };
 
+/**
+ * Every error the gateway returns, with the two headers a caller branches on.
+ *
+ * Added because the pre-chain returns did not have them. A request that never became a scrape
+ * — no url, a bad `premium`, an over-cap request body, a wrong key — went out as a bare JSON
+ * body, while everything that reached the chain carried `X-Outcome` and `X-Outcome-Class`. So
+ * the docs' own advice ("switch on the closed class") failed on the most common client
+ * mistake of all, and a caller reading headers first saw nothing at all.
+ *
+ * `X-Outcome` IS OMITTED FOR A CODE THAT IS NOT AN OUTCOME, which is the one subtlety here.
+ * `UNAUTHORIZED` and `NOT_ENABLED` are gateway error codes: the taxonomy describes what
+ * happened to a scrape, and neither of these requests ever became one. Putting them in a
+ * header named `X-Outcome` would widen the header's vocabulary past the type it is named
+ * after, and an existing test guards exactly that.
+ *
+ * `X-Outcome-Class` is emitted either way, and that is the point of having a closed class:
+ * `errorClassFor` knows both vocabularies, so a caller branching on `client` versus `gateway`
+ * gets a usable answer on every error the gateway can produce, including the ones with no
+ * outcome to report.
+ *
+ * X-Attempts is '0' on every one of these, and that is a fact rather than a placeholder:
+ * nothing was tried, and omitting it would leave a caller summing attempt counts to find a
+ * gap where a request quietly failed early.
+ */
+function errorWith(
+	c: Context<Vars>,
+	status: ContentfulStatusCode,
+	args: { code: ErrorCode; message: string; docsUrl?: string },
+	extra: Record<string, string> = {},
+) {
+	return c.json(
+		errorBody({
+			requestId: c.get('requestId'),
+			code: args.code,
+			message: args.message,
+			...(args.docsUrl === undefined ? {} : { docsUrl: args.docsUrl }),
+		}),
+		status,
+		{
+			...(args.code in GATEWAY_ERROR_CODES ? {} : { 'X-Outcome': args.code }),
+			'X-Outcome-Class': errorClassFor(args.code),
+			'X-Attempts': '0',
+			// Zero, spelled out, because `api.md` promises this header on every response and a
+			// missing one is indistinguishable from a lost one. Nothing was tried, so nothing
+			// was spent.
+			'X-Cost-Estimate': '0.000000',
+			...extra,
+		},
+	);
+}
+
 function headersFor(r: ChainResult, totalMs: number): Record<string, string> {
 	// Spend across EVERY attempt, not just the winning one. A failover that cost two charged
 	// hops and reports the price of one is the number that makes margin look better than it
@@ -200,27 +259,19 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	// is already configured with one.
 	app.get('/health/providers', async (c) => {
 		if (!keyMatches(presentedKey(c), deps.apiKey)) {
-			return c.json(
-				errorBody({
-					requestId: c.get('requestId'),
-					code: 'UNAUTHORIZED',
-					message: 'api_key missing or incorrect',
-					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				}),
-				401,
-			);
+			return errorWith(c, 401, {
+				code: 'UNAUTHORIZED',
+				message: 'api_key missing or incorrect',
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
 		}
 		if (deps.health === undefined) {
 			// Honest 501 rather than an empty list. `{providers: []}` would read as "all fine".
-			return c.json(
-				errorBody({
-					requestId: c.get('requestId'),
-					code: 'NOT_ENABLED',
-					message: 'this gateway is running without health tracking',
-					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				}),
-				501,
-			);
+			return errorWith(c, 501, {
+				code: 'NOT_ENABLED',
+				message: 'this gateway is running without health tracking',
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
 		}
 		const now = Date.now();
 		// Fail OPEN, like the routing path. This is the tool an operator reaches for when
@@ -266,26 +317,18 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	// it names the DOMAINS this deployment has been blocked on, which is more sensitive still.
 	app.get('/health/cooldowns', async (c) => {
 		if (!keyMatches(presentedKey(c), deps.apiKey)) {
-			return c.json(
-				errorBody({
-					requestId: c.get('requestId'),
-					code: 'UNAUTHORIZED',
-					message: 'api_key missing or incorrect',
-					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				}),
-				401,
-			);
+			return errorWith(c, 401, {
+				code: 'UNAUTHORIZED',
+				message: 'api_key missing or incorrect',
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
 		}
 		if (deps.cooldowns === undefined) {
-			return c.json(
-				errorBody({
-					requestId: c.get('requestId'),
-					code: 'NOT_ENABLED',
-					message: 'this gateway is running without cooldowns',
-					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				}),
-				501,
-			);
+			return errorWith(c, 501, {
+				code: 'NOT_ENABLED',
+				message: 'this gateway is running without cooldowns',
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
 		}
 		const now = Date.now();
 		let entries: Awaited<ReturnType<typeof deps.cooldowns.list>>;
@@ -331,32 +374,51 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	const served = async (c: Context<Vars>) => {
 		const url = c.req.query('url');
 		if (url === undefined || url === '') {
-			return c.json(
-				errorBody({
-					requestId: c.get('requestId'),
-					code: 'BAD_REQUEST',
-					message: 'url is required',
-					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				}),
-				400,
-			);
+			return errorWith(c, 400, {
+				code: 'BAD_REQUEST',
+				message: 'url is required',
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
 		}
 
 		const renderRaw = c.req.query('render');
 		const premiumRaw = c.req.query('premium') ?? 'none';
 		if (premiumRaw !== 'none' && premiumRaw !== 'residential' && premiumRaw !== 'stealth') {
-			return c.json(
-				errorBody({
-					requestId: c.get('requestId'),
-					code: 'BAD_REQUEST',
-					message: 'premium must be none, residential or stealth',
-					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				}),
-				400,
-			);
+			return errorWith(c, 400, {
+				code: 'BAD_REQUEST',
+				message: 'premium must be none, residential or stealth',
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
 		}
 		const countryCode = c.req.query('country_code');
 		const forced = c.req.query('provider');
+
+		// THE PER-REQUEST DEADLINE, which `integrations.md` section 5 has promised since the
+		// budget arithmetic was written ("Clients set their own via the `timeout` param") and
+		// which nothing read. Every request got `PROXLANE_DEADLINE_MS`, so a caller who wanted a
+		// fast answer or no answer waited the full ninety seconds for a slow chain to finish.
+		//
+		// CAPPED AT THE SERVER'S OWN, never above it. A caller must be able to ask for less time
+		// than the operator budgeted and never for more: the ceiling is what bounds how long one
+		// request can hold an in-flight slot, and `maxInflight` is sized on the assumption that
+		// it holds.
+		//
+		// Floored at MIN_USEFUL_ATTEMPT_MS rather than accepted and then failed. `hopBudget`
+		// returns BUDGET_EXCEEDED below that floor without opening a connection, so `timeout=1`
+		// would be a 504 that never tried anything — an error report where a 400 belongs.
+		const timeoutRaw = c.req.query('timeout');
+		let deadlineMs = deps.defaultDeadlineMs;
+		if (timeoutRaw !== undefined && timeoutRaw !== '') {
+			const asked = Number(timeoutRaw);
+			if (!Number.isInteger(asked) || asked < MIN_USEFUL_ATTEMPT_MS) {
+				return errorWith(c, 400, {
+					code: 'BAD_REQUEST',
+					message: `timeout must be a whole number of milliseconds, at least ${MIN_USEFUL_ATTEMPT_MS}`,
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
+			deadlineMs = Math.min(asked, deps.defaultDeadlineMs);
+		}
 
 		// POST was reachable everywhere except here. `GatewayRequest` has carried `method` and
 		// `body` since the contract landed, adapters declare a `post` capability, the chain
@@ -374,15 +436,11 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			// characters: a multi-byte body would otherwise pass a length check and blow the cap.
 			const size = Buffer.byteLength(body, 'utf8');
 			if (size > deps.maxBodyBytes) {
-				return c.json(
-					errorBody({
-						requestId: c.get('requestId'),
-						code: 'RESPONSE_TOO_LARGE',
-						message: `request body is ${size} bytes, over the ${deps.maxBodyBytes} cap`,
-						...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-					}),
-					413,
-				);
+				return errorWith(c, 413, {
+					code: 'RESPONSE_TOO_LARGE',
+					message: `request body is ${size} bytes, over the ${deps.maxBodyBytes} cap`,
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
 			}
 		}
 
@@ -395,16 +453,35 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			// `render=false` ends up rendering and billing 5x.
 			renderJs: renderRaw === 'true' || renderRaw === '1',
 			premium: premiumRaw,
-			deadlineMs: deps.defaultDeadlineMs,
+			deadlineMs,
 			...(countryCode === undefined ? {} : { countryCode }),
 		};
 
 		let candidates = deps.candidates;
 		if (forced !== undefined) {
-			// Benchmarking escape hatch from plan.md section 4. Narrowing to nothing is left to
-			// the chain, which answers NO_PROVIDER_AVAILABLE — the same answer as asking for a
-			// capability nobody has, and for the same reason.
+			// Benchmarking escape hatch from plan.md section 4.
 			candidates = candidates.filter((x) => x.adapter.capabilities.id === forced);
+			if (candidates.length === 0) {
+				// NAMED HERE, because this is the only layer that knows the difference.
+				//
+				// Narrowing to nothing used to be left to the chain, on the grounds that
+				// NO_PROVIDER_AVAILABLE is the right outcome either way — which it is. But the
+				// chain sees an empty candidate list and reports "no providers configured", and
+				// with four keys set that is false. `provider=scrapfly ` with a trailing space,
+				// or a typo, sent the operator to check keys that were fine.
+				//
+				// The outcome is unchanged. Only the sentence is, and the sentence is the part a
+				// human reads.
+				const available = deps.candidates.map((x) => x.adapter.capabilities.id).sort();
+				return errorWith(c, 503, {
+					code: 'NO_PROVIDER_AVAILABLE',
+					message:
+						available.length === 0
+							? `no provider "${forced}", and none is configured — set a provider key`
+							: `no provider "${forced}". Configured: ${available.join(', ')}`,
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
 		}
 
 		const result = await runChain(req, {
@@ -459,15 +536,11 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			// NOT an Outcome. The taxonomy describes what happened to a scrape; this request
 			// never became one. Reusing AUTH_FAILED here would put gateway auth failures into
 			// the provider health statistics.
-			return c.json(
-				errorBody({
-					requestId: c.get('requestId'),
-					code: 'UNAUTHORIZED',
-					message: 'api_key missing or incorrect',
-					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				}),
-				401,
-			);
+			return errorWith(c, 401, {
+				code: 'UNAUTHORIZED',
+				message: 'api_key missing or incorrect',
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
 		}
 
 		// SHED AFTER AUTH, AND ONLY ON `/v1`.
@@ -483,22 +556,17 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		// busy, which converts a shed request into an outage.
 		if (limiter !== undefined && !limiter.tryAcquire()) {
 			const busyMs = performance.now() - c.get('startedAt');
-			return c.json(
-				errorBody({
-					requestId: c.get('requestId'),
+			// The outcome, class and a zero attempt count come from `errorWith`, which is where
+			// every error path gets them. This one adds the two that are its own.
+			return errorWith(
+				c,
+				429,
+				{
 					code: 'GATEWAY_BUSY',
 					message: `at the in-flight ceiling of ${limiter.max}; retry shortly`,
 					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				}),
-				429,
+				},
 				{
-					'X-Outcome': 'GATEWAY_BUSY',
-					// The point of the closed class: a caller already branching on `gateway` handles
-					// this without knowing the member exists.
-					'X-Outcome-Class': outcomeClass('GATEWAY_BUSY'),
-					// Zero. Nothing was tried, and reporting otherwise would put a phantom attempt
-					// in the failover metrics.
-					'X-Attempts': '0',
 					'Retry-After': String(retryAfterSeconds()),
 					// Emitted on the shed path too, so the soak's p95 covers requests the gateway
 					// refused. Leaving them out would measure only the requests that got a slot,

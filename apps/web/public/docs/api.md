@@ -34,6 +34,7 @@ generator at it, or open it in any OpenAPI viewer.
 | `premium` | no | `none`, `residential`, `stealth` | Proxy tier. Defaults to `none` |
 | `country_code` | no | ISO 3166-1 alpha-2 | Where the request should appear to come from |
 | `provider` | no | adapter id | Force one provider and disable failover |
+| `timeout` | no | milliseconds | Deadline for the whole request. Capped at the server's own |
 
 ### url
 
@@ -52,6 +53,19 @@ render the page and cost about five times as much.
 
 A benchmarking escape hatch. It pins one provider, so there is no failover. If that provider
 cannot serve the request, you get `NO_PROVIDER_AVAILABLE` rather than a silent substitution.
+
+### timeout
+
+The deadline for the whole request, in milliseconds, including every failover hop. Default is
+the server's `PROXLANE_DEADLINE_MS`.
+
+You can ask for less time than the server budgeted. You cannot ask for more: the ceiling is
+what bounds how long one request holds a slot, and the gateway's memory sizing depends on it.
+
+The floor is 8000. Below that a single attempt cannot finish, so the request would time out
+without having tried anything — that is a `400`, not a `504`.
+
+When the deadline runs out the outcome is `BUDGET_EXCEEDED`.
 
 ## POST requests
 
@@ -90,7 +104,7 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 
 | Header | Sent | Meaning |
 |---|---|---|
-| `X-Outcome` | always | What happened. See [outcomes](/docs/outcomes) |
+| `X-Outcome` | every scrape | What happened. See [outcomes](/docs/outcomes) |
 | `X-Outcome-Class` | always | The coarse class. Branch on this one |
 | `X-Attempts` | always | How many providers were tried |
 | `X-Cost-Estimate` | always | Credits across all attempts |
@@ -102,6 +116,11 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `Retry-After` | when known | Seconds, rounded up |
 
 Two of those are easy to misread.
+
+A request rejected before a provider was chosen — no `url`, a bad `premium`, a wrong key —
+carries `X-Outcome-Class`, `X-Attempts: 0` and `X-Cost-Estimate: 0.000000`. It has no
+`X-Outcome`, because the taxonomy describes what happened to a scrape and that request never
+became one. This is the reason to branch on the class.
 
 **`X-Cost-Estimate` covers every attempt**, not just the one that worked. A failover that
 burned two charged hops reports both.
