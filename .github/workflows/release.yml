@@ -216,23 +216,56 @@ jobs:
       # `ghcr.io/proxlane/gateway:0.1.1` was the CLI's 0.1.1 while the gateway was on 0.3.1.
       # Two independently versioned things sharing one number, and the number belonged to the
       # other one.
+      #
+      # READ FROM THE COMMIT, NEVER THE WORKING TREE, and this is a fix rather than a
+      # preference. `changesets/action` above runs `changeset version` in this same workspace to
+      # prepare the release PR, which bumps `apps/gateway/package.json` ON DISK even though the
+      # bump is only ever committed to `changeset-release/main`. Reading the file then gave the
+      # PENDING version, so:
+      #
+      #   every push to main published an image tagged with a version that was not released,
+      #   had no git tag and no CHANGELOG entry — 0.3.3 and 0.4.0 both exist on ghcr while
+      #   main has been 0.3.2 throughout;
+      #
+      #   `changed` was true on EVERY push, because pending and committed always differ while
+      #   changesets are queued, so the same tag was rebuilt and re-pointed at a new digest
+      #   repeatedly — a moving tag, which is the one thing a version tag must not be;
+      #
+      #   and `:latest` therefore tracked unreleased code, which `docker/compose.yml` pulls.
+      #
+      # `git show HEAD:` is the whole fix. On an ordinary push HEAD and HEAD~1 agree, so no
+      # image is built; on the merge of a version-packages PR they differ by exactly the bump,
+      # which is the moment an image should exist.
       - name: read the gateway version, and whether it moved
         id: gateway
         shell: bash
         run: |
           set -euo pipefail
-          VERSION=$(node -p "require('./apps/gateway/package.json').version")
+          committed() {
+            git show "$1:apps/gateway/package.json" 2>/dev/null \
+              | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null \
+              || echo "none"
+          }
+          VERSION=$(committed HEAD)
+          [ "$VERSION" != "none" ] || { echo "::error::cannot read the committed gateway version"; exit 1; }
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           # A gateway-only release publishes nothing to npm, so `published` is false and the
           # image job used to be skipped. The artifact a gateway release produces IS the
           # image, so the signal has to be its version changing, not npm.
-          PREVIOUS=$(git show HEAD~1:apps/gateway/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || echo "none")
+          PREVIOUS=$(committed HEAD~1)
           if [ "$VERSION" != "$PREVIOUS" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "  gateway $PREVIOUS -> $VERSION, the image will be built"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "  gateway unchanged at $VERSION, no image to build"
+          fi
+          # Guards the fix itself. If the working tree disagrees with HEAD, `changeset version`
+          # has run and a future edit reading the file rather than the commit would silently
+          # reintroduce the pending-version tag.
+          ONDISK=$(node -p "require('./apps/gateway/package.json').version")
+          if [ "$ONDISK" != "$VERSION" ]; then
+            echo "  note: working tree says $ONDISK (changesets bumped it); tagging the committed $VERSION"
           fi
 
   # Images follow the npm publish rather than racing it, so a tag that exists on ghcr always
