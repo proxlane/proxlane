@@ -194,6 +194,17 @@ jobs:
             *'"status":"ok"'*) ;;
             *) echo "::error::unexpected /health body: $HEALTH"; exit 1 ;;
           esac
+          # The version, and a REAL one. `deploy-gateway.yml` polls this field to decide whether
+          # the build it just published is actually serving, so a missing or `unknown` version
+          # silently turns that check into a no-op — which is the exact failure the field was
+          # added to prevent.
+          case "$HEALTH" in
+            *'"version":"unknown"'*)
+              echo "::error::/health reports version unknown — package.json is not reachable in the image"
+              exit 1 ;;
+            *'"version":"'[0-9]*) ;;
+            *) echo "::error::/health carries no version: $HEALTH"; exit 1 ;;
+          esac
 
           # 3. The scrape surface answers, and answers with the taxonomy rather than a stack
           #    trace. No providers configured, so NO_PROVIDER_AVAILABLE is the correct answer.
@@ -213,9 +224,13 @@ jobs:
 
           # 5. The boot banner is the operator's first diagnostic. If it stops naming what it
           #    configured, support questions start with a blank page.
-          docker logs proxlane-smoke 2>&1 | grep -q "proxlane gateway on" \
-            || { echo "::error::the boot banner is missing"; docker logs proxlane-smoke; exit 1; }
-          echo "  boot banner present"
+          # Version-bearing, deliberately: the banner is where an operator reads what they are
+          # running before they think to curl anything. A literal "proxlane gateway on" match
+          # broke the moment the version was added, so this asserts the shape that replaced it
+          # rather than going loose enough to pass either way.
+          docker logs proxlane-smoke 2>&1 | grep -qE "proxlane gateway [0-9]+\.[0-9]+\.[0-9]+ on" \
+            || { echo "::error::the boot banner is missing or does not name a version"; docker logs proxlane-smoke; exit 1; }
+          echo "  boot banner present, with a version"
 
       - name: gateway logs
         if: always()
