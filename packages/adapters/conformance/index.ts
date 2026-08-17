@@ -56,6 +56,12 @@ const EXPECTED: Readonly<Record<string, Outcome | 'provider-dependent'>> = {
 	'render-js': 'OK',
 	'target-not-found': 'TARGET_NOT_FOUND',
 	'target-error': 'TARGET_ERROR',
+	// A HOST THAT DOES NOT EXIST. Every provider reports this through the channel it uses for
+	// its OWN failures, so every adapter gets it wrong in a different way until something
+	// checks: measured across four, one said TARGET_ERROR, one INVALID_REQUEST, one
+	// PROVIDER_ERROR. DNS is a fact about the target, and the taxonomy already says so —
+	// TARGET_ERROR is defined as "Target site 5xx or DNS dead".
+	'dead-host': 'TARGET_ERROR',
 	'target-rate-limited': 'TARGET_RATE_LIMITED',
 	// Honoured if one is ever captured; see REQUIRED below for why it cannot be required.
 	'provider-error': 'PROVIDER_ERROR',
@@ -88,6 +94,11 @@ const REQUIRED = [
 	// 429 is the one target fact that arms a shared cooldown, so an adapter mapping it wrong
 	// either backs off when it should not or does not when it should.
 	'target-rate-limited',
+	// Summonable on demand — `.invalid` is reserved by RFC 2606 and can never resolve — which
+	// is the criterion for being required rather than merely honoured. The cost of getting it
+	// wrong is high in both directions: as INVALID_REQUEST it pages a human over a typo, and
+	// as PROVIDER_ERROR it cools a healthy provider and buys a retry of a domain that is gone.
+	'dead-host',
 ] as const;
 
 interface ExchangeFixture {

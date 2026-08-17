@@ -1,0 +1,45 @@
+{
+	"kind": "exchange",
+	"category": "dead-host",
+	"recordedAt": "2026-08-17T08:34:11.877Z",
+	"adapter": "scrapingbee",
+	"target": {
+		"url": "https://not-a-real-host.invalid/",
+		"renderJs": false
+	},
+	"expect": "TARGET_ERROR",
+	"request": {
+		"method": "GET",
+		"url": "https://app.scrapingbee.com/api/v1/?url=https%3A%2F%2Fnot-a-real-host.invalid%2F&render_js=false&transparent_status_code=true&premium_proxy=false&stealth_proxy=false&block_resources=true&block_ads=false&return_page_source=false&json_response=false&device=desktop&timeout=70000",
+		"headers": {
+			"authorization": "REDACTED",
+			"accept": "*/*"
+		}
+	},
+	"response": {
+		"status": 503,
+		"headers": {
+			"access-control-allow-origin": "*",
+			"access-control-expose-headers": "Spb-cost, Spb-auto-cost, Spb-initial-status-code, Spb-resolved-url, Spb-request-id",
+			"alt-svc": "h3=\":443\";ma=60;",
+			"content-length": "22",
+			"content-type": "text/plain; charset=utf-8",
+			"date": "VOLATILE",
+			"permissions-policy": "browsing-topics=()",
+			"referrer-policy": "strict-origin-when-cross-origin",
+			"server": "gunicorn",
+			"spb-content-length": "22",
+			"spb-content-type": "text/plain; charset=utf-8",
+			"spb-cost": "0",
+			"spb-initial-status-code": "503",
+			"spb-request-id": "VOLATILE",
+			"spb-resolved-url": "https://not-a-real-host.invalid/",
+			"strict-transport-security": "max-age=31556926; includeSubDomains",
+			"vary": "Cookie",
+			"x-content-type-options": "nosniff",
+			"x-frame-options": "SAMEORIGIN"
+		},
+		"bodyBase64": "UHJveHkgY29ubmVjdGlvbiBlcnJvcg==",
+		"bodyBytes": 22
+	}
+}

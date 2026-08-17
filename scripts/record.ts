@@ -50,6 +50,7 @@ export type TargetCategory =
 	| 'success-json'
 	| 'target-not-found'
 	| 'target-error'
+	| 'dead-host'
 	| 'target-rate-limited'
 	| 'slow-target'
 	| 'deadline'
@@ -119,6 +120,23 @@ export const TARGETS: readonly Target[] = [
 		renderJs: false,
 		expect: 'TARGET_ERROR',
 		why: 'the target is broken, not the provider. Fails over once',
+	},
+	{
+		// A HOST THAT DOES NOT EXIST, which is a target fact and reads like a provider bug.
+		//
+		// Added after a dogfood run found three adapters giving three different answers to the
+		// same NXDOMAIN: TARGET_ERROR, INVALID_REQUEST and PROVIDER_ERROR. Every provider
+		// reports it through the channel it uses for its OWN failures — Scrapfly as a 400
+		// config error, Bright Data as `proxy_error` — so the honest mapping needs the message,
+		// and a fixture is the only way to hold it there.
+		//
+		// `.invalid` is reserved by RFC 2606 and is guaranteed never to resolve, so this target
+		// is stable in the way the rest of this matrix is: it cannot be registered later.
+		category: 'dead-host',
+		url: 'https://not-a-real-host.invalid/',
+		renderJs: false,
+		expect: 'TARGET_ERROR',
+		why: 'DNS is a fact about the target. The taxonomy says so: TARGET_ERROR is "Target site 5xx or DNS dead"',
 	},
 	{
 		category: 'target-rate-limited',
