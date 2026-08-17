@@ -121,11 +121,18 @@ const NAV_LINK =
 function SiteHeader() {
 	return (
 		<header className="flex items-center justify-between gap-6 py-5">
+			{/* THE MARK, then the name. The header used to draw the word alone with its `o`
+			    replaced by a raspberry ring — a second logo that shared nothing with the tri-line
+			    station in the footer but its colour. One mark, both places.
+
+			    `gap-2.5` and 18px match the footer's proportion at nav scale. The mark is
+			    `aria-hidden` and the link carries the label, so it adds no announced text. */}
 			<Link
 				to="/"
 				aria-label="proxlane, home"
-				className="inline-flex min-h-11 items-center font-medium text-[color:var(--color-ink)] text-lg"
+				className="inline-flex min-h-11 items-center gap-2.5 font-medium text-[color:var(--color-ink)] text-lg"
 			>
+				<Mark className="size-[18px] shrink-0" />
 				<Wordmark />
 			</Link>
 			<nav className="flex items-center gap-6 text-[color:var(--color-slate)] text-sm">

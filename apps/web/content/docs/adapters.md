@@ -3,7 +3,7 @@ title: Bring your own provider
 summary: Add a provider Proxlane has never heard of, and it joins the chain.
 ---
 
-Proxlane ships three providers. It is not limited to them.
+Proxlane ships four providers. It is not limited to them.
 
 An adapter is two pure functions and a table of what the provider can do. Write one and that
 provider joins the chain with failover, cooldowns, cost reporting and block detection already
@@ -88,7 +88,7 @@ pnpm conformance --adapter=acmescrape
 ```
 
 `conformance` is a shared suite every adapter runs. It replays your recorded fixtures against
-your `translate` and `parse` and holds them to the same contract as the three that ship.
+your `translate` and `parse` and holds them to the same contract as the ones that ship.
 
 **Never hand-write a fixture.** CI cannot tell a recording from a fabrication, so this one is
 on you. A fabricated fixture makes a contract test assert against fiction, which is worse than

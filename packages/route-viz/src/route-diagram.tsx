@@ -29,7 +29,7 @@ export interface RouteAttempt {
 	readonly provider: string;
 	readonly outcome: string;
 	/** `--color-line-N` from the token layer. Comes from the adapter registry. */
-	readonly line: 1 | 2 | 3;
+	readonly line: 1 | 2 | 3 | 4;
 	readonly latencyMs?: number;
 	readonly detectRuleId?: string;
 }
@@ -137,7 +137,7 @@ function duration(ms: number): string {
 	return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
 
-const lineVar = (n: 1 | 2 | 3): string => `var(--color-line-${n})`;
+const lineVar = (n: 1 | 2 | 3 | 4): string => `var(--color-line-${n})`;
 
 /** An outcome that ended the journey successfully. Everything else is a transfer or a stop. */
 const isOk = (outcome: string): boolean => outcome === 'OK';

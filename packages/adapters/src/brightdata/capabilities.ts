@@ -37,7 +37,7 @@ export const capabilities: ProviderCapabilities = {
 	id: 'brightdata',
 	// The fourth line. The token layer defines three, so this reuses slot 1 until
 	// `--color-line-4` exists; `tokens:check` owns that decision, not this file.
-	line: 1,
+	line: 4,
 	/**
 	 * The Unlocker renders JavaScript and solves captchas as part of unblocking, rather than
 	 * as an option. There is no parameter to turn it on because there is no version with it

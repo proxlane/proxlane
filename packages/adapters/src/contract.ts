@@ -82,7 +82,7 @@ export interface ProviderCapabilities {
 	 * the /providers pages all read the same field. A developer learns "orange is ScrapingBee"
 	 * once and it holds across the product.
 	 */
-	readonly line: 1 | 2 | 3;
+	readonly line: 1 | 2 | 3 | 4;
 	readonly renderJs: boolean;
 	readonly countryCodes: ReadonlySet<string> | 'all';
 	readonly premiumTiers: ReadonlySet<PremiumTier>;

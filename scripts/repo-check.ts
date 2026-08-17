@@ -1411,6 +1411,61 @@ function matchesOwner(pattern: string, file: string): boolean {
 	ok('27', scanned, 'package scripts do not run bare node on src TypeScript');
 }
 
+// ------------------------------- 28: the marketing site counts the providers that exist
+//
+// A COUNT IN PROSE GOES STALE SILENTLY, which assertion 26 already learned about the outcome
+// taxonomy. The fourth adapter landed and the landing page still said "Three providers, three
+// lines", listed three rows in the capability table, and printed a boot banner with three
+// names in it — a transcript of a gateway that no longer exists. Nothing was red.
+//
+// Checks the two claims a reader can verify at a glance: the row count in `LAUNCH_LINES`, and
+// that no visible sentence names a provider count other than the real one.
+{
+	const PAGE = 'apps/web/src/routes/index.tsx';
+	const REG = 'packages/adapters/src/registry.ts';
+	if (!has(PAGE) || !has(REG)) {
+		fail('28', `${PAGE} or ${REG} is missing, so the provider count cannot be checked`);
+	} else {
+		// The registry's keys are the shipped set. `_dev/` entries are deliberately excluded from
+		// REGISTRY, so parsing it rather than the directory listing counts what actually routes.
+		const reg = read(REG);
+		const ids = [...reg.matchAll(/^\t'?([a-z][a-z0-9-]*)'?:/gm)].map((m) => m[1] as string);
+		const page = read(PAGE);
+		const rows = (/const LAUNCH_LINES = \[([\s\S]*?)\n\] as const;/.exec(page)?.[1] ?? '')
+			.split('\n')
+			.filter((l) => /\bid:\s*'/.test(l)).length;
+		if (ids.length === 0 || rows === 0) {
+			fail(
+				'28',
+				`parsed ${ids.length} registry ids and ${rows} LAUNCH_LINES rows — one of the two ` +
+					'shapes changed and this check stopped checking',
+			);
+		} else if (rows !== ids.length) {
+			fail(
+				'28',
+				`${PAGE} lists ${rows} providers in LAUNCH_LINES; ${REG} ships ${ids.length} ` +
+					`(${ids.join(', ')}). Owner: design-engineer.`,
+			);
+		} else {
+			const WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+			const right = WORDS[ids.length - 1];
+			const wrong = WORDS.filter((w) => w !== right)
+				.map((w) => new RegExp(`${w} providers`, 'i'))
+				.filter((re) => re.test(page))
+				.map((re) => re.source);
+			if (wrong.length > 0) {
+				fail(
+					'28',
+					`${PAGE} says "${wrong.join('", "')}" while ${ids.length} ship. ` +
+						`It should read "${right} providers". Owner: design-engineer.`,
+				);
+			} else {
+				ok('28', ids.length, 'the landing page counts the providers that ship');
+			}
+		}
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;
