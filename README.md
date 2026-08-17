@@ -1,8 +1,9 @@
 # Proxlane
 
-> **Pre-release.** Parts of this work and parts do not — the Status section below says
-> which, and it is kept honest rather than aspirational. No packages are published yet and
-> `docs.proxlane.dev` is not live.
+> **Pre-release, and self-host only.** Parts of this work and parts do not — the Status
+> section below says which, and it is kept honest rather than aspirational. No packages are
+> published yet, and **there is no hosted endpoint**: run it yourself, on your own provider
+> keys. Docs are live at [proxlane.dev/docs](https://proxlane.dev/docs).
 > Follow the repo if you want to know when that changes.
 
 One lane to every scraping provider. Automatic failover, cost-aware routing, and
@@ -13,10 +14,11 @@ forever. Use our hosted credits and you pay provider cost plus a flat 5%.
 
 ```diff
 - https://api.scraperapi.com/?api_key=KEY&url=https://example.com
-+ https://api.proxlane.dev/v1?api_key=KEY&url=https://example.com
++ http://localhost:8787/v1?api_key=KEY&url=https://example.com
 ```
 
-That is the migration. Same parameter names, same response, one hostname.
+That is the migration. Same parameter names, same response, one hostname — and today that
+hostname is your own, because the only way to run Proxlane is to run it yourself.
 
 ---
 
@@ -61,14 +63,26 @@ publishing anyway.
 
 ## Quickstart
 
+Two commands, and the first one is the gateway. There is no hosted endpoint to curl — the
+`localhost` below is not standing in for one, it is where Proxlane runs.
+
 ```bash
-curl "https://api.proxlane.dev/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
+docker run -p 8787:8787 \
+  -e PROXLANE_API_KEY=$PROXLANE_API_KEY \
+  -e SCRAPERAPI_KEY=$SCRAPERAPI_KEY \
+  ghcr.io/proxlane/gateway
 ```
+
+```bash
+curl "http://localhost:8787/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
+```
+
+One provider key is enough to start. Add a second and failover has somewhere to go.
 
 JavaScript rendering and geotargeting:
 
 ```bash
-curl "https://api.proxlane.dev/v1?api_key=$PROXLANE_API_KEY\
+curl "http://localhost:8787/v1?api_key=$PROXLANE_API_KEY\
 &url=https://example.com&render=true&country_code=de"
 ```
 
@@ -86,12 +100,13 @@ Node:
 
 ```js
 const res = await fetch(
-  `https://api.proxlane.dev/v1?api_key=${key}&url=${encodeURIComponent(target)}`
+  `http://localhost:8787/v1?api_key=${key}&url=${encodeURIComponent(target)}`
 );
 const html = await res.text();
 ```
 
-Full parameter reference: [docs.proxlane.dev](https://docs.proxlane.dev)
+Full parameter reference: [proxlane.dev/docs/api](https://proxlane.dev/docs/api). Every
+outcome, and what to do about each: [proxlane.dev/docs/outcomes](https://proxlane.dev/docs/outcomes).
 
 ## Self-hosting
 
@@ -118,26 +133,28 @@ you configured and the URL you asked for.
 
 ## Providers
 
-| Provider | Status | JS render | Geo | Sessions |
-|---|---|---|---|---|
-| ScraperAPI | planned, launch adapter | yes | yes | yes |
-| ScrapingBee | planned, launch adapter | yes | yes | unverified |
-| Scrapfly | planned, launch adapter | yes | yes | yes |
-| Zyte | planned | | | |
-| Bright Data Web Unlocker | planned | | | |
-| Oxylabs Web Scraper API | planned | | | |
-| ScrapingAnt | planned | | | |
-| Firecrawl | planned | | | |
+<!-- generated:providers -->
+| Provider | Status | JS render | Geo | Sessions | POST | render cost |
+|---|---|---|---|---|---|---|
+| ScraperAPI | **shipped** | yes | all | yes | — | 10× |
+| ScrapingBee | **shipped** | yes | 7 regions | — | — | 5× |
+| Scrapfly | **shipped** | yes | all | — | — | 5× |
+| Bright Data Web Unlocker | **shipped** | yes | all | — | yes | 1× |
+| Zyte | planned | | | | | |
+| Oxylabs Web Scraper API | planned | | | | | |
+| ScrapingAnt | planned | | | | | |
+| Firecrawl | planned | | | | | |
+<!-- /generated:providers -->
 
 Want one that is not here? [Open an issue](https://github.com/proxlane/proxlane/issues),
 or write the adapter yourself. See below.
 
-Once adapters ship, this table is generated from the capability registry so it cannot
-drift from what the router actually does. Today it is hand-written and marked accordingly.
-`unverified` means exactly that: ScrapingBee exposes a `session_id` parameter, so the
-earlier `no` may have been wrong — and a wrong capability flag both removes a provider
-from routing and publishes a false comparison, so it gets checked against the live API
-before it says yes.
+Generated from the capability registry by `scripts/readme-providers.ts`, and asserted
+byte-identical by `pnpm repo:check`, so it cannot drift from what the router does. Every
+`shipped` row is a provider with a recorded fixture set and a place in the failover chain.
+
+`render cost` is the multiplier on a rendered request, which is the number worth comparing:
+the same page costs 10× on one line and 1× on another.
 
 ## Pricing
 
@@ -201,8 +218,9 @@ That is the whole contribution bar. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 **Works today**, and every line of it is covered by a command you can run:
 
-- **Three adapters** — ScraperAPI, ScrapingBee, Scrapfly — each recorded against its live
-  API, with `pnpm conformance` asserting purity, capability honesty and the outcome mapping.
+- **Four adapters** — ScraperAPI, ScrapingBee, Scrapfly, Bright Data — each recorded against
+  its live API, with `pnpm conformance` asserting purity, capability honesty and the outcome
+  mapping. The table above is generated from the registry, so it cannot lag behind this line.
 - **The failover chain**: capability filtering, per-hop budgets that reserve time for the
   hops behind them, and retry semantics read from one central table rather than decided per
   adapter.
@@ -219,7 +237,7 @@ and read `GET /health/providers`.
 
 **Does not exist yet**: any database, request log or dashboard; hosted credits.
 
-`pnpm repo:check` reports which of the 24 commands are real. It is asserted against the
+`pnpm repo:check` reports which of the 26 commands are real. It is asserted against the
 filesystem, so it cannot drift the way a status section can — and it caught this one lying
 twice.
 

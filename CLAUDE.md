@@ -29,6 +29,19 @@ must carry `--env-file` or `--project-directory` or it silently reads `docker/.e
 the one the reader was told to create. All three were added after running the README end to
 end and finding all three wrong.
 
+**Assertion 29 is the same lesson a second time, and it is worth reading before writing any
+count into prose.** The README's own Quickstart told every visitor to `curl
+https://api.proxlane.dev/v1?…` — a hostname with no DNS record, for a hosted endpoint that is
+phase 3 — while its Providers table marked all four *shipped* adapters `planned`, directly under
+a sentence promising the table would be generated "once adapters ship". Over-claiming a service
+that does not exist and under-claiming four that do, on the same page. So: the Providers table
+is **generated** by `scripts/readme-providers.ts` between `<!-- generated:providers -->` fences
+and asserted byte-identical, the adapter and command counts are derived from the registry and
+`commands.json`, and a small list of hostnames known to have no DNS record is banned outright.
+That list is a static ban, never a lookup — resolving DNS in `repo:check` would fail a clean
+clone offline and make CI assert that a registrar works, the same reason `k6` has no toolchain
+row.
+
 **Do not read `docs/archive/`.** It holds decisions already extracted into the files
 above — the rejected design directions and read-once strategy prose. It exists so the
 reasoning survives, not so it gets loaded.

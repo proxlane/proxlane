@@ -13,6 +13,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCodeowners, parseTable, ticks } from './codeowners.ts';
+import {
+	apply as applyProviders,
+	BEGIN as PROVIDERS_BEGIN,
+	plannedButShipped,
+	registryProviderCount,
+} from './readme-providers.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -1463,6 +1469,96 @@ function matchesOwner(pattern: string, file: string): boolean {
 				ok('28', ids.length, 'the landing page counts the providers that ship');
 			}
 		}
+	}
+}
+
+// -------------------- 29: the README describes what ships, and links to hosts that exist
+//
+// THE FRONT DOOR WAS WRONG IN BOTH DIRECTIONS AT ONCE. Its Quickstart told every visitor to
+// `curl https://api.proxlane.dev/v1?...` — a hostname with no DNS record, for a hosted service
+// that does not exist and is phase 3. Its "Full parameter reference" linked to
+// `docs.proxlane.dev`, also no record, while the whole docs site was live at the apex. And the
+// Providers table marked all four shipped adapters `planned`, directly under a sentence
+// promising it would be generated "once adapters ship".
+//
+// House rule: the README describes shipped behaviour only. Three parts to holding it:
+//
+//   the providers table is generated, and asserted byte-identical here
+//   no tracked doc names a hostname we know has no DNS record
+//   the counts the README states are the counts the repo has
+//
+// The hostname list is a STATIC ban, not a lookup. Resolving DNS in `repo:check` would make a
+// clean clone on a plane fail, and CI would be asserting that a registrar works — the same
+// reason `k6` has no row in the toolchain table. Delete an entry here the day it resolves.
+{
+	const DEAD_HOSTS = ['api.proxlane.dev', 'docs.proxlane.dev'];
+	const readme = has('README.md') ? read('README.md') : '';
+	if (readme === '') {
+		fail('29', 'README.md is missing');
+	} else {
+		let checkedHere = 0;
+
+		// a. the generated providers table
+		if (readme.includes(PROVIDERS_BEGIN)) {
+			if (applyProviders(readme) !== readme) {
+				fail(
+					'29',
+					'the README providers table is stale — run `node scripts/readme-providers.ts`. ' +
+						'Owner: oss-maintainer for the prose, adapter-engineer for the capabilities.',
+				);
+			} else checkedHere += 1;
+			const doubled = plannedButShipped();
+			if (doubled.length > 0) {
+				fail('29', `listed as both shipped and planned: ${doubled.join(', ')}`);
+			}
+		} else {
+			fail(
+				'29',
+				`README.md lost the ${PROVIDERS_BEGIN} fence, so the table is hand-written again`,
+			);
+		}
+
+		// b. no dead hostnames, anywhere a reader can reach
+		const docs = ['README.md', 'docs/self-hosting.md', 'CONTRIBUTING.md'].filter(has);
+		if (docs.length === 0) fail('29', 'found no docs to scan for dead hostnames');
+		for (const file of docs) {
+			const body = read(file);
+			for (const host of DEAD_HOSTS) {
+				if (body.includes(host)) {
+					fail(
+						'29',
+						`${file} names ${host}, which has no DNS record. Point at proxlane.dev, or ` +
+							'delete the entry from DEAD_HOSTS once it resolves.',
+					);
+				}
+			}
+			checkedHere += 1;
+		}
+
+		// c. the counts, derived rather than trusted
+		const adapters = registryProviderCount();
+		const words = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+		const claimed = /\*\*(One|Two|Three|Four|Five|Six|Seven|Eight) adapters?\*\*/.exec(readme);
+		if (claimed === null) {
+			fail(
+				'29',
+				'README.md no longer states "**<n> adapters**"; reword this assertion with it',
+			);
+		} else if (claimed[1]?.toLowerCase() !== words[adapters - 1]) {
+			fail('29', `README.md says "${claimed[1]} adapters" and the registry ships ${adapters}`);
+		} else checkedHere += 1;
+
+		const cmds = Object.keys(
+			JSON.parse(read('scripts/commands.json')) as Record<string, unknown>,
+		).length;
+		const cmdClaim = /(\d+) commands are real/.exec(readme);
+		if (cmdClaim === null) {
+			fail('29', 'README.md no longer states "<n> commands are real"');
+		} else if (Number(cmdClaim[1]) !== cmds) {
+			fail('29', `README.md says ${cmdClaim[1]} commands; commands.json has ${cmds}`);
+		} else checkedHere += 1;
+
+		if (checkedHere > 0) ok('29', checkedHere, 'the README describes what ships');
 	}
 }
 
