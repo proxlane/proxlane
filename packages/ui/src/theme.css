@@ -47,6 +47,13 @@
 	--color-line-1: #0b7285;
 	--color-line-2: #e8590c;
 	--color-line-3: #5f3dc4;
+	/* Added with the fourth adapter, which had nowhere to go: `line` was typed `1 | 2 | 3`, so
+	 * Bright Data took slot 1 to compile and was drawn in ScraperAPI's teal. A failover between
+	 * those two was then a single-colour line, which is the one thing the diagram exists to
+	 * show. Green because teal, orange and violet are taken and raspberry is the product's own
+	 * — and there are no semantic colour tokens here, so green cannot be misread as "the
+	 * successful one". Same Open Color family as its three siblings. */
+	--color-line-4: #2b8a3e;
 
 	/* THE PRODUCT'S OWN COLOUR, and it is a correction rather than a decoration.
 	 *
@@ -155,6 +162,7 @@
 	--color-line-1: #22b8cf; /* 7.56:1 */
 	--color-line-2: #ff922b; /* 8.05:1 */
 	--color-line-3: #9775fa; /* 5.35:1 */
+	--color-line-4: #51cf66; /* 8.97:1 */
 
 	/* #c2255c is 2.6:1 on the ink ground. Lifted, same identity. */
 	--glow-line: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
@@ -211,6 +219,7 @@
 		--color-line-1: #22b8cf;
 		--color-line-2: #ff922b;
 		--color-line-3: #9775fa;
+		--color-line-4: #51cf66;
 		--color-accent: #f06595;
 		--color-surface: #1a1e23;
 		--color-scrim: rgb(4 6 8 / 0.66);

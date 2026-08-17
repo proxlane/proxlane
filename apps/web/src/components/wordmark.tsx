@@ -1,82 +1,48 @@
 /**
- * The wordmark, and the mark, as two levels of the same station.
+ * The wordmark, and the mark that sits beside it.
  *
  * NO SECOND TYPEFACE. `design.md` chooses one humanist sans with hierarchy from weight alone
  * and says outright that there is no display face, because the diagram is the display element.
  * A logo font would be a quiet amendment to that, so the distinctiveness comes from the mark
  * and from tracking instead.
  *
- * THE RING IS THE `O`. Substituting the interchange station into the letterform means the
- * wordmark and the diagram are the same object at two sizes, rather than a picture sitting next
- * to a name. It also means the name still reads as a word at 12px, which the alternative — the
- * three-line mark set inside the letter — did not: its rules ran past the `o` and crowded the
- * `r` and the `x`.
+ * THE `o` USED TO BE A RASPBERRY RING, and this is the correction. Substituting an interchange
+ * station into the letterform was meant to make the wordmark and the diagram the same object at
+ * two sizes. It did the opposite on both counts:
+ *
+ *   It was clipped. The ellipse's outer stroke edge sat exactly on all four viewBox edges —
+ *   `cy - ry - strokeWidth/2` was 0.0 and the bottom was 533.0 of a 533 box — so every edge was
+ *   shaved by a fraction of a pixel. Read as a flattened top and bottom at every size.
+ *
+ *   It was the wrong mark. A lone ring shares nothing with the tri-line station the product
+ *   actually uses: same colour, different object. Set next to the real mark in the footer, the
+ *   header read as a second, unrelated logo. And it borrowed `--color-accent` for a letterform,
+ *   when a line colour identifies a provider and the accent is the product's own — a rule this
+ *   file was quietly bending.
+ *
+ * So the letter is a letter, kerned by the font that was designed to kern it, and the mark is
+ * the mark. One object, used at whatever size the surface needs.
  */
 export function Wordmark({ className }: { readonly className?: string }) {
-	return (
-		<span className={`tracking-[-0.03em] ${className ?? ''}`}>
-			pr
-			{/* THE `o` AS TEXT, hidden visually because the ring below draws it.
-			    Without this the element's text content is "prxlane": the ring is an `aria-hidden`
-			    SVG, so anyone copying the wordmark, any text extractor, and any model reading the
-			    page gets the brand name misspelled. On a project that publishes `llms.txt` so that
-			    models read its docs, having the name wrong in the page's own text is the one place
-			    it cannot be allowed to be wrong. The `Link` around it carries an `aria-label`, so
-			    this fixes the copied and extracted text rather than the announced name. */}
-			<span className="sr-only">o</span>
-			{/* MEASURED AGAINST THE FACE, not eyeballed. Hanken Grotesk at 500 puts its x-height
-			    at 0.513em and its `o` from 0.0101em below the baseline to 0.5231em above — a 1%
-			    overshoot at each end, which is what stops a round letter looking smaller than a
-			    flat one. So the ring is 0.5332em tall and hangs 0.0101em below the baseline, and
-			    it is a plain inline element: `vertical-align` puts a replaced element's bottom
-			    edge exactly on the baseline, which a flex `items-baseline` does not, because an
-			    SVG has no baseline of its own to align. That is why the first version floated. */}
-			{/* AN ELLIPSE, NOT A CIRCLE, and the margins are not symmetric. Both were wrong in
-			    the first version and both are measured off the face:
-
-			      o ink      0.4863em wide x 0.5332em tall   (this `o` is an oval)
-			      bearings   0.0292em left, 0.0294em right   (symmetric)
-			      kerning    ro -0.0220em, ox -0.0350em      (very much not)
-
-			    A perfect circle at the o's HEIGHT is 9% too wide, which crowds the r and the x.
-			    And an SVG gets no kerning, so the pair adjustments the font would apply are
-			    baked into the margins instead: 0.0292 - 0.0220 on the left, 0.0294 - 0.0350 on
-			    the right, which is legitimately negative — the x tucks under the o. */}
-			<svg
-				width="0.4863em"
-				height="0.5332em"
-				viewBox="0 0 486 533"
-				aria-hidden="true"
-				style={{
-					verticalAlign: '-0.0101em',
-					marginLeft: '0.0072em',
-					marginRight: '-0.0056em',
-				}}
-				className="inline-block"
-			>
-				{/* 95 of 486 units is 0.095em, the stem weight of this face at 500. The radii are
-				    inset by half the stroke so the ink's outer edge is exactly the glyph box. */}
-				<ellipse
-					cx="243"
-					cy="266.5"
-					rx="195.5"
-					ry="219"
-					fill="none"
-					stroke="var(--color-accent)"
-					strokeWidth="95"
-				/>
-			</svg>
-			xlane
-		</span>
-	);
+	return <span className={`tracking-[-0.03em] ${className ?? ''}`}>proxlane</span>;
 }
 
 /**
- * The standalone mark: three provider lines, one interchange.
+ * The mark: provider lines crossed by one interchange.
  *
- * This is the one that has to survive 16px in a browser tab, which is why it is not the ring.
- * A ring at 16px is a dot and says nothing; three coloured rules with a station on the middle
- * one still reads as a route, and teaches the colour system before anyone has read a word.
+ * THREE LINES IS THE METAPHOR, NOT AN INVENTORY, and it does not change when an adapter lands.
+ * Four providers ship as of Bright Data and the mark still draws three, deliberately: a transit
+ * map's logo does not carry one stripe per line, and a mark that shifts every time the registry
+ * grows is not a mark. The place that must track the registry is the capability table on the
+ * landing page, which `repo:check` assertion 28 holds to it.
+ *
+ * It has to survive 16px in a browser tab, which is why it is rules and a station rather than
+ * anything finer: three coloured lines with an interchange on the middle one still reads as a
+ * route at tab size, and teaches the colour system before anyone has read a word.
+ *
+ * THE CAPS ARE INSET BY ONE UNIT. `M2 … H30` with a 4-wide round cap puts the ink from 0.0 to
+ * 32.0 of a 32 box, so both ends were shaved the same way the old ring was — the bug is easy to
+ * reintroduce because the numbers look symmetric and correct. Ink now runs 1..31.
  *
  * The station is drawn in the accent rather than in ink: at tab size the ink version greys out
  * against browser chrome, and the brand colour is the part worth keeping.
@@ -85,9 +51,9 @@ export function Mark({ className }: { readonly className?: string }) {
 	return (
 		<svg viewBox="0 0 32 32" aria-hidden="true" className={className}>
 			<g strokeWidth="4" strokeLinecap="round">
-				<path d="M2 9 H30" stroke="var(--color-line-1)" />
-				<path d="M2 18 H30" stroke="var(--color-line-2)" />
-				<path d="M2 27 H30" stroke="var(--color-line-3)" />
+				<path d="M3 9 H29" stroke="var(--color-line-1)" />
+				<path d="M3 18 H29" stroke="var(--color-line-2)" />
+				<path d="M3 27 H29" stroke="var(--color-line-3)" />
 			</g>
 			<circle
 				cx="16"

@@ -53,6 +53,7 @@ left over.
 --map-line-1     #0B7285   provider line, teal
 --map-line-2     #E8590C   provider line, orange
 --map-line-3     #5F3DC4   provider line, violet
+--map-line-4     #2B8A3E   provider line, green
 --map-accent     #C2255C   the product's own colour: links, focus, selected state
 --map-surface    #FFFFFF   panels and code, laid on the paper
 ```
@@ -60,6 +61,13 @@ left over.
 Line colours are categorical, assigned per provider and reused everywhere: the map,
 the dashboard charts, the docs. A developer learns "orange is ScrapingBee" once and
 it holds across the whole product.
+
+**One slot per provider, and `tokens:check` enforces it.** Green was added with the
+fourth adapter, which had nowhere to go — `line` was typed `1 | 2 | 3`, so Bright Data
+took slot 1 to compile and was drawn in ScraperAPI's teal. A failover between those two
+then rendered as one unbroken colour, which is precisely the event the diagram exists to
+make visible. Adding a provider means adding a slot, a token in both variants, and a row
+here.
 
 **Type.** One humanist sans across the entire site, hierarchy from weight only,
 which is how transit systems work (Johnston, Frutiger, Transport). Hanken Grotesk or

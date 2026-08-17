@@ -46,7 +46,7 @@ function Home() {
 					title="No signup, nothing to paste"
 					lead={[
 						'One hostname, and the chain is running.',
-						'The keys already in your environment are found without configuration. This is the gateway: three providers, failover, and the detector, in the first command you type.',
+						'The keys already in your environment are found without configuration. This is the gateway: four providers, failover, and the detector, in the first command you type.',
 					]}
 				>
 					<Quickstart />
@@ -93,10 +93,10 @@ function Home() {
 				</Station>
 				<Station
 					label="lines"
-					title="Three providers, three lines"
+					title="Four providers, four lines"
 					lead={[
 						'They are not interchangeable, which is the point.',
-						'Printed by proxlane providers, straight from the capability registry. One does sessions, one is limited to seven regions, and rendering JavaScript costs twice as much on one as on the others. A line colour is assigned here too, and every surface reuses it.',
+						'Printed by proxlane providers, straight from the capability registry. One does sessions, one is limited to seven regions, and rendering JavaScript is free on one and ten times the price on another. A line colour is assigned here too, and every surface reuses it.',
 					]}
 				>
 					<Lines />
@@ -277,13 +277,18 @@ function headersFor(s: Scenario): readonly (readonly [string, string])[] {
  *
  * The first version of this table listed the id and its line number and nothing else, which
  * told a reader precisely nothing — a line index is an internal token slot, not a reason to
- * pick anything. These four columns are the ones that differ between the three, which is the
- * whole argument for routing across them rather than picking one.
+ * pick anything. These four columns are the ones that differ between them, which is the whole
+ * argument for routing across them rather than picking one.
  */
 const LAUNCH_LINES = [
 	{ id: 'scraperapi', line: 1, geo: 'all', sessions: true, js: 10 },
 	{ id: 'scrapingbee', line: 2, geo: '7 regions', sessions: false, js: 5 },
 	{ id: 'scrapfly', line: 3, geo: 'all', sessions: false, js: 5 },
+	// The only one that renders at no extra charge, which is why the column earns its place:
+	// the same request costs 10x on one line and 1x on another.
+	{ id: 'brightdata', line: 4, geo: 'all', sessions: false, js: 1 },
+	// The only one that renders at no extra charge, which is why the column earns its place:
+	// the same request costs 10x on one line and 1x on another.
 ] as const;
 
 /**
@@ -343,7 +348,8 @@ const QUICKSTART_BLOCKS: readonly Block[] = [
 	{
 		out: `
   proxlane gateway on :8787
-  providers: scraperapi > scrapfly > scrapingbee (in order)
+  providers: scraperapi > scrapfly > scrapingbee > brightdata (in order)
+  retries:   1 extra at the last provider (PROXLANE_TERMINAL_RETRIES)
 `,
 	},
 	{ cmd: 'curl -sD- "localhost:8787/v1?api_key=$KEY&url=https://example.com"' },
@@ -1062,7 +1068,7 @@ function Response({ scenario }: { readonly scenario: Scenario }) {
 }
 
 /**
- * The three launch adapters, as the three lines they are.
+ * Every shipped adapter, as the lines they are.
  *
  * Not a feature grid: a legend, which is what a map puts its line colours in. The colour is
  * the same token the hero drawing strokes with, so the mapping a reader learns here is the

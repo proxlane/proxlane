@@ -173,6 +173,7 @@ const SPEC_TO_TOKEN: Record<string, string> = {
 	'line-1': 'color-line-1',
 	'line-2': 'color-line-2',
 	'line-3': 'color-line-3',
+	'line-4': 'color-line-4',
 	accent: 'color-accent',
 	surface: 'color-surface',
 };
@@ -200,6 +201,7 @@ const ROLES: ReadonlyArray<readonly [string, number, string]> = [
 	['color-line-1', 3, 'diagram stroke'],
 	['color-line-2', 3, 'diagram stroke'],
 	['color-line-3', 3, 'diagram stroke'],
+	['color-line-4', 3, 'diagram stroke'],
 	// Type, fills and the focus ring — never a stroke on the map — so it is held to the text
 	// floor rather than the graphical one.
 	['color-accent', 4.5, 'accent text and focus ring'],
@@ -290,6 +292,43 @@ function walk(dir: string): void {
 	}
 }
 for (const dir of SEARCH) walk(join(ROOT, dir));
+
+// 8. ONE LINE SLOT PER PROVIDER, and a token behind every slot in use.
+//
+//    The failure this exists for already happened. `line` was typed `1 | 2 | 3` while a fourth
+//    adapter was being written, so Bright Data took slot 1 — the only way to compile — and was
+//    drawn in ScraperAPI's teal. A failover between those two rendered as one unbroken colour,
+//    which is the single event the diagram exists to make visible, and every check passed:
+//    `tokens:check` verified the tokens that existed, conformance never looks at colour, and
+//    the type system was satisfied because the collision was legal.
+//
+//    Parsed from the capabilities files rather than imported, so this runs without a build and
+//    cannot be defeated by a stale `dist`.
+const capsDir = join(ROOT, 'packages/adapters/src');
+const slots = new Map<number, string[]>();
+for (const entry of readdirSync(capsDir, { withFileTypes: true })) {
+	if (!entry.isDirectory()) continue;
+	const file = join(capsDir, entry.name, 'capabilities.ts');
+	if (!existsSync(file)) continue;
+	const m = /^\s*line:\s*(\d+)\s*,/m.exec(readFileSync(file, 'utf8'));
+	if (m === null) {
+		fail(`${entry.name} declares no line slot in capabilities.ts`);
+		continue;
+	}
+	const n = Number(m[1]);
+	slots.set(n, [...(slots.get(n) ?? []), entry.name]);
+}
+if (slots.size === 0) fail('parsed zero provider line slots — the capabilities glob is wrong');
+for (const [n, owners] of [...slots].sort((a, b) => a[0] - b[0])) {
+	if (owners.length > 1) {
+		fail(
+			`line slot ${n} is claimed by ${owners.join(' and ')} — they would be drawn in the same colour, ` +
+				'so a failover between them is invisible',
+		);
+	}
+	if (!(`color-line-${n}` in light))
+		fail(`${owners.join(', ')} uses line ${n}, which has no token`);
+}
 
 // ---------------------------------------------------------------- report
 
