@@ -203,6 +203,39 @@ default settings.
 applies to it. It deploys to Cloudflare Workers from `.github/workflows/deploy-web.yml`; Vercel
 would work equally well.
 
+## Putting it behind a domain
+
+Optional, and worth doing carefully because the gateway is a proxy: whatever can reach it and
+holds the key can fetch any URL through your provider accounts, on your bill.
+
+```
+api.example.com   A   <your host>   DNS only
+```
+
+**DNS only, not proxied.** Every request through a CDN or reverse proxy you do not control means
+that party sees the URL you are scraping and the bytes that came back. That is the opposite of
+what self-hosting is for, and the gateway's own promise — nothing phones home, the only hosts it
+contacts are your provider and your target — stops being true of your deployment.
+
+There is a practical reason too. A rendered scrape can legitimately take a minute; the whole
+chain is budgeted to 90 seconds by default and a terminal hop alone may take 75. Proxies impose
+their own request ceilings, often around 100 seconds, and when one trips you get its timeout page
+instead of an outcome — losing exactly the diagnosis the gateway exists to give you.
+
+If you put it on a public hostname:
+
+- **`PROXLANE_API_KEY` is now the only thing between the internet and a working proxy.** Make it
+  a fresh `openssl rand -hex 32` used nowhere else, and rotate it if it ever appears in a log,
+  a shell history or a CI job.
+- The edge guard becomes load-bearing. It refuses private ranges and cloud metadata by every
+  spelling the URL parser accepts (`pnpm test:ssrf`), but it is not an authorisation system:
+  anyone with the key can aim the gateway at anything public.
+- Restrict by source address at your reverse proxy if only your own machines need it. That gives
+  up nothing except convenience.
+
+`GET /health` needs no key and reports the running version, so it is safe to leave reachable and
+is what a deploy or an uptime check should watch.
+
 ## 4. Running more than one gateway
 
 Cooldowns and health live in the process by default. `PROXLANE_REPLICAS > 1` **refuses to

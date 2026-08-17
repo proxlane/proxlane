@@ -1,0 +1,198 @@
+# The gateway to a box, after the image for that version exists.
+#
+# WHY THIS IS NOT `deploy-web.yml`'s SHAPE. The site is a Cloudflare Worker and `wrangler deploy`
+# both builds and ships it, so pushing is deploying. The gateway is the opposite on every count:
+# it needs a Node runtime and undici's per-origin pools, so it cannot go to Workers at all
+# (`plan.md` section 3), it ships as a container, and an orchestrator keeps serving the digest its
+# service started with. Publishing an image therefore does NOT deploy it — moving a tag changes
+# nothing until something issues an update, which is how two sibling projects ran three days and
+# three weeks stale with green pipelines the whole time.
+#
+# So this workflow does two things, and the second is the one that matters: it asks the host to
+# redeploy, and then it proves the new version is serving by reading `GET /health`.
+#
+# TRIGGERED BY THE RELEASE, not by a push to main. There is no image for an arbitrary main
+# commit — `release.yml` builds and tags per gateway version — so deploying on merge would
+# deploy a tag that does not exist, or silently redeploy the previous one.
+#
+# NO COORDINATES IN THIS FILE. The host, the app id and the health URL are all repository
+# secrets or variables. `CLAUDE.md` bans infrastructure specifics from the repo outright, and
+# `ci.yml`'s `no-infra-leak` job enforces it on every PR; a deploy workflow is the single most
+# tempting place to break that rule.
+name: deploy-gateway
+
+on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+  # Rollback, and the first deploy. Takes an explicit version so recovering from a bad release
+  # never requires reverting a commit first.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Gateway version to deploy, e.g. 0.4.0. Defaults to the latest release.'
+        required: false
+        type: string
+
+# In order, never cancelled. A cancelled deploy leaves the previous version live, so
+# `cancel-in-progress` would silently skip a release rather than superseding it.
+concurrency:
+  group: deploy-gateway
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # OFF UNTIL DELIBERATELY SWITCHED ON, via the `DEPLOY_GATEWAY` repository variable.
+    #
+    # Not a secret-existence check: `secrets` cannot be tested in an `if` without leaking the
+    # shape of what is set. A variable is visible in the repo settings UI, so "deploys are off"
+    # is a fact somebody can read rather than infer from a skipped job.
+    #
+    # A skipped job that is documented as off is honest. A job that runs, finds no credentials
+    # and exits 0 is the vacuous green this repo is built against — hence the hard failure below
+    # when the switch is on and the credentials are not.
+    if: >-
+      vars.DEPLOY_GATEWAY == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: refuse to deploy half-configured
+        env:
+          HOOK: ${{ secrets.DEPLOY_GATEWAY_HOOK }}
+          HEALTH_URL: ${{ vars.GATEWAY_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          # Named individually. "Deploy is misconfigured" costs a round trip to find out which
+          # half is missing, which is the B9 rule applied to our own pipeline.
+          missing=
+          [ -n "$HOOK" ] || missing="$missing DEPLOY_GATEWAY_HOOK(secret)"
+          [ -n "$HEALTH_URL" ] || missing="$missing GATEWAY_HEALTH_URL(variable)"
+          if [ -n "$missing" ]; then
+            echo "::error::DEPLOY_GATEWAY is true but these are unset:$missing"
+            exit 1
+          fi
+
+      # The version to deploy, and it must be a version rather than `latest`. `latest` moves,
+      # so a deploy of `latest` cannot be verified afterwards — the check below would pass
+      # against whatever happened to be current, including the build already running.
+      #
+      # READING package.json IS ONLY CORRECT BECAUSE OF #114. The release step used to tag images
+      # with the version `changeset version` had bumped in the working tree, so main's committed
+      # version and the newest image disagreed — main said 0.3.2 while ghcr's newest was 0.4.0.
+      # Deploying the committed version would then have pulled a stale image and the health check
+      # below would have passed against it, which is precisely the false green this workflow
+      # exists to prevent. Both sides now read the commit.
+      - name: resolve the version
+        id: v
+        env:
+          ASKED: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -n "$ASKED" ]; then
+            V="$ASKED"
+          else
+            # The tag `release.yml` pushes for a gateway release. Read from the repo rather
+            # than passed between workflows: `workflow_run` gives no outputs from the run that
+            # triggered it, and re-deriving it here cannot go stale.
+            V=$(node -e "process.stdout.write(require('./apps/gateway/package.json').version)")
+          fi
+          case "$V" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::not a version: '$V'"; exit 1 ;;
+          esac
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "  deploying gateway $V"
+
+      # ALREADY SERVING? THEN DO NOTHING.
+      #
+      # `workflow_run` fires for every completed release, and most releases build no gateway
+      # image at all — an ordinary merge leaves the version untouched, which is exactly what #114
+      # fixed. Without this the workflow would POST the deploy hook on every single merge to
+      # main, restarting the container for a version it is already running. A proxy that drops
+      # its in-flight requests each time a docs typo is merged is worse than no automation.
+      #
+      # Comparing the SERVING version rather than tracking whether an image was built also makes
+      # the whole workflow idempotent: re-running it is free, and a manual dispatch after a
+      # partial failure resumes rather than double-deploys.
+      - name: skip if this version is already live
+        id: live
+        env:
+          HEALTH_URL: ${{ vars.GATEWAY_HEALTH_URL }}
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          GOT=$(curl -fsS --max-time 10 "$HEALTH_URL" 2>/dev/null \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).version??""))}catch{process.stdout.write("")}})' || true)
+          if [ "$GOT" = "$V" ]; then
+            echo "  already serving $V — nothing to do"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "  serving '${GOT:-nothing reachable}', want $V"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The image has to exist BEFORE the host is told to pull it. Without this, a failed or
+      # still-running release turns into a host retrying a pull of a tag that will never appear,
+      # and the only symptom is the health check below timing out for reasons that look local.
+      - name: prove the image exists
+        if: steps.live.outputs.skip != 'true'
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -fsS "https://ghcr.io/token?scope=repository:proxlane/gateway:pull&service=ghcr.io" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).token))')
+          curl -fsS -o /dev/null \
+            -H "Authorization: Bearer $TOKEN" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://ghcr.io/v2/proxlane/gateway/manifests/$V" \
+            || { echo "::error::ghcr.io/proxlane/gateway:$V does not exist — did release.yml publish?"; exit 1; }
+          echo "  ghcr.io/proxlane/gateway:$V is present"
+
+      - name: ask the host to deploy it
+        if: steps.live.outputs.skip != 'true'
+        env:
+          HOOK: ${{ secrets.DEPLOY_GATEWAY_HOOK }}
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          # A single opaque hook URL rather than a host + app id + token triple. It keeps the
+          # provider's API shape out of a public file, and it means rotating the credential is
+          # one secret rather than three.
+          #
+          # `--fail-with-body` so a 4xx prints what the host objected to. Plain `-f` swallows the
+          # body, which on a deploy hook is the only place the reason ever appears.
+          curl -sS --fail-with-body -X POST "$HOOK" \
+            -H 'content-type: application/json' \
+            -d "{\"version\":\"$V\"}"
+          echo
+          echo "  deploy requested"
+
+      # THE ASSERTION. Everything above proves we asked; only this proves it happened.
+      - name: prove the new version is serving
+        if: steps.live.outputs.skip != 'true'
+        env:
+          HEALTH_URL: ${{ vars.GATEWAY_HEALTH_URL }}
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Three minutes at five-second intervals. A container pull plus a start is seconds on a
+          # warm host and can be a minute on a cold one; three is generous without letting a
+          # genuinely stuck deploy pass as slow.
+          for i in $(seq 1 36); do
+            GOT=$(curl -fsS --max-time 10 "$HEALTH_URL" 2>/dev/null \
+              | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).version??""))}catch{process.stdout.write("")}})' || true)
+            if [ "$GOT" = "$V" ]; then
+              echo "  $HEALTH_URL reports $GOT — the new build is serving"
+              exit 0
+            fi
+            echo "  attempt $i: reports '${GOT:-no answer}', want $V"
+            sleep 5
+          done
+          echo "::error::after 3 minutes /health still does not report $V. The image was published and the hook accepted, so the host did not replace the running container — this is the 'published is not deployed' failure, and it is why this step exists."
+          exit 1
