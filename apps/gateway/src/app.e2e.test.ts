@@ -82,6 +82,10 @@ describe('auth, which is not part of the outcome taxonomy', () => {
 		const r = await get(`api_key=nope&url=${encodeURIComponent(target('success-html'))}`);
 		expect(r.status).toBe(401);
 		expect(r.headers.get('x-outcome')).toBeNull();
+		// The CLASS is still there, and that is the difference between omitting a header and
+		// telling the caller nothing. `UNAUTHORIZED` has no outcome to report, but it does have
+		// a class, and the class is the closed vocabulary a client switches on.
+		expect(r.headers.get('x-outcome-class')).toBe('client');
 	});
 
 	it('rejects a key of the right length but wrong content', async () => {
@@ -261,6 +265,51 @@ describe('one error shape, whatever went wrong', () => {
 		expect(body.error.docs).toMatch(/^https:\/\/github\.com\/proxlane\/proxlane\//);
 	});
 
+	// The HEADERS, not the body. A caller is told to branch on `X-Outcome-Class` — the docs say
+	// so, because it is the closed vocabulary — and four paths shipped without it: no url, a
+	// bad `premium`, an over-cap request body, a wrong key. Everything that reached the chain
+	// had them, so the gap was invisible from the happy path and from every failover test.
+	it.each([
+		['no url, the commonest client mistake', `api_key=${API_KEY}`, 'BAD_REQUEST', 'client'],
+		[
+			'a premium tier that does not exist',
+			`api_key=${API_KEY}&url=https://example.com/&premium=gold`,
+			'BAD_REQUEST',
+			'client',
+		],
+		[
+			'a forced provider that does not exist',
+			`api_key=${API_KEY}&url=https://example.com/&provider=nope`,
+			'NO_PROVIDER_AVAILABLE',
+			'gateway',
+		],
+		[
+			'a timeout below the floor',
+			`api_key=${API_KEY}&url=https://example.com/&timeout=1`,
+			'BAD_REQUEST',
+			'client',
+		],
+	])('%s still carries the outcome headers', async (_label, qs, code, klass) => {
+		const r = await get(qs);
+		expect(r.headers.get('x-outcome')).toBe(code);
+		expect(r.headers.get('x-outcome-class')).toBe(klass);
+		// Zero, and present. A caller summing attempt counts must not find a hole where a
+		// request failed before anything was tried.
+		expect(r.headers.get('x-attempts')).toBe('0');
+	});
+
+	it('names the providers that ARE configured when a forced one is not', async () => {
+		// It used to say "no providers configured" with four of them configured, which sent an
+		// operator to check keys that were fine. The outcome was always right; the sentence was
+		// not, and the sentence is the part a human reads.
+		const body = (await (
+			await get(`api_key=${API_KEY}&url=https://example.com/&provider=nope`)
+		).json()) as { error: { message: string } };
+		expect(body.error.message).toContain('"nope"');
+		expect(body.error.message).toMatch(/Configured: .*scraperapi/);
+		expect(body.error.message).not.toContain('no providers configured');
+	});
+
 	it('never uses the old two-shape form', async () => {
 		// Guards the unification itself: a future handler reaching for `{error: 'x', message}`
 		// would pass every other assertion here while reintroducing the second schema.
@@ -272,6 +321,42 @@ describe('one error shape, whatever went wrong', () => {
 		expect(body.message, 'top-level message is the old shape').toBeUndefined();
 		expect(body.outcome, 'top-level outcome is the old shape').toBeUndefined();
 	});
+});
+
+describe('the per-request deadline', () => {
+	// `integrations.md` section 5 promised this from the day the budget arithmetic was written
+	// — "Clients set their own via the `timeout` param" — and nothing read it. Every request got
+	// the server default, so a caller who wanted a fast answer or none waited the full ninety
+	// seconds for a slow chain.
+
+	it('accepts a shorter deadline than the server default', async () => {
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&timeout=10000`,
+		);
+		expect(r.status).toBe(200);
+	});
+
+	it('cannot ask for MORE than the server budgeted', async () => {
+		// The ceiling is what bounds how long one request holds an in-flight slot, and
+		// `maxInflight` is sized on the assumption that it holds. A caller raising it would make
+		// the memory arithmetic in operations.md section 1 false.
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&timeout=99999999`,
+		);
+		expect(r.status).toBe(200);
+	});
+
+	it.each([['1'], ['0'], ['-5'], ['abc'], ['7999'], ['1.5']])(
+		'rejects timeout=%s as a 400 rather than failing later',
+		async (v) => {
+			// Below the floor `hopBudget` enforces, the chain returns BUDGET_EXCEEDED without
+			// opening a connection — a 504 for a request that never tried anything, where a 400
+			// belongs.
+			const r = await get(`api_key=${API_KEY}&url=https://example.com/&timeout=${v}`);
+			expect(r.status).toBe(400);
+			expect(r.headers.get('x-outcome')).toBe('BAD_REQUEST');
+		},
+	);
 });
 
 describe('the happy path, end to end over HTTP', () => {

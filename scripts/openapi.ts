@@ -85,13 +85,20 @@ const PARAMETERS = [
 		description:
 			'Pin one provider and disable failover. A benchmarking escape hatch. If that provider cannot serve the request you get NO_PROVIDER_AVAILABLE rather than a silent substitution.',
 	},
+	{
+		name: 'timeout',
+		required: false,
+		schema: { type: 'integer', minimum: 8000 },
+		description:
+			"Deadline for the whole request in milliseconds, every failover hop included. Defaults to the server's PROXLANE_DEADLINE_MS and is capped at it: a caller may ask for less time than the operator budgeted, never more. Below 8000 a single attempt cannot finish, so it is rejected as BAD_REQUEST rather than timing out having tried nothing.",
+	},
 ] as const;
 
 /** Response headers, and when each is present. Asserted against `app.ts` by `docs:check`. */
 const HEADERS: Record<string, { description: string; schema: object }> = {
 	'X-Outcome': {
 		description:
-			'What happened. Open: it gains members as adapters land, so branch on X-Outcome-Class instead.',
+			'What happened. Open: it gains members as adapters land, so branch on X-Outcome-Class instead. Absent when the request never became a scrape — a 401 or a 501 has no outcome to report, though it still carries X-Outcome-Class.',
 		schema: { $ref: '#/components/schemas/Outcome' },
 	},
 	'X-Outcome-Class': {
