@@ -8,6 +8,7 @@
 // Behind the app, the provider boundary is still recorded bytes. Nothing is invented.
 
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +20,7 @@ import { createApp } from './app.js';
 import { InMemoryCooldownStore } from './cooldown-store.js';
 import { InMemoryHealthStore } from './health-store.js';
 import type { HttpTransport } from './transport.js';
+import { VERSION } from './version.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 // Generated per run, not a literal. A hardcoded `API_KEY = '…'` is exactly gitleaks'
@@ -624,7 +626,23 @@ describe('/health', () => {
 	it('answers without a key, because a probe has none', async () => {
 		const r = await fetch(`${base}/health`);
 		expect(r.status).toBe(200);
-		expect(await r.json()).toEqual({ status: 'ok', providers: IDS.length });
+		expect(await r.json()).toEqual({ status: 'ok', version: VERSION, providers: IDS.length });
+	});
+
+	it('reports a real version, so a deploy can be verified', async () => {
+		// The point of the field. Publishing an image is not deploying it — an orchestrator pins
+		// the digest a service started with — so `deploy-gateway.yml` polls this until it matches
+		// what it published. A hardcoded or absent version makes that check a no-op, which is how
+		// two sibling projects ran three days and three weeks stale.
+		const body = (await (await fetch(`${base}/health`)).json()) as { version: string };
+		expect(body.version).toMatch(/^\d+\.\d+\.\d+/);
+		expect(body.version).not.toBe('unknown');
+		// From package.json, never written down twice. The CLI shipped a literal once and
+		// reported 0.0.0 for a package published as 0.0.1.
+		const pkg = JSON.parse(
+			readFileSync(resolve(ROOT, 'apps/gateway/package.json'), 'utf8'),
+		) as { version: string };
+		expect(body.version).toBe(pkg.version);
 	});
 
 	it('reports the provider COUNT and never the names', async () => {
@@ -657,6 +675,6 @@ describe('/health', () => {
 		});
 		const r = await bare.request('/health');
 		expect(r.status).toBe(200);
-		expect(await r.json()).toEqual({ status: 'ok', providers: 0 });
+		expect(await r.json()).toEqual({ status: 'ok', version: VERSION, providers: 0 });
 	});
 });

@@ -283,7 +283,7 @@ generator at it, or open it in any OpenAPI viewer.
 |---|---|---|
 | `GET` | `/v1` | Scrape a URL |
 | `POST` | `/v1` | Scrape a URL and forward a request body |
-| `GET` | `/health` | Liveness. Needs no key |
+| `GET` | `/health` | Liveness and the running version. Needs no key |
 | `GET` | `/health/providers` | Per-provider health. Needs `PROXLANE_HEALTH=on` to be meaningful |
 | `GET` | `/health/cooldowns` | What is cooling now, and what expired recently |
 

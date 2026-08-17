@@ -20,6 +20,7 @@ import { assertSingleWriter, type HealthStore, InMemoryHealthStore } from './hea
 import { Prober } from './prober.js';
 import { createFetchTransport } from './transport.js';
 import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
+import { VERSION } from './version.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DEFAULT_DEADLINE_MS = Number(env('PROXLANE_DEADLINE_MS') ?? 90_000);
@@ -331,7 +332,7 @@ const app = createApp({
 
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 	process.stdout.write(
-		`\n  proxlane gateway on :${info.port}\n` +
+		`\n  proxlane gateway ${VERSION} on :${info.port}\n` +
 			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(' > ')} (in order)\n` +
 			`  state:     ${redis === undefined ? 'in-process (single replica only)' : 'valkey (shared)'}\n` +
 			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'off by default; PROXLANE_HEALTH=on to enable'}\n` +
