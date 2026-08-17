@@ -164,6 +164,55 @@ describe('output discipline', () => {
 	});
 });
 
+describe('outcomes says what to DO, not only what happened', () => {
+	// The policy fields answer what the GATEWAY does. None of them answers the caller's only
+	// question, and `failover: true` actively misleads: on a blocked outcome it means proxlane
+	// already tried every provider, so a reader who takes it as "retryable" pays twice for the
+	// same answer.
+	const one = async (name: string) => {
+		const [, out] = await capture(() => outcomes([name, '--json'], true));
+		return (
+			JSON.parse(out) as {
+				data: { outcome: string; action: string; what: string; docs: string }[];
+			}
+		).data[0];
+	};
+
+	it('tells a blocked caller NOT to retry immediately, despite failover: true', async () => {
+		const d = await one('SOFT_BLOCK');
+		expect(d?.action).toBe('Retry later');
+		expect(d?.what).toMatch(/blocked again/);
+	});
+
+	it('tells a target answer never to be retried', async () => {
+		expect((await one('TARGET_NOT_FOUND'))?.action).toBe('Do not retry');
+	});
+
+	it('links to a page that exists, per outcome class', async () => {
+		// docs:check proves the path and the anchor resolve; this proves the shape reaches the
+		// caller, and that the anchor tracks the class rather than being a constant.
+		expect((await one('SOFT_BLOCK'))?.docs).toBe('https://proxlane.dev/docs/outcomes#blocked');
+		expect((await one('TARGET_NOT_FOUND'))?.docs).toBe(
+			'https://proxlane.dev/docs/outcomes#target',
+		);
+	});
+
+	it('carries advice for every outcome, with no gaps', async () => {
+		// The reason CLASS_ADVICE is `satisfies Record<OutcomeClass, …>`: the old copy was a
+		// `Record<string, …>` and a new class rendered nothing at all.
+		const [, out] = await capture(() => outcomes(['--json'], true));
+		const rows = (JSON.parse(out) as { data: { action?: string; docs?: string }[] }).data;
+		expect(rows.length).toBe(OUTCOMES.length);
+		expect(rows.filter((r) => !r.action || !r.docs)).toHaveLength(0);
+	});
+
+	it('prints the remedy in the human output too', async () => {
+		const [, out] = await capture(() => outcomes(['SOFT_BLOCK'], false));
+		expect(out).toMatch(/Retry later\./);
+		expect(out).toContain('proxlane.dev/docs/outcomes#blocked');
+	});
+});
+
 describe('doctor', () => {
 	it('reports what it CHECKED, not merely pass or fail', async () => {
 		// operating.md B9: "Postgres: ok" is useless in an issue thread. Every check must

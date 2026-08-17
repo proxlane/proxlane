@@ -27,9 +27,12 @@ export type {
 	PremiumTier,
 } from '@proxlane/shared';
 export {
+	CLASS_ADVICE,
 	carriesBody,
 	cooldownScope,
 	DEFAULT_DOCS_URL,
+	DOCS_BASE,
+	docsUrlFor,
 	errorBody,
 	errorClassFor,
 	FAILOVER,

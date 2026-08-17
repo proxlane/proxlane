@@ -1,4 +1,13 @@
-import { FAILOVER, OUTCOMES, type Outcome, policyFor } from '@proxlane/adapters';
+import {
+	CLASS_ADVICE,
+	DOCS_BASE,
+	docsUrlFor,
+	FAILOVER,
+	OUTCOMES,
+	type Outcome,
+	outcomeClass,
+	policyFor,
+} from '@proxlane/adapters';
 import { EXIT, emit, style } from './output.js';
 
 // `proxlane outcomes` — the whole error taxonomy, as data.
@@ -25,7 +34,21 @@ export function outcomes(args: string[], json: boolean): number {
 	}
 
 	const list = (only === undefined ? OUTCOMES : [only as Outcome]) as readonly Outcome[];
-	const data = list.map((o) => ({ outcome: o, ...policyFor(o) }));
+	// `action`, `what` and `docs` alongside the policy.
+	//
+	// The policy fields say what the GATEWAY does; none of them says what the CALLER should do,
+	// and for an agent that is the only question. Worse, `failover: true` invites exactly the
+	// wrong reading — on a blocked outcome it means proxlane already tried every provider, so a
+	// caller who retries buys the same answer twice.
+	//
+	// Derived from the class, never transcribed, so this cannot drift from the docs page that
+	// renders the same strings.
+	const data = list.map((o) => ({
+		outcome: o,
+		...policyFor(o),
+		...CLASS_ADVICE[outcomeClass(o)],
+		docs: docsUrlFor(o),
+	}));
 
 	emit({ ok: true, command: 'outcomes', data }, json, () => {
 		const rows = data.map((d) => {
@@ -36,13 +59,19 @@ export function outcomes(args: string[], json: boolean): number {
 			return (
 				`  ${style(d.outcome.padEnd(22), 'bold')} ${String(d.httpStatus).padEnd(9)} ` +
 				`failover ${failover.padEnd(7)} charged ${charged.padEnd(19)} ` +
-				`${d.pages ? style('PAGES', 'yellow') : ''}\n      ${style(d.meaning, 'dim')}\n`
+				`${d.pages ? style('PAGES', 'yellow') : ''}\n      ${style(d.meaning, 'dim')}\n` +
+				// The remedy on its own line, and NOT dimmed: it is the line a reader came for.
+				// Everything above says what happened; this says what to do about it.
+				`      ${style(`${d.action}.`, 'bold')} ${style(d.what, 'dim')}\n`
 			);
 		});
 		return (
 			`\n  ${style('outcome', 'dim').padEnd(24)} ${style('status', 'dim')}\n\n${rows.join('')}\n` +
 			`  ${style(`${data.length} outcome(s). Every request resolves to exactly one.`, 'dim')}\n` +
-			`  ${style('--json for the machine-readable form, including cooldown scope.', 'dim')}\n\n`
+			`  ${style('--json for the machine-readable form, including cooldown scope and a docs link.', 'dim')}\n` +
+			// Printed once for a list, and per-outcome in --json. A single outcome gets its own
+			// deep link, which is the case where a human is actually going to follow it.
+			`  ${style(only === undefined ? `${DOCS_BASE}/docs/outcomes` : docsUrlFor(list[0] as Outcome), 'dim')}\n\n`
 		);
 	});
 	return EXIT.OK;

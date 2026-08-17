@@ -9,7 +9,7 @@
 // branch on, `code` is open and carries the detail.
 
 import type { Outcome, OutcomeClass } from './outcome.js';
-import { FAILOVER } from './outcome.js';
+import { DOCS_BASE, FAILOVER } from './outcome.js';
 
 /**
  * Failures that are NOT outcomes, because they never became a scrape.
@@ -35,13 +35,15 @@ export type ErrorCode = Outcome | GatewayErrorCode;
 /**
  * Where a caller is sent to understand a code.
  *
- * The GitHub source rather than `docs.proxlane.dev`, because that domain does not resolve and
- * `README.md` says so in its second line. Emitting a dead link on every single failure is
- * worse than emitting none — it is a broken promise repeated at request rate. Swap the
- * default when the docs site is actually live; `AppDeps.docsUrl` overrides it meanwhile.
+ * THE DOCS SITE, now that it is live. This pointed at the GitHub source, with a comment saying
+ * `docs.proxlane.dev` did not resolve — true, and still true, but the conclusion had gone stale:
+ * the docs are served from the apex at `proxlane.dev/docs/outcomes`, and it was only ever the
+ * subdomain that had no DNS record. Verified with `dig` before changing it, because the
+ * standard this comment set for itself is that a link emitted on every failure must resolve.
+ *
+ * `AppDeps.docsUrl` still overrides it, and `docsUrlFor` deep-links to a specific class.
  */
-export const DEFAULT_DOCS_URL =
-	'https://github.com/proxlane/proxlane/blob/main/docs/integrations.md#3-error-taxonomy-and-failover-semantics';
+export const DEFAULT_DOCS_URL = `${DOCS_BASE}/docs/outcomes`;
 
 export interface ErrorBody {
 	/** Always present, on every response. The join key to the request log and to support. */
