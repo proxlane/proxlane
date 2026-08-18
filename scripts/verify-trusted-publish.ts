@@ -19,6 +19,12 @@
 // NOTE the field is in the FULL packument. `npm view <pkg> _npmUser` renders it as the string
 // "name <email>" and the abbreviated packument omits it, so both are useless here.
 
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
 /** What the registry says backed a published version, strongest first. */
 export type TrustEvidence = 'trustedPublisher' | 'provenance' | 'none';
 
@@ -47,6 +53,55 @@ export function describe(evidence: TrustEvidence): string {
 export interface Published {
 	readonly name: string;
 	readonly version: string;
+}
+
+/**
+ * Is this a package the repo never publishes?
+ *
+ * Reads the workspace manifests once. A name with no manifest is treated as publishable, so an
+ * unknown package is still checked — failing open here would let a real regression through,
+ * which is the wrong direction for a credential check.
+ */
+let privateNames: Set<string> | undefined;
+export function isPrivate(name: string, root = ROOT): boolean {
+	if (privateNames === undefined) {
+		privateNames = new Set();
+		// WALK, rather than listing the directories packages live in. The first version of this
+		// checked `packages`, `apps` and `tooling`, and missed `@proxlane/scripts` and
+		// `@proxlane/k6-harness`, which live at `scripts/` and `test/k6/`. A hardcoded root list
+		// is a thing that silently stops covering a workspace the moment someone adds one.
+		const walk = (dir: string, depth: number): void => {
+			if (depth > 3) return;
+			let entries: string[];
+			try {
+				entries = readdirSync(dir);
+			} catch {
+				return;
+			}
+			if (entries.includes('package.json')) {
+				try {
+					const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
+						name?: string;
+						private?: boolean;
+					};
+					if (pkg.name !== undefined && pkg.private === true) privateNames?.add(pkg.name);
+				} catch {
+					// A manifest we cannot read is not evidence that its package is private.
+				}
+			}
+			for (const entry of entries) {
+				if (entry === 'node_modules' || entry === 'dist' || entry.startsWith('.')) continue;
+				const child = join(dir, entry);
+				try {
+					if (statSync(child).isDirectory()) walk(child, depth + 1);
+				} catch {
+					// Unreadable, so not a package we can classify.
+				}
+			}
+		};
+		walk(root, 0);
+	}
+	return privateNames.has(name);
 }
 
 /** `changesets/action` emits `publishedPackages` as `[{name, version}, ...]`. */
@@ -102,7 +157,25 @@ if (import.meta.filename === process.argv[1]) {
 		process.exit(2);
 	}
 
-	const packages = parsePublished(raw);
+	// PRIVATE PACKAGES ARE NOT ON npm, SO THERE IS NOTHING TO VERIFY ABOUT THEM.
+	//
+	// `changesets/action` lists everything it VERSIONED in `publishedPackages`, not everything
+	// it published — and once `privatePackages.tag` was turned on, that started including the
+	// ten private ones. They went nowhere near the registry, so every one of them came back
+	// "no trust evidence at all" and failed a release whose three real publishes had all used
+	// OIDC correctly.
+	//
+	// The distinction this check exists to make is "did npm fall back to a static token", which
+	// is only a question for something npm received. Read from the manifest rather than by
+	// asking the registry: a package absent from npm because it is private and a package absent
+	// because the publish silently failed look identical over the network, and confusing those
+	// two is exactly the regression this file is here to catch.
+	const all = parsePublished(raw);
+	const packages = all.filter((p) => !isPrivate(p.name));
+	const skipped = all.length - packages.length;
+	if (skipped > 0) {
+		process.stdout.write(`  skipping ${skipped} private package(s), which never reach npm\n`);
+	}
 	if (packages.length === 0) {
 		// Non-zero denominator. Called only when `published == 'true'`, so an empty list means
 		// the wiring is wrong, not that there is nothing to check.
