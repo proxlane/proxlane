@@ -1,5 +1,14 @@
 # @proxlane/db
 
+## 0.1.1
+
+### Patch Changes
+
+- [#117](https://github.com/proxlane/proxlane/pull/117) [`27f060d`](https://github.com/proxlane/proxlane/commit/27f060d4e913dd1ede38f88ea57dc5a6c57285de) Thanks [@scarsam](https://github.com/scarsam)! - The migration suite waits for Postgres to be ready rather than merely listening. It started the
+  container with no wait strategy, so the default returned as soon as the port bound — before
+  `initdb` finished — and all 17 partition tests failed at once with `57P03: the database system is
+starting up`.
+
 ## 0.1.0
 
 ### Minor Changes

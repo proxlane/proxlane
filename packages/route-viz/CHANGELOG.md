@@ -1,5 +1,13 @@
 # @proxlane/route-viz
 
+## 0.2.1
+
+### Patch Changes
+
+- [#110](https://github.com/proxlane/proxlane/pull/110) [`cdc85ce`](https://github.com/proxlane/proxlane/commit/cdc85ce4d22c9c873aeb24fc3aae948246ec9c2a) Thanks [@scarsam](https://github.com/scarsam)! - A shed request is drawn struck at the door with a hairline leader to its outcome, not running
+  the full width. It had the geometry of the winning leg, so the one request that entered no
+  provider's line was drawn travelling further than a success.
+
 ## 0.2.0
 
 ### Minor Changes
