@@ -20,7 +20,16 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    image: ghcr.io/proxlane/gateway:latest
+    # PINNED, and `operating.md` B8 has always said this file pins while it actually said
+    # `:latest`. That was not cosmetic: `:latest` moves, so a `docker compose pull` could change
+    # the running gateway without anyone choosing to — and for a while it moved to builds that
+    # were never released at all, because the release tagged images with the version changesets
+    # had staged rather than the one it shipped (fixed in #114).
+    #
+    # A pin that LAGS the newest release is correct, not stale. A self-hoster wants a version
+    # somebody ran, and bumping this is a deliberate act with a changelog to read first.
+    # `repo:check` asserts only that it is a concrete version that was actually released.
+    image: ghcr.io/proxlane/gateway:0.3.2
     restart: unless-stopped
     ports:
       - '${PORT:-8787}:8787'
