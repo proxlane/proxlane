@@ -17,6 +17,7 @@ import { Redis } from 'ioredis';
 import { createApp } from './app.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
 import { assertSingleWriter, type HealthStore, InMemoryHealthStore } from './health-store.js';
+import { createLogger } from './log.js';
 import { Prober } from './prober.js';
 import { createFetchTransport } from './transport.js';
 import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
@@ -317,6 +318,9 @@ const prober =
 			});
 prober?.start();
 
+/** One NDJSON line per /v1 request, to stdout. `PROXLANE_LOG=off` to silence it. */
+const LOG = createLogger(env);
+
 const app = createApp({
 	transport,
 	candidates,
@@ -325,6 +329,8 @@ const app = createApp({
 	maxInflight: MAX_INFLIGHT,
 	defaultDeadlineMs: DEFAULT_DEADLINE_MS,
 	orgId: ORG_ID,
+	...(LOG === undefined ? {} : { log: LOG }),
+	logUrls: (env('PROXLANE_LOG_URLS') ?? 'off') === 'on',
 	terminalRetries: TERMINAL_RETRIES,
 	...(health === undefined ? {} : { health }),
 	...(cooldowns === undefined ? {} : { cooldowns }),
@@ -339,6 +345,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on — GET /health/cooldowns' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
 			`  inflight:  ${MAX_INFLIGHT} concurrent, then 429 GATEWAY_BUSY (PROXLANE_MAX_INFLIGHT)\n` +
 			`  retries:   ${TERMINAL_RETRIES === 0 ? 'none — failover only' : `${TERMINAL_RETRIES} extra at the last provider`} (PROXLANE_TERMINAL_RETRIES)\n` +
+			`  log:       ${LOG === undefined ? 'OFF (PROXLANE_LOG=off) — nothing is recorded' : 'one line per request to stdout'}\n` +
 			`  memory:    ${MEMORY_NOTE}\n` +
 			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
