@@ -6,6 +6,7 @@ import {
 	describe as describeEvidence,
 	evidenceFor,
 	type Fetcher,
+	isPrivate,
 	parsePublished,
 	trustEvidence,
 	type VersionManifest,
@@ -60,6 +61,41 @@ describe('publishedPackages parsing', () => {
 	it('rejects a malformed entry rather than silently checking nothing', () => {
 		expect(() => parsePublished('[{"name":"x"}]')).toThrow(/malformed/);
 		expect(() => parsePublished('{}')).toThrow(/not an array/);
+	});
+});
+
+describe('private packages are not on npm, so there is nothing to verify', () => {
+	// THE FALSE ALARM THIS PREVENTS. `changesets/action` lists everything it VERSIONED in
+	// `publishedPackages`, not everything it published — and once `privatePackages.tag` was
+	// turned on, the ten private packages joined that list. Every one came back "no trust
+	// evidence at all", because they never went near the registry, and a release whose three
+	// real publishes had all used OIDC correctly went red.
+
+	it('knows the packages this repo never publishes', () => {
+		for (const name of ['@proxlane/gateway', '@proxlane/web', '@proxlane/db']) {
+			expect(isPrivate(name), `${name} is private: true`).toBe(true);
+		}
+	});
+
+	it('finds private packages outside packages/ and apps/', () => {
+		// The first version listed the directories packages live in and missed these two, which
+		// are at `scripts/` and `test/k6/`. A hardcoded root list stops covering the workspace
+		// the moment someone adds a directory.
+		expect(isPrivate('@proxlane/scripts')).toBe(true);
+		expect(isPrivate('@proxlane/k6-harness')).toBe(true);
+	});
+
+	it('does not treat a published package as private', () => {
+		for (const name of ['@proxlane/adapters', '@proxlane/shared', 'proxlane']) {
+			expect(isPrivate(name), `${name} publishes`).toBe(false);
+		}
+	});
+
+	it('treats an unknown name as publishable, so it is still checked', () => {
+		// Fails OPEN in the direction that keeps checking. Silently skipping a name we cannot
+		// classify would let a real credential regression through, which is the one thing this
+		// file exists to catch.
+		expect(isPrivate('@proxlane/not-a-real-package')).toBe(false);
 	});
 });
 
