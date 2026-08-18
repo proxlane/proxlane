@@ -1562,6 +1562,62 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------------- 30: the self-host compose file pins a released version
+//
+// `operating.md` B8 says "the self-host compose file pins a version. `:latest` exists but is
+// documented as the unstable choice" — and the file said `:latest` for as long as that sentence
+// existed. A document asserting something about a file the file contradicts is the exact shape
+// assertions 23–25 and 29 were added for, so this is the fourth instance of one lesson.
+//
+// Not cosmetic. `:latest` moves, so `docker compose pull` could change a self-hoster's running
+// gateway without them choosing to — and for a while it moved to builds that were never
+// released, because the release tagged images with the version changesets had staged rather than
+// the one it shipped.
+//
+// A pin that LAGS the newest release is deliberately allowed: a self-hoster wants a version
+// somebody has run, and bumping it should mean reading a changelog first. So this asserts two
+// things only — that it is a concrete version, and that the version was actually released.
+{
+	const COMPOSE = 'docker/compose.yml';
+	const CHANGELOG = 'apps/gateway/CHANGELOG.md';
+	if (!has(COMPOSE) || !has(CHANGELOG)) {
+		fail('30', `${COMPOSE} or ${CHANGELOG} is missing`);
+	} else {
+		const pins = [...read(COMPOSE).matchAll(/image:\s*ghcr\.io\/proxlane\/gateway:(\S+)/g)].map(
+			(m) => m[1] as string,
+		);
+		if (pins.length === 0) {
+			fail('30', `${COMPOSE} no longer names a gateway image — this check stopped checking`);
+		} else {
+			// Every released version, parsed from the changelog changesets generates. Reading the
+			// registry instead would need the network, which would fail a clean clone offline.
+			const released = new Set(
+				[...read(CHANGELOG).matchAll(/^## (\d+\.\d+\.\d+)$/gm)].map((m) => m[1] as string),
+			);
+			if (released.size === 0) {
+				fail('30', `parsed no released versions from ${CHANGELOG}`);
+			} else {
+				for (const pin of pins) {
+					if (!/^\d+\.\d+\.\d+$/.test(pin)) {
+						fail(
+							'30',
+							`${COMPOSE} pins \`${pin}\`. operating.md B8 says this file pins a version; ` +
+								"a moving tag can change a self-hoster's gateway without them choosing to.",
+						);
+					} else if (!released.has(pin)) {
+						fail(
+							'30',
+							`${COMPOSE} pins ${pin}, which has no entry in ${CHANGELOG} — it was never ` +
+								'released, so there may be no such image.',
+						);
+					}
+				}
+				ok('30', pins.length, 'the compose file pins a released gateway version');
+			}
+		}
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;
