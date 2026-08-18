@@ -1,5 +1,43 @@
 # @proxlane/adapters
 
+## 0.4.0
+
+### Minor Changes
+
+- [#104](https://github.com/proxlane/proxlane/pull/104) [`e7dc4a4`](https://github.com/proxlane/proxlane/commit/e7dc4a4cd1d3418bd7f43205099f1abdfb142c75) Thanks [@scarsam](https://github.com/scarsam)! - Add a Bright Data Web Unlocker adapter, the fourth provider and the first for a service this
+  project does not itself pay for. It reads the target's real status out of the JSON envelope
+  rather than the raw body, and decodes Bright Data's own `x-brd-error-code` so a dead target is
+  not blamed on the provider.
+
+  Two pieces of shared tooling assumed a provider's parameters live in the URL, which was true
+  of the first three by coincidence. The conformance suite and the replay transport now read the
+  request body too, and the recorded-target matrix moved off a Cloudflare-fronted host that an
+  unblocking provider correctly refuses to pass through.
+
+- [#106](https://github.com/proxlane/proxlane/pull/106) [`d3ff8c2`](https://github.com/proxlane/proxlane/commit/d3ff8c279b3d3725664559dbe882237dc2006ac5) Thanks [@scarsam](https://github.com/scarsam)! - A host that does not resolve is now `TARGET_ERROR` from every provider. Scrapfly reported it
+  as `INVALID_REQUEST`, which paged a human and stopped the chain; Bright Data as
+  `PROVIDER_ERROR`, which cooled a healthy provider. Conformance now asserts the recorded
+  outcome for the new `dead-host` fixture, which is what makes it stay fixed.
+
+- [#108](https://github.com/proxlane/proxlane/pull/108) [`4db45e1`](https://github.com/proxlane/proxlane/commit/4db45e18b32cda1851749b33ec605fd15f800cfe) Thanks [@scarsam](https://github.com/scarsam)! - Bright Data gets its own line colour. It shared slot 1 with ScraperAPI, because `line` was
+  typed `1 | 2 | 3` and taking an existing slot was the only way to compile — so the two were
+  drawn in the same colour and a failover between them was invisible. `pnpm tokens:check` now
+  fails on a shared slot or a slot with no token behind it.
+
+- [#111](https://github.com/proxlane/proxlane/pull/111) [`258e5fc`](https://github.com/proxlane/proxlane/commit/258e5fc227c795fa6fad07fd57734bfe3f05e5f2) Thanks [@scarsam](https://github.com/scarsam)! - `proxlane outcomes` now says what to do about an outcome, not only what it means: an `action`, a
+  sentence of why, and a link to the class's docs section. The policy fields describe what the
+  gateway does internally — `failover: true` on a blocked outcome means every provider was already
+  tried — which is the opposite of what a caller reading it as "retryable" would conclude.
+
+  Error responses and the CLI both link to `proxlane.dev/docs/outcomes`, which is live. They
+  pointed at GitHub because `docs.proxlane.dev` has no DNS record; it was the subdomain that never
+  existed, not the docs.
+
+### Patch Changes
+
+- Updated dependencies [[`258e5fc`](https://github.com/proxlane/proxlane/commit/258e5fc227c795fa6fad07fd57734bfe3f05e5f2)]:
+  - @proxlane/shared@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes

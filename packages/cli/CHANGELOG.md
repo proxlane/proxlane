@@ -1,5 +1,28 @@
 # proxlane
 
+## 0.3.0
+
+### Minor Changes
+
+- [#111](https://github.com/proxlane/proxlane/pull/111) [`258e5fc`](https://github.com/proxlane/proxlane/commit/258e5fc227c795fa6fad07fd57734bfe3f05e5f2) Thanks [@scarsam](https://github.com/scarsam)! - `proxlane outcomes` now says what to do about an outcome, not only what it means: an `action`, a
+  sentence of why, and a link to the class's docs section. The policy fields describe what the
+  gateway does internally — `failover: true` on a blocked outcome means every provider was already
+  tried — which is the opposite of what a caller reading it as "retryable" would conclude.
+
+  Error responses and the CLI both link to `proxlane.dev/docs/outcomes`, which is live. They
+  pointed at GitHub because `docs.proxlane.dev` has no DNS record; it was the subdomain that never
+  existed, not the docs.
+
+- [#105](https://github.com/proxlane/proxlane/pull/105) [`1e3ea1f`](https://github.com/proxlane/proxlane/commit/1e3ea1f426d5b055da823eb080b61c88cc59fd6b) Thanks [@scarsam](https://github.com/scarsam)! - Retry the last provider in the chain once before giving up, on `PROVIDER_ERROR` and
+  `PROVIDER_TIMEOUT` only. Set `PROXLANE_TERMINAL_RETRIES` to change it, 0 to switch it off.
+  Everywhere else in the chain, failover is still the retry.
+
+### Patch Changes
+
+- Updated dependencies [[`e7dc4a4`](https://github.com/proxlane/proxlane/commit/e7dc4a4cd1d3418bd7f43205099f1abdfb142c75), [`d3ff8c2`](https://github.com/proxlane/proxlane/commit/d3ff8c279b3d3725664559dbe882237dc2006ac5), [`4db45e1`](https://github.com/proxlane/proxlane/commit/4db45e18b32cda1851749b33ec605fd15f800cfe), [`258e5fc`](https://github.com/proxlane/proxlane/commit/258e5fc227c795fa6fad07fd57734bfe3f05e5f2)]:
+  - @proxlane/adapters@0.4.0
+  - @proxlane/shared@0.4.0
+
 ## 0.2.0
 
 ### Minor Changes

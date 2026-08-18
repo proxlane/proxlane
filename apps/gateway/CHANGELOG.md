@@ -1,5 +1,54 @@
 # @proxlane/gateway
 
+## 0.4.0
+
+### Minor Changes
+
+- [#113](https://github.com/proxlane/proxlane/pull/113) [`7b4a27a`](https://github.com/proxlane/proxlane/commit/7b4a27a7238d865930cb55656353a7ad1a8b8804) Thanks [@scarsam](https://github.com/scarsam)! - `GET /health` reports the running version, so a deploy can be verified. Publishing an image is
+  not deploying it — an orchestrator keeps serving the digest it started with — and there was no
+  way to ask what was live.
+
+- [#107](https://github.com/proxlane/proxlane/pull/107) [`e0d94b2`](https://github.com/proxlane/proxlane/commit/e0d94b2d25e1b022ddefc87047dc1fdda1e521eb) Thanks [@scarsam](https://github.com/scarsam)! - A `timeout` query parameter sets the deadline for one request, capped at the server's own.
+  `integrations.md` has promised it since the budget arithmetic was written and nothing read it.
+
+  Every error now carries `X-Outcome-Class`, `X-Attempts: 0` and `X-Cost-Estimate: 0.000000`.
+  Four paths shipped without them, including a missing `url`. A forced provider that does not
+  exist now says so and names the ones that do, rather than "no providers configured".
+
+- [#105](https://github.com/proxlane/proxlane/pull/105) [`1e3ea1f`](https://github.com/proxlane/proxlane/commit/1e3ea1f426d5b055da823eb080b61c88cc59fd6b) Thanks [@scarsam](https://github.com/scarsam)! - Retry the last provider in the chain once before giving up, on `PROVIDER_ERROR` and
+  `PROVIDER_TIMEOUT` only. Set `PROXLANE_TERMINAL_RETRIES` to change it, 0 to switch it off.
+  Everywhere else in the chain, failover is still the retry.
+
+### Patch Changes
+
+- [#101](https://github.com/proxlane/proxlane/pull/101) [`401548f`](https://github.com/proxlane/proxlane/commit/401548fcdd73fef2e64381ffbba28760435d444c) Thanks [@scarsam](https://github.com/scarsam)! - Bump every GitHub Action to a major that targets Node 24. GitHub was already force-running the
+  Node 20 ones and warning on each release. Includes `changesets/action` v2, whose breaking
+  change moves the custom token from an environment variable to a `github-token` input — left
+  alone, the release PR would have silently reverted to the default token and arrived with no
+  checks.
+
+- [#102](https://github.com/proxlane/proxlane/pull/102) [`79128ab`](https://github.com/proxlane/proxlane/commit/79128abe82a9214649c6801b69fe273517bc8f47) Thanks [@scarsam](https://github.com/scarsam)! - Pin `changesets/action` back to v1. Its v2 requires Changesets CLI v3 and refuses to run
+  against the v2 CLI this repo pins, and it renames every input. Moving it is a release-path
+  migration behind a CLI major, not a version bump. v1 already targets Node 24, so it was never
+  part of the deprecation.
+
+- [#111](https://github.com/proxlane/proxlane/pull/111) [`258e5fc`](https://github.com/proxlane/proxlane/commit/258e5fc227c795fa6fad07fd57734bfe3f05e5f2) Thanks [@scarsam](https://github.com/scarsam)! - `proxlane outcomes` now says what to do about an outcome, not only what it means: an `action`, a
+  sentence of why, and a link to the class's docs section. The policy fields describe what the
+  gateway does internally — `failover: true` on a blocked outcome means every provider was already
+  tried — which is the opposite of what a caller reading it as "retryable" would conclude.
+
+  Error responses and the CLI both link to `proxlane.dev/docs/outcomes`, which is live. They
+  pointed at GitHub because `docs.proxlane.dev` has no DNS record; it was the subdomain that never
+  existed, not the docs.
+
+- [#114](https://github.com/proxlane/proxlane/pull/114) [`f40b2c4`](https://github.com/proxlane/proxlane/commit/f40b2c40616db4a950b5505ad93ca8322f4dbb40) Thanks [@scarsam](https://github.com/scarsam)! - The release now tags the gateway image with the version it actually released. It read the
+  working tree, which `changeset version` had already bumped, so every push to main published an
+  image tagged with the _pending_ version — `0.3.3` and `0.4.0` exist on ghcr while main has been
+  `0.3.2` throughout — and re-pointed that tag at a new digest each time.
+- Updated dependencies [[`e7dc4a4`](https://github.com/proxlane/proxlane/commit/e7dc4a4cd1d3418bd7f43205099f1abdfb142c75), [`d3ff8c2`](https://github.com/proxlane/proxlane/commit/d3ff8c279b3d3725664559dbe882237dc2006ac5), [`4db45e1`](https://github.com/proxlane/proxlane/commit/4db45e18b32cda1851749b33ec605fd15f800cfe), [`258e5fc`](https://github.com/proxlane/proxlane/commit/258e5fc227c795fa6fad07fd57734bfe3f05e5f2)]:
+  - @proxlane/adapters@0.4.0
+  - @proxlane/shared@0.4.0
+
 ## 0.3.2
 
 ### Patch Changes

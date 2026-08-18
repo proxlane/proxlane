@@ -1,5 +1,13 @@
 # @proxlane/web
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`258e5fc`](https://github.com/proxlane/proxlane/commit/258e5fc227c795fa6fad07fd57734bfe3f05e5f2), [`cdc85ce`](https://github.com/proxlane/proxlane/commit/cdc85ce4d22c9c873aeb24fc3aae948246ec9c2a)]:
+  - @proxlane/shared@0.4.0
+  - @proxlane/route-viz@0.2.1
+
 ## 0.4.0
 
 ### Minor Changes
