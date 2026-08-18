@@ -19,7 +19,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POSTGRES_IMAGE, VALKEY_IMAGE } from '@proxlane/containers';
-import { GenericContainer, type StartedTestContainer } from 'testcontainers';
+import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
 
 export const IMAGES = { postgres: POSTGRES_IMAGE, valkey: VALKEY_IMAGE };
 
@@ -60,6 +60,16 @@ export default async function setup(): Promise<() => Promise<void>> {
 		const valkey = await new GenericContainer(VALKEY_IMAGE)
 			.withExposedPorts(6379)
 			.withCommand(['valkey-server', '--save', '', '--appendonly', 'no'])
+			// Wait for the log, not the port. The default strategy returns once the port is
+			// listening, which is a window a server can be inside without answering — the same
+			// race that made the Postgres suite fail all 17 tests at once with
+			// `57P03: the database system is starting up`.
+			//
+			// Valkey is far less exposed to it than Postgres, having no `initdb` phase, so this is
+			// closing the class rather than a failure anyone has seen here. Once, not twice: this
+			// image prints the line exactly once, unlike Postgres, which prints it for its
+			// temporary init server first.
+			.withWaitStrategy(Wait.forLogMessage(/Ready to accept connections/i))
 			.start();
 		started.push(valkey);
 		process.env.PROXLANE_VALKEY_URL = `redis://${valkey.getHost()}:${valkey.getMappedPort(6379)}`;
