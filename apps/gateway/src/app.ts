@@ -30,6 +30,7 @@ import { runChain } from './chain.js';
 import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
 import { InflightLimiter, retryAfterSeconds } from './inflight.js';
+import { hostOf, type RequestLine, timings } from './log.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
 import type { HttpTransport } from './transport.js';
 import { VERSION } from './version.js';
@@ -64,6 +65,14 @@ export interface AppDeps {
 	 * other, which is the cross-org contamination the two namespaces exist to prevent.
 	 */
 	readonly orgId?: string;
+	/**
+	 * Where a request line goes. Omit for none — `createLogger` returns undefined when
+	 * `PROXLANE_LOG=off`, and the wrapper is then not installed at all rather than calling a
+	 * no-op on the hot path.
+	 */
+	readonly log?: (line: RequestLine) => void;
+	/** Include the full target URL. Off by default: query strings carry credentials. */
+	readonly logUrls?: boolean;
 	/** Extra goes at the last capable provider. See `chain.ts`. Defaults to 1; 0 disables. */
 	readonly terminalRetries?: number;
 	/**
@@ -607,8 +616,75 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	// Both verbs, one handler. GET is the drop-in surface; POST additionally forwards a body.
 	// Registered explicitly rather than with `app.all`, so PUT and DELETE still 404 instead of
 	// being silently treated as GET.
-	app.get('/v1', handler);
-	app.post('/v1', handler);
+	/**
+	 * ONE HOOK, AND IT READS WHAT THE RESPONSE ALREADY DECIDED.
+	 *
+	 * Wrapping `handler` rather than logging at each `return` is the difference between a log
+	 * that covers every path and one that covers the paths somebody remembered. There are eight
+	 * ways out of this handler — served, shed, unauthorized, four validation refusals, and the
+	 * chain's own answer — and the outcome, provider, attempt count and cost are already
+	 * computed and on the response by the time any of them is taken.
+	 *
+	 * So this reads the headers back rather than recomputing anything. A new exit path is
+	 * logged automatically; a header that stops being set shows up as a missing field rather
+	 * than as a silently wrong number.
+	 *
+	 * `/health` is NOT wrapped, and that is why the wrapper sits here rather than on the app:
+	 * it is the container's healthcheck, hit every few seconds forever, and logging it would
+	 * bury every real request under probe noise.
+	 */
+	const log = deps.log;
+	const logUrls = deps.logUrls === true;
+	const logged =
+		log === undefined
+			? handler
+			: async (c: Context<Vars>) => {
+					// TRY/FINALLY, because a THROW is the line you most want and was the one this
+					// missed. The first version awaited the handler and logged after it, so an
+					// exception produced no record at all — the one event where "what was that
+					// request?" has no other answer, silently absent. Found by a test whose target
+					// had no fixture: the transport threw and the log came out empty rather than
+					// wrong, which is the harder failure to notice.
+					let res: Response | undefined;
+					try {
+						res = await handler(c);
+						return res;
+					} finally {
+						const h = (n: string): string | undefined => res?.headers.get(n) ?? undefined;
+						const attempts = h('X-Attempts');
+						const target = c.req.query('url');
+						const host = hostOf(target);
+						log({
+							t: new Date().toISOString(),
+							id: c.get('requestId'),
+							method: c.req.method,
+							...(logUrls
+								? { ...(target === undefined ? {} : { url: target }) }
+								: { ...(host === undefined ? {} : { host }) }),
+							// 500 when the handler threw: Hono turns an exception into one, and a
+							// line claiming 200 for a request that produced no response is a lie.
+							status: res?.status ?? 500,
+							...(h('X-Outcome') === undefined ? {} : { outcome: h('X-Outcome') as string }),
+							...(h('X-Outcome-Class') === undefined
+								? {}
+								: { class: h('X-Outcome-Class') as string }),
+							...(h('X-Provider-Used') === undefined
+								? {}
+								: { provider: h('X-Provider-Used') as string }),
+							...(attempts === undefined ? {} : { attempts: Number(attempts) }),
+							...(h('X-Cost-Estimate') === undefined
+								? {}
+								: { cost: h('X-Cost-Estimate') as string }),
+							...(h('X-Detect-Rule') === undefined
+								? {}
+								: { detect: h('X-Detect-Rule') as string }),
+							...timings(h('Server-Timing')),
+						});
+					}
+				};
+
+	app.get('/v1', logged);
+	app.post('/v1', logged);
 
 	return app;
 }

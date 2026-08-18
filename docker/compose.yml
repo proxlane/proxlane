@@ -70,6 +70,8 @@ services:
       # the gateway treats empty as absent. It has to: compose cannot express "unset".
       # Extra goes at the LAST provider only, where there is nothing to fail over to.
       PROXLANE_TERMINAL_RETRIES: ${PROXLANE_TERMINAL_RETRIES:-1}
+      PROXLANE_LOG: ${PROXLANE_LOG:-}
+      PROXLANE_LOG_URLS: ${PROXLANE_LOG_URLS:-}
       PROXLANE_HEALTH: ${PROXLANE_HEALTH:-}
       PROXLANE_COOLDOWNS: ${PROXLANE_COOLDOWNS:-}
       PROXLANE_REPLICAS: ${PROXLANE_REPLICAS:-}

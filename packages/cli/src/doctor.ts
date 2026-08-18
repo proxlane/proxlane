@@ -165,7 +165,32 @@ function routingChecks(): Check[] {
 		},
 		backpressureCheck(),
 		terminalRetryCheck(),
+		loggingCheck(),
 	];
+}
+
+/**
+ * Whether this gateway leaves any record of what it did.
+ *
+ * B9-shaped, and the support thread it prevents is the worst kind: "something scraped X and I
+ * do not know why" has no answer at all when the process logged nothing. It also names what a
+ * line will and will not contain, because the second question is always whether the log is safe
+ * to paste into an issue.
+ */
+function loggingCheck(): Check {
+	const on = (env('PROXLANE_LOG') ?? 'on') !== 'off';
+	const urls = (env('PROXLANE_LOG_URLS') ?? 'off') === 'on';
+	return {
+		name: 'request log',
+		ok: true,
+		detail: on
+			? `on. One NDJSON line per /v1 request to stdout — outcome, provider, attempts, cost and ` +
+				`gateway ms. ${urls ? 'PROXLANE_LOG_URLS=on, so the FULL target URL is written, query string included' : 'Target host only, never the query string, so a signed URL or session token stays out'}`
+			: 'OFF (PROXLANE_LOG=off). Nothing is recorded: no outcomes, no refused keys, no way to answer "what did it do"',
+		...(on
+			? {}
+			: { fix: 'unset PROXLANE_LOG to restore it. /health is never logged either way' }),
+	};
 }
 
 /**

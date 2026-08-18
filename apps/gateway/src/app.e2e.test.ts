@@ -19,6 +19,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
 import { InMemoryCooldownStore } from './cooldown-store.js';
 import { InMemoryHealthStore } from './health-store.js';
+import type { RequestLine } from './log.js';
 import type { HttpTransport } from './transport.js';
 import { VERSION } from './version.js';
 
@@ -619,6 +620,88 @@ describe('/health/providers', () => {
 		});
 		const r = await noHealth.request(`/health/providers?api_key=${API_KEY}`);
 		expect(r.status).toBe(501);
+	});
+});
+
+describe('one line per request, covering every exit', () => {
+	// The wrapper reads headers the response already set, so a path nobody remembered is still
+	// logged. These assert the exits that are easy to forget: the refusals.
+	const capture = async (qs: string) => {
+		const lines: RequestLine[] = [];
+		const app = createApp({
+			transport: createReplayTransport(entries),
+			candidates: adapters,
+			apiKey: API_KEY,
+			maxBodyBytes: 10 * 1024 * 1024,
+			defaultDeadlineMs: 90_000,
+			log: (l) => lines.push(l),
+		});
+		const server = serve({ fetch: app.fetch, port: 0 });
+		await new Promise((r) => setTimeout(r, 50));
+		const port = (server.address() as AddressInfo).port;
+		try {
+			await fetch(`http://127.0.0.1:${port}${qs}`);
+		} finally {
+			await new Promise<void>((r) => server.close(() => r()));
+		}
+		return lines;
+	};
+
+	it('logs a served request with the provider, attempts and cost', async () => {
+		const [line] = await capture(
+			`/v1?api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`,
+		);
+		expect(line?.status).toBe(200);
+		expect(line?.outcome).toBe('OK');
+		expect(line?.provider).toBeTypeOf('string');
+		expect(line?.attempts).toBe(1);
+		expect(line?.cost).toBeTypeOf('string');
+		expect(line?.id).toMatch(/^[\w-]+$/);
+	});
+
+	it('logs a refused key, which is the line that shows someone probing', async () => {
+		const [line] = await capture('/v1?api_key=nope&url=https://example.com/');
+		expect(line?.status).toBe(401);
+		expect(line?.class).toBe('client');
+		// No outcome: UNAUTHORIZED is a gateway error code, not something that happened to a
+		// scrape. The class is what a reader branches on.
+		expect(line?.outcome).toBeUndefined();
+	});
+
+	it('logs a validation refusal even though no provider was chosen', async () => {
+		const [line] = await capture(`/v1?api_key=${API_KEY}`);
+		expect(line?.status).toBe(400);
+		expect(line?.outcome).toBe('BAD_REQUEST');
+		expect(line?.attempts).toBe(0);
+	});
+
+	it('records the host, and never the gateway key', async () => {
+		// The whole reason the field is `host` rather than `url`: a scrape URL carries the
+		// caller's query string, and `/v1?api_key=…` carries ours. `log.unit.test.ts` pins the
+		// query-string stripping precisely; this pins that nothing leaks over real HTTP.
+		const [line] = await capture(
+			`/v1?api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`,
+		);
+		expect(line?.host).toBe(new URL(target('success-html')).host);
+		expect(JSON.stringify(line)).not.toContain(API_KEY);
+		expect(JSON.stringify(line)).not.toContain('api_key');
+	});
+
+	it('still logs when the handler throws, which is the line most worth having', async () => {
+		// A target with no recording makes the replay transport throw, which is as close to an
+		// unhandled runtime fault as this suite can stage. The first version of the wrapper
+		// awaited the handler and logged afterwards, so exactly this case — the one where
+		// "what was that request?" has no other answer — produced nothing at all.
+		const [line] = await capture(
+			`/v1?api_key=${API_KEY}&url=${encodeURIComponent('https://nothing-recorded.example/x')}`,
+		);
+		expect(line, 'a throwing request must still be logged').toBeDefined();
+		expect(line?.status).toBe(500);
+		expect(line?.host).toBe('nothing-recorded.example');
+	});
+
+	it('does not log /health, which the orchestrator hits forever', async () => {
+		expect(await capture('/health')).toHaveLength(0);
 	});
 });
 

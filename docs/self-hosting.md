@@ -265,6 +265,8 @@ most:
 | `PROXLANE_MAX_INFLIGHT` | `32` | Concurrent `/v1` requests, then 429 `GATEWAY_BUSY` |
 | `PROXLANE_MEMORY_LIMIT_MB` | unset | Declares the memory limit when no cgroup one is readable |
 | `PROXLANE_TERMINAL_RETRIES` | `1` | Extra goes at the **last** provider only, on `PROVIDER_ERROR` and `PROVIDER_TIMEOUT`. `0` disables, max 10 |
+| `PROXLANE_LOG` | on | One NDJSON line per `/v1` request to stdout. `off` to silence |
+| `PROXLANE_LOG_URLS` | off | Log the full target URL rather than its host. Query strings carry credentials |
 | `PROXLANE_COOLDOWNS` | on | Set `off` to disable |
 | `PROXLANE_HEALTH` | **off** | Set `on` to enable provider health. Off by default because its calibration is not yet validated against real traffic |
 | `PROXLANE_VALKEY_URL` | unset | Shared state, required for more than one replica |
