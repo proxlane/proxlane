@@ -138,6 +138,7 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Package build | npm | `tsdown` | `^0.22` | pre-1.0, pin tight |
 | Containers | npm | `testcontainers` | `^12.1` | versions must match the compose file — assertion 8 |
 | Versioning | npm | `@changesets/cli` | `^2.31` | |
+| Changelog | npm | `@changesets/changelog-github` | `^1.0` | turns a changelog line from a bare `fcca935:` into a link to the PR, the commit and the contributor. Astro and `cloudflare/workers-sdk` both run it; the default generator credits nobody, which is the wrong default for a project asking strangers to write adapters |
 
 **Neither is `@lhci/cli`, for the same reason and with the same shape.** It pulls
 lighthouse → puppeteer-core → a Chrome downloader, which put four Dependabot alerts on a
@@ -347,9 +348,16 @@ own rule — if it breaks the budget, the ceiling was set wrong, not the work.
 
 - Conventional Commits, enforced. Every behaviour change carries a changeset — **including
   `apps/gateway`**, which is `private: true` but versioned: `.changeset/config.json` sets
-  `privatePackages: { version: true, tag: false }`, so it gets a CHANGELOG and never a
-  publish. Before that, ten gateway-only changesets named `@proxlane/shared` instead, because
-  naming the package that actually changed was impossible.
+  `privatePackages: { version: true, tag: true }`, so it gets a CHANGELOG and a git tag, and
+  never a publish. Before that, ten gateway-only changesets named `@proxlane/shared` instead,
+  because naming the package that actually changed was impossible.
+  **`tag` used to be `false`, and the reason given for it was the reason for `private: true`.**
+  Publishing is prevented by `private: true` in the manifest; `tag` only decides whether
+  `changeset tag` cuts a git tag. So the setting bought nothing and cost the one thing that
+  matters most for the gateway: it ships as a container image, and with no tags there was no
+  way to answer "which commit is `ghcr.io/proxlane/gateway:0.4.0`?" — a question that had to be
+  reconstructed from CI logs while debugging the release. `cloudflare/workers-sdk` sets
+  `tag: true` for the same reason.
 - **A new subsystem ships with its `proxlane doctor` checks in the same PR.** `operating.md`
   B9 already says every support question that takes more than one exchange becomes a check;
   health, cooldowns and Valkey shipped without any, and the first question they produced was

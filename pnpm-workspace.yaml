@@ -19,6 +19,7 @@ catalog:
   # web
   '@base-ui/react': ^1.6.0
   '@biomejs/biome': ^2.5
+  '@changesets/changelog-github': ^1.0
   '@changesets/cli': ^2.31
   '@cloudflare/vite-plugin': ^1.52
   '@hono/node-server': ^2.1
