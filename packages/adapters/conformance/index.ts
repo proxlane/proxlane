@@ -62,6 +62,8 @@ const EXPECTED: Readonly<Record<string, Outcome | 'provider-dependent'>> = {
 	// PROVIDER_ERROR. DNS is a fact about the target, and the taxonomy already says so —
 	// TARGET_ERROR is defined as "Target site 5xx or DNS dead".
 	'dead-host': 'TARGET_ERROR',
+	// The bytes are the assertion, not the outcome; see the binary check below.
+	binary: 'OK',
 	'target-rate-limited': 'TARGET_RATE_LIMITED',
 	// Honoured if one is ever captured; see REQUIRED below for why it cannot be required.
 	'provider-error': 'PROVIDER_ERROR',
@@ -99,6 +101,9 @@ const REQUIRED = [
 	// wrong is high in both directions: as INVALID_REQUEST it pages a human over a typo, and
 	// as PROVIDER_ERROR it cools a healthy provider and buys a retry of a domain that is gone.
 	'dead-host',
+	// Required of EVERY adapter, whichever way it declares `binary`. The claim is only worth
+	// anything if something checks it, and the check needs a recorded body to check against.
+	'binary',
 ] as const;
 
 interface ExchangeFixture {
@@ -328,6 +333,45 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 			result.outcome !== expected
 		)
 			fail('parse', `${category}: expected ${expected}, got ${result.outcome}`);
+
+		// THE `binary` CLAIM, ASSERTED THROUGH parse() AND IN BOTH DIRECTIONS.
+		//
+		// `capabilities.binary` decides whether the router will send an image request here, and a
+		// wrong claim is invisible at runtime: the response is a 200 with a body that happens to
+		// be mojibake. So the flag is checked against what the adapter actually produces from a
+		// recorded JPEG, rather than trusted.
+		//
+		// Both directions on purpose. `true` when the bytes are broken is the dangerous case.
+		// `false` when they are intact is the wasteful one — it excludes a provider that would
+		// have worked — and it is also the one that actually happened: scrapfly was declared
+		// `false` after someone measured the provider's wire response (a JSON envelope) instead
+		// of the adapter's output. Checking only the dangerous direction would have let that
+		// stand.
+		if (category === 'binary' && result.outcome === 'OK') {
+			// ffd8ff is the JPEG start-of-image marker. efbfbd, the usual failure, is the UTF-8
+			// replacement character: the sign that somebody decoded bytes as text.
+			const head = Buffer.from(result.body ?? new Uint8Array())
+				.subarray(0, 3)
+				.toString('hex');
+			const intact = head === 'ffd8ff';
+			if (adapter.capabilities.binary && !intact) {
+				fail(
+					'binary',
+					`declares binary: true, but parse() returned ${head} rather than ffd8ff — the ` +
+						'bytes did not survive. An image request routed here would return 200 with a ' +
+						'corrupted body.',
+				);
+			}
+			if (!adapter.capabilities.binary && intact) {
+				fail(
+					'binary',
+					'declares binary: false, but parse() returned an intact JPEG. Either the provider ' +
+						'gained the ability or the flag was wrong — flip it, so the router stops ' +
+						'excluding a provider that works.',
+				);
+			}
+			checks++;
+		}
 
 		// The body rule is the contract's, not the adapter's. This is the check that would
 		// have caught ScraperAPI returning bytes for TARGET_ERROR while the others did not.

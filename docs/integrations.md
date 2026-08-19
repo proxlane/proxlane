@@ -730,7 +730,24 @@ scrapfly     7b2263  application/json            wrapped in an envelope
 ```
 
 `efbfbd` is the UTF-8 replacement character, and the `charset` appended to a binary
-content-type is the tell. Half the launch providers cannot carry bytes at all.
+content-type is the tell.
+
+**That table measures the wrong layer, and the correction is the lesson.** It is the providers'
+own wire responses; what matters is what `parse` produces from them. Scrapfly reports
+`result.format: 'binary'` and base64-encodes the content, which the adapter already decodes — so
+its envelope is not a barrier at all. Measured through the adapters:
+
+```
+scrapingbee  ffd8ff  intact
+scrapfly     ffd8ff  intact      <- declared false for an hour, from the table above
+scraperapi   efbfbd  corrupt
+brightdata   efbfbd  corrupt     <- adapter asks for format: json, which is lossy
+```
+
+So conformance asserts the `binary` flag against a recorded JPEG **through `parse`**, in both
+directions: `true` with broken bytes is the dangerous error, `false` with intact bytes is the
+wasteful one that excludes a working provider — and it is the one that actually happened. A
+`binary` fixture is required of every adapter, because a claim nothing checks is not a claim.
 
 So `binary` is a declared capability and `binary=true` a request parameter, filtered in
 `isCapable` before anything is spent. Without it the chain sends an image to whoever is first —
