@@ -228,8 +228,24 @@ jobs:
           # running before they think to curl anything. A literal "proxlane gateway on" match
           # broke the moment the version was added, so this asserts the shape that replaced it
           # rather than going loose enough to pass either way.
-          docker logs proxlane-smoke 2>&1 | grep -qE "proxlane gateway [0-9]+\.[0-9]+\.[0-9]+ on" \
-            || { echo "::error::the boot banner is missing or does not name a version"; docker logs proxlane-smoke; exit 1; }
+          #
+          # CAPTURED FIRST, NOT PIPED INTO `grep -q`. `-q` exits on the first match, which
+          # SIGPIPEs `docker logs`; `shell: bash` is `-o pipefail`, so the pipeline reports 141
+          # and the step fails BECAUSE the banner was found. The error it prints is the exact
+          # opposite of what happened, directly above a dump of the banner it says is missing.
+          #
+          # NOT a volume race, which is the plausible-sounding wrong answer: the log here is
+          # ~1.3 KB, far inside the 64 KB pipe buffer, and it still happens. `docker logs` is a
+          # client streaming from the daemon, not one write to a pipe, so it is still mid-call
+          # when grep leaves. Measured over 25 boots of this exact image and sequence: the old
+          # line failed 12 times, this one zero. It is rarer on the CI runner than locally,
+          # which is why it read as "that job is occasionally flaky" for as long as it did.
+          LOGS=$(docker logs proxlane-smoke 2>&1)
+          if ! printf '%s' "$LOGS" | grep -E "proxlane gateway [0-9]+\.[0-9]+\.[0-9]+ on" >/dev/null; then
+            echo "::error::the boot banner is missing or does not name a version"
+            printf '%s\n' "$LOGS"
+            exit 1
+          fi
           echo "  boot banner present, with a version"
 
       - name: gateway logs
