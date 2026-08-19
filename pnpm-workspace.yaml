@@ -13,6 +13,22 @@ packages:
 #
 # Versions resolved from the registry 2026-08-06. Do not bump by hand without checking
 # the Why column in CLAUDE.md — two of these are deliberately not latest.
+# Transitive pins, for a vulnerability whose fix is not available upstream.
+#
+# NOT the catalog, and deliberately so: the catalog is the pinned-toolchain table, one row per
+# thing this repo chose. Nothing here was chosen — these are other people's dependencies, and
+# repo:check assertion 6 would demand a CLAUDE.md row for each.
+#
+# esbuild: drizzle-kit 0.31.10 pulls the deprecated `@esbuild-kit/esm-loader`, which pins
+# esbuild 0.18.20. GHSA-67mh-4wv8-2f99 lets any website read responses from esbuild's DEV
+# SERVER — which drizzle-kit never starts, so the practical risk here is nil. It is pinned
+# anyway because an open alert nobody acts on is how a real one gets skipped. drizzle-kit
+# already resolves esbuild 0.25.12 for its own direct dependency, so this dedupes rather than
+# introducing a version. There is no drizzle-kit release that drops the loader: 0.31.10 is the
+# newest stable, and the next line is a 1.0 RC that CLAUDE.md's pin rules out.
+overrides:
+  esbuild@<0.25.0: ^0.25.12
+
 catalog:
   # runtime — the gateway hot path
   
