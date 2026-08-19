@@ -1,5 +1,15 @@
 # @proxlane/shared
 
+## 0.5.0
+
+### Minor Changes
+
+- [#125](https://github.com/proxlane/proxlane/pull/125) [`fc0b684`](https://github.com/proxlane/proxlane/commit/fc0b684a60341478b09c45a6e2cf675109928497) Thanks [@scarsam](https://github.com/scarsam)! - Returning a body byte for byte is now a declared capability, and `binary=true` a request
+  parameter. An image request used to return 200 with a corrupted body; it now routes only to
+  providers that can carry bytes, or answers `NO_PROVIDER_AVAILABLE`. Three of the four launch
+  providers carry binary. ScraperAPI does not — it decodes bodies as UTF-8, and its own API says
+  so: `binary_target=true` answers 400, "The file type you are trying to scrape is not supported."
+
 ## 0.4.0
 
 ### Minor Changes

@@ -1,5 +1,43 @@
 # @proxlane/adapters
 
+## 0.5.0
+
+### Minor Changes
+
+- [#125](https://github.com/proxlane/proxlane/pull/125) [`fc0b684`](https://github.com/proxlane/proxlane/commit/fc0b684a60341478b09c45a6e2cf675109928497) Thanks [@scarsam](https://github.com/scarsam)! - Returning a body byte for byte is now a declared capability, and `binary=true` a request
+  parameter. An image request used to return 200 with a corrupted body; it now routes only to
+  providers that can carry bytes, or answers `NO_PROVIDER_AVAILABLE`. Three of the four launch
+  providers carry binary. ScraperAPI does not — it decodes bodies as UTF-8, and its own API says
+  so: `binary_target=true` answers 400, "The file type you are trying to scrape is not supported."
+
+- [#127](https://github.com/proxlane/proxlane/pull/127) [`ae360a9`](https://github.com/proxlane/proxlane/commit/ae360a9b3f0ebe618c93abc4b47d301a2601f4ff) Thanks [@scarsam](https://github.com/scarsam)! - The Bright Data adapter asks for `format: 'raw'` and can now return bytes. It used `json` because
+  "raw returns an API 200 whatever the target did" — true of the API's status line, but
+  `x-brd-status-code` carries the target's status on every raw response, so raw is a strict superset:
+  same outcomes, plus the original bytes and the target's real charset. Three of four adapters now
+  carry binary; ScraperAPI cannot, and says so.
+
+- [#123](https://github.com/proxlane/proxlane/pull/123) [`ae17465`](https://github.com/proxlane/proxlane/commit/ae174650f2803c0f4cb035035306d2b6f12f0649) Thanks [@scarsam](https://github.com/scarsam)! - A cost number now carries its unit, and units are never summed together. Three launch providers
+  sell credits and Bright Data bills cents, so `X-Cost-Estimate` was adding one provider credit to
+  fifteen hundredths of a cent and reporting the result as a quantity. `CostTable.unit` is required,
+  the gateway emits `X-Cost-Unit` beside the figure, and a chain that spent in two units reports
+  `mixed` rather than an invented total.
+
+- [#126](https://github.com/proxlane/proxlane/pull/126) [`0a63439`](https://github.com/proxlane/proxlane/commit/0a63439da4c60c8a43bc42ebedc68f709104ca94) Thanks [@scarsam](https://github.com/scarsam)! - Scrapfly is declared binary-capable, which it always was — it reports `result.format: 'binary'`
+  and base64-encodes the content, and the adapter already decoded that. The earlier `false` came
+  from measuring the provider's wire response instead of the adapter's output. Conformance now
+  asserts the `binary` flag against a recorded JPEG through `parse`, in both directions, and the
+  fixture is required of every adapter.
+
+### Patch Changes
+
+- [#128](https://github.com/proxlane/proxlane/pull/128) [`8e146cd`](https://github.com/proxlane/proxlane/commit/8e146cd6e0a454c00c99e69e70547d642a34778f) Thanks [@scarsam](https://github.com/scarsam)! - The conformance binary check no longer passes a corrupt file whose magic bytes happen to be
+  printable. WebP is "RIFF", PDF is "%PDF", ZIP and XLSX are "PK", GIF is "GIF8" — all survive a
+  UTF-8 round trip intact while the rest of the file is destroyed, so a magic-only check went quiet
+  on every one of them. It now also counts U+FFFD replacement characters, whose presence in a
+  binary body is the corruption itself, whatever the format.
+- Updated dependencies [[`fc0b684`](https://github.com/proxlane/proxlane/commit/fc0b684a60341478b09c45a6e2cf675109928497)]:
+  - @proxlane/shared@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
