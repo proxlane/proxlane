@@ -77,10 +77,10 @@ export const capabilities: ProviderCapabilities = {
 	fastTimeoutMs: 35_000,
 	post: true,
 	/**
-	 * An ADAPTER limitation, not a provider one: Bright Data returns bytes intact,
-	 * but `translate` asks for `format: 'json'` so the body comes back as a JSON string.
-	 * Flip this the day the adapter learns to ask for raw when the caller wants bytes.
+	 * Raw mode returns the target's original bytes, so a JPEG round-trips exactly — verified
+	 * through the adapter on 2026-08-19: ffd8ff. This was false while the adapter asked for
+	 * `format: 'json'`, whose `body` is a lossy UTF-8 string with no base64 alternative.
 	 */
-	binary: false,
+	binary: true,
 	costTable,
 };

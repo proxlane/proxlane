@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "dead-host",
-	"recordedAt": "2026-08-17T08:36:40.119Z",
+	"recordedAt": "2026-08-19T09:33:45.457Z",
 	"adapter": "brightdata",
 	"target": {
 		"url": "https://not-a-real-host.invalid/",
@@ -21,14 +21,14 @@
 		"headers": {
 			"access-control-allow-origin": "*",
 			"connection": "keep-alive",
-			"content-length": "395",
-			"content-type": "application/json; charset=utf-8",
 			"date": "VOLATILE",
-			"etag": "W/\"18b-lPx4800nmUrAyt3oUTiXr6PKMog\"",
 			"server": "nginx",
-			"vary": "Accept-Encoding"
+			"transfer-encoding": "chunked",
+			"x-brd-error": "Could not resolve host not-a-real-host.invalid. Check host name is correctly spelled and retry. If host is properly spelled or can only be resolved from a specific region contact brightdata support for DNS support.",
+			"x-brd-error-code": "proxy_error",
+			"x-brd-status-code": "502"
 		},
-		"bodyBase64": "eyJzdGF0dXNfY29kZSI6NTAyLCJoZWFkZXJzIjp7IngtYnJkLWVycm9yIjoiQ291bGQgbm90IHJlc29sdmUgaG9zdCBub3QtYS1yZWFsLWhvc3QuaW52YWxpZC4gQ2hlY2sgaG9zdCBuYW1lIGlzIGNvcnJlY3RseSBzcGVsbGVkIGFuZCByZXRyeS4gSWYgaG9zdCBpcyBwcm9wZXJseSBzcGVsbGVkIG9yIGNhbiBvbmx5IGJlIHJlc29sdmVkIGZyb20gYSBzcGVjaWZpYyByZWdpb24gY29udGFjdCBicmlnaHRkYXRhIHN1cHBvcnQgZm9yIEROUyBzdXBwb3J0LiIsIngtYnJkLWVycm9yLWNvZGUiOiJwcm94eV9lcnJvciIsImRhdGUiOiJNb24sIDE3IEF1ZyAyMDI2IDA4OjM2OjQwIEdNVCIsImNvbm5lY3Rpb24iOiJjbG9zZSIsInRyYW5zZmVyLWVuY29kaW5nIjoiY2h1bmtlZCJ9LCJib2R5IjoiIn0=",
-		"bodyBytes": 395
+		"bodyBase64": "",
+		"bodyBytes": 0
 	}
 }

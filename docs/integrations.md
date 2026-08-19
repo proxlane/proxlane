@@ -739,10 +739,31 @@ its envelope is not a barrier at all. Measured through the adapters:
 
 ```
 scrapingbee  ffd8ff  intact
-scrapfly     ffd8ff  intact      <- declared false for an hour, from the table above
-scraperapi   efbfbd  corrupt
-brightdata   efbfbd  corrupt     <- adapter asks for format: json, which is lossy
+scrapfly     ffd8ff  intact
+brightdata   ffd8ff  intact      <- after switching that adapter to format: raw
+scraperapi   efbfbd  corrupt     <- the provider itself, and it says so
 ```
+
+**Three of four, not two.** Two of the three "cannot" answers were ours, not the providers':
+
+- **Scrapfly** always could. It reports `result.format: 'binary'` and base64-encodes the content,
+  which `parse` already decoded. The `false` came from measuring the provider's wire response — a
+  JSON envelope, naturally — instead of the adapter's output.
+- **Bright Data** always could too, in raw mode, which is what `bidprowl` has used in production
+  for listing images all along. The adapter asked for `format: 'json'` on the stated grounds that
+  "raw returns an API 200 whatever the target did, so a 404 is indistinguishable from a success".
+  That is true of the API's status line and false of the response: `x-brd-status-code` carries the
+  target's status on every raw response, measured correct for 404, 503 and 200. Raw is therefore a
+  strict superset — target status, error code and message all still present, plus the original
+  bytes — so the adapter now asks for raw and gains pre-charset-decoding bytes for the detector,
+  which section 2 wants and json could never supply.
+
+**ScraperAPI genuinely cannot, and is specific about it.** `binary_target=true` is a real
+parameter of theirs: with a PDF it returns `%PDF` intact, and with a JPEG or PNG it returns
+`400 The file type you are trying to scrape is not supported`. Without the flag it does not error
+at all — it returns 200 and UTF-8 mojibake. So `binary: false` here means "not images", which is
+the case that matters; if fetching PDFs ever becomes a use case, this flag has to become a set of
+content types rather than a boolean.
 
 So conformance asserts the `binary` flag against a recorded JPEG **through `parse`**, in both
 directions: `true` with broken bytes is the dangerous error, `false` with intact bytes is the

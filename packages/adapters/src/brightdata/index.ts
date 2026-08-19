@@ -10,7 +10,7 @@ import { capabilities } from './capabilities.js';
 import {
 	BRD_ERROR_HEADER,
 	BRD_MESSAGE_HEADER,
-	BrightdataResponse,
+	BRD_STATUS_HEADER,
 	targetStatusFromMessage,
 } from './schema.js';
 
@@ -47,9 +47,24 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 	const payload: Record<string, unknown> = {
 		zone,
 		url: req.url,
-		// `json`, never `raw`. Raw returns the body and an API 200 whatever the target did, so
-		// a 404 is indistinguishable from a success. See schema.ts.
-		format: 'json',
+		// `raw`, and this is a reversal. The original said "`json`, never `raw`. Raw returns the
+		// body and an API 200 whatever the target did, so a 404 is indistinguishable from a
+		// success" — true of the API's own status line, and false of the response as a whole.
+		// Bright Data puts the target's status in `x-brd-status-code` on every raw response.
+		//
+		// With that header, raw is a strict superset of json here. Measured 2026-08-19:
+		//
+		//   target status   x-brd-status-code, correct for 404, 503 and 200
+		//   provider errors x-brd-error-code + x-brd-error, both still present
+		//   content type    the target's own, directly on the response
+		//   body            the ORIGINAL BYTES
+		//
+		// That last line is why it matters beyond images. The json envelope carries `body` as a
+		// lossy UTF-8 string — verified: a JPEG arrives as `efbfbd` mojibake and there is no
+		// base64 field — so binary was impossible and the charset was a guess. `integrations.md`
+		// section 2 asks for post-transfer-decoding, PRE-charset-decoding bytes so the detector
+		// fingerprints the page rather than a re-encoding of it, and json could not supply them.
+		format: 'raw',
 		method: req.method,
 	};
 
@@ -95,11 +110,8 @@ const COST = {
 };
 
 function parse(res: ProviderHttpResponse): ParsedResult {
-	const text = new TextDecoder().decode(res.body);
-
-	// The API's OWN status, before the envelope. 200 for everything it accepted, including
-	// every kind of target failure; anything else is a request or credential problem and the
-	// body is plain text rather than JSON.
+	// The API's OWN status, before anything about the target. 200 for everything it accepted,
+	// including every kind of target failure; anything else is a request or credential problem.
 	if (res.status !== 200) {
 		// 401/403 is the token; 400 is usually a zone that does not exist. Both are account
 		// facts, which is what AUTH_FAILED means and why it cools per-account rather than
@@ -113,27 +125,33 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		return { outcome: 'PROVIDER_ERROR', upstreamStatusCode: res.status, cost: COST };
 	}
 
-	const parsed = BrightdataResponse.safeParse(JSON.parse(text));
-	if (!parsed.success) {
-		// The envelope changed shape. That is the one thing PROVIDER_DRIFT is for.
+	const code = header(res.headers, BRD_ERROR_HEADER);
+	const message = header(res.headers, BRD_MESSAGE_HEADER);
+	const statusHeader = header(res.headers, BRD_STATUS_HEADER);
+	const targetStatus = statusHeader === undefined ? undefined : Number(statusHeader);
+
+	// NO x-brd-status-code AND NO ERROR is drift. In raw mode that header is how the target's
+	// answer reaches us at all, so its absence means the contract changed under us — which is
+	// the one thing PROVIDER_DRIFT is for. Checked before the error branches, because those can
+	// legitimately arrive without it.
+	if (code === undefined && (targetStatus === undefined || !Number.isFinite(targetStatus))) {
 		return { outcome: 'PROVIDER_DRIFT', cost: COST };
 	}
-	const envelope = parsed.data;
-	const code = header(envelope.headers, BRD_ERROR_HEADER);
-	const message = header(envelope.headers, BRD_MESSAGE_HEADER);
 
-	// THE PART THAT MATTERS. A 502 from this provider means one of three unrelated things,
-	// and `status_code` alone cannot tell them apart:
+	// THE PART THAT MATTERS. A failure here means one of three unrelated things, and the status
+	// alone cannot tell them apart:
 	//
 	//   the target returned a status Bright Data rejects   -> a TARGET fact
 	//   the host does not resolve                          -> a TARGET fact
 	//   Bright Data itself failed                          -> a PROVIDER fact
 	//
-	// Reading only the status would file all three as PROVIDER_ERROR: blaming the provider
-	// for a dead target, cooling it down for a domain that is simply gone, and failing over
-	// twice more to rediscover the same 404.
+	// Reading only the status would file all three as PROVIDER_ERROR: blaming the provider for a
+	// dead target, cooling it down for a domain that is simply gone, and failing over twice more
+	// to rediscover the same 404.
 	if (code !== undefined && message !== undefined) {
 		if (code === 'http_status') {
+			// The target's status is in the message here rather than the status header, because
+			// Bright Data rejected the response and reports its own 502 as the status.
 			const target = targetStatusFromMessage(message);
 			if (target === 404) {
 				return { outcome: 'TARGET_NOT_FOUND', upstreamStatusCode: 404, cost: COST };
@@ -145,8 +163,8 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 				return { outcome: 'TARGET_RATE_LIMITED', upstreamStatusCode: 429, cost: COST };
 			}
 			if (target === 403 || target === 401) {
-				// The target refused, having been unblocked successfully. That is a hard block:
-				// the provider did its job and the site said no anyway.
+				// The target refused, having been unblocked successfully. That is a hard block: the
+				// provider did its job and the site said no anyway.
 				return { outcome: 'HARD_BLOCK', upstreamStatusCode: target, cost: COST };
 			}
 		}
@@ -154,61 +172,73 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		// target, found a captcha or protection page, and refused to hand it over.
 		//
 		// That is HARD_BLOCK, not PROVIDER_ERROR. The distinction is the product: a provider
-		// error says try someone else because this one is broken; a hard block says the target
-		// is defended and the next provider will probably meet the same wall. They cool
-		// differently and they mean different things to whoever reads the outcome.
+		// error says try someone else because this one is broken; a hard block says the target is
+		// defended and the next provider will probably meet the same wall. They cool differently.
 		//
-		// HARD_BLOCK is the one block an adapter may return, precisely because the provider
-		// says so in the response. SOFT_BLOCK stays the gateway's to assign, after detection.
+		// HARD_BLOCK is the one block an adapter may return, precisely because the provider says
+		// so in the response. SOFT_BLOCK stays the gateway's to assign, after detection.
 		if (code === 'reject_block') {
-			return { outcome: 'HARD_BLOCK', upstreamStatusCode: envelope.status_code, cost: COST };
+			return { outcome: 'HARD_BLOCK', ...upstream(targetStatus), cost: COST };
 		}
-		// A HOST THAT DOES NOT EXIST, which arrives as `proxy_error` — the same code Bright
-		// Data uses for its own network trouble. Left in the catch-all below it became
-		// PROVIDER_ERROR: a dead domain blamed on the provider, cooling it down for everyone
-		// and, since PROVIDER_ERROR is the retryable one, buying a second identical failure at
-		// the terminal hop.
+		// A HOST THAT DOES NOT EXIST, which arrives as `proxy_error` — the same code Bright Data
+		// uses for its own network trouble. Left in the catch-all below it became PROVIDER_ERROR:
+		// a dead domain blamed on the provider, cooling it for everyone, and since PROVIDER_ERROR
+		// is the retryable one, buying a second identical failure at the terminal hop.
 		//
-		// The header comment on this file already claimed DNS was handled as a target fact. It
-		// said so and did not do it, which is the shape worth watching — the reasoning was
-		// right and only the `http_status` branch above implemented it.
-		//
-		// Matched on the message because `proxy_error` genuinely does cover both. A reword
-		// falls back to PROVIDER_ERROR, which is the previous behaviour rather than something
-		// new; the fixture is what keeps it from happening quietly.
+		// Matched on the message because `proxy_error` genuinely covers both. A reword falls back
+		// to PROVIDER_ERROR, which is the previous behaviour rather than something new; the
+		// fixture is what keeps it from happening quietly.
 		if (code === 'proxy_error' && /could not resolve host/i.test(message)) {
-			return { outcome: 'TARGET_ERROR', upstreamStatusCode: envelope.status_code, cost: COST };
+			return { outcome: 'TARGET_ERROR', ...upstream(targetStatus), cost: COST };
 		}
 		// Anything else Bright Data names is its own failure to deliver a page.
-		return { outcome: 'PROVIDER_ERROR', upstreamStatusCode: envelope.status_code, cost: COST };
+		return { outcome: 'PROVIDER_ERROR', ...upstream(targetStatus), cost: COST };
 	}
 
-	// No error header: the envelope carries the target's real answer.
-	if (envelope.status_code === 404) {
+	// No error header: the status header carries the target's real answer.
+	if (targetStatus === 404) {
 		return { outcome: 'TARGET_NOT_FOUND', upstreamStatusCode: 404, cost: COST };
 	}
-	if (envelope.status_code === 429) {
+	if (targetStatus === 429) {
 		return { outcome: 'TARGET_RATE_LIMITED', upstreamStatusCode: 429, cost: COST };
 	}
-	if (envelope.status_code === 403 || envelope.status_code === 401) {
-		return { outcome: 'HARD_BLOCK', upstreamStatusCode: envelope.status_code, cost: COST };
+	if (targetStatus === 403 || targetStatus === 401) {
+		return { outcome: 'HARD_BLOCK', upstreamStatusCode: targetStatus, cost: COST };
 	}
-	if (envelope.status_code >= 500) {
-		return { outcome: 'TARGET_ERROR', upstreamStatusCode: envelope.status_code, cost: COST };
+	if (targetStatus !== undefined && targetStatus >= 500) {
+		return { outcome: 'TARGET_ERROR', upstreamStatusCode: targetStatus, cost: COST };
 	}
 
 	// A 2xx or 3xx with a body. NOT called a success here: the detector runs downstream and
 	// decides whether this is content or a challenge page wearing a 200.
+	//
+	// THE BODY IS THE ORIGINAL BYTES, which is the whole gain of raw mode — no decode, no
+	// re-encode, so a JPEG survives and the detector fingerprints what the target actually sent.
+	const contentType = header(res.headers, 'content-type');
+	const charset = charsetFrom(contentType);
 	return {
 		outcome: 'OK',
-		body: new TextEncoder().encode(envelope.body),
-		contentType: header(envelope.headers, 'content-type') ?? 'text/html',
-		// Honest rather than flattering: the body arrived already decoded, so utf-8 is what it
-		// now is, whatever the target originally sent. See schema.ts.
-		charset: 'utf-8',
-		upstreamStatusCode: envelope.status_code,
+		body: res.body,
+		contentType: contentType ?? 'application/octet-stream',
+		// The TARGET's charset, from its own content-type, rather than the utf-8 the json
+		// envelope forced us to claim. Absent when they sent none, which is honest: the detector
+		// works on bytes and the gateway decides how to decode.
+		...(charset === undefined ? {} : { charset }),
+		...upstream(targetStatus),
 		cost: COST,
 	};
+}
+
+/** `upstreamStatusCode` only when there is a real number to report. */
+function upstream(status: number | undefined): { upstreamStatusCode?: number } {
+	return status === undefined || !Number.isFinite(status) ? {} : { upstreamStatusCode: status };
+}
+
+/** `text/html; charset=iso-8859-1` -> `iso-8859-1`. */
+function charsetFrom(contentType: string | undefined): string | undefined {
+	if (contentType === undefined) return undefined;
+	const m = /charset=\s*"?([^";]+)"?/i.exec(contentType);
+	return m?.[1]?.trim().toLowerCase();
 }
 
 void MICROCREDITS_PER_CREDIT;
