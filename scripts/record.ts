@@ -51,6 +51,7 @@ export type TargetCategory =
 	| 'target-not-found'
 	| 'target-error'
 	| 'dead-host'
+	| 'binary'
 	| 'target-rate-limited'
 	| 'slow-target'
 	| 'deadline'
@@ -137,6 +138,22 @@ export const TARGETS: readonly Target[] = [
 		renderJs: false,
 		expect: 'TARGET_ERROR',
 		why: 'DNS is a fact about the target. The taxonomy says so: TARGET_ERROR is "Target site 5xx or DNS dead"',
+	},
+	{
+		// A JPEG, to settle whether an adapter can return a body byte for byte.
+		//
+		// Half the launch providers cannot, and the failure is silent: ScraperAPI decodes bodies
+		// as text and returns UTF-8 mojibake under a 200. Conformance asserts the declared
+		// `binary` capability against what `parse` does to THIS fixture, in both directions, so
+		// a wrong claim cannot ship — which it briefly did, from measuring the provider's wire
+		// response rather than the adapter's output.
+		//
+		// httpbingo.org/image/jpeg is stable, tiny and not a commercial target.
+		category: 'binary',
+		url: 'https://httpbingo.org/image/jpeg',
+		renderJs: false,
+		expect: 'OK',
+		why: 'bytes must survive the round trip, or they must be declared not to',
 	},
 	{
 		category: 'target-rate-limited',

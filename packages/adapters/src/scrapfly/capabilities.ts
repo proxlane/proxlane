@@ -42,9 +42,16 @@ export const capabilities: ProviderCapabilities = {
 	fastTimeoutMs: 20_000,
 	post: false,
 	/**
-	 * Wraps every response in a JSON envelope, so the body arrives as a string and
-	 * cannot survive re-encoding. Still JSON with `format=raw`. Measured 2026-08-19.
+	 * Scrapfly reports `result.format: 'binary'` for a non-text body and base64-encodes the
+	 * content, which `parse` already decodes — so bytes round-trip exactly, with the target's
+	 * `status_code` still in the envelope. Verified through the adapter on 2026-08-19: a JPEG
+	 * comes back `ffd8ff`.
+	 *
+	 * This said `false` for an hour because the first measurement looked at the WRONG LAYER —
+	 * the provider's wire response, which is of course the JSON envelope (`{"c…`) — instead of
+	 * what `parse` produces from it. Conformance now asserts this flag against a recorded
+	 * fixture through `parse`, so the same mistake fails the build rather than shipping.
 	 */
-	binary: false,
+	binary: true,
 	costTable,
 };
