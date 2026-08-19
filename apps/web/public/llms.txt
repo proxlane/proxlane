@@ -13,6 +13,7 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 
 ## Docs
 
+- [FAQ](https://proxlane.dev/docs/faq): what it does, what it costs, what happens to your keys.
 - [Quickstart](https://proxlane.dev/docs/quickstart): Make your first request in about a minute.
 - [Hosting](https://proxlane.dev/docs/hosting): Where the gateway runs well, where it runs badly, and why.
 - [API reference](https://proxlane.dev/docs/api): Every endpoint, parameter and header the gateway implements.

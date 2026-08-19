@@ -16,6 +16,7 @@ import { Route as DocsAgentsRouteImport } from './routes/docs/agents'
 import { Route as DocsApiRouteImport } from './routes/docs/api'
 import { Route as DocsChangelogRouteImport } from './routes/docs/changelog'
 import { Route as DocsFailoverRouteImport } from './routes/docs/failover'
+import { Route as DocsFaqRouteImport } from './routes/docs/faq'
 import { Route as DocsHostingRouteImport } from './routes/docs/hosting'
 import { Route as DocsOutcomesRouteImport } from './routes/docs/outcomes'
 import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
@@ -56,6 +57,11 @@ const DocsFailoverRoute = DocsFailoverRouteImport.update({
   path: '/docs/failover',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsFaqRoute = DocsFaqRouteImport.update({
+  id: '/docs/faq',
+  path: '/docs/faq',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsHostingRoute = DocsHostingRouteImport.update({
   id: '/docs/hosting',
   path: '/docs/hosting',
@@ -84,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/docs/api': typeof DocsApiRoute
   '/docs/changelog': typeof DocsChangelogRoute
   '/docs/failover': typeof DocsFailoverRoute
+  '/docs/faq': typeof DocsFaqRoute
   '/docs/hosting': typeof DocsHostingRoute
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
@@ -97,6 +104,7 @@ export interface FileRoutesByTo {
   '/docs/api': typeof DocsApiRoute
   '/docs/changelog': typeof DocsChangelogRoute
   '/docs/failover': typeof DocsFailoverRoute
+  '/docs/faq': typeof DocsFaqRoute
   '/docs/hosting': typeof DocsHostingRoute
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/docs/api': typeof DocsApiRoute
   '/docs/changelog': typeof DocsChangelogRoute
   '/docs/failover': typeof DocsFailoverRoute
+  '/docs/faq': typeof DocsFaqRoute
   '/docs/hosting': typeof DocsHostingRoute
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
@@ -126,6 +135,7 @@ export interface FileRouteTypes {
     | '/docs/api'
     | '/docs/changelog'
     | '/docs/failover'
+    | '/docs/faq'
     | '/docs/hosting'
     | '/docs/outcomes'
     | '/docs/quickstart'
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/docs/api'
     | '/docs/changelog'
     | '/docs/failover'
+    | '/docs/faq'
     | '/docs/hosting'
     | '/docs/outcomes'
     | '/docs/quickstart'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/docs/api'
     | '/docs/changelog'
     | '/docs/failover'
+    | '/docs/faq'
     | '/docs/hosting'
     | '/docs/outcomes'
     | '/docs/quickstart'
@@ -166,6 +178,7 @@ export interface RootRouteChildren {
   DocsApiRoute: typeof DocsApiRoute
   DocsChangelogRoute: typeof DocsChangelogRoute
   DocsFailoverRoute: typeof DocsFailoverRoute
+  DocsFaqRoute: typeof DocsFaqRoute
   DocsHostingRoute: typeof DocsHostingRoute
   DocsOutcomesRoute: typeof DocsOutcomesRoute
   DocsQuickstartRoute: typeof DocsQuickstartRoute
@@ -224,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsFailoverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/faq': {
+      id: '/docs/faq'
+      path: '/docs/faq'
+      fullPath: '/docs/faq'
+      preLoaderRoute: typeof DocsFaqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs/hosting': {
       id: '/docs/hosting'
       path: '/docs/hosting'
@@ -262,6 +282,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsApiRoute: DocsApiRoute,
   DocsChangelogRoute: DocsChangelogRoute,
   DocsFailoverRoute: DocsFailoverRoute,
+  DocsFaqRoute: DocsFaqRoute,
   DocsHostingRoute: DocsHostingRoute,
   DocsOutcomesRoute: DocsOutcomesRoute,
   DocsQuickstartRoute: DocsQuickstartRoute,

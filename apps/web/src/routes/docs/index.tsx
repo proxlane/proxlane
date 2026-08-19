@@ -24,6 +24,11 @@ const SECTIONS: readonly {
 		heading: 'Get it working',
 		items: [
 			{
+				to: '/docs/faq',
+				title: 'Questions people actually ask',
+				blurb: 'What it does, what it costs, what happens to your keys.',
+			},
+			{
 				to: '/docs/quickstart',
 				title: 'Quickstart',
 				blurb: 'Your first request, in about a minute.',

@@ -20,6 +20,7 @@ export interface DocNavItem {
 /** Every docs page, in reading order. The sidebar and `llms.txt` both derive from this. */
 export const DOC_NAV: readonly DocNavItem[] = [
 	{ to: '/docs', title: 'Overview' },
+	{ to: '/docs/faq', title: 'FAQ' },
 	{ to: '/docs/quickstart', title: 'Quickstart' },
 	{ to: '/docs/hosting', title: 'Hosting' },
 	{ to: '/docs/api', title: 'API reference' },
