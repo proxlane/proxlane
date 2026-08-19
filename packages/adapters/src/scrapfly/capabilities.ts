@@ -3,6 +3,8 @@ import type { CostTable, ProviderCapabilities } from '../contract.js';
 const costTable: CostTable = {
 	effectiveDate: '2026-08-07',
 	sourceUrl: 'https://scrapfly.io/docs/scrape-api/getting-started',
+	/** Scrapfly sells credits; what a credit costs depends on the plan. */
+	unit: 'provider-credits',
 	// 1 credit on the datacenter pool, confirmed live: the success probe reported
 	// `PROXY_DATACENTER_NETWORK, amount 1`.
 	base: 1_000_000,

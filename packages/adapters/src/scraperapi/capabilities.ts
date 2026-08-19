@@ -7,6 +7,8 @@ import type { CostTable, ProviderCapabilities } from '../contract.js';
 const costTable: CostTable = {
 	effectiveDate: '2026-08-07',
 	sourceUrl: 'https://docs.scraperapi.com/control-and-optimization/supported-parameters',
+	/** ScraperAPI sells credits; what a credit costs depends on the plan. */
+	unit: 'provider-credits',
 	// 1 credit for a plain request.
 	base: 1_000_000,
 	multipliers: {

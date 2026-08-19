@@ -8,6 +8,8 @@ import type { CostTable, ProviderCapabilities } from '../contract.js';
 const costTable: CostTable = {
 	effectiveDate: '2026-08-16',
 	sourceUrl: 'https://brightdata.com/pricing/web-unlocker',
+	/** Bright Data Web Unlocker bills money per request and issues no credits, so cents is its native unit rather than a conversion. */
+	unit: 'usd-cents',
 	/**
 	 * $1.50 per 1,000 requests on pay-as-you-go, so 1,500 microcredits each if a credit is a
 	 * cent. Volume tiers exist ($1.30/1k on Scale) and are NOT modelled: the router would use

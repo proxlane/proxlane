@@ -101,6 +101,11 @@ const HEADERS: Record<string, { description: string; schema: object }> = {
 			'What happened. Open: it gains members as adapters land, so branch on X-Outcome-Class instead. Absent when the request never became a scrape — a 401 or a 501 has no outcome to report, though it still carries X-Outcome-Class.',
 		schema: { $ref: '#/components/schemas/Outcome' },
 	},
+	'X-Cost-Unit': {
+		description:
+			"What X-Cost-Estimate counts. `provider-credits` is the serving provider's own credits; `usd-cents` is money, used by providers that bill per request and issue no credits. Absent when a failover chain spent in more than one unit, in which case X-Cost-Estimate is the literal string `mixed` rather than a sum of incomparable numbers — the per-attempt figures in the body each carry their own unit.",
+		schema: { type: 'string', enum: ['provider-credits', 'usd-cents'] },
+	},
 	'X-Outcome-Class': {
 		description:
 			'The coarse class. Closed: these six never grow. This is the one to branch on.',

@@ -26,6 +26,7 @@ function caps(id: string): ProviderCapabilities {
 		costTable: {
 			effectiveDate: '2026-08-08',
 			sourceUrl: 'https://x.test/',
+			unit: 'provider-credits',
 			base: 1,
 			multipliers: {},
 		},

@@ -9,6 +9,12 @@ import type { CostTable, ProviderCapabilities } from '../../contract.js';
 const costTable: CostTable = {
 	effectiveDate: '2026-08-07',
 	sourceUrl: 'https://jina.ai/reader/',
+	/**
+	 * Cents, because the keyless tier charges money-per-request and the amount is zero. Not
+	 * `provider-credits`: there is no credit here to be worth anything, so calling it credits
+	 * would make a zero that cannot be compared with anything look like one that can.
+	 */
+	unit: 'usd-cents',
 	// Genuinely zero on the keyless tier — which is the entire reason this adapter exists.
 	// The service meters by tokens (it returns `x-usage-tokens`) and rate-limits anonymous
 	// callers rather than charging them, so there is no credit to convert.

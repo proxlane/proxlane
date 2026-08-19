@@ -718,6 +718,35 @@ The cooldown the failed attempt just armed does not suppress the retry: the chai
 snapshot taken before the walk. Arming a cooldown and honouring it one line later would make
 the setting inert on precisely the outcomes it exists for.
 
+### A cost number carries its unit, and units are never summed together
+
+The four launch providers do not share one. Three sell credits; Bright Data bills money per
+request and issues none. So `CostTable.unit` is required — `provider-credits` or `usd-cents` —
+and `satisfies` makes a new adapter declare it rather than inherit somebody else's.
+
+Found by running the gateway, not by reading it. A plain fetch reported `1.000000` from
+ScraperAPI and `0.001500` from Bright Data: identical-looking numbers three orders of magnitude
+apart, and not the same unit at all. Two things it broke:
+
+- **`X-Cost-Estimate` was adding them.** A chain that failed over ScraperAPI → Bright Data
+  reported `1.0015`, which is one provider credit plus fifteen hundredths of a cent.
+- **Cost-aware routing would have preferred Bright Data by ~667x**, on the arithmetic alone,
+  whatever the real prices were. That is phase 3, so nothing routed on it yet.
+
+**An adapter cannot convert to money, and must not pretend to.** A ScraperAPI credit is worth
+whatever that account's plan says; the same fetch costs different amounts on different tiers. The
+adapter knows "one credit"; only the operator knows what their credits cost. So the unit is
+declared, conversion belongs to whoever holds the invoice, and the gateway adds nothing across
+units: `X-Cost-Estimate` is a sum with `X-Cost-Unit` beside it, or the literal `mixed` with no
+unit header. `mixed` is deliberately not parseable as a number — a caller reading it as a float
+gets `NaN` rather than a plausible wrong figure, and the per-attempt costs in the body each carry
+their own unit.
+
+Also measured, and still uncorrected: ScraperAPI prices some domains differently. A plain fetch of
+`example.com` is 1 credit and of a protected domain was 10 — against a table that says base 1 for
+everything. `multipliers.domain` exists for this; the numbers need observation rather than
+invention, which is what the reported-vs-estimated split is for.
+
 ### The logged grain is the attempt, not the request
 
 A `requests` row records only the **winning** provider. A request that goes

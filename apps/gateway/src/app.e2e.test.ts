@@ -13,10 +13,10 @@ import type { AddressInfo } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
-import { type Adapter, REGISTRY } from '@proxlane/adapters';
+import { type Adapter, type ProviderCapabilities, REGISTRY } from '@proxlane/adapters';
 import { createReplayTransport, loadFixtures } from '@proxlane/vitest-config/replay-transport';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp } from './app.js';
+import { createApp, headersFor } from './app.js';
 import { InMemoryCooldownStore } from './cooldown-store.js';
 import { InMemoryHealthStore } from './health-store.js';
 import type { RequestLine } from './log.js';
@@ -702,6 +702,98 @@ describe('one line per request, covering every exit', () => {
 
 	it('does not log /health, which the orchestrator hits forever', async () => {
 		expect(await capture('/health')).toHaveLength(0);
+	});
+});
+
+describe('cost is never summed across units', () => {
+	// FOUND ON THE LIVE GATEWAY, not by reading. Three launch providers sell credits and Bright
+	// Data bills cents, so a chain that failed over between them reported `1.0015` — one
+	// ScraperAPI credit plus fifteen hundredths of a cent, added as though that were a quantity.
+	// Cost-aware routing would have preferred Bright Data by a factor of ~667 on arithmetic alone.
+
+	it('names the unit alongside the number, and it is the SERVING provider’s unit', async () => {
+		// Derived from whoever served rather than hardcoded. The first version asserted
+		// `provider-credits` and failed because the fixture is served by brightdata, which really
+		// does bill cents — the test was wrong and the header was right, which is the good way
+		// round but only if the test then says something true.
+		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`);
+		expect(r.headers.get('x-cost-estimate')).toMatch(/^\d+\.\d{6}$/);
+		const served = r.headers.get('x-provider-used');
+		const declared = adapters.find((a) => a.adapter.capabilities.id === served)?.adapter
+			.capabilities.costTable.unit;
+		expect(declared, `${served} declares a unit`).toBeDefined();
+		expect(r.headers.get('x-cost-unit')).toBe(declared);
+	});
+
+	it('reports every attempt with its own unit', async () => {
+		// The per-attempt figures are the honest record: each is in its provider's own unit, so a
+		// caller reconciling an invoice has what it needs even when no total exists.
+		const body = (await (
+			await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('target-error'))}`)
+		).json()) as {
+			attempts: { provider: string; costMicrocredits?: number; costUnit?: string }[];
+		};
+		const charged = body.attempts.filter((a) => a.costMicrocredits !== undefined);
+		expect(charged.length).toBeGreaterThan(0);
+		for (const a of charged) {
+			expect(['provider-credits', 'usd-cents'], `${a.provider} declares a unit`).toContain(
+				a.costUnit,
+			);
+		}
+	});
+
+	it('says `mixed` rather than inventing a total across units', async () => {
+		// Constructed, because no recorded fixture chain happens to cross units today — and a
+		// property this important should not wait for one to appear. `mixed` is deliberately not
+		// a number: a caller parsing it as a float gets NaN rather than a plausible wrong figure.
+		const cents: Adapter = {
+			capabilities: {
+				...(adapters[0]?.adapter.capabilities as ProviderCapabilities),
+				id: 'centsprovider',
+				costTable: {
+					effectiveDate: '2026-08-19',
+					sourceUrl: 'https://x.test/',
+					unit: 'usd-cents',
+					base: 1_500,
+					multipliers: {},
+				},
+			},
+			translate: () => ({
+				url: 'https://api.cents.test/',
+				method: 'GET',
+				headers: {},
+				timeoutMs: 1,
+			}),
+			parse: () => ({ outcome: 'OK', cost: { microcredits: 1_500, source: 'estimated' } }),
+		};
+		const merged = headersFor(
+			{
+				outcome: 'OK',
+				attempts: [
+					{
+						provider: 'a',
+						outcome: 'PROVIDER_ERROR',
+						budgetMs: 1,
+						upstreamMs: 1,
+						costMicrocredits: 1_000_000,
+						costUnit: 'provider-credits',
+					},
+					{
+						provider: 'centsprovider',
+						outcome: 'OK',
+						budgetMs: 1,
+						upstreamMs: 1,
+						costMicrocredits: 1_500,
+						costUnit: 'usd-cents',
+					},
+				],
+			},
+			5,
+		);
+		void cents;
+		expect(merged['X-Cost-Estimate']).toBe('mixed');
+		expect(merged['X-Cost-Unit']).toBeUndefined();
+		expect(Number(merged['X-Cost-Estimate'])).toBeNaN();
 	});
 });
 
