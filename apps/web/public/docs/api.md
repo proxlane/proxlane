@@ -35,6 +35,7 @@ generator at it, or open it in any OpenAPI viewer.
 | `country_code` | no | ISO 3166-1 alpha-2 | Where the request should appear to come from |
 | `provider` | no | adapter id | Force one provider and disable failover |
 | `timeout` | no | milliseconds | Deadline for the whole request. Capped at the server's own |
+| `binary` | no | `true`, `1` | Return the body byte for byte. Routes only to providers that can |
 
 ### url
 

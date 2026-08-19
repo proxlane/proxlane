@@ -86,6 +86,13 @@ const PARAMETERS = [
 			'Pin one provider and disable failover. A benchmarking escape hatch. If that provider cannot serve the request you get NO_PROVIDER_AVAILABLE rather than a silent substitution.',
 	},
 	{
+		name: 'binary',
+		required: false,
+		schema: { type: 'string', enum: ['true', '1'] },
+		description:
+			'Ask for the response body byte for byte — an image, a PDF, anything not text. Narrows the chain to providers that can deliver it, which is not all of them: measured on 2026-08-19, two of the four launch providers destroy binary, one by decoding it as UTF-8 and one by wrapping it in a JSON envelope. Without this a request for an image returns 200 with a quietly corrupted body. If no configured provider can serve bytes the answer is NO_PROVIDER_AVAILABLE, which is the honest failure.',
+	},
+	{
 		name: 'timeout',
 		required: false,
 		schema: { type: 'integer', minimum: 8000 },

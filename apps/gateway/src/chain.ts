@@ -169,6 +169,9 @@ export function isCapable(caps: ProviderCapabilities, req: GatewayRequest): bool
 	if (req.renderJs && !caps.renderJs) return false;
 	if (!caps.premiumTiers.has(req.premium)) return false;
 	if (req.method === 'POST' && !caps.post) return false;
+	// Bytes, and most providers cannot. Filtered here rather than discovered from a corrupted
+	// response, because by the time the body is mojibake the request has already been paid for.
+	if (req.binary === true && !caps.binary) return false;
 	if (req.sessionId !== undefined && !caps.sessions) return false;
 	if (req.countryCode !== undefined && caps.countryCodes !== 'all') {
 		if (!caps.countryCodes.has(req.countryCode.toLowerCase())) return false;

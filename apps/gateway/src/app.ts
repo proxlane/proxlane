@@ -437,6 +437,11 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		}
 		const countryCode = c.req.query('country_code');
 		const forced = c.req.query('provider');
+		// Ask for bytes and the chain narrows to providers that can actually deliver them. Same
+		// explicit-truth rule as `render`: presence is not truth, or `binary=false` would route
+		// as though bytes were wanted.
+		const binaryRaw = c.req.query('binary');
+		const binary = binaryRaw === 'true' || binaryRaw === '1';
 
 		// THE PER-REQUEST DEADLINE, which `integrations.md` section 5 has promised since the
 		// budget arithmetic was written ("Clients set their own via the `timeout` param") and
@@ -497,6 +502,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			// absence of the parameter must mean false too. Treating presence as truth is how
 			// `render=false` ends up rendering and billing 5x.
 			renderJs: renderRaw === 'true' || renderRaw === '1',
+			...(binary ? { binary: true } : {}),
 			premium: premiumRaw,
 			deadlineMs,
 			...(countryCode === undefined ? {} : { countryCode }),

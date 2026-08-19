@@ -40,5 +40,10 @@ export const capabilities: ProviderCapabilities = {
 	// yet, and the honest direction is to under-route rather than to advertise a path that
 	// throws. Flip this in the same commit that implements it.
 	post: false,
+	/**
+	 * Decodes bodies as text: the same JPEG came back as UTF-8 mojibake with
+	 * `charset=utf-8` appended to `image/jpeg`. Measured 2026-08-19.
+	 */
+	binary: false,
 	costTable,
 };

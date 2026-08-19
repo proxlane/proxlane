@@ -21,6 +21,7 @@ function caps(over: Partial<ProviderCapabilities> & { id: string }): ProviderCap
 		premiumTiers: new Set(['none']),
 		sessions: false,
 		post: false,
+		binary: false,
 		maxTimeoutMs: 70_000,
 		fastTimeoutMs: 22_000,
 		costTable: {
