@@ -185,11 +185,25 @@ function errorWith(
 	);
 }
 
-function headersFor(r: ChainResult, totalMs: number): Record<string, string> {
+/** Exported for the unit test that pins the mixed-unit case, which no fixture chain produces. */
+export function headersFor(r: ChainResult, totalMs: number): Record<string, string> {
 	// Spend across EVERY attempt, not just the winning one. A failover that cost two charged
 	// hops and reports the price of one is the number that makes margin look better than it
 	// is — see plan.md section 7's unbilled-spend metric.
-	const total = r.attempts.reduce((n, a) => n + (a.costMicrocredits ?? 0), 0);
+	//
+	// SUMMED ONLY WITHIN ONE UNIT, and this is a correction. Three launch providers sell credits
+	// and Bright Data bills cents, so a chain that failed over between them used to report
+	// `1.0015` — one ScraperAPI credit plus fifteen hundredths of a cent, added as though that
+	// were a quantity. Measured on the live gateway, which is how it was found.
+	//
+	// When a chain stayed inside one unit the total is real and is reported with the unit named.
+	// When it crossed units there is no total to give, and inventing one is worse than saying
+	// so — the per-attempt figures are in the response body, each with its own unit.
+	const charged = r.attempts.filter((a) => a.costMicrocredits !== undefined);
+	const units = new Set(charged.map((a) => a.costUnit ?? 'provider-credits'));
+	const total = charged.reduce((n, a) => n + (a.costMicrocredits ?? 0), 0);
+	const mixed = units.size > 1;
+	const unit = mixed ? undefined : [...units][0];
 	return {
 		'X-Outcome': r.outcome,
 		// The coarse, CLOSED class. `X-Outcome` is open and will gain members as adapters land,
@@ -197,7 +211,11 @@ function headersFor(r: ChainResult, totalMs: number): Record<string, string> {
 		// what integration code should switch on. See `OutcomeClass` in @proxlane/shared.
 		'X-Outcome-Class': outcomeClass(r.outcome),
 		'X-Attempts': String(r.attempts.length),
-		'X-Cost-Estimate': (total / 1_000_000).toFixed(6),
+		// `mixed` is rare and is not an error: it means the chain genuinely spent in two
+		// currencies. Reporting the units instead of a number keeps the header parseable — a
+		// caller reading it as a float gets NaN rather than a plausible wrong figure.
+		'X-Cost-Estimate': mixed ? 'mixed' : (total / 1_000_000).toFixed(6),
+		...(unit === undefined ? {} : { 'X-Cost-Unit': unit }),
 		// Gateway time, provider time, and the total, split by subtraction. `operations.md`
 		// section 1 gates p95 on `gw;dur=` specifically, because end-to-end time measures the
 		// provider's afternoon rather than our routing.

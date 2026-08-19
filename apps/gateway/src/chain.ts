@@ -7,6 +7,7 @@
 
 import {
 	type Adapter,
+	type CostUnit,
 	type GatewayRequest,
 	type Outcome,
 	type ParsedResult,
@@ -98,6 +99,12 @@ export interface Attempt {
 	 * unbilled-spend metric in plan.md section 7 exists to watch.
 	 */
 	readonly costMicrocredits?: number;
+	/**
+	 * What `costMicrocredits` is denominated in. Carried per attempt because a chain can mix
+	 * them: three launch providers sell credits and one bills cents, so a failover from
+	 * ScraperAPI to Bright Data produces two numbers that must not be added.
+	 */
+	readonly costUnit?: CostUnit;
 }
 
 export interface ChainResult {
@@ -559,7 +566,12 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				budgetMs: budget.perAttemptMs,
 				upstreamMs,
 				...(res.kind === 'response' ? { latencyMs: res.latencyMs } : {}),
-				...(parsed === undefined ? {} : { costMicrocredits: parsed.cost.microcredits }),
+				...(parsed === undefined
+					? {}
+					: {
+							costMicrocredits: parsed.cost.microcredits,
+							costUnit: adapter.capabilities.costTable.unit,
+						}),
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
 			});
 			lastOutcome = outcome;

@@ -59,6 +59,7 @@ function mockAdapter(endpoint: string, line: 1 | 2 | 3, id: string): Adapter {
 			costTable: {
 				effectiveDate: '2026-01-01',
 				sourceUrl: 'https://example.invalid/mock-pricing',
+				unit: 'provider-credits',
 				base: 1_000_000,
 				multipliers: { renderJs: 5, premium: { none: 1, residential: 10, stealth: 30 } },
 			},

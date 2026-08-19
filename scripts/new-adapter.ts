@@ -62,6 +62,11 @@ const costTable: CostTable = {
 	// TODO: from the provider's pricing page, with the URL below and today's date.
 	effectiveDate: '${new Date().toISOString().slice(0, 10)}',
 	sourceUrl: 'TODO: link the pricing page',
+	// What \`base\` counts, and it has to be right or the cost is not comparable with anybody
+	// else's. \`provider-credits\` if they sell credits, \`usd-cents\` if they bill money per
+	// request. Three launch providers are the former and one is the latter; mixing them silently
+	// is what made X-Cost-Estimate add a credit to a fraction of a cent.
+	unit: 'provider-credits',
 	base: 0,
 	multipliers: {},
 };

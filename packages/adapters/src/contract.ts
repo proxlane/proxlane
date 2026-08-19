@@ -53,11 +53,47 @@ import type { GatewayRequest, Outcome, PremiumTier } from '@proxlane/shared';
 export type Microcredits = number;
 export const MICROCREDITS_PER_CREDIT = 1_000_000;
 
+/**
+ * WHAT A COST NUMBER IS DENOMINATED IN, and it has to be declared because the four launch
+ * providers do not agree.
+ *
+ * Three of them sell credits and one sells requests for dollars, so there is no shared native
+ * unit — and for a while the field pretended otherwise. Measured on the live gateway: a plain
+ * fetch reported `1.000000` from ScraperAPI and `0.001500` from Bright Data. Those look like the
+ * same unit three orders of magnitude apart. They are not the same unit at all: one is a
+ * ScraperAPI credit, the other is fifteen hundredths of a US cent.
+ *
+ * Two things that broke, one of them already visible to callers:
+ *
+ *   `X-Cost-Estimate` sums every attempt in a chain, so a request that failed over from
+ *   ScraperAPI to Bright Data reported `1.0015` — one provider credit plus a fraction of a cent,
+ *   added together as though that meant something.
+ *
+ *   Cost-aware routing (`plan.md` phase 3) would have picked Bright Data every time by a factor
+ *   of about 667, on the arithmetic alone, whatever the real prices were.
+ *
+ * WHY NOT JUST CONVERT EVERYTHING TO MONEY. Because an adapter cannot: a ScraperAPI credit is
+ * worth whatever that account's plan says it is worth, and the same fetch costs different amounts
+ * on different tiers. The adapter knows "this request costs one credit"; only the operator knows
+ * what their credits cost. So the unit is declared here, conversion to money belongs to whoever
+ * holds the invoice, and nothing adds two numbers that are not the same unit.
+ */
+export type CostUnit =
+	/** The provider's own credits, whatever they sell those for. */
+	| 'provider-credits'
+	/** US cents. For providers that bill money per request and issue no credits. */
+	| 'usd-cents';
+
 export interface CostTable {
 	/** ISO date. A table without one cannot be audited against a provider's price change. */
 	readonly effectiveDate: string;
 	/** Where the numbers came from. */
 	readonly sourceUrl: string;
+	/**
+	 * What `base` counts. REQUIRED, so a new adapter cannot quietly introduce a third unit —
+	 * which is exactly how the first two got mixed.
+	 */
+	readonly unit: CostUnit;
 	readonly base: Microcredits;
 	readonly multipliers: {
 		readonly renderJs?: number;

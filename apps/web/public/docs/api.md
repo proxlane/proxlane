@@ -107,7 +107,8 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Outcome` | every scrape | What happened. See [outcomes](/docs/outcomes) |
 | `X-Outcome-Class` | always | The coarse class. Branch on this one |
 | `X-Attempts` | always | How many providers were tried |
-| `X-Cost-Estimate` | always | Credits across all attempts |
+| `X-Cost-Estimate` | always | Cost across all attempts, in the unit below. `mixed` if the chain spent in two units |
+| `X-Cost-Unit` | when one unit | `provider-credits` or `usd-cents` |
 | `Server-Timing` | always | `gw` is Proxlane, `up` is the providers, `total` is both |
 | `X-Request-Id` | always | Quote this in a support thread |
 | `X-Provider-Used` | when one served | Omitted, never empty, if nothing served |
