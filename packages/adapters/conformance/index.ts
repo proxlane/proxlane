@@ -348,18 +348,28 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 		// of the adapter's output. Checking only the dangerous direction would have let that
 		// stand.
 		if (category === 'binary' && result.outcome === 'OK') {
-			// ffd8ff is the JPEG start-of-image marker. efbfbd, the usual failure, is the UTF-8
-			// replacement character: the sign that somebody decoded bytes as text.
-			const head = Buffer.from(result.body ?? new Uint8Array())
-				.subarray(0, 3)
-				.toString('hex');
-			const intact = head === 'ffd8ff';
+			// TWO CHECKS, because the magic bytes alone are not enough — and that is not
+			// hypothetical. WebP's magic is `52494646`, ASCII "RIFF"; PDF's is "%PDF"; ZIP and
+			// XLSX are "PK"; GIF is "GIF8". All printable, so all of them survive a UTF-8 round
+			// trip unharmed while the rest of the file is destroyed. Measured on ScraperAPI: a
+			// WebP came back with its magic intact, 18650 bytes against a true 10568, and 4108
+			// replacement characters in between. A magic-only check passes that file.
+			//
+			// So the second check is for U+FFFD itself — `efbfbd` — which is what a decoder writes
+			// when it meets bytes that are not valid text. Its presence in a binary body IS the
+			// corruption, whatever the format, and it does not depend on the fixture happening to
+			// use one whose magic is non-ASCII. Swap this JPEG for a WebP and a magic-only check
+			// would go quiet without ever failing.
+			const bytes = Buffer.from(result.body ?? new Uint8Array());
+			const head = bytes.subarray(0, 3).toString('hex');
+			const replacements = bytes.toString('hex').split('efbfbd').length - 1;
+			const intact = head === 'ffd8ff' && replacements === 0;
 			if (adapter.capabilities.binary && !intact) {
 				fail(
 					'binary',
-					`declares binary: true, but parse() returned ${head} rather than ffd8ff — the ` +
-						'bytes did not survive. An image request routed here would return 200 with a ' +
-						'corrupted body.',
+					`declares binary: true, but the bytes did not survive: magic ${head} (want ` +
+						`ffd8ff), ${replacements} U+FFFD replacement character(s) in the body. An ` +
+						'image request routed here would return 200 with a corrupted body.',
 				);
 			}
 			if (!adapter.capabilities.binary && intact) {

@@ -1,4 +1,4 @@
 {
 	"extends": "@proxlane/tsconfig/react.json",
-	"include": ["src", "vite.config.ts"]
+	"include": ["src", "*.ts"]
 }
