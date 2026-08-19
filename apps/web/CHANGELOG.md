@@ -1,5 +1,12 @@
 # @proxlane/web
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`fc0b684`](https://github.com/proxlane/proxlane/commit/fc0b684a60341478b09c45a6e2cf675109928497)]:
+  - @proxlane/shared@0.5.0
+
 ## 0.4.1
 
 ### Patch Changes
