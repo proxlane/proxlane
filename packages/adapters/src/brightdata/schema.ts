@@ -59,6 +59,16 @@ export type BrightdataResponse = z.infer<typeof BrightdataResponse>;
  * a dead target, cool it down for a domain that is simply gone, and fail over three times to
  * re-discover the same thing.
  */
+/**
+ * The TARGET's HTTP status, in raw mode.
+ *
+ * This header is why the adapter can ask for `format: 'raw'` at all. The original code chose
+ * `json` because "raw returns the body and an API 200 whatever the target did, so a 404 is
+ * indistinguishable from a success" — true of the API's own status line, and false of the
+ * response as a whole. Bright Data reports the target's status here on every raw response:
+ * measured 404, 503 and 200 correctly on 2026-08-19.
+ */
+export const BRD_STATUS_HEADER = 'x-brd-status-code';
 export const BRD_ERROR_HEADER = 'x-brd-error-code';
 export const BRD_MESSAGE_HEADER = 'x-brd-error';
 
