@@ -17,6 +17,7 @@ import { type Adapter, type ProviderCapabilities, REGISTRY } from '@proxlane/ada
 import { createReplayTransport, loadFixtures } from '@proxlane/vitest-config/replay-transport';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp, headersFor } from './app.js';
+import { isCapable } from './chain.js';
 import { InMemoryCooldownStore } from './cooldown-store.js';
 import { InMemoryHealthStore } from './health-store.js';
 import type { RequestLine } from './log.js';
@@ -72,6 +73,15 @@ afterAll(async () => {
 });
 
 const get = (qs: string) => fetch(`${base}/v1?${qs}`);
+
+/** A minimal valid request, for the capability-filter assertions. */
+const BASE_REQ = {
+	url: 'https://example.com/',
+	method: 'GET' as const,
+	renderJs: false,
+	premium: 'none' as const,
+	deadlineMs: 90_000,
+};
 
 describe('auth, which is not part of the outcome taxonomy', () => {
 	it('rejects a missing key with 401', async () => {
@@ -702,6 +712,71 @@ describe('one line per request, covering every exit', () => {
 
 	it('does not log /health, which the orchestrator hits forever', async () => {
 		expect(await capture('/health')).toHaveLength(0);
+	});
+});
+
+describe('asking for bytes only reaches providers that can carry them', () => {
+	// FOUND BY TRYING TO SWAP A REAL CALLER OVER. Asked each provider for the same JPEG on
+	// 2026-08-19: scrapingbee and brightdata returned `ffd8ff` intact; ScraperAPI returned
+	// `efbfbd` — the UTF-8 replacement character — with `charset=utf-8` appended to
+	// `image/jpeg`; Scrapfly returned its JSON envelope. Two of four destroy binary, and the
+	// chain picks ScraperAPI first, so an image request would have come back 200 and corrupted.
+
+	it('excludes a provider that cannot return bytes', () => {
+		const textOnly = {
+			...(adapters[0]?.adapter.capabilities as ProviderCapabilities),
+			binary: false,
+		};
+		expect(isCapable(textOnly, { ...BASE_REQ, binary: true })).toBe(false);
+		// …and still serves it when bytes were not asked for, which is every other request.
+		expect(isCapable(textOnly, BASE_REQ)).toBe(true);
+	});
+
+	it('keeps a provider that can', () => {
+		const bytes = {
+			...(adapters[0]?.adapter.capabilities as ProviderCapabilities),
+			binary: true,
+		};
+		expect(isCapable(bytes, { ...BASE_REQ, binary: true })).toBe(true);
+	});
+
+	it('answers NO_PROVIDER_AVAILABLE rather than corrupting the body', async () => {
+		// The honest failure. A caller who asked for bytes and cannot have them needs to know,
+		// not receive mojibake with a 200 on it.
+		const textOnly = adapters.map(({ adapter, key }) => ({
+			adapter: {
+				...adapter,
+				capabilities: { ...adapter.capabilities, binary: false },
+			},
+			key,
+		}));
+		const app = createApp({
+			transport: createReplayTransport(entries),
+			candidates: textOnly,
+			apiKey: API_KEY,
+			maxBodyBytes: 10 * 1024 * 1024,
+			defaultDeadlineMs: 90_000,
+		});
+		const server = serve({ fetch: app.fetch, port: 0 });
+		await new Promise((r) => setTimeout(r, 50));
+		const port = (server.address() as AddressInfo).port;
+		try {
+			const r = await fetch(
+				`http://127.0.0.1:${port}/v1?api_key=${API_KEY}&url=https://example.com/x.jpg&binary=true`,
+			);
+			expect(r.status).toBe(503);
+			expect(r.headers.get('x-outcome')).toBe('NO_PROVIDER_AVAILABLE');
+		} finally {
+			await new Promise<void>((r) => server.close(() => r()));
+		}
+	});
+
+	it('treats binary=false as not asking, like render', async () => {
+		// Presence is never truth in this gateway. `binary=false` must not narrow the chain.
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&binary=false`,
+		);
+		expect(r.status).toBe(200);
 	});
 });
 

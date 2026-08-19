@@ -39,5 +39,7 @@ export const capabilities: ProviderCapabilities = {
 	maxTimeoutMs: 60_000,
 	fastTimeoutMs: 25_000,
 	post: false,
+	/** Returns markdown text by design; there is no byte-preserving mode. */
+	binary: false,
 	costTable,
 };

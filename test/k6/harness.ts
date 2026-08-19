@@ -54,6 +54,7 @@ function mockAdapter(endpoint: string, line: 1 | 2 | 3, id: string): Adapter {
 			maxTimeoutMs: 8_000,
 			fastTimeoutMs: 4_000,
 			post: true,
+			binary: false,
 			// The real CostTable shape, filled with obviously-fake numbers. A round 1 credit
 			// keeps the arithmetic checkable by eye when reading a soak's cost totals.
 			costTable: {

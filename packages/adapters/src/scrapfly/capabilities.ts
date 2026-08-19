@@ -41,5 +41,10 @@ export const capabilities: ProviderCapabilities = {
 	maxTimeoutMs: 50_000,
 	fastTimeoutMs: 20_000,
 	post: false,
+	/**
+	 * Wraps every response in a JSON envelope, so the body arrives as a string and
+	 * cannot survive re-encoding. Still JSON with `format=raw`. Measured 2026-08-19.
+	 */
+	binary: false,
 	costTable,
 };

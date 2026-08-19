@@ -18,6 +18,7 @@ function caps(id: string): ProviderCapabilities {
 		id,
 		renderJs: true,
 		post: true,
+		binary: false,
 		sessions: true,
 		countryCodes: 'all',
 		premiumTiers: new Set(['none', 'residential', 'stealth']),

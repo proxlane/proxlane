@@ -718,6 +718,35 @@ The cooldown the failed attempt just armed does not suppress the retry: the chai
 snapshot taken before the walk. Arming a cooldown and honouring it one line later would make
 the setting inert on precisely the outcomes it exists for.
 
+### Returning bytes is a capability, and most providers do not have it
+
+Asked all four for the same JPEG on 2026-08-19, provider APIs directly, no gateway involved:
+
+```
+scrapingbee  ffd8ff  image/jpeg                  intact
+brightdata   ffd8ff  image/jpeg                  intact
+scraperapi   efbfbd  image/jpeg; charset=utf-8   decoded as text, destroyed
+scrapfly     7b2263  application/json            wrapped in an envelope
+```
+
+`efbfbd` is the UTF-8 replacement character, and the `charset` appended to a binary
+content-type is the tell. Half the launch providers cannot carry bytes at all.
+
+So `binary` is a declared capability and `binary=true` a request parameter, filtered in
+`isCapable` before anything is spent. Without it the chain sends an image to whoever is first —
+ScraperAPI — and returns **200 with a corrupted body**, which is the worst available outcome: paid
+for, apparently fine, silently wrong. With it, a caller who cannot be served gets
+`NO_PROVIDER_AVAILABLE`.
+
+**The flag describes the ADAPTER, not the provider.** Bright Data returns bytes intact, but our
+`translate` asks for `format: 'json'` and re-encodes the body out of a JSON string, so
+`binary: false` is the truth about what this deployment delivers. Teaching that adapter to request
+raw when the caller wants bytes is the change that flips it.
+
+Found by trying to move a real caller — `bidprowl`'s listing-image capture, which is the largest
+Web Unlocker consumer there — onto the gateway. Swapping it without measuring first would have
+corrupted every photo.
+
 ### A cost number carries its unit, and units are never summed together
 
 The four launch providers do not share one. Three sell credits; Bright Data bills money per

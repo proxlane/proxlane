@@ -131,6 +131,29 @@ export interface ProviderCapabilities {
 	/** Budget on a non-terminal hop, e.g. scraperapi 22_000. */
 	readonly fastTimeoutMs: number;
 	readonly post: boolean;
+	/**
+	 * Can this adapter return a response body byte for byte?
+	 *
+	 * MEASURED, NOT ASSUMED, and only two of the four launch providers can. Asked each for the
+	 * same JPEG on 2026-08-19:
+	 *
+	 *   scrapingbee  ffd8ff  image/jpeg                  intact
+	 *   brightdata   ffd8ff  image/jpeg                  intact from the PROVIDER
+	 *   scraperapi   efbfbd  image/jpeg; charset=utf-8   decoded as text, destroyed
+	 *   scrapfly     7b2263  application/json            wrapped in an envelope
+	 *
+	 * `efbfbd` is the UTF-8 replacement character: ScraperAPI decodes bodies as text and hands
+	 * back the mojibake, and the `charset` it appends to a binary content-type is the tell.
+	 *
+	 * IT DESCRIBES THE ADAPTER, NOT THE PROVIDER. Bright Data returns bytes happily, but our
+	 * adapter asks for `format: 'json'` and re-encodes the body out of a JSON string, so what
+	 * this deployment can deliver today is false. Changing that is an adapter change, and this
+	 * flag has to describe what a caller will actually receive.
+	 *
+	 * Without this the failure is silent: an image request goes to whoever is first in the chain,
+	 * comes back 200 with a corrupted body, and nothing anywhere says so.
+	 */
+	readonly binary: boolean;
 	readonly costTable: CostTable;
 }
 

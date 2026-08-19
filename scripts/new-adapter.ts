@@ -86,6 +86,11 @@ export const capabilities: ProviderCapabilities = {
 	maxTimeoutMs: 30_000,
 	fastTimeoutMs: 15_000,
 	post: false,
+	// Can this adapter return a body byte for byte? MEASURE IT — ask the provider for a
+	// JPEG and check the first three bytes are ffd8ff. Two of the four launch providers
+	// fail that: one decodes bodies as UTF-8, one wraps them in a JSON envelope. Guessing
+	// true here means an image request returns 200 with a corrupted body.
+	binary: false,
 	costTable,
 };
 `,

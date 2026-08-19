@@ -76,5 +76,11 @@ export const capabilities: ProviderCapabilities = {
 	maxTimeoutMs: 90_000,
 	fastTimeoutMs: 35_000,
 	post: true,
+	/**
+	 * An ADAPTER limitation, not a provider one: Bright Data returns bytes intact,
+	 * but `translate` asks for `format: 'json'` so the body comes back as a JSON string.
+	 * Flip this the day the adapter learns to ask for raw when the caller wants bytes.
+	 */
+	binary: false,
 	costTable,
 };
