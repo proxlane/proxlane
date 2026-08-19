@@ -1618,6 +1618,102 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------------- 31: every TypeScript file a package owns is actually typechecked
+
+// A tsconfig `include` is a claim about coverage, and nothing checked it. `packages/adapters`
+// said `include: ["src"]` while the conformance harness — the thing that decides whether an
+// adapter is honest about its capabilities — sat in `conformance/`, outside it. That harness
+// shipped with an undeclared variable in a template literal for as long as the gap existed:
+// `tsc` never looked at the file, `biome` does not do type analysis, and the harness runs from
+// its BUILT output, so the only way to notice was to read it. `packages/db` had the same hole
+// over `scripts/` and `test/`.
+//
+// This is the fourth "a document asserts something about a file the file contradicts" — except
+// here the document is a config, which is worse, because a config that under-claims produces a
+// green build rather than a red one. There is no failure to investigate.
+//
+// The matcher is deliberately small: it understands a bare directory name and a top-level
+// `*.ext` glob, which is every pattern this repo uses. Anything else — `exclude`, `**`, a
+// negation — makes the check fail rather than guess, because a matcher that silently
+// mis-parses a pattern reports full coverage over files it never considered, which is exactly
+// the failure being fixed.
+{
+	const configs = execFileSync('git', ['ls-files', '*/tsconfig.json'], {
+		cwd: ROOT,
+		encoding: 'utf8',
+	})
+		.split('\n')
+		.filter((f) => f && has(f));
+	// The root solution file has no `include` and owns nothing directly; per-package configs are
+	// what `turbo run typecheck` actually invokes.
+	const sources = execFileSync('git', ['ls-files', '*.ts', '*.tsx'], {
+		cwd: ROOT,
+		encoding: 'utf8',
+	})
+		.split('\n')
+		.filter((f) => f && has(f));
+	if (configs.length === 0 || sources.length === 0) {
+		fail('31', 'found no tsconfigs or no TypeScript sources — this check stopped checking');
+	} else {
+		// Each config is parsed and validated ONCE, before any file is matched against it. Doing it
+		// per-file reported the same unreadable pattern once for every source in the package,
+		// which buries the one line that says what to fix under fifty identical ones.
+		const READABLE = new Map<string, string[]>();
+		for (const cfg of configs) {
+			const dir = cfg.slice(0, -'/tsconfig.json'.length);
+			const parsed = JSON.parse(read(cfg).replace(/^\s*\/\/.*$/gm, '')) as {
+				include?: string[];
+				exclude?: string[];
+			};
+			if (parsed.exclude !== undefined) {
+				fail(
+					'31',
+					`${cfg} grew an \`exclude\` — this matcher does not read one, so it would ` +
+						'report coverage it has not checked. Teach it, or drop the exclude.',
+				);
+				continue;
+			}
+			if (parsed.include === undefined) {
+				fail('31', `${cfg} has no \`include\`, so what it covers cannot be checked`);
+				continue;
+			}
+			const bad = parsed.include.filter(
+				(pat) => pat.includes('*') && !/^\*\.[a-z]+$/.test(pat),
+			);
+			if (bad.length > 0) {
+				fail('31', `${cfg} uses the glob(s) ${bad.join(', ')}, which this matcher cannot read`);
+				continue;
+			}
+			READABLE.set(dir, parsed.include);
+		}
+		// Longest prefix wins: `packages/adapters/src/x.ts` belongs to `packages/adapters`, not to
+		// a shorter config that happens to sit above it.
+		const dirs = [...READABLE.keys()].sort((a, b) => b.length - a.length);
+		let checked31 = 0;
+		for (const file of sources) {
+			const dir = dirs.find((d) => file.startsWith(`${d}/`));
+			if (dir === undefined) continue; // the root config's, or a config that already failed above
+			const patterns = READABLE.get(dir) as string[];
+			const rel = file.slice(dir.length + 1);
+			const covered = patterns.some((pat) =>
+				pat.startsWith('*.')
+					? !rel.includes('/') && rel.endsWith(pat.slice(1))
+					: rel === pat || rel.startsWith(`${pat}/`),
+			);
+			if (!covered) {
+				fail(
+					'31',
+					`${file} is not covered by ${dir}/tsconfig.json's include [${patterns.join(', ')}], ` +
+						'so `pnpm typecheck` never reads it. Add its directory, or delete the file.',
+				);
+			}
+			checked31 += 1;
+		}
+		if (checked31 > 0)
+			ok('31', checked31, 'TypeScript sources covered by their package tsconfig');
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

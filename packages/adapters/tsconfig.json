@@ -1,4 +1,4 @@
 {
 	"extends": "@proxlane/tsconfig/node.json",
-	"include": ["src"]
+	"include": ["src", "conformance"]
 }
