@@ -1,5 +1,15 @@
 # @proxlane/gateway
 
+## 0.5.0
+
+### Minor Changes
+
+- [#120](https://github.com/proxlane/proxlane/pull/120) [`b6e7891`](https://github.com/proxlane/proxlane/commit/b6e7891f7e120b17b589beab7e92e64583d247b7) Thanks [@scarsam](https://github.com/scarsam)! - One NDJSON line per `/v1` request, to stdout. The gateway logged nothing at all, so the moment it
+  was reachable by anyone there was no way to answer who probed it, which domains were scraped,
+  which provider served them, or what the outcome mix looked like. Records the target's host rather
+  than the URL, because query strings carry credentials. `PROXLANE_LOG=off` to silence it; `proxlane
+doctor` reports which.
+
 ## 0.4.0
 
 ### Minor Changes
