@@ -57,6 +57,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # To move the `deploy` tag. See "point the deploy tag" below for why this is the
+      # credential we use rather than a Dokploy API key.
+      packages: write
     steps:
       - uses: actions/checkout@v7
 
@@ -153,6 +156,42 @@ jobs:
             "https://ghcr.io/v2/proxlane/gateway/manifests/$V" \
             || { echo "::error::ghcr.io/proxlane/gateway:$V does not exist — did release.yml publish?"; exit 1; }
           echo "  ghcr.io/proxlane/gateway:$V is present"
+
+      # ROLLBACK IS WHY THIS STEP EXISTS, and the alternative was worse.
+      #
+      # The host tracks one mutable tag, `:deploy`, and this points that tag at whichever
+      # version is being deployed — forward for a release, BACKWARD for a rollback. The
+      # `version` input therefore means something: dispatching 0.4.0 actually serves 0.4.0.
+      #
+      # The obvious alternative was to have CI rewrite the app's image field through Dokploy's
+      # API, which needs a Dokploy API key in Actions — one credential with authority over every
+      # application on that host, including three unrelated projects. A leak there is far worse
+      # than the blast radius of this workflow. Moving a tag needs only `packages: write` on our
+      # own registry, which this repo already grants for the release.
+      #
+      # NOT `:latest`, deliberately. `latest` is what a self-hoster gets from
+      # `docker run ghcr.io/proxlane/gateway`, and rolling it backward would quietly hand
+      # everyone else an older build to fix our deployment. `:deploy` is ours to move; `latest`
+      # stays honest and means newest.
+      #
+      # NOT GATED ON THE SKIP, unlike the steps around it. Two reasons, and the second is a
+      # bootstrap problem the gate created: the tag should say which version this deployment
+      # intends to run whether or not a restart was needed, and on the very first run — when the
+      # host still tracks something else — a skipped deploy would skip tag creation too, so the
+      # tag could never come into existence. Moving a tag to where it already points costs one
+      # registry call and is idempotent.
+      - name: point the deploy tag at this version
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          # Copies the multi-arch manifest list rather than a single image: pulling `:deploy` on
+          # arm64 must still work, and `imagetools create` from a tag preserves the index.
+          docker buildx imagetools create \
+            -t "ghcr.io/proxlane/gateway:deploy" \
+            "ghcr.io/proxlane/gateway:$V"
+          echo "  :deploy now points at $V"
 
       - name: ask the host to deploy it
         if: steps.live.outputs.skip != 'true'
