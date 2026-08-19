@@ -10,8 +10,15 @@ on:
     branches: [main]
 
 # Pushing three times to a PR should run CI once, not three times. Single biggest saver.
+#
+# DRAFT STATE IS PART OF THE KEY, and that is not a refinement. A push to a draft and the
+# `ready_for_review` that follows it arrive in the same second and land in the same group, so
+# whichever registers second cancels the first. When the draft-time push wins, it cancels the
+# very run `ready_for_review` exists to produce — and that run skips the matrix. Observed on
+# PR #130: two runs at 12:30:36, one cancelled, and the survivor tested nothing.
+# Separate lanes, so each still collapses its own repeats.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.draft }}
   cancel-in-progress: true
 
 permissions:
@@ -290,18 +297,46 @@ jobs:
 
   # One required check for the ruleset. Requiring B6's ten by name would leave every PR
   # permanently pending: six report under different names and four never report at all.
+  # THE ONE REQUIRED CHECK on main, so what it accepts is what the ruleset enforces.
+  #
+  # `skipped` used to count as success for every job, which made a green here mean "nothing
+  # went red" rather than "the checks ran". A draft PR skips `prepare`, `command` skips with
+  # it, and this reported all upstream jobs green having tested nothing — then the PR is
+  # marked ready and merged on that green. Confirmed on PR #130.
+  #
+  # So skipping is allowed only where a job HAS a condition that can legitimately hold:
+  # `changeset`, `no-infra-leak` and `security-review` are `if: event_name == 'pull_request'`
+  # and correctly skip on a push to main. `prepare` skips only on a draft, and `secrets` and
+  # `build-docker` carry no condition at all — a skip there is structural, not intended.
   ci-complete:
     if: always()
     needs: [prepare, command, changeset, secrets, no-infra-leak, build-docker, security-review]
     runs-on: ubuntu-latest
     steps:
       - shell: bash
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
         run: |
-          echo '${{ toJSON(needs) }}'
-          echo '${{ toJSON(needs) }}' | node -e '
-            let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{
-              const needs = JSON.parse(s);
-              const bad = Object.entries(needs).filter(([,v]) => v.result !== "success" && v.result !== "skipped");
-              if (bad.length) { console.error("failed: " + bad.map(([k,v])=>`${k}=${v.result}`).join(", ")); process.exit(1); }
-              console.log("all upstream jobs green");
-            });'
+          echo "$NEEDS"
+          node -e '
+            const needs = JSON.parse(process.env.NEEDS);
+            const event = process.env.EVENT;
+            // Skipping is honest ONLY for these, and ONLY off a pull_request.
+            const MAY_SKIP = new Set(["changeset", "no-infra-leak", "security-review"]);
+            const bad = [];
+            for (const [name, v] of Object.entries(needs)) {
+              if (v.result === "success") continue;
+              if (v.result === "skipped" && MAY_SKIP.has(name) && event !== "pull_request") continue;
+              bad.push(`${name}=${v.result}`);
+            }
+            if (bad.length) {
+              console.error("not green: " + bad.join(", "));
+              if (bad.some((b) => b.startsWith("prepare=skipped"))) {
+                console.error("prepare skipped — this PR is a draft, so nothing was tested.");
+                console.error("Mark it ready for review; that re-runs the matrix.");
+              }
+              process.exit(1);
+            }
+            console.log("every upstream job ran and passed");
+          '
