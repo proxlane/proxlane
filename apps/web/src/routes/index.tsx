@@ -1078,11 +1078,25 @@ function Response({ scenario }: { readonly scenario: Scenario }) {
 				copy={raw}
 				what="the response headers"
 			>
-				<dl className="grid w-fit grid-cols-[auto_1fr] gap-x-10 font-mono text-[0.8125rem] leading-[2]">
+				{/*
+				 * `minmax(0, 1fr)`, NOT `1fr`, and the name column never wraps.
+				 *
+				 * A `1fr` track carries `min-width: auto`, so it refuses to shrink below its own
+				 * content. `x-chain` is the longest value on the page by a wide margin, and it took
+				 * the space out of the `auto` column beside it: the header NAMES started breaking
+				 * mid-word — `x-` / `outcome-` / `class` — while the chain itself still overflowed
+				 * the panel and clipped. Both symptoms, one cause.
+				 *
+				 * So the value track is allowed to shrink, the names are `nowrap` because a header
+				 * name broken across lines is not a header name, and a value too long for one line
+				 * wraps instead of running out of the box. `break-all` rather than `break-words`:
+				 * a chain has no spaces to break at.
+				 */}
+				<dl className="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-10 font-mono text-[0.8125rem] leading-[2]">
 					{headers.map(([name, value]) => (
 						<div key={name} className="contents">
-							<dt className="text-[color:var(--color-slate)]">{name}</dt>
-							<dd>{value}</dd>
+							<dt className="whitespace-nowrap text-[color:var(--color-slate)]">{name}</dt>
+							<dd className="break-all">{value}</dd>
 						</div>
 					))}
 				</dl>
