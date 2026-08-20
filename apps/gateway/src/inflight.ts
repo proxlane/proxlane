@@ -6,7 +6,7 @@
 // implementation — a semaphore that awaits a free slot — on purpose.
 //
 // WHY QUEUEING IS THE WRONG ANSWER HERE, specifically. Every request this gateway serves is
-// already a scrape with a global deadline of up to 90 seconds. A queued request keeps its
+// already a scrape with a global deadline of up to 120 seconds. A queued request keeps its
 // client's socket open and its deadline running while it waits for a slot, so under load the
 // client sees a timeout with no explanation instead of a 429 it can act on. Worse, the queue
 // itself is memory the ceiling exists to bound: the cap is sized on

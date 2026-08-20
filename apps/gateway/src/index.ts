@@ -24,7 +24,12 @@ import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
 import { VERSION } from './version.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
-const DEFAULT_DEADLINE_MS = Number(env('PROXLANE_DEADLINE_MS') ?? 90_000);
+// 120s, which `operations.md` section 1 decided and this file had not caught up with. At the
+// old 90s a three-hop chain could not reach its terminal cap: the first two hops take 22s
+// each and `hopBudget` reserves 8s for every hop still to come, leaving the last provider
+// 38s of its 70s. Failover is the product, so the hop that exists to save the request was
+// the one being cut short. Measured, not reasoned: at 120s the same chain gives it 68s.
+const DEFAULT_DEADLINE_MS = Number(env('PROXLANE_DEADLINE_MS') ?? 120_000);
 // Empty would read as 0 here, i.e. a body cap of nothing, which rejects every response.
 const MAX_BODY_BYTES = Number(env('PROXLANE_BODY_CAP_MB') ?? 10) * 1024 * 1024;
 

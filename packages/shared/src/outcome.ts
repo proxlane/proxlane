@@ -38,9 +38,13 @@ export interface GatewayRequest {
 	 * The caller wants the body byte for byte — an image, a PDF, anything not text.
 	 *
 	 * Narrows the chain to providers that can actually deliver that, which is only some of them:
-	 * two of the four launch providers destroy binary, one by decoding it as UTF-8 and one by
-	 * wrapping it in a JSON envelope. Without this the request goes to whoever is first, returns
-	 * 200, and the body is quietly mojibake.
+	 * one of the four launch providers destroys binary by decoding it as UTF-8. Without this the
+	 * request goes to whoever is first, returns 200, and the body is quietly mojibake.
+	 *
+	 * It said TWO for a while, counting Scrapfly for wrapping bodies in a JSON envelope. The
+	 * adapter decodes that envelope, so Scrapfly returns bytes intact and declares
+	 * `binary: true`. The comment was measuring the provider's wire format rather than the
+	 * adapter's output, which is the same mistake that set its capability wrong.
 	 *
 	 * NO PROVIDER SIDE EFFECT. It changes nothing about the outbound request; it is a routing
 	 * constraint, which is why it lives here rather than in the translate step.

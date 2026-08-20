@@ -215,7 +215,7 @@ defined per outcome, centrally, never inside adapters.
 | `INVALID_REQUEST` | `gateway` | **Our translation** produced a provider 400 | 500 | no | **no** | no | **yes** |
 | `BAD_REQUEST` | `client` | The client's request is malformed or impossible | 400 | no | **no** | no | no |
 | `TARGET_FORBIDDEN` | `client` | Target rejected at our edge (private range, denylist) | 403 | no | **no** | no | no |
-| `NO_PROVIDER_AVAILABLE` | `gateway` | No adapter matches, or the chain is exhausted | 503 | no | n/a | no | no |
+| `NO_PROVIDER_AVAILABLE` | `gateway` | Nothing was tried: no adapter matches, or every capable one is cooling | 503 | no | n/a | no | no |
 | `RESPONSE_TOO_LARGE` | `gateway` | Body exceeded the cap | 413 | no | no | no | no |
 | `BUDGET_EXCEEDED` | `gateway` | Global deadline or cost budget hit | 504 | no | no | no | no |
 | `GATEWAY_BUSY` | `gateway` | In-flight ceiling reached; shed rather than queued | 429 + `Retry-After` | no | **no** | no | no |
@@ -687,17 +687,32 @@ us, not on inference.
   filtered by capability match
   (need renderJs -> only adapters with renderJs).
 - Chain stops on: `OK`, `TARGET_NOT_FOUND`, `BAD_REQUEST`, `INVALID_REQUEST`,
-  `TARGET_FORBIDDEN`, `BUDGET_EXCEEDED`, or list exhausted, which returns
-  `NO_PROVIDER_AVAILABLE`.
+  `TARGET_FORBIDDEN`, `BUDGET_EXCEEDED`, or the list running out.
+
+**A chain that ran out is not `NO_PROVIDER_AVAILABLE`, and this line used to say it was.**
+When every provider was tried and every one failed, the caller gets the LAST provider's own
+outcome: three providers all blocking is a 502 with `X-Outcome: HARD_BLOCK`, that provider's
+block page as the body, and `X-Provider-Used` naming it. `NO_PROVIDER_AVAILABLE` means the
+opposite — nothing was tried, because no adapter was capable, every capable one was cooling,
+or the request never reached a provider.
+
+The distinction is not academic. Told that an exhausted chain answers 503, an integrator
+writes `if (status === 503) everythingFailed()`, and that branch never runs on the case it
+was written for.
+
+Branch on `X-Outcome-Class`, which is closed and will not grow: `blocked`, `target` and
+`provider` are real answers arrived at by trying, `client` is the caller's own request being
+wrong, and `gateway` is the only one meaning we never found out. "Everything failed" is a
+`blocked` or `provider` answer with `X-Attempts` above one, not a 503.
 
 ### Budget must be reserved per remaining hop
 
 `min(provider maxTimeout, remaining)` makes the three-attempt chain impossible on the
-exact failure it exists for. ScraperAPI's per-attempt budget is 75s (section 1), the
-global default was 90s, and default N is 3. A timeout on attempt 1 consumes 75 of 90s;
-attempt 2 gets 15s — enough to fail, not enough to succeed on a hard target; attempt 3
-gets nothing and returns `BUDGET_EXCEEDED`. **Shipped defaults degraded to roughly 1.5
-attempts**, which also puts the README's three-provider reliability claim out of reach.
+exact failure it exists for. ScraperAPI's terminal budget is 70s, the global default was
+90s, and default N is 3. A timeout on attempt 1 consumes 70 of 90s; attempt 2 gets what is
+left, enough to fail and not enough to succeed on a hard target; attempt 3 gets nothing and
+returns `BUDGET_EXCEEDED`. **Shipped defaults degraded to roughly 1.5 attempts**, which also
+puts the README's three-provider reliability claim out of reach.
 
 ```
 MIN_USEFUL_ATTEMPT_MS = 8_000
@@ -712,9 +727,24 @@ if remaining < MIN_USEFUL_ATTEMPT_MS:
 
 Non-terminal attempts are capped at `fastTimeoutMs`, which promotes section 9's "fast
 mode" open question to the default: we trade ScraperAPI's internal retries for our own on
-every hop but the last, where they get their full 75s. With the global default raised to
-**120s** (`operations.md` section 1), the default chain is 22 + 22 + 75 = 119s, so N=3
-fits. Clients set their own via the `timeout` param.
+every hop but the last, where it gets its full `maxTimeoutMs`.
+
+**The numbers here are measured, because the ones that used to be here were not.** This read
+"22 + 22 + 75 = 119s" against a 75s cap no adapter has. The real caps are ScraperAPI and
+ScrapingBee 70s, Scrapfly 50s, Bright Data 90s, with fast caps of 22s, 22s, 20s and 35s.
+`hopBudget` also reserves `MIN_USEFUL_ATTEMPT_MS` for every hop still to come, so the
+terminal hop never simply gets the remainder. Running the real function over a
+ScraperAPI/ScrapingBee/Scrapfly chain:
+
+| global deadline | hop 1 | hop 2 | hop 3 |
+|---|---|---|---|
+| 90s | 22s | 22s | **38s** of a 70s cap |
+| 120s | 22s | 22s | **68s** of a 70s cap |
+
+At 90s the hop that exists to rescue the request was the one being cut short. The default is
+**120s** (`operations.md` section 1). Clients set their own via the `timeout` param, capped
+at the operator's deadline and never above it: that ceiling is what bounds how long one
+request holds an in-flight slot, and `maxInflight` is sized assuming it holds.
 
 ### One retry at the terminal hop, and nowhere else
 

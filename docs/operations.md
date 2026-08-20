@@ -41,10 +41,15 @@ one.
 - **Buffer, then validate, then forward.** Detection needs the body, so v1 buffers.
   Cap protects you. Streaming pass-through for `detect=false` requests is a later
   optimization, not a launch feature.
-- **Global deadline separate from per-attempt budget.** Client gets `deadlineMs`
-  (default **120s**, max 180s) via the `timeout` param. Per-attempt budget reserves time
-  for the hops that follow it — the formula is in `integrations.md` section 5, and at the
-  old 90s default a three-attempt chain degraded to roughly 1.5 attempts.
+- **Global deadline separate from per-attempt budget.** Default **120s**. A client asks for
+  less via the `timeout` param and never for more: the operator's deadline is the ceiling,
+  because it is what bounds how long one request holds an in-flight slot and `maxInflight` is
+  sized assuming that holds. This said "max 180s" for a long time, which was never
+  implemented and would have let a caller outspend the operator's own budget.
+  Per-attempt budget reserves time for the hops that follow it, the formula is in
+  `integrations.md` section 5, and at the old 90s default a three-attempt chain degraded to
+  roughly 1.5 attempts. That 120s was recorded here and left unimplemented until it was
+  measured: the terminal hop was getting 38s of its 70s cap.
   Never let a failover chain outlive its client.
 - **Per-org concurrency limits.** Valkey token bucket keyed by org. Prevents one user
   saturating the pool. Also mirrors what providers do to us: their 429s are a
