@@ -374,7 +374,7 @@ degrades under exactly the load it exists to absorb.
 
 | Key | Outcomes | Scope | Lifetime |
 |---|---|---|---|
-| `cd:blk:{provider}:{domain}` | `SOFT_BLOCK`, `HARD_BLOCK` | shared across orgs; feeds the scoreboard | 15 min cap |
+| `cd:blk:{provider}:{domain}` | `SOFT_BLOCK`, `HARD_BLOCK` | shared across orgs; feeds the scoreboard | 15 min, growing to 6 h once settled |
 | `cd:acct:{org}:{provider}` | `RATE_LIMITED`, `AUTH_FAILED`, quota exhaustion | private to one org | 15 min cap |
 | `hs:{provider}` | `OK`, `PROVIDER_ERROR`, `PROVIDER_DRIFT` | shared across orgs | hours to days |
 
@@ -386,9 +386,22 @@ reads as coverage. Blocks route to `cd:blk` for phase 1, exactly as they do toda
 with the phase-2 rollup, when there is data to define classes from.
 
 Duration is exponential with **full jitter** and a **15-minute cap**, and expiry is
-**half-open**: the first request after expiry is a probe, and a failed probe re-arms at
-the cap. Without a probe, and with a static list and no epsilon exploration until phase 3,
-a cooled provider has no path back before its cooldown expires.
+**half-open**: the first request after expiry is a probe. Without a probe, and with a static
+list and no epsilon exploration until phase 3, a cooled provider has no path back before its
+cooldown expires.
+
+**A failed probe re-arms at a ceiling that GROWS, and only in `cd:blk`.** It used to re-arm at
+a flat 15 minutes forever, so a (provider, domain) that had refused us a hundred times running
+was treated exactly like one that refused twice — 96 paid probes a day for that pair, 288 for a
+domain three providers block, and every one of them buying evidence already held. After
+`GROW_AFTER` consecutive failures the ceiling doubles per failure to a **6-hour** maximum,
+which is ~4 probes a day and matches the ceiling the health prober already uses. Reaching it
+takes roughly eight hours of continuous refusal, so nothing transient gets there, and a first
+block still cools for seconds.
+
+`cd:acct` keeps the flat 15-minute cap. It is a rate limit or a lapsed key: private to one org,
+transient, and resetting on the provider's own schedule. Backing that off for six hours would
+take a customer's provider away for an afternoon to save a probe that costs almost nothing.
 
 `packages/shared/src/cooldown.ts` is the executable form. Four things worth stating because
 each has a plausible near-miss:
@@ -405,10 +418,23 @@ each has a plausible near-miss:
   per-hop budget divides the remaining deadline by the hops still to come, so skipping late
   reserves time for providers that will never be tried and silently starves the real
   attempts.
-- **When every capable provider is cooling there is no floor**, unlike demotion. A demoted
-  provider is a guess about a trend; a cooldown is a fact — each of these refused this exact
-  domain minutes ago, so forcing one buys a probable second refusal at full price. The
-  gateway returns `NO_PROVIDER_AVAILABLE` with **`Retry-After`** set from the soonest expiry.
+- **When every capable provider is cooling, one forced attempt, rate-limited per domain.**
+  This used to be "no floor at all", on the ground that a demoted provider is a guess about a
+  trend while a cooldown is a fact — each of these refused this exact domain *minutes* ago, so
+  forcing one buys a probable second refusal at full price. That is correct at a flat 15-minute
+  cap and stops being correct once a settled pair backs off to six hours, because "minutes ago"
+  becomes "this morning" and refusing for the length of the backoff takes the domain off the
+  air for the working day. The premise changed, so the conclusion did.
+  The provider tried is the one closest to opening on its own, the response carries
+  **`X-Provider-Health: cooling-forced`**, and the attempt is gated by a single-slot claim on
+  `cd:forced:{domain}` — per domain rather than per provider, since this only ever fires where
+  the alternative was serving nothing, and without the claim a hundred concurrent requests would
+  all force at once. That slot is armed for a flat 15 minutes and never grows, or the floor
+  would back itself off in exactly the case it exists for.
+  Callers who lose the claim still get `NO_PROVIDER_AVAILABLE` with **`Retry-After`**, clamped
+  to the forced-probe window rather than the provider expiry: a forced attempt is available
+  again within 15 minutes whatever the per-provider backoff says, and advertising six hours
+  would be a worse lie than the one it replaced.
 
 **The domain is the hostname, not the registrable domain.** `www.example.com` and
 `example.com` cool separately. The cheap fix — last two labels — is silently wrong for every
@@ -532,11 +558,14 @@ against a rate that has since become fiction, and a one-sided statistic against 
 `MIN_SAMPLES` window with no detection. That window is the price of not carrying forward a
 number describing a provider that no longer exists.
 
-Recovery from `demoted` is probe-only. The half-open cooldown above spends a real user's
-request on a known-dead provider every 15 minutes, which is right for a transient block and
-actively harmful across a three-day outage — roughly 288 wasted requests per domain per day.
-Probe backoff runs 5 minutes to a 6-hour ceiling, so a dead provider costs at most four
-probes a day.
+Recovery from `demoted` is probe-only. Probe backoff runs 5 minutes to a 6-hour ceiling, so a
+dead provider costs at most four probes a day.
+
+This paragraph used to justify that ceiling by contrast with the cooldown, which spent a real
+user's request on a known-dead provider every 15 minutes — right for a transient block and
+actively harmful across a three-day outage, at roughly 288 wasted requests per domain per day.
+**The cooldown now grows to the same 6-hour ceiling**, for the same reason, so the contrast is
+gone and the two mechanisms agree. See `cd:blk` above.
 
 **Where the probe runs.** In the gateway process, not in `apps/worker`. It is not a queue —
 it is a scheduled read-modify-write against health state, and that state is process-local

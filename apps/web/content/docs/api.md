@@ -114,7 +114,7 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Request-Id` | always | Quote this in a support thread |
 | `X-Provider-Used` | when one served | Omitted, never empty, if nothing served |
 | `X-Detect-Rule` | when a rule fired | Which block-page rule produced a `SOFT_BLOCK` |
-| `X-Provider-Health` | when health is on | `demoted-forced` means every provider was demoted and the least bad was used |
+| `X-Provider-Health` | when health is on, or when a floor fired | `demoted-forced`: every provider was demoted and the least bad was used. `cooling-forced`: every provider was cooling and one was tried anyway, rather than take the domain off the air |
 | `Retry-After` | when known | Seconds, rounded up |
 
 Two of those are easy to misread.

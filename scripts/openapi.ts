@@ -153,7 +153,7 @@ const HEADERS: Record<string, { description: string; schema: object }> = {
 	},
 	'X-Provider-Health': {
 		description:
-			'Present when health tracking is on. demoted-forced means every capable provider was demoted and the least bad was used anyway.',
+			'Present when health tracking is on, or when a routing floor fired. demoted-forced means every capable provider was demoted and the least bad was used anyway. cooling-forced means every capable provider was on cooldown and one was tried regardless, rate-limited per domain, rather than take the domain off the air for the length of the backoff.',
 		schema: { type: 'string' },
 	},
 	'Retry-After': {

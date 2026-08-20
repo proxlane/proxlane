@@ -37,6 +37,7 @@ import {
 	type HealthState,
 	healthWeight,
 	initial,
+	maxCapForKey,
 	observe,
 	observeProbe,
 } from '@proxlane/shared';
@@ -501,7 +502,7 @@ export class ValkeyCooldownStore implements CooldownStore {
 					// backoff depend on which one you deployed.
 					const entry: CooldownEntry =
 						retryAfterMs === undefined
-							? arm(prev, now, this.#rng)
+							? arm(prev, now, this.#rng, maxCapForKey(key))
 							: armFor(prev, now, retryAfterMs);
 					const ttl = Math.max(1, entry.untilMs - now + COOLDOWN_GRACE_MS);
 					const ok = await this.#redis.eval(

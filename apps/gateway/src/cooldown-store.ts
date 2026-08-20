@@ -17,6 +17,7 @@ import {
 	type CooldownEntry,
 	claimProbe,
 	decide,
+	maxCapForKey,
 } from '@proxlane/shared';
 
 export interface CooldownStore {
@@ -107,7 +108,9 @@ export class InMemoryCooldownStore implements CooldownStore {
 		const prev = this.#entries.get(key);
 		this.#entries.set(
 			key,
-			retryAfterMs === undefined ? arm(prev, now, this.#rng) : armFor(prev, now, retryAfterMs),
+			retryAfterMs === undefined
+				? arm(prev, now, this.#rng, maxCapForKey(key))
+				: armFor(prev, now, retryAfterMs),
 		);
 	}
 

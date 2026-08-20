@@ -14,6 +14,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { type Adapter, type ProviderCapabilities, REGISTRY } from '@proxlane/adapters';
+import { forcedProbeKey } from '@proxlane/shared';
 import { createReplayTransport, loadFixtures } from '@proxlane/vitest-config/replay-transport';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp, headersFor } from './app.js';
@@ -530,6 +531,33 @@ describe('query parsing, where a default leaks most easily', () => {
 });
 
 describe('cooldowns, over real HTTP', () => {
+	it('forces one attempt rather than taking a fully-cooled domain off the air', async () => {
+		// The cooldown floor, over real HTTP. Without it, a domain every provider has blocked
+		// goes dark for the length of the backoff — which is now up to six hours, not fifteen
+		// minutes, so refusing outright stopped being the honest answer.
+		// A RECORDED target, not an invented host. The forced attempt genuinely reaches the
+		// transport, and the replay transport refuses to invent a response for a URL nobody
+		// recorded — correctly, since an invented response would make this test decorative.
+		const url = target('success-html');
+		const host = new URL(url).host;
+		// CLEANED UP IN `finally`, because this arms the cooldown store every other test in this
+		// file shares, on the host they all use. Leaving it armed made three unrelated tests
+		// fail — the forced slot stays held for fifteen minutes, so every later request to this
+		// host saw an all-cooling domain with no forced probe left and got a 503.
+		try {
+			for (const id of IDS) cooldowns.arm(`cd:blk:${id}:${host}`, Date.now());
+			const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(url)}`);
+			expect(r.status).toBe(200);
+			expect(r.headers.get('x-provider-health')).toBe('cooling-forced');
+		} finally {
+			for (const id of IDS) cooldowns.clear(`cd:blk:${id}:${host}`);
+			cooldowns.clear(forcedProbeKey(host));
+		}
+		// The per-domain rate limit is asserted in cooldown-routing.unit.test.ts, where the
+		// forced probe can be made to FAIL. Here it succeeds, which clears the cooldown outright
+		// — the block lifted — so there is no second refusal to observe.
+	});
+
 	it('answers 503 with Retry-After when every provider is cooling', async () => {
 		// A 503 with no Retry-After tells a caller to guess, and they will guess wrong in the
 		// direction that re-arms the cooldown they are waiting out.
@@ -537,6 +565,9 @@ describe('cooldowns, over real HTTP', () => {
 		for (const id of IDS) {
 			cooldowns.arm(`cd:blk:${id}:cooled.example`, Date.now());
 		}
+		// The forced slot must already be taken, or the floor serves this request instead of
+		// refusing it. That is the real precondition for a refusal now, not a workaround.
+		cooldowns.arm(forcedProbeKey('cooled.example'), Date.now());
 		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target)}`);
 		expect(r.status).toBe(503);
 		expect(r.headers.get('x-outcome')).toBe('NO_PROVIDER_AVAILABLE');

@@ -16,10 +16,12 @@ import {
 } from '@proxlane/adapters';
 import { detect } from '@proxlane/detect';
 import {
+	COOLDOWN,
 	type CooldownDecision,
 	cooldownDomain,
 	cooldownKey,
 	cooldownScope,
+	forcedProbeKey,
 	guardTargetUrl,
 	type HealthState,
 	eligible as rankByHealth,
@@ -127,7 +129,12 @@ export interface ChainResult {
 	 * least-bad one was used anyway. A user seeing that understands their world; the same
 	 * request failing with NO_PROVIDER_AVAILABLE would look like our outage.
 	 */
-	readonly providerHealth?: HealthState['state'] | 'demoted-forced';
+	/**
+	 * `demoted-forced`: every capable provider was demoted and the least-bad was used anyway.
+	 * `cooling-forced`: every capable provider was COOLING and one was tried regardless, because
+	 * refusing for the length of a grown backoff would take the domain off the air.
+	 */
+	readonly providerHealth?: HealthState['state'] | 'demoted-forced' | 'cooling-forced';
 }
 
 export interface ChainDeps {
@@ -296,7 +303,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 		readonly untilMs: number;
 		readonly scope: string;
 	}[] = [];
-	const notCooling = capable.filter((c) => {
+	const notCooling: typeof capable = capable.filter((c) => {
 		const id = c.adapter.capabilities.id;
 		const cd = cooldownFor(id);
 		if (cd.kind !== 'cooling') return true;
@@ -312,12 +319,66 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 		return false;
 	});
 
-	if (notCooling.length === 0) {
-		// Every capable provider is cooling. There is no floor here, and that is the difference
-		// from demotion: a demoted provider is a guess about a trend, while a cooldown is a
-		// fact — each of these refused this exact request minutes ago. Forcing one buys a
-		// probable second refusal at full price. Say so, with the moment it stops being true.
+	// EVERY CAPABLE PROVIDER IS COOLING. There used to be no floor here at all, on the argument
+	// that a cooldown is a fact rather than a guess: each of these refused this exact request
+	// "minutes ago", so forcing one buys a probable second refusal at full price.
+	//
+	// That argument was correct when the ceiling was a flat fifteen minutes. It stops holding
+	// now that a settled pair backs off to six hours, because "minutes ago" becomes "this
+	// morning" — and refusing for six hours turns a domain off for the working day. The premise
+	// changed, so the conclusion has to.
+	//
+	// So: one forced attempt, rate-limited PER DOMAIN rather than per provider, because this
+	// only ever fires where the alternative was serving nothing. The claim is the same atomic
+	// single-slot primitive the half-open probe uses — without it, a hundred concurrent requests
+	// at an all-cooling domain would all force at once, which is the herd the probe exists to
+	// prevent, reintroduced by the thing meant to keep the domain alive.
+	//
+	// The provider picked is the one closest to opening on its own, so the forced attempt is
+	// also the one most likely to work, and its failure re-arms it and grows the backoff.
+	let forcedByCooldown: (typeof capable)[number] | undefined;
+	/** How long until a forced probe is available again, when this request lost the claim. */
+	let forcedProbeAvailableInMs: number | undefined;
+	if (notCooling.length === 0 && deps.cooldowns !== undefined && cooled.length > 0) {
+		const nearest = [...cooled].sort((a, b) => a.untilMs - b.untilMs)[0];
+		if (nearest !== undefined) {
+			const key = forcedProbeKey(domain);
+			let claimed = false;
+			try {
+				claimed = await deps.cooldowns.claim(key, now());
+				if (!claimed) forcedProbeAvailableInMs = COOLDOWN.CAP_MS;
+			} catch {
+				// Fails CLOSED, unlike the cooldown read above, and deliberately. Losing a
+				// cooldown costs one wasted attempt; losing this claim costs one wasted attempt
+				// PER CONCURRENT REQUEST, because the whole purpose of the key is to be the only
+				// thing standing between an all-cooling domain and a herd.
+				claimed = false;
+			}
+			if (claimed) {
+				// An EXPLICIT duration, so the slot is a flat window and never an exponential one.
+				// Plain `arm` would back the forced key off exactly like a provider key, growing
+				// towards MAX_CAP_MS — which would quietly undo the floor after a day or so of a
+				// domain being fully blocked, the one case it exists for. `armFor` clamps to
+				// CAP_MS and ignores `consecutive`, so this stays at most four an hour forever.
+				deps.cooldowns.arm(key, now(), COOLDOWN.CAP_MS);
+				forcedByCooldown = capable.find((c) => c.adapter.capabilities.id === nearest.provider);
+				// INTO THE CHAIN, not merely into a variable. Everything downstream builds from
+				// `notCooling`: health ranks it, the floor applies to the ranking, and the attempt
+				// loop walks the result. Skipping the early return without adding the candidate
+				// here left an empty chain, so the request still failed — with the forced probe
+				// already claimed and armed, which is the worst of both.
+				if (forcedByCooldown !== undefined) notCooling.push(forcedByCooldown);
+			}
+		}
+	}
+
+	if (notCooling.length === 0 && forcedByCooldown === undefined) {
+		// CLAMPED TO CAP_MS, because a forced probe becomes available again within that window
+		// whatever the per-provider backoff says. Reporting the raw provider expiry would tell a
+		// caller to wait six hours when the gateway will in fact try again in fifteen minutes,
+		// which is a worse lie than the old one it replaced.
 		const soonest = Math.min(...cooled.map((c) => c.untilMs));
+		const untilForced = forcedProbeAvailableInMs ?? COOLDOWN.CAP_MS;
 		return {
 			outcome: 'NO_PROVIDER_AVAILABLE',
 			attempts,
@@ -326,7 +387,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			// naive `soonest - now()` is negative and clamps to 0 — and `Retry-After: 0` is an
 			// instruction to retry immediately, i.e. a hot loop, from the one response that
 			// exists to tell a caller to wait. The honest answer in that case is "shortly".
-			retryAfterMs: Math.max(MIN_RETRY_AFTER_MS, soonest - now()),
+			retryAfterMs: Math.max(MIN_RETRY_AFTER_MS, Math.min(soonest - now(), untilForced)),
 			reason: `every capable provider is cooling: ${cooled
 				.map((c) => `${c.provider} (${c.scope})`)
 				.join(', ')}`,
@@ -370,9 +431,15 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	for (let i = 0; i < attemptable.length; i++) {
 		const entry = attemptable[i] as (typeof attemptable)[number];
 		const { adapter, key } = entry.candidate;
-		const providerHealth: HealthState['state'] | 'demoted-forced' = forced
-			? 'demoted-forced'
-			: entry.state;
+		// `cooling-forced` outranks the health label: when the cooldown floor fired, THAT is why
+		// this provider is being tried, and an operator reading `healthy` on a provider that
+		// refused this domain an hour ago would be reading a true fact that explains nothing.
+		const providerHealth: HealthState['state'] | 'demoted-forced' | 'cooling-forced' =
+			forcedByCooldown?.adapter.capabilities.id === adapter.capabilities.id
+				? 'cooling-forced'
+				: forced
+					? 'demoted-forced'
+					: entry.state;
 
 		// A `probe` has to be CLAIMED before anything is spent. Two concurrent requests both
 		// seeing an expired cooldown and both proceeding is the herd the half-open design

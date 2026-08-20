@@ -5,7 +5,7 @@
 // behaviour, and a reader deleting one should have to read what it cost.
 
 import type { Adapter, Outcome, ProviderCapabilities } from '@proxlane/adapters';
-import { COOLDOWN, cooldownKey, initial } from '@proxlane/shared';
+import { COOLDOWN, cooldownKey, forcedProbeKey, initial } from '@proxlane/shared';
 import { describe, expect, it } from 'vitest';
 import { runChain } from './chain.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
@@ -111,6 +111,19 @@ function chain(
 const SLACK_MS = 2_000;
 
 /** Put a key into the half-open state: expired, probe not yet taken. */
+/**
+ * Take the forced-probe slot, so the chain reaches the REFUSAL path.
+ *
+ * Every test below is about what the refusal says. Since the cooldown floor landed, an
+ * all-cooling domain gets one forced attempt first, so without this they exercise the forced
+ * path instead and assert against a served response. Consuming the slot is not a workaround:
+ * it is the genuine precondition for the refusal, and the same thing the tests already do to
+ * `blk('a')` to reach the all-cooling state at all.
+ */
+function forcedSlotTaken(cd: InMemoryCooldownStore): void {
+	cd.arm(forcedProbeKey(DOMAIN), Date.now());
+}
+
 function expired(cd: InMemoryCooldownStore, key: string): void {
 	cd.arm(key, Date.now() - COOLDOWN.CAP_MS * 3);
 }
@@ -339,8 +352,15 @@ describe('the demoted floor survives cooldown filtering', () => {
 		expect(r.providerHealth).toBe('demoted-forced');
 	});
 
-	it('still refuses when everything is cooling, demoted included', async () => {
-		// The floor must not invent a provider out of a cooldown. A cooldown is a fact.
+	it('does not let the DEMOTED floor resurrect a cooling provider', async () => {
+		// The original defect, and the assertion that still matters: the demoted floor must not
+		// invent a provider out of a cooldown.
+		//
+		// It used to be checked as "everything cooling means NO_PROVIDER_AVAILABLE", which is no
+		// longer the whole truth — the cooldown floor now forces one rate-limited attempt rather
+		// than take a domain off the air for the length of a grown backoff. So the property is
+		// asserted directly instead: whatever gets used here is used BECAUSE of the cooldown
+		// floor and says so, not because the demoted floor quietly ignored a cooldown.
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		cd.arm(blk('a'), Date.now());
 		cd.arm(blk('b'), Date.now());
@@ -351,8 +371,32 @@ describe('the demoted floor survives cooldown filtering', () => {
 			],
 			{ cooldowns: cd, health: healthOf({ a: 'healthy', b: 'demoted' }) },
 		);
-		expect(r.outcome).toBe('NO_PROVIDER_AVAILABLE');
-		expect(r.retryAfterMs).toBeGreaterThan(0);
+		expect(r.providerHealth).toBe('cooling-forced');
+		expect(r.providerHealth).not.toBe('demoted-forced');
+		// And it is rate-limited: the next request gets the honest refusal. A FRESH store with
+		// blocked adapters, because a forced probe that SUCCEEDS clears the cooldown outright —
+		// reusing the store above would test the block-lifted path by accident.
+		const cd2 = new InMemoryCooldownStore(() => 0.9);
+		cd2.arm(blk('a'), Date.now());
+		cd2.arm(blk('b'), Date.now());
+		const health = healthOf({ a: 'healthy', b: 'demoted' });
+		const one = await chain(
+			[
+				['a', 'HARD_BLOCK'],
+				['b', 'HARD_BLOCK'],
+			],
+			{ cooldowns: cd2, health },
+		);
+		expect(one.attempts).toHaveLength(1);
+		const two = await chain(
+			[
+				['a', 'HARD_BLOCK'],
+				['b', 'HARD_BLOCK'],
+			],
+			{ cooldowns: cd2, health },
+		);
+		expect(two.outcome).toBe('NO_PROVIDER_AVAILABLE');
+		expect(two.retryAfterMs).toBeGreaterThan(0);
 	});
 });
 
@@ -400,6 +444,7 @@ describe('an exhausted chain says so', () => {
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		expired(cd, blk('a'));
 		await cd.claim(blk('a'), Date.now());
+		forcedSlotTaken(cd);
 		const r = await chain([['a', 'OK']], { cooldowns: cd });
 		expect(r.outcome).toBe('NO_PROVIDER_AVAILABLE');
 		expect(r.attempts).toHaveLength(0);
@@ -414,6 +459,7 @@ describe('an exhausted chain says so', () => {
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		expired(cd, blk('a'));
 		await cd.claim(blk('a'), Date.now());
+		forcedSlotTaken(cd);
 		const r = await chain([['a', 'OK']], { cooldowns: cd });
 		expect(r.retryAfterMs).toBeGreaterThanOrEqual(1000);
 	});
@@ -424,6 +470,7 @@ describe('an exhausted chain says so', () => {
 		// only reachable after several consecutive arms, or on a failed probe.
 		const cd = new InMemoryCooldownStore(() => 0.999999);
 		cd.arm(blk('a'), Date.now());
+		forcedSlotTaken(cd);
 		const r = await chain([['a', 'OK']], { cooldowns: cd });
 		expect(r.retryAfterMs).toBeGreaterThan(25_000);
 		expect(r.retryAfterMs).toBeLessThanOrEqual(COOLDOWN.BASE_MS);
@@ -689,12 +736,37 @@ describe("the cooldown honours the target's Retry-After", () => {
 	});
 });
 
+describe('the store picks the ceiling from the key, not one ceiling for all', () => {
+	// `maxCapForKey` being right is worth nothing if the STORE does not pass it. Reverting that
+	// argument left every other test green, because the shared tests call `arm` directly.
+	it('grows a settled BLOCK cooldown past the flat cap', () => {
+		const cd = new InMemoryCooldownStore(() => 0.5);
+		const key = blk('a');
+		// Drive it into probe-failure territory: expired each time, so every arm is a re-arm
+		// after a failed probe, which is the path that uses the ceiling.
+		for (let i = 0; i < 12; i++) cd.arm(key, Date.now() - 10_000_000);
+		const before = Date.now();
+		cd.arm(key, before);
+		expect((cd.peek(key)?.untilMs ?? 0) - before).toBe(COOLDOWN.MAX_CAP_MS);
+	});
+
+	it('leaves a settled ACCOUNT cooldown at the flat cap', () => {
+		const cd = new InMemoryCooldownStore(() => 0.5);
+		const key = acct('a');
+		for (let i = 0; i < 12; i++) cd.arm(key, Date.now() - 10_000_000);
+		const before = Date.now();
+		cd.arm(key, before);
+		expect((cd.peek(key)?.untilMs ?? 0) - before).toBe(COOLDOWN.CAP_MS);
+	});
+});
+
 describe('a cooldown reason names the right system', () => {
 	// A `cd:acct` cooldown is a rate limit or an auth failure. Reporting it as "cooling on
 	// example.com" sends the operator to debug the target instead of their provider account.
 	it('says account, not domain, for a rate limit', async () => {
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		cd.arm(acct('a'), Date.now());
+		forcedSlotTaken(cd);
 		const r = await chain([['a', 'OK']], { cooldowns: cd });
 		expect(r.reason).toContain('account');
 		expect(r.reason).not.toContain(DOMAIN);
@@ -703,6 +775,7 @@ describe('a cooldown reason names the right system', () => {
 	it('names the domain for a block', async () => {
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		cd.arm(blk('a'), Date.now());
+		forcedSlotTaken(cd);
 		const r = await chain([['a', 'OK']], { cooldowns: cd });
 		expect(r.reason).toContain(DOMAIN);
 	});
