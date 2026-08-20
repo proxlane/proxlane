@@ -402,6 +402,20 @@ Two consequences that ARE public, because they shape the code:
 
 - Billing charges only on `OK`. Every other outcome is unbilled spend, which is why
   `X-Cost-Estimate` sums every attempt rather than the winning one.
+- **The dominant unbilled spend is not failover, and that changes what has to be decided.**
+  Running every recorded fixture through its adapter shows what the PROVIDER charges us for:
+  `TARGET_NOT_FOUND` is billed by all four, and `TARGET_RATE_LIMITED` and `TARGET_ERROR` are
+  billed by most. Those are target facts, not blocks. A 404 never fails over, so it is exactly
+  one paid attempt every time, and a caller generates them for free simply by holding a stale
+  URL list. Blocks at least arm a cooldown, which bounds them; a dead link is unbounded.
+  So the open question is not only "what rate", it is **which outcomes the caller pays for**.
+  Charging for anything the target genuinely answered, while still absorbing blocks, keeps the
+  promise where it is defensible and removes the unbounded part. That is a rate-table decision
+  and stays commercial, but the *shape* is public because it decides what the ledger records.
+- **`X-Chain` is the instrument for it.** It records `provider:outcome` for every attempt, so
+  the ratio of provider-billed non-`OK` outcomes to `OK` ones is readable straight from the
+  request log, per provider. Before it there was no way to measure the thing the rate depends
+  on, and the fixture corpus contains no block recordings at all (`state.md`).
 - Affiliate rate is never an input to routing or rankings. That is a house rule in
   `CLAUDE.md`, not a preference.
 
