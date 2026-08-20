@@ -15,7 +15,9 @@ import {
 	cooldownKey,
 	cooldownMs,
 	decide,
+	maxCapForKey,
 	parseRetryAfter,
+	probeCeilingMs,
 } from './cooldown.js';
 
 /** Deterministic rng that returns exactly what you give it. */
@@ -208,5 +210,99 @@ describe("the target's own Retry-After", () => {
 		let e = armFor(undefined, 0, 1000);
 		e = armFor(e, 0, 1000);
 		expect(e.consecutive).toBe(2);
+	});
+});
+
+describe('a settled block is remembered for longer than a transient one', () => {
+	// THE COST BUG. A failed probe re-armed at a flat CAP_MS forever, so a (provider, domain)
+	// that had refused us a hundred times running was treated exactly like one that refused
+	// twice: 15 minutes, i.e. 96 paid probes a day for that pair. Three providers blocked on one
+	// domain cost 288 a day, a hundred such domains cost 28,800 — every one of them billed, and
+	// every one of them rediscovering something already known.
+
+	it('leaves a FIRST block short, because most blocks are transient', () => {
+		// The regression that matters in the other direction: punishing a first block for hours
+		// routes around a provider that was probably about to work.
+		expect(probeCeilingMs(1)).toBe(COOLDOWN.CAP_MS);
+		expect(probeCeilingMs(COOLDOWN.GROW_AFTER)).toBe(COOLDOWN.CAP_MS);
+	});
+
+	it('grows once a pair keeps refusing, and clamps', () => {
+		expect(probeCeilingMs(COOLDOWN.GROW_AFTER + 1)).toBe(COOLDOWN.CAP_MS * 2);
+		expect(probeCeilingMs(COOLDOWN.GROW_AFTER + 2)).toBe(COOLDOWN.CAP_MS * 4);
+		expect(probeCeilingMs(COOLDOWN.MAX_CAP_MS)).toBe(COOLDOWN.MAX_CAP_MS);
+		// Monotonic, and never past the ceiling. A regression here is silently expensive rather
+		// than loud, which is why it is asserted over a range rather than at two points.
+		let prev = 0;
+		for (let c = 1; c < 40; c++) {
+			const v = probeCeilingMs(c);
+			expect(v).toBeGreaterThanOrEqual(prev);
+			expect(v).toBeLessThanOrEqual(COOLDOWN.MAX_CAP_MS);
+			prev = v;
+		}
+	});
+
+	it('re-arms a FAILED PROBE at the grown ceiling, not at the flat cap', () => {
+		// The behaviour the constant exists for, asserted through `arm` rather than through the
+		// helper — the helper being right is worth nothing if `arm` does not call it.
+		//
+		// The ceiling is passed explicitly, exactly as the store does via `maxCapForKey`. It is
+		// NOT the default: a caller that has not opted in keeps the old flat cap, so adding this
+		// could not change any namespace by accident.
+		const now = 1_000_000;
+		let e: CooldownEntry = { untilMs: now - 1, consecutive: 12, probeTaken: false };
+		e = arm(e, now, () => 0.5, maxCapForKey('cd:blk:p:example.com'));
+		expect(e.untilMs - now).toBe(COOLDOWN.MAX_CAP_MS);
+		expect(e.untilMs - now).toBeGreaterThan(COOLDOWN.CAP_MS);
+	});
+
+	it('still re-arms an EARLY failed probe at the old flat cap', () => {
+		const now = 1_000_000;
+		const e = arm({ untilMs: now - 1, consecutive: 1, probeTaken: false }, now, () => 0.5);
+		expect(e.untilMs - now).toBe(COOLDOWN.CAP_MS);
+	});
+
+	it('leaves the jittered first-arm path alone', () => {
+		// `arm` on a key that is still cooling is not a probe failure and must keep the short,
+		// fully-jittered draw. Growing THAT would punish a burst of concurrent blocks.
+		const now = 1_000_000;
+		const e = arm(undefined, now, () => 0.99);
+		expect(e.untilMs - now).toBeLessThan(COOLDOWN.BASE_MS);
+	});
+
+	it('grows a BLOCK cooldown and leaves an ACCOUNT cooldown alone', () => {
+		// The namespaces mean different things, so one ceiling for both is wrong whichever value
+		// it takes. `cd:blk` is a shared, effectively permanent fact about a (provider, domain).
+		// `cd:acct` is a rate limit or a lapsed key: private to one org, transient, and resetting
+		// on the provider's own schedule — backing it off six hours would take that customer's
+		// provider away for the afternoon to save a probe that costs almost nothing.
+		expect(maxCapForKey('cd:blk:scraperapi:example.com')).toBe(COOLDOWN.MAX_CAP_MS);
+		expect(maxCapForKey('cd:acct:someorg:scraperapi')).toBe(COOLDOWN.CAP_MS);
+		expect(maxCapForKey('cd:forced:example.com')).toBe(COOLDOWN.CAP_MS);
+	});
+
+	it('honours the ceiling it is given, rather than the global maximum', () => {
+		// Through `arm`, because `maxCapForKey` being right is worth nothing if `arm` ignores it.
+		const now = 1_000_000;
+		const settled: CooldownEntry = { untilMs: now - 1, consecutive: 20, probeTaken: false };
+		expect(arm(settled, now, () => 0.5, COOLDOWN.MAX_CAP_MS).untilMs - now).toBe(
+			COOLDOWN.MAX_CAP_MS,
+		);
+		expect(arm(settled, now, () => 0.5, COOLDOWN.CAP_MS).untilMs - now).toBe(COOLDOWN.CAP_MS);
+		// And the default is the OLD behaviour, so a caller that has not opted in is unchanged.
+		expect(arm(settled, now, () => 0.5).untilMs - now).toBe(COOLDOWN.CAP_MS);
+	});
+
+	it('keeps the forced-probe slot flat, so the floor cannot back itself off', () => {
+		// `armFor` ignores `consecutive` and clamps to CAP_MS. If the forced key used plain
+		// `arm` it would grow towards MAX_CAP_MS like any other, quietly undoing the floor after
+		// a day of a domain being fully blocked — the one case it exists for.
+		const now = 1_000_000;
+		const e = armFor(
+			{ untilMs: now - 1, consecutive: 30, probeTaken: false },
+			now,
+			COOLDOWN.CAP_MS,
+		);
+		expect(e.untilMs - now).toBe(COOLDOWN.CAP_MS);
 	});
 });

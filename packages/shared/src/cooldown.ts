@@ -49,9 +49,46 @@ export interface CooldownEntry {
 export const COOLDOWN = {
 	/** First cooldown, before jitter. */
 	BASE_MS: 30_000,
-	/** `integrations.md` section 3. Also what a failed probe re-arms at, directly. */
+	/** `integrations.md` section 3. The ceiling for the INITIAL, jittered backoff. */
 	CAP_MS: 15 * 60 * 1000,
+	/**
+	 * The ceiling once probes keep failing, and the reason this constant exists.
+	 *
+	 * A failed probe used to re-arm at `CAP_MS` exactly, forever. So a (provider, domain) that
+	 * had refused us a hundred times running was treated identically to one that refused twice:
+	 * a flat 15 minutes, which is **96 paid probes a day for that pair**. A domain three
+	 * providers block costs 288 a day, and a hundred such domains cost 28,800 — all of it spent
+	 * rediscovering something already known, and all of it billed.
+	 *
+	 * A pair that has failed this many times in a row is not a transient block, it is a
+	 * settled fact, and settled facts deserve a longer memory. Six hours puts it at ~4 probes a
+	 * day while still recovering inside a working day if the block lifts.
+	 *
+	 * NOT a bigger `CAP_MS`. The first block still cools for seconds, because most blocks are
+	 * transient and punishing them for hours on first sight would route around a provider that
+	 * was about to work.
+	 */
+	MAX_CAP_MS: 6 * 60 * 60 * 1000,
+	/**
+	 * Consecutive failures before the ceiling starts growing past `CAP_MS`.
+	 *
+	 * Three, so a pair gets the full 15-minute treatment a few times before we conclude it is
+	 * permanent. Reaching `MAX_CAP_MS` then takes roughly eight hours of continuous failure,
+	 * which is long enough that nothing transient gets there.
+	 */
+	GROW_AFTER: 3,
 } as const;
+
+/**
+ * The ceiling a failed probe re-arms at, given how many times this key has armed in a row.
+ *
+ * Exponential in the excess over `GROW_AFTER`, clamped to `MAX_CAP_MS`:
+ * 15m, 15m, 15m, 30m, 1h, 2h, 4h, 6h, 6h…
+ */
+export function probeCeilingMs(consecutive: number): number {
+	const steps = Math.max(0, consecutive - COOLDOWN.GROW_AFTER);
+	return Math.min(COOLDOWN.MAX_CAP_MS, COOLDOWN.CAP_MS * 2 ** steps);
+}
 
 /**
  * Exponential backoff with FULL jitter: uniform in `[0, min(cap, base * 2^n))`.
@@ -95,10 +132,26 @@ export function arm(
 	entry: CooldownEntry | undefined,
 	now: number,
 	rng: () => number,
+	/**
+	 * The ceiling a FAILED PROBE re-arms at. Defaults to `CAP_MS`, i.e. the old flat behaviour.
+	 *
+	 * Opt-in per namespace rather than global, and that is the point. `cd:blk` is a shared,
+	 * effectively permanent fact about a (provider, domain) and deserves a long memory. `cd:acct`
+	 * is a rate limit or a lapsed key: private to one org, usually transient, and resetting on
+	 * the provider's own schedule. Backing an org's rate limit off to six hours would take that
+	 * customer's provider away for the afternoon to save a probe that costs almost nothing.
+	 */
+	maxCapMs: number = COOLDOWN.CAP_MS,
 ): CooldownEntry {
 	const wasProbe = entry !== undefined && now >= entry.untilMs;
 	const consecutive = (entry?.consecutive ?? 0) + 1;
-	const ms = wasProbe ? COOLDOWN.CAP_MS : cooldownMs(consecutive - 1, rng);
+	// A failed probe re-arms at the ceiling exactly, with no jitter — unchanged, and for the
+	// reason above. What changed is that the ceiling GROWS: it used to be a flat `CAP_MS` no
+	// matter how long the pair had been refusing us, which is where the 96-probes-a-day came
+	// from. See `probeCeilingMs`.
+	const ms = wasProbe
+		? Math.min(maxCapMs, probeCeilingMs(consecutive))
+		: cooldownMs(consecutive - 1, rng);
 	return { untilMs: now + ms, consecutive, probeTaken: false };
 }
 
@@ -126,6 +179,30 @@ export function claimProbe(
  * rather than on a second list of outcome names, so `FAILOVER` stays the single source and
  * adding an outcome cannot silently miss this file.
  */
+/**
+ * The key that rate-limits the FORCED probe, when every capable provider is cooling.
+ *
+ * Per DOMAIN, not per (provider, domain), and that is the whole point: this fires only in the
+ * state where the alternative is serving nothing at all, so it must cost one attempt for the
+ * domain rather than one per provider on it.
+ *
+ * It exists because a hundred concurrent requests arriving at an all-cooling domain would
+ * otherwise all force at once — the precise thundering herd the half-open probe was built to
+ * prevent, reintroduced by the mechanism meant to keep the domain alive.
+ */
+/**
+ * Which ceiling a key's failed probe re-arms at.
+ *
+ * Only block cooldowns grow. See `arm`'s `maxCapMs` for why an account cooldown must not.
+ */
+export function maxCapForKey(key: string): number {
+	return key.startsWith('cd:blk:') ? COOLDOWN.MAX_CAP_MS : COOLDOWN.CAP_MS;
+}
+
+export function forcedProbeKey(domain: string): string {
+	return `cd:forced:${domain}`;
+}
+
 export function cooldownKey(
 	scope: 'blk' | 'acct' | 'none',
 	parts: { readonly provider: string; readonly domain: string; readonly org: string },

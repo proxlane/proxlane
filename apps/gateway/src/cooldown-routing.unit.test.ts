@@ -6,7 +6,7 @@
 // what the caller is told when everything is cooling.
 
 import type { Adapter, Outcome, ProviderCapabilities } from '@proxlane/adapters';
-import { COOLDOWN, cooldownKey } from '@proxlane/shared';
+import { COOLDOWN, cooldownKey, forcedProbeKey } from '@proxlane/shared';
 import { describe, expect, it } from 'vitest';
 import { runChain } from './chain.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
@@ -141,10 +141,16 @@ describe('a cooled provider is skipped', () => {
 });
 
 describe('when everything is cooling', () => {
-	it('says so, with the moment it stops being true', async () => {
-		// No floor here, and that is the difference from health: a demoted provider is a guess
-		// about a trend, while a cooldown is a fact — each of these refused THIS domain minutes
-		// ago. Forcing one buys a probable second refusal at full price.
+	// THE PREMISE HERE WAS REVERSED, deliberately, and the old reasoning is worth keeping
+	// because it was right at the time: "a demoted provider is a guess about a trend, while a
+	// cooldown is a fact — each of these refused THIS domain minutes ago, so forcing one buys a
+	// probable second refusal at full price."
+	//
+	// That holds at a flat fifteen-minute cap. It stops holding once a settled pair backs off
+	// to six hours, because "minutes ago" becomes "this morning" and refusing for the length of
+	// the backoff takes the domain off the air for the working day. So: one forced attempt,
+	// rate-limited per DOMAIN, and everyone else still gets the honest refusal.
+	it('forces ONE attempt rather than taking the domain off the air', async () => {
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		cd.arm(blkKey('a'), Date.now());
 		cd.arm(blkKey('b'), Date.now());
@@ -152,17 +158,103 @@ describe('when everything is cooling', () => {
 			['a', 'OK'],
 			['b', 'OK'],
 		]);
-		expect(r.outcome).toBe('NO_PROVIDER_AVAILABLE');
-		expect(r.attempts).toHaveLength(0);
-		expect(r.reason).toContain(DOMAIN);
-		expect(r.retryAfterMs).toBeGreaterThan(0);
+		expect(r.outcome).toBe('OK');
+		// ONE attempt, and it REACHED a provider. Asserting the outcome alone would have passed
+		// while the chain was empty and the request failed anyway — which is exactly what the
+		// first version of this did, with the forced slot already claimed and armed.
+		expect(r.attempts).toHaveLength(1);
+		expect(r.provider).toBeDefined();
 	});
 
-	it('never advertises a wait longer than the cap', async () => {
-		const cd = new InMemoryCooldownStore(() => 0.999999);
+	it('says WHY that provider was used, rather than reporting it as healthy', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
 		cd.arm(blkKey('a'), Date.now());
 		const r = await chain(cd, [['a', 'OK']]);
-		expect(r.retryAfterMs).toBeLessThanOrEqual(COOLDOWN.CAP_MS);
+		// `healthy` would be a true fact that explains nothing: this provider refused the domain
+		// an hour ago and is being tried anyway.
+		expect(r.providerHealth).toBe('cooling-forced');
+	});
+
+	it('lets exactly one request through — the rest still get the refusal', async () => {
+		// THE HERD. A hundred concurrent requests at an all-cooling domain must not all force.
+		// The claim is the same atomic single-slot primitive the half-open probe uses.
+		// The forced probe must still be BLOCKED, which is the realistic case and the only one
+		// where the herd matters. A forced probe that succeeds clears the cooldown outright —
+		// the block lifted, so every later request is served normally and there is no herd to
+		// prevent. Asserting against an `OK` adapter tested the happy path by accident.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		cd.arm(blkKey('a'), Date.now());
+		const first = await chain(cd, [['a', 'HARD_BLOCK']]);
+		const second = await chain(cd, [['a', 'HARD_BLOCK']]);
+		expect(first.attempts).toHaveLength(1);
+		expect(second.outcome).toBe('NO_PROVIDER_AVAILABLE');
+		expect(second.attempts).toHaveLength(0);
+		expect(second.reason).toContain(DOMAIN);
+	});
+
+	it('keeps the forced slot flat even after many forced cycles', async () => {
+		// THE FLOOR MUST NOT BACK ITSELF OFF. If the forced key were armed with the ordinary
+		// growing `arm`, it would climb towards MAX_CAP_MS exactly like a provider key — so a
+		// domain that stayed fully blocked would get its forced probe once every six hours
+		// instead of four times an hour, quietly undoing the floor in the one case it exists
+		// for. `armFor` ignores `consecutive` and clamps.
+		//
+		// Asserted THROUGH THE CHAIN, not on the helper. A unit test of `armFor` passes whether
+		// or not the chain calls it, which is exactly what happened: reverting this line left
+		// every other test green.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		const fkey = forcedProbeKey(DOMAIN);
+		// Drive the forced key to a high `consecutive` while leaving it EXPIRED, so the next
+		// claim succeeds and the chain re-arms it. Built through the public API rather than by
+		// reaching into the store.
+		for (let i = 0; i < 30; i++) cd.arm(fkey, Date.now() - 10_000_000);
+		expect(cd.peek(fkey)?.consecutive).toBeGreaterThan(COOLDOWN.GROW_AFTER);
+
+		cd.arm(blkKey('a'), Date.now());
+		const before = Date.now();
+		await chain(cd, [['a', 'HARD_BLOCK']]);
+
+		// A few seconds of slack for wall-clock drift between `before` and the chain's own
+		// `now()` — the regression this catches is six HOURS against fifteen minutes, so the
+		// tolerance is four orders of magnitude below the signal.
+		const held = (cd.peek(fkey)?.untilMs ?? 0) - before;
+		expect(held).toBeLessThanOrEqual(COOLDOWN.CAP_MS + 5_000);
+		expect(held).toBeGreaterThan(COOLDOWN.CAP_MS - 5_000);
+		// And the failure this guards against is specifically the grown one.
+		expect(held).toBeLessThan(COOLDOWN.MAX_CAP_MS);
+	});
+
+	it('holds the forced slot for the full window, not a jittered first-arm draw', async () => {
+		// A FRESH forced key. `arm` on one that has never been seen draws uniformly from
+		// [0, BASE_MS) — about 27 seconds here — where `armFor` gives the flat CAP_MS. Using
+		// plain `arm` would therefore free the slot in half a minute and let a fully-blocked
+		// domain be re-forced ~100x a day, which is the cost this whole change is about.
+		//
+		// The earlier version of this test seeded a high `consecutive` and an expired entry, so
+		// both paths took the probe branch and returned CAP_MS — it passed with `armFor` swapped
+		// for `arm`, i.e. it was decoration for exactly the line it claimed to guard.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		cd.arm(blkKey('a'), Date.now());
+		const before = Date.now();
+		await chain(cd, [['a', 'HARD_BLOCK']]);
+		const held = (cd.peek(forcedProbeKey(DOMAIN))?.untilMs ?? 0) - before;
+		expect(held).toBeGreaterThan(COOLDOWN.BASE_MS);
+		expect(held).toBeLessThanOrEqual(COOLDOWN.CAP_MS + 5_000);
+	});
+
+	it('never advertises a wait longer than the cap, even at a grown backoff', async () => {
+		// The provider may be six hours from opening, but a forced probe is available within
+		// CAP_MS, so telling the caller to wait six hours would be a worse lie than the one this
+		// replaced. `armFor` keeps the forced slot flat, which is what makes this true.
+		const cd = new InMemoryCooldownStore(() => 0.999999);
+		const key = blkKey('a');
+		for (let i = 0; i < 12; i++) cd.arm(key, Date.now());
+		const first = await chain(cd, [['a', 'HARD_BLOCK']]);
+		expect(first.attempts).toHaveLength(1);
+		const second = await chain(cd, [['a', 'HARD_BLOCK']]);
+		expect(second.outcome).toBe('NO_PROVIDER_AVAILABLE');
+		expect(second.retryAfterMs).toBeGreaterThan(0);
+		expect(second.retryAfterMs).toBeLessThanOrEqual(COOLDOWN.CAP_MS);
 	});
 });
 
