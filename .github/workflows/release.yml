@@ -19,6 +19,18 @@ on:
         description: rehearse without publishing or tagging
         type: boolean
         default: true
+      # THE RECOVERY PATH, and it exists because there was none. When 0.7.1 shipped as a tag
+      # whose image reported 0.7.0, the only ways to correct it were to hand-push an image from
+      # a laptop — untraceable, and the one thing `operations.md` says never to do — or to wait
+      # for a later version to supersede it and leave the wrong one on ghcr meanwhile.
+      #
+      # Rebuilds and re-tags the image for the version committed on the branch, using the same
+      # jobs a release uses, so a corrected image is built the same way every other one was.
+      # It cannot invent a version: it reads the committed one, like the release path does.
+      rebuild_image:
+        description: rebuild and re-tag the gateway image for the version on this branch
+        type: boolean
+        default: false
 
 # Two releases racing would publish two versions of the same package. Never cancel a running
 # one — a half-finished publish is worse than a queued one.
@@ -233,9 +245,26 @@ jobs:
       #
       #   and `:latest` therefore tracked unreleased code, which `docker/compose.yml` pulls.
       #
-      # `git show HEAD:` is the whole fix. On an ordinary push HEAD and HEAD~1 agree, so no
-      # image is built; on the merge of a version-packages PR they differ by exactly the bump,
-      # which is the moment an image should exist.
+      # `git show HEAD:` WAS THE FIX, AND IT WAS NOT ENOUGH. Reading the commit instead of the
+      # working tree closed the obvious hole and left a subtler one: `changesets/action` does not
+      # only bump the file on disk, it COMMITS, because that is how it prepares the release PR
+      # branch. Local HEAD therefore moves, and `git show HEAD:` starts reading the pending
+      # version again — from a commit that exists only on this runner.
+      #
+      # Measured on the 0.7.1 release. The run on #137's merge, where the gateway was 0.7.0,
+      # logged `gateway 0.7.0 -> 0.7.1, the image will be built`, built from a fresh checkout of
+      # the pushed SHA (genuinely 0.7.0), and pushed it as `:0.7.1` and `:latest`. Booting that
+      # image answers `{"version":"0.7.0"}`. The tag and the contents disagreed by one version,
+      # `docker/compose.yml` tells self-hosters to pin a version, and `deploy-gateway.yml` proves
+      # a deploy by reading exactly that field — so deploying 0.7.1 would have failed its own
+      # check.
+      #
+      # THE PUSHED SHA IS EVENT METADATA and no local commit can move it. That is the property
+      # this needs, and neither the working tree nor HEAD has it.
+      #
+      # On an ordinary push the pushed SHA and its parent agree, so no image is built; on the
+      # merge of a version-packages PR they differ by exactly the bump, which is the moment an
+      # image should exist.
       - name: read the gateway version, and whether it moved
         id: gateway
         shell: bash
@@ -246,13 +275,15 @@ jobs:
               | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null \
               || echo "none"
           }
-          VERSION=$(committed HEAD)
-          [ "$VERSION" != "none" ] || { echo "::error::cannot read the committed gateway version"; exit 1; }
+          # `github.sha` is the commit that was pushed, fixed when the event fired.
+          PUSHED='${{ github.sha }}'
+          VERSION=$(committed "$PUSHED")
+          [ "$VERSION" != "none" ] || { echo "::error::cannot read the gateway version at $PUSHED"; exit 1; }
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           # A gateway-only release publishes nothing to npm, so `published` is false and the
           # image job used to be skipped. The artifact a gateway release produces IS the
           # image, so the signal has to be its version changing, not npm.
-          PREVIOUS=$(committed HEAD~1)
+          PREVIOUS=$(committed "$PUSHED^")
           if [ "$VERSION" != "$PREVIOUS" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "  gateway $PREVIOUS -> $VERSION, the image will be built"
@@ -260,12 +291,19 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "  gateway unchanged at $VERSION, no image to build"
           fi
-          # Guards the fix itself. If the working tree disagrees with HEAD, `changeset version`
-          # has run and a future edit reading the file rather than the commit would silently
-          # reintroduce the pending-version tag.
+          # GUARDS BOTH WAYS THIS HAS BROKEN, because the first guard watched only one of them.
+          #
+          # The working tree is the obvious one. Local HEAD is the one that actually shipped a
+          # wrong tag: `changesets/action` commits, so HEAD carries the pending version while the
+          # pushed SHA does not. A guard comparing the tree to HEAD cannot see that, because both
+          # are polluted together and agree with each other.
           ONDISK=$(node -p "require('./apps/gateway/package.json').version")
+          HEADV=$(committed HEAD)
           if [ "$ONDISK" != "$VERSION" ]; then
-            echo "  note: working tree says $ONDISK (changesets bumped it); tagging the committed $VERSION"
+            echo "  note: working tree says $ONDISK (changesets bumped it); tagging $VERSION from $PUSHED"
+          fi
+          if [ "$HEADV" != "$VERSION" ]; then
+            echo "  note: local HEAD says $HEADV (changesets committed it); tagging $VERSION from $PUSHED"
           fi
 
   # Images follow the npm publish rather than racing it, so a tag that exists on ghcr always
@@ -294,7 +332,7 @@ jobs:
     # release that only touches the SDK publishes a package and needs no new image. Gated on
     # `published` alone, every gateway-only release since 0.1.1 silently skipped this job,
     # which is why ghcr sat two minor versions behind for weeks.
-    if: needs.release.outputs.published == 'true' || needs.release.outputs.gatewayChanged == 'true'
+    if: needs.release.outputs.published == 'true' || needs.release.outputs.gatewayChanged == 'true' || inputs.rebuild_image == true
     strategy:
       fail-fast: false
       matrix:
@@ -374,6 +412,40 @@ jobs:
             -t ghcr.io/proxlane/gateway:${{ needs.release.outputs.gatewayVersion }} \
             -t ghcr.io/proxlane/gateway:latest \
             $(printf 'ghcr.io/proxlane/gateway@sha256:%s ' *)
+      # THE CHECK THAT WOULD HAVE CAUGHT 0.7.1, and the only one here that compares the tag with
+      # what is inside it. Everything above proves the manifest is well formed; none of it looks
+      # at whether the bytes are the version the tag claims.
+      #
+      # `docker/compose.yml` tells self-hosters to pin a version, and `deploy-gateway.yml` proves
+      # a deploy by reading `/health`. Both trust the tag to describe the contents. When 0.7.1
+      # shipped built from 0.7.0's tree, nothing noticed until someone booted it by hand.
+      #
+      # Boots the real image and asks it, rather than inspecting labels: `/health` is the same
+      # field the deploy verifies, so this fails here instead of halfway through a deploy.
+      - name: prove the image is the version it is tagged
+        run: |
+          set -euo pipefail
+          WANT='${{ needs.release.outputs.gatewayVersion }}'
+          docker run -d --name tagcheck -p 8787:8787 \
+            -e PROXLANE_API_KEY=manifest-check \
+            ghcr.io/proxlane/gateway:"$WANT"
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8787/health >/dev/null 2>&1 && break
+            [ "$i" = "30" ] && { echo "::error::the tagged image never answered /health"; docker logs tagcheck; exit 1; }
+            sleep 1
+          done
+          # Captured first, never piped into `grep -q`: `-q` exits on the first match and
+          # SIGPIPEs the writer, and this step runs under `set -o pipefail`. That exact pattern
+          # already failed a build here once, reporting the opposite of what happened.
+          BODY=$(curl -fsS http://127.0.0.1:8787/health)
+          GOT=$(printf '%s' "$BODY" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version')
+          docker rm -f tagcheck >/dev/null 2>&1 || true
+          echo "  tag says $WANT, the image says $GOT"
+          [ "$GOT" = "$WANT" ] || {
+            echo "::error::ghcr.io/proxlane/gateway:$WANT reports version $GOT — the tag and the image disagree"
+            exit 1
+          }
+
       - name: prove both architectures are in the manifest
         run: |
           set -euo pipefail
