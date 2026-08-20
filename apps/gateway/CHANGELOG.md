@@ -1,5 +1,30 @@
 # @proxlane/gateway
 
+## 0.7.0
+
+### Minor Changes
+
+- [#136](https://github.com/proxlane/proxlane/pull/136) [`89f92ba`](https://github.com/proxlane/proxlane/commit/89f92ba1af670329d9eca3c15394f04a8803b6ee) Thanks [@scarsam](https://github.com/scarsam)! - A block cooldown that keeps failing now backs off to 6 hours instead of re-arming at a flat 15
+  minutes forever. A (provider, domain) that had refused a hundred times running cost 96 paid
+  probes a day, 288 for a domain three providers block, all of it re-buying evidence already
+  held. Account cooldowns are unchanged: a rate limit resets on its own and is private to one org.
+
+  Because a fully-blocked domain would otherwise go dark for the whole backoff, an all-cooling
+  domain now gets one forced attempt, rate-limited per domain and reported as
+  `X-Provider-Health: cooling-forced`.
+
+- [#134](https://github.com/proxlane/proxlane/pull/134) [`e103c8f`](https://github.com/proxlane/proxlane/commit/e103c8fc6f64f6d42890eaa65278ca4ee3be041f) Thanks [@scarsam](https://github.com/scarsam)! - `X-Chain` names every attempt as `provider:outcome`, in order, and the request log carries it
+  too. `X-Provider-Used` names the winner, so a request that failed over and then succeeded came
+  back as a clean 200 that hid the provider which had just cost 22 seconds. Found on the live
+  gateway: four requests timed out at one provider, all four failed over and returned 200, and
+  identifying the culprit needed `/health/cooldowns`, which expires.
+
+### Patch Changes
+
+- Updated dependencies [[`89f92ba`](https://github.com/proxlane/proxlane/commit/89f92ba1af670329d9eca3c15394f04a8803b6ee)]:
+  - @proxlane/shared@0.6.0
+  - @proxlane/adapters@0.5.1
+
 ## 0.6.0
 
 ### Minor Changes
