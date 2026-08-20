@@ -147,6 +147,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -191,6 +194,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -247,6 +253,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -291,6 +300,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -337,6 +349,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -381,6 +396,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -427,6 +445,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -471,6 +492,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -517,6 +541,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -561,6 +588,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -716,6 +746,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -760,6 +793,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -816,6 +852,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -860,6 +899,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -906,6 +948,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -950,6 +995,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -996,6 +1044,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -1040,6 +1091,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -1086,6 +1140,9 @@
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
 							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
+							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
 							},
@@ -1130,6 +1187,9 @@
 							},
 							"X-Attempts": {
 								"$ref": "#/components/headers/X-Attempts"
+							},
+							"X-Chain": {
+								"$ref": "#/components/headers/X-Chain"
 							},
 							"X-Cost-Estimate": {
 								"$ref": "#/components/headers/X-Cost-Estimate"
@@ -1292,6 +1352,13 @@
 				"schema": {
 					"type": "integer",
 					"minimum": 0
+				}
+			},
+			"X-Chain": {
+				"description": "Every attempt as `provider:outcome`, in order. The only header that names who FAILED — X-Provider-Used names the winner, so a request that failed over and then succeeded otherwise looks like a clean single-hop 200. Always present; a single-attempt request has a one-element chain.",
+				"schema": {
+					"type": "string",
+					"example": "scraperapi:PROVIDER_TIMEOUT>scrapfly:OK"
 				}
 			},
 			"X-Cost-Estimate": {
