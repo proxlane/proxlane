@@ -698,8 +698,12 @@ or the request never reached a provider.
 
 The distinction is not academic. Told that an exhausted chain answers 503, an integrator
 writes `if (status === 503) everythingFailed()`, and that branch never runs on the case it
-was written for. Branch on `X-Outcome-Class` instead: `gateway` means we could not tell you
-anything, everything else is a real answer about the target or the providers.
+was written for.
+
+Branch on `X-Outcome-Class`, which is closed and will not grow: `blocked`, `target` and
+`provider` are real answers arrived at by trying, `client` is the caller's own request being
+wrong, and `gateway` is the only one meaning we never found out. "Everything failed" is a
+`blocked` or `provider` answer with `X-Attempts` above one, not a 503.
 
 ### Budget must be reserved per remaining hop
 
