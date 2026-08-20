@@ -255,8 +255,19 @@ function headersFor(s: Scenario): readonly (readonly [string, string])[] {
 		['x-outcome', s.outcome],
 		['x-outcome-class', OUTCOME_CLASS[s.outcome] ?? 'gateway'],
 		['x-attempts', String(s.attempts.length)],
+		// The one header that names who FAILED. Derived from the same attempt list the diagram
+		// beside it draws, exactly as the real `headersFor` derives it from `r.attempts`, so the
+		// station that shows a red cross and the header that names it cannot disagree.
+		...(s.attempts.length === 0
+			? []
+			: ([
+					['x-chain', s.attempts.map((a) => `${a.provider}:${a.outcome}`).join('>')],
+				] as Row[])),
 		...(served === undefined ? [] : ([['x-provider-used', served.provider]] as Row[])),
 		['x-cost-estimate', s.cost],
+		// Always beside the number. The gateway omits it only when a chain spent in two units and
+		// reports `mixed`, which cannot happen in these scenarios — every one stays on credits.
+		['x-cost-unit', 'provider-credits'],
 		// Only when the gateway actually knows. A guessed Retry-After is worse than none,
 		// because a caller will believe it — the response builder takes the same position.
 		...(s.outcome === 'GATEWAY_BUSY' ? ([['retry-after', '1']] as Row[]) : []),
@@ -287,8 +298,6 @@ const LAUNCH_LINES = [
 	// The only one that renders at no extra charge, which is why the column earns its place:
 	// the same request costs 10x on one line and 1x on another.
 	{ id: 'brightdata', line: 4, geo: 'all', sessions: false, js: 1 },
-	// The only one that renders at no extra charge, which is why the column earns its place:
-	// the same request costs 10x on one line and 1x on another.
 ] as const;
 
 /**
@@ -335,6 +344,19 @@ const CLI_OUTPUT = `{
  * off, and the prose beside it had to admit as much. Three commands now: find the keys, run
  * the gateway, watch a request fail over. `x-attempts: 2` is the whole pitch in one line.
  */
+/**
+ * The version this transcript was taken at.
+ *
+ * ALLOWED TO LAG the newest release, and asserted only to be a version that actually shipped —
+ * the same position `repo:check` takes on the self-host compose pin. A transcript is a record of
+ * one run, so an older version is honest; a version nobody ever released is not.
+ *
+ * The banner used to omit it entirely, which stopped being true the moment the gateway started
+ * printing one. CI already learned that lesson the hard way: a literal "proxlane gateway on"
+ * match in the image smoke test broke on the same change.
+ */
+const BANNER_VERSION = '0.7.0';
+
 const QUICKSTART_BLOCKS: readonly Block[] = [
 	{ cmd: 'npx proxlane doctor' },
 	{
@@ -347,18 +369,26 @@ const QUICKSTART_BLOCKS: readonly Block[] = [
 	{ cmd: 'docker run -p 8787:8787 --env-file .env ghcr.io/proxlane/gateway' },
 	{
 		out: `
-  proxlane gateway on :8787
-  providers: scraperapi > scrapfly > scrapingbee > brightdata (in order)
+  proxlane gateway ${BANNER_VERSION} on :8787
+  providers: ${LAUNCH_LINES.map((l) => l.id).join(' > ')} (in order)
   retries:   1 extra at the last provider (PROXLANE_TERMINAL_RETRIES)
 `,
 	},
 	{ cmd: 'curl -sD- "localhost:8787/v1?api_key=$KEY&url=https://example.com"' },
 	{
+		// TWO attempts, and every field agrees with that. `x-cost-estimate` is two hops at the
+		// single-hop price the `first hop` scenario above quotes, not the three-hop figure from
+		// the `failover` one — a transcript whose own numbers disagree teaches the reader to
+		// distrust the rest of the page.
 		out: `
   HTTP/1.1 200 OK
   x-outcome        OK
+  x-outcome-class  ok
   x-attempts       2
-  x-provider-used  scrapfly
+  x-chain          ${LAUNCH_LINES[0]?.id}:SOFT_BLOCK>${LAUNCH_LINES[2]?.id}:OK
+  x-provider-used  ${LAUNCH_LINES[2]?.id}
+  x-cost-estimate  0.002800
+  x-cost-unit      provider-credits
 `,
 	},
 ];

@@ -1714,6 +1714,186 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------------- 32: the homepage transcript is a transcript, not an impression
+//
+// The landing page prints terminal output — a boot banner, a curl response — as though it were
+// pasted from a real run. Three things in it had gone stale and nothing could see any of them:
+//
+//   the banner listed the providers in the wrong ORDER (scrapfly and scrapingbee swapped),
+//   the banner had no VERSION at all, while the real one has printed one since 0.5.0,
+//   the response was missing `x-chain` and `x-cost-unit`, both of which the gateway sends.
+//
+// Assertion 28 already counts the providers on this page, so the count was right the whole time
+// while the order beside it was wrong. A count is the easy half.
+//
+// The order is now derived from `LAUNCH_LINES` in the page itself, so the banner cannot disagree
+// with the capability table below it. What is left to check is that `LAUNCH_LINES` agrees with
+// the registry, that no header on the page is one the gateway does not send, and that the
+// version named is one that actually shipped.
+{
+	const PAGE = 'apps/web/src/routes/index.tsx';
+	const REG = 'packages/adapters/src/registry.ts';
+	const APP = 'apps/gateway/src/app.ts';
+	const CHANGELOG = 'apps/gateway/CHANGELOG.md';
+	if (!has(PAGE) || !has(REG) || !has(APP) || !has(CHANGELOG)) {
+		fail('32', 'a file this check reads is missing, so the homepage transcript is unchecked');
+	} else {
+		const page = read(PAGE);
+		let checked32 = 0;
+
+		// 1. LAUNCH_LINES is in REGISTRY order. It is what the banner renders, so its order is
+		//    load-bearing rather than cosmetic, which it was not when only the count was checked.
+		const regIds = [...read(REG).matchAll(/^\t'?([a-z][a-z0-9-]*)'?:/gm)].map(
+			(m) => m[1] as string,
+		);
+		const lineIds = [
+			...(/const LAUNCH_LINES = \[([\s\S]*?)\n\] as const;/.exec(page)?.[1] ?? '').matchAll(
+				/\bid:\s*'([a-z0-9-]+)'/g,
+			),
+		].map((m) => m[1] as string);
+		if (regIds.length === 0 || lineIds.length === 0) {
+			fail('32', 'parsed no registry ids or no LAUNCH_LINES — this check stopped checking');
+		} else {
+			if (lineIds.join(' > ') !== regIds.join(' > ')) {
+				fail(
+					'32',
+					`LAUNCH_LINES is ${lineIds.join(' > ')} but the registry is ${regIds.join(' > ')}. ` +
+						'The homepage banner renders this order as the routing order, so it must match.',
+				);
+			}
+			checked32 += lineIds.length;
+		}
+
+		// 2. No header on the page that the gateway does not actually send. Same parse as
+		//    docs:check assertion 4, so the two cannot drift apart on what a header is called.
+		const real = new Set(
+			[...read(APP).matchAll(/'(X-[A-Za-z-]+|Retry-After|Server-Timing)':/g)].map((m) =>
+				(m[1] as string).toLowerCase(),
+			),
+		);
+		const shown = new Set(
+			[...page.matchAll(/^\s{2}(x-[a-z-]+)\s{2,}/gm)].map((m) => m[1] as string),
+		);
+		for (const [, h] of page.matchAll(/\['(x-[a-z-]+)',/g)) shown.add(h as string);
+		if (real.size === 0 || shown.size === 0) {
+			fail('32', 'parsed no headers from the gateway or none from the page');
+		} else {
+			for (const h of shown) {
+				if (!real.has(h)) {
+					fail(
+						'32',
+						`${PAGE} shows \`${h}\`, which ${APP} never sets. Owner: design-engineer.`,
+					);
+				}
+			}
+			checked32 += shown.size;
+		}
+
+		// 3. The version in the banner actually shipped. Allowed to LAG — a transcript is a record
+		//    of one run — so this is assertion 30's position, not "must be newest".
+		const named = /const BANNER_VERSION = '([^']+)'/.exec(page)?.[1];
+		if (named === undefined) {
+			fail(
+				'32',
+				`${PAGE} no longer names a BANNER_VERSION — the banner check stopped checking`,
+			);
+		} else {
+			const released = new Set(
+				[...read(CHANGELOG).matchAll(/^## (\d+\.\d+\.\d+)$/gm)].map((m) => m[1] as string),
+			);
+			if (released.size === 0) fail('32', `parsed no released versions from ${CHANGELOG}`);
+			else if (!released.has(named)) {
+				fail(
+					'32',
+					`the homepage banner says gateway ${named}, which has no entry in ${CHANGELOG} — ` +
+						'it was never released, so nobody ever saw that banner.',
+				);
+			}
+			checked32 += 1;
+		}
+
+		if (checked32 > 0) ok('32', checked32, 'the homepage transcript matches the gateway');
+	}
+}
+
+// ------------------- 33: the social card has a source, and the source is current
+//
+// `og.png` was committed as bytes on 2026-08-14 with no source and never touched again. Within
+// three days it was wrong twice: it drew the raspberry-ring `o` that #108 retired, and its
+// footer read "3 providers" while four shipped. Assertion 28 counts providers on the landing
+// page and saw none of it, because a PNG is bytes and no assertion can read one.
+//
+// So the card is drawn in `og-card.svg` and the PNG is rendered from it by `pnpm og:render`,
+// which records the SVG's digest beside the PNG. Three things follow, and each maps to one of
+// the two ways this went wrong:
+//
+//   the digest must match, or the drawing changed and nobody re-rendered  (bytes went stale)
+//   the provider count must match the registry                            (the "3 providers")
+//   the accent must not appear                                            (the retired ring)
+//
+// The accent check is the sharpest of the three and worth stating plainly: `--color-accent` is
+// the product's own colour, and the retired wordmark borrowed it for a letterform. A line colour
+// identifies a provider; the accent identifies us. Nothing on this card should be wearing it.
+{
+	const SVG = 'apps/web/src/og-card.svg';
+	const PNG = 'apps/web/public/og.png';
+	const SHA = 'apps/web/public/og.png.sha';
+	const REG = 'packages/adapters/src/registry.ts';
+	if (!has(SVG) || !has(PNG) || !has(SHA) || !has(REG)) {
+		const missing = [SVG, PNG, SHA, REG].filter((f) => !has(f));
+		fail('33', `missing ${missing.join(', ')} — run \`pnpm og:render\``);
+	} else {
+		const svg = read(SVG);
+		let checked33 = 0;
+
+		// 1. The PNG came from THIS revision of the SVG.
+		const want = createHash('sha256').update(svg).digest('hex');
+		const got = read(SHA).trim();
+		if (got !== want) {
+			fail(
+				'33',
+				`${SVG} has changed since ${PNG} was rendered from it. Run \`pnpm og:render\`. ` +
+					'A social card nobody can see going stale is how the last one lasted six days wrong.',
+			);
+		}
+		checked33 += 1;
+
+		// 2. The count in the footer is the registry's count. The DRAWING is three lanes and that
+		//    is deliberate — it is one request that failed over twice, not an inventory — so this
+		//    reads the footer claim, never the geometry.
+		const regIds = [...read(REG).matchAll(/^\t'?([a-z][a-z0-9-]*)'?:/gm)].map(
+			(m) => m[1] as string,
+		);
+		const claim = /<tspan[^>]*>(\d+)<\/tspan><tspan[^>]*>providers<\/tspan>/.exec(
+			svg.replace(/\s+/g, ' '),
+		);
+		if (regIds.length === 0) {
+			fail('33', 'parsed no registry ids — this check stopped checking');
+		} else if (claim === null) {
+			fail('33', `${SVG} no longer states a provider count in the shape this check reads`);
+		} else if (Number(claim[1]) !== regIds.length) {
+			fail(
+				'33',
+				`the social card says ${claim[1]} providers; the registry ships ${regIds.length} ` +
+					`(${regIds.join(', ')}). Fix ${SVG}, then \`pnpm og:render\`.`,
+			);
+		}
+		checked33 += 1;
+
+		// 3. The retired ring cannot come back. It was `--color-accent` on a letterform.
+		if (/#c2255c/i.test(svg)) {
+			fail(
+				'33',
+				`${SVG} uses the accent (#c2255c). The wordmark's ring was retired in #108 for ` +
+					'borrowing it: a line colour identifies a provider, the accent identifies us.',
+			);
+		}
+		checked33 += 1;
+
+		ok('33', checked33, 'the social card is rendered from a current source');
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

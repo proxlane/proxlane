@@ -30,7 +30,8 @@
 		"test:ssrf": "vitest run --project ssrf",
 		"test:unit": "vitest run --project unit",
 		"tokens:check": "node scripts/tokens-check.ts",
-		"typecheck": "turbo run typecheck"
+		"typecheck": "turbo run typecheck",
+		"og:render": "node scripts/og-render.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "catalog:",
