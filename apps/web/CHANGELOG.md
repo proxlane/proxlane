@@ -1,5 +1,20 @@
 # @proxlane/web
 
+## 0.5.0
+
+### Minor Changes
+
+- [#132](https://github.com/proxlane/proxlane/pull/132) [`9423cd4`](https://github.com/proxlane/proxlane/commit/9423cd44f215cd7cdfd2e4ee651c04b34305685c) Thanks [@scarsam](https://github.com/scarsam)! - A FAQ page at `/docs/faq`, answering the questions an evaluator actually asks before the
+  quickstart: what this is against calling a provider directly, whether code has to change,
+  what happens during an outage, what happens to provider API keys, and what the gateway logs.
+  Every answer is shipped behaviour, and the provider list points at the generated table rather
+  than repeating a count that would go stale.
+
+### Patch Changes
+
+- Updated dependencies [[`89f92ba`](https://github.com/proxlane/proxlane/commit/89f92ba1af670329d9eca3c15394f04a8803b6ee)]:
+  - @proxlane/shared@0.6.0
+
 ## 0.4.2
 
 ### Patch Changes
