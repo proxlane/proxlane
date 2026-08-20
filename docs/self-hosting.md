@@ -160,7 +160,7 @@ everything is fine about a gateway that will refuse to start.
 **This page previously said the gateway did not belong on Vercel. That was wrong**, and the
 argument it rested on was wrong too: Vercel added Dockerfile deploys on 30 June 2026, and the
 duration limit I claimed would break it does not exist. Hobby allows 300 s, which is well past
-this gateway's 90 s default deadline.
+this gateway's 120 s default deadline.
 
 You add a `Dockerfile.vercel` that listens on `$PORT`; Vercel builds it, stores it in its
 container registry, and runs it as an HTTP-backed function on Fluid compute. Our Dockerfile
@@ -218,7 +218,7 @@ what self-hosting is for, and the gateway's own promise — nothing phones home,
 contacts are your provider and your target — stops being true of your deployment.
 
 There is a practical reason too. A rendered scrape can legitimately take a minute; the whole
-chain is budgeted to 90 seconds by default and a terminal hop alone may take 75. Proxies impose
+chain is budgeted to 120 seconds by default and a terminal hop alone may take 90. Proxies impose
 their own request ceilings, often around 100 seconds, and when one trips you get its timeout page
 instead of an outcome — losing exactly the diagnosis the gateway exists to give you.
 
@@ -260,7 +260,7 @@ most:
 | `PROXLANE_API_KEY` | none | **Required.** Refuses to boot without it |
 | `SCRAPERAPI_KEY` `SCRAPINGBEE_KEY` `SCRAPFLY_KEY` `BRIGHTDATA_KEY` | none | BYOK. All optional. Bright Data's is `<zone>:<token>` |
 | `PORT` | `8787` | |
-| `PROXLANE_DEADLINE_MS` | `90000` | Global per-request deadline |
+| `PROXLANE_DEADLINE_MS` | `120000` | Global per-request deadline |
 | `PROXLANE_BODY_CAP_MB` | `10` | Response body cap |
 | `PROXLANE_MAX_INFLIGHT` | `32` | Concurrent `/v1` requests, then 429 `GATEWAY_BUSY` |
 | `PROXLANE_MEMORY_LIMIT_MB` | unset | Declares the memory limit when no cgroup one is readable |

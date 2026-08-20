@@ -44,7 +44,7 @@ services:
       SCRAPERAPI_KEY: ${SCRAPERAPI_KEY:-}
       SCRAPINGBEE_KEY: ${SCRAPINGBEE_KEY:-}
       SCRAPFLY_KEY: ${SCRAPFLY_KEY:-}
-      PROXLANE_DEADLINE_MS: ${PROXLANE_DEADLINE_MS:-90000}
+      PROXLANE_DEADLINE_MS: ${PROXLANE_DEADLINE_MS:-120000}
       PROXLANE_BODY_CAP_MB: ${PROXLANE_BODY_CAP_MB:-10}
       # Concurrent /v1 requests before the gateway answers 429 GATEWAY_BUSY. Sheds rather
       # than queues, and never applies to /health — an orchestrator must not restart a

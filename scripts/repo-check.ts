@@ -1931,6 +1931,80 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------------- 34: a documented default is the default the gateway ships
+//
+// `operations.md` recorded a decision to raise the global deadline to 120s, explained why, and
+// called 90s "the old default". `integrations.md` wrote its budget arithmetic against the 120.
+// The gateway shipped 90 the whole time, and so did `.env.example`, the compose file and the
+// self-hosting table. Nobody was lying; the decision was written down and never implemented,
+// and no check could tell the difference between "documented" and "shipped".
+//
+// It was not cosmetic. At 90s a three-hop chain gave the terminal provider 38s of its 70s cap,
+// because `hopBudget` reserves for every hop still to come. The hop that exists to rescue a
+// failing request was the one being cut short, which is the failure `operations.md` had already
+// described and believed fixed.
+//
+// So every place that states a default value for an environment variable must agree with the
+// fallback the code actually uses. Assertion 24 already checks a documented variable is READ by
+// something; this checks the VALUE beside it is true.
+{
+	const SOURCES: ReadonlyArray<readonly [file: string, pattern: RegExp]> = [
+		// `| \`VAR\` | \`value\` | ... |` in the self-hosting table
+		['docs/self-hosting.md', /\|\s*`(PROXLANE_[A-Z_]+)`\s*\|\s*`([^`]+)`\s*\|/g],
+		// `.env.example` IS DELIBERATELY NOT HERE. Its commented lines show the value you would
+		// SET to change behaviour, not the value you get if you set nothing: `# PROXLANE_HEALTH=on`
+		// sits under prose reading "off by default", and `# PROXLANE_COOLDOWNS=off` under "ON by
+		// default". Reading those as default claims made this check report three failures on a
+		// correct file the first time it ran. The defaults there live in prose, which is a harder
+		// check and not this one.
+		// `VAR: ${VAR:-value}` in compose
+		['docker/compose.yml', /(PROXLANE_[A-Z_]+):\s*\$\{\1:-([^}]+)\}/g],
+	];
+	const GATEWAY = 'apps/gateway/src/index.ts';
+	if (!has(GATEWAY)) {
+		fail('34', `${GATEWAY} is missing, so documented defaults cannot be checked`);
+	} else {
+		const src = read(GATEWAY);
+		// `env('VAR') ?? fallback`, with the underscores numeric literals may carry.
+		const shipped = new Map<string, string>();
+		for (const m of src.matchAll(/env\('(PROXLANE_[A-Z_]+)'\)\s*\?\?\s*([0-9_]+|'[^']*')/g)) {
+			shipped.set(m[1] as string, (m[2] as string).replace(/[_']/g, ''));
+		}
+		if (shipped.size === 0) {
+			fail('34', `parsed no defaults out of ${GATEWAY} — this check stopped checking`);
+		} else {
+			let checked34 = 0;
+			for (const [file, pattern] of SOURCES) {
+				if (!has(file)) continue;
+				for (const m of read(file).matchAll(pattern)) {
+					const name = m[1] as string;
+					const documented = (m[2] as string).trim().replace(/[_']/g, '');
+					const real = shipped.get(name);
+					// Only variables whose default this file can see. A documented variable read
+					// somewhere else is assertion 24's business, not this one.
+					if (real === undefined) continue;
+					checked34 += 1;
+					if (documented !== real) {
+						fail(
+							'34',
+							`${file} says ${name} defaults to ${documented}; ${GATEWAY} ships ${real}. ` +
+								'A decision recorded and not implemented reads exactly like one that was.',
+						);
+					}
+				}
+			}
+			if (checked34 === 0) {
+				fail(
+					'34',
+					'matched no documented defaults — the table shapes changed and this stopped checking',
+				);
+			} else {
+				ok('34', checked34, 'documented defaults match what the gateway ships');
+			}
+		}
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

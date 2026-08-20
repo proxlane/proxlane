@@ -85,6 +85,49 @@ const req = (over: Partial<GatewayRequest> = {}): GatewayRequest => ({
 	...over,
 });
 
+describe('the default deadline lets the terminal hop reach its cap', () => {
+	// WHY THE DEFAULT IS 120s AND NOT 90s, pinned as arithmetic rather than left in prose.
+	//
+	// `operations.md` recorded the move to 120s, explained it, and called 90s "the old default".
+	// The gateway shipped 90 for months anyway, because a decision written down and a decision
+	// implemented look identical from inside a document. This is the number that made it matter.
+	//
+	// Walk a real three-provider chain. `hopBudget` reserves MIN_USEFUL_ATTEMPT_MS for every hop
+	// still to come, so the terminal hop never simply gets the remainder.
+	const walk = (deadlineMs: number, caps: readonly number[]): number[] => {
+		let spent = 0;
+		return caps.map((cap, i) => {
+			const b = hopBudget(deadlineMs - spent, caps.length - i, cap);
+			const got = b.kind === 'attempt' ? b.perAttemptMs : 0;
+			spent += got;
+			return got;
+		});
+	};
+	// ScraperAPI, ScrapingBee, Scrapfly: fast caps 22s and 22s, terminal cap 70s.
+	const CHAIN = [22_000, 22_000, 70_000] as const;
+
+	it('gave the terminal hop barely half its cap at the old 90s default', () => {
+		const [, , terminal] = walk(90_000, CHAIN);
+		expect(terminal).toBe(38_000);
+		// The hop that exists to rescue a failing request was the one being cut short.
+		expect(terminal).toBeLessThan(70_000 * 0.6);
+	});
+
+	it('gives it nearly all of it at the shipped 120s', () => {
+		const [, , terminal] = walk(120_000, CHAIN);
+		expect(terminal).toBe(68_000);
+		expect(terminal).toBeGreaterThan(70_000 * 0.95);
+	});
+
+	it('still fits three real attempts, which is what N=3 claims', () => {
+		// A chain that does not fit its own advertised attempt count is the README's
+		// three-provider reliability claim being untrue rather than optimistic.
+		const hops = walk(120_000, CHAIN);
+		expect(hops.every((h) => h >= 8_000)).toBe(true);
+		expect(hops.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(120_000);
+	});
+});
+
 describe('the budget arithmetic that makes three attempts possible', () => {
 	it('reserves time for the hops behind it, instead of min(cap, remaining)', () => {
 		// integrations.md section 5: min(cap, remaining) gives attempt 1 seventy-five of
