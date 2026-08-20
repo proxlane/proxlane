@@ -373,7 +373,7 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Outcome` | every scrape | What happened. See [outcomes](/docs/outcomes) |
 | `X-Outcome-Class` | always | The coarse class. Branch on this one |
 | `X-Attempts` | always | How many providers were tried |
-| `X-Chain` | always | Every attempt as `provider:outcome`, in order |
+| `X-Chain` | when a provider was tried | Every attempt as `provider:outcome`, in order |
 | `X-Cost-Estimate` | always | Cost across all attempts, in the unit below. `mixed` if the chain spent in two units |
 | `X-Cost-Unit` | when one unit | `provider-credits` or `usd-cents` |
 | `Server-Timing` | always | `gw` is Proxlane, `up` is the providers, `total` is both |
@@ -403,8 +403,9 @@ X-Provider-Used: scrapfly
 X-Attempts: 2
 ```
 
-It is always present, and a single-attempt request has a one-element chain. That matters: an
-absent header cannot say "nothing failed".
+A single-attempt request has a one-element chain, which matters: an absent header could not
+otherwise say "nothing failed". It is omitted, never empty, when no provider was tried at
+all — a bad URL, a refused target, every provider cooling. `X-Attempts: 0` says that already.
 
 **`Retry-After` is never guessed.** If it is absent, Proxlane does not know when to retry. A
 number you can trust is worth more than a number that is always present.

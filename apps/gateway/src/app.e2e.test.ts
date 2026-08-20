@@ -462,6 +462,20 @@ describe('failures reach the caller as a status they can branch on', () => {
 		expect(merged['X-Attempts']).toBe('2');
 	});
 
+	it('omits the chain entirely when nothing was tried', async () => {
+		// SHIPPED BROKEN IN 0.7.0, and found by putting the header on the marketing page: a
+		// request refused before a provider is chosen has an empty attempt list, so this emitted
+		// a bare `X-Chain:` with nothing after the colon. `X-Provider-Used` two fields down
+		// already follows "omitted, never empty" for exactly this reason, and `X-Attempts: 0`
+		// says the same thing better. An empty value also invites a caller to split it and get a
+		// chain of one.
+		const merged = headersFor({ outcome: 'NO_PROVIDER_AVAILABLE', attempts: [] }, 5);
+		expect(merged['X-Chain']).toBeUndefined();
+		expect(merged['X-Attempts']).toBe('0');
+		// Not the empty string, which is what the broken version produced.
+		expect(Object.hasOwn(merged, 'X-Chain')).toBe(false);
+	});
+
 	it('still emits a one-element chain when nothing failed', async () => {
 		// An ABSENT header cannot say "nothing failed" — it is indistinguishable from an older
 		// gateway, or from a bug. A one-element chain says it positively.

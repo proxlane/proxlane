@@ -1,0 +1,113 @@
+<!-- The social card, and the SOURCE of `public/og.png`.
+
+     IT USED TO BE A BINARY WITH NO SOURCE. Committed once on 2026-08-14 and never touched
+     again, it went stale twice over within three days and nothing could see either: it still
+     drew the raspberry-ring `o` that #108 retired on 2026-08-17, and its footer read "3
+     providers" while four ship. `repo:check` assertion 28 counts providers on the landing page,
+     but a PNG is bytes — no assertion can read one.
+
+     So the card is drawn here, the PNG is rendered from this file by `pnpm og:render`, and
+     `public/og.png.sha` records which revision of this file it came from. Editing this without
+     re-rendering fails `repo:check`.
+
+     COLOURS ARE LITERAL, like `favicon.svg` and for the same reason: a standalone file cannot
+     read the token layer. `tokens:check` asserts each one is still a colour `design.md` defines,
+     so a palette change breaks here loudly instead of drifting quietly.
+
+     THE DIAGRAM IS THREE LANES AND THAT IS NOT THE PROVIDER COUNT. It is one request that
+     failed over twice, which is the product in a picture. The count lives in the footer, where
+     it is a claim rather than a drawing, and assertion 33 holds it to the registry. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1260" width="2400" height="1260"
+     font-family="Hanken Grotesk, Inter, Helvetica Neue, Arial, sans-serif">
+  <title>proxlane — your request, rerouted</title>
+
+  <!-- ground -->
+  <rect width="2400" height="1260" fill="#fbfaf7"/>
+
+  <!-- The transit-map grid, barely there. Rule at low alpha: at full strength it competes with
+       the lanes, which are the only thing on this card anyone should read first. -->
+  <g stroke="#dee2e6" stroke-width="2" opacity="0.55">
+    <path d="M0 250 H2400 M0 1010 H2400"/>
+    <path d="M520 0 V1260 M1040 0 V1260 M1560 0 V1260 M2080 0 V1260"/>
+  </g>
+
+  <!-- Wordmark. A LETTER, NOT A RING — the correction #108 made. The `o` is set in the same
+       face as the rest and kerned by it; the mark is the tri-line station, used elsewhere. -->
+  <text x="150" y="185" font-size="62" font-weight="600" letter-spacing="-1.9" fill="#14171a"
+        >proxlane</text>
+
+  <text x="150" y="380" font-size="146" font-weight="700" letter-spacing="-5" fill="#14171a"
+        >Your request, rerouted.</text>
+
+  <!-- the panel the diagram sits on -->
+  <rect x="146" y="478" width="2108" height="530" rx="28" fill="#ffffff" stroke="#dee2e6"
+        stroke-width="2"/>
+
+  <!-- The request enters, then becomes somebody's line. The black stub before the first station
+       is the request belonging to nobody yet, which is the same rule the route diagram follows. -->
+  <g stroke-width="9" fill="none" stroke-linecap="round">
+    <path d="M420 610 H505" stroke="#14171a"/>
+    <circle cx="415" cy="610" r="11" fill="#14171a" stroke="none"/>
+
+    <!-- lane 1: answered 200 with a challenge page. Dashed, because it did not deliver. -->
+    <path d="M505 610 H1390" stroke="#0b7285" stroke-dasharray="4 22"/>
+    <path d="M505 610 V755" stroke="#0b7285"/>
+    <circle cx="505" cy="610" r="20" fill="#ffffff" stroke="#0b7285"/>
+    <path d="M1372 592 L1408 628 M1408 592 L1372 628" stroke="#0b7285"/>
+
+    <!-- lane 2: failed outright -->
+    <path d="M505 755 H1390" stroke="#e8590c"/>
+    <path d="M505 755 V900" stroke="#e8590c"/>
+    <circle cx="505" cy="755" r="20" fill="#ffffff" stroke="#e8590c"/>
+    <path d="M1372 737 L1408 773 M1408 737 L1372 773" stroke="#e8590c"/>
+
+    <!-- lane 3: served -->
+    <path d="M505 900 H1830" stroke="#5f3dc4"/>
+    <circle cx="505" cy="900" r="20" fill="#ffffff" stroke="#5f3dc4"/>
+    <circle cx="1830" cy="900" r="20" fill="#ffffff" stroke="#5f3dc4"/>
+    <circle cx="1830" cy="900" r="7" fill="#5f3dc4" stroke="none"/>
+  </g>
+
+  <!-- the hairline leaders to the outcome column, so the labels are not stranded -->
+  <g stroke="#dee2e6" stroke-width="3" stroke-dasharray="2 12" stroke-linecap="round">
+    <path d="M1430 610 H1870"/>
+    <path d="M1430 755 H1870"/>
+  </g>
+
+  <text x="290" y="618" font-size="40" font-weight="600" fill="#14171a" text-anchor="end"
+        >request</text>
+
+  <g font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace">
+    <g font-size="38" fill="#14171a">
+      <text x="545" y="572">scraperapi</text>
+      <text x="545" y="717">scrapingbee</text>
+      <text x="545" y="862">scrapfly</text>
+    </g>
+    <g font-size="30" fill="#495057">
+      <text x="800" y="572">1.4s</text>
+      <text x="835" y="717">610ms</text>
+      <text x="750" y="862">1.8s</text>
+    </g>
+    <g font-size="36" fill="#14171a">
+      <text x="1900" y="602">SOFT_BLOCK</text>
+      <text x="1900" y="768">PROVIDER_ERROR</text>
+      <text x="1878" y="913">200 OK</text>
+    </g>
+    <text x="1900" y="648" font-size="27" fill="#495057">cf-challenge</text>
+
+    <!-- The footer carries the only COUNT on the card, which is why it is the thing assertion 33
+         reads. `4 providers` was `3` for six days after the fourth adapter shipped. -->
+    <g font-size="36" fill="#495057">
+      <!-- EVERY GAP IS AN EXPLICIT `dx`. A leading space inside a tspan is collapsed by the
+           renderer, so `<tspan> free forever</tspan>` came out as "BYOKfree forever" — the words
+           ran together in the one line on the card that makes claims. -->
+      <text x="150" y="1128">
+        <tspan fill="#14171a" font-weight="600">BYOK</tspan><tspan dx="14">free forever</tspan
+        ><tspan dx="52" fill="#14171a" font-weight="600">AGPL</tspan><tspan dx="14"
+        >self-hostable</tspan><tspan dx="52" fill="#14171a" font-weight="600">4</tspan><tspan
+        dx="14">providers</tspan>
+      </text>
+      <text x="2250" y="1128" text-anchor="end">github.com/proxlane/proxlane</text>
+    </g>
+  </g>
+</svg>

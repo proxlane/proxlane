@@ -245,21 +245,41 @@ for (const [variant, tokens] of [
 //    stays self-consistent. It carries a `prefers-color-scheme` block of its own, because a
 //    favicon sits on browser chrome this project does not control, so BOTH variants count as
 //    legitimate. Anything outside the two is a colour nobody chose.
-const FAVICON = join(ROOT, 'apps/web/public/favicon.svg');
-if (existsSync(FAVICON)) {
+//
+//    THE SOCIAL CARD IS THE SAME KIND OF FILE and is checked the same way. It is standalone SVG
+//    rendered to `og.png`, so it writes every colour literally too, and it is the file with the
+//    worst drift record in the repo: the previous card was a sourceless PNG that spent six days
+//    showing a wordmark the project had already retired. Its own header comment promises this
+//    check runs over it, so it does.
+const STANDALONE_SVG = [
+	'apps/web/public/favicon.svg',
+	'apps/web/src/og-card.svg',
+	// Pure white is not a palette token and is legitimate here: the card's diagram sits on a
+	// raised panel, which `design.md` draws above `--color-ground` rather than in it.
+] as const;
+{
 	const palette = new Set(
 		[...Object.values(light), ...Object.values(dark)]
 			.filter((v) => /^#[0-9a-fA-F]{6}$/.test(v))
 			.map((v) => v.toLowerCase()),
 	);
+	palette.add('#ffffff');
 	if (palette.size < 8) fail(`parsed only ${palette.size} palette colours to check against`);
-	const found = [...readFileSync(FAVICON, 'utf8').matchAll(/#[0-9a-fA-F]{6}/g)].map((m) =>
-		m[0].toLowerCase(),
-	);
-	if (found.length === 0) fail('favicon.svg declares no colour at all');
-	const stray = [...new Set(found)].filter((h) => !palette.has(h));
-	if (stray.length > 0)
-		fail(`favicon.svg uses ${stray.join(', ')}, which the palette does not define`);
+	let scanned = 0;
+	for (const rel of STANDALONE_SVG) {
+		const file = join(ROOT, rel);
+		if (!existsSync(file)) continue;
+		const found = [...readFileSync(file, 'utf8').matchAll(/#[0-9a-fA-F]{6}/g)].map((m) =>
+			m[0].toLowerCase(),
+		);
+		if (found.length === 0) fail(`${rel} declares no colour at all`);
+		const stray = [...new Set(found)].filter((h) => !palette.has(h));
+		if (stray.length > 0)
+			fail(`${rel} uses ${stray.join(', ')}, which the palette does not define`);
+		scanned += 1;
+	}
+	// Both files are tracked, so a zero here means the list stopped matching the tree.
+	if (scanned === 0) fail('no standalone SVG was scanned — this check stopped checking');
 }
 
 // 8. No raw hex outside the token file. The one check that stops the system becoming a

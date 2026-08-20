@@ -224,7 +224,16 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
 		//
 		// Only ever provider ids and outcome names, both closed vocabularies of our own, so this
 		// cannot leak a target, a key or a caller's URL the way logging a chain of URLs would.
-		'X-Chain': r.attempts.map((a) => `${a.provider}:${a.outcome}`).join('>'),
+		//
+		// OMITTED, NEVER EMPTY, when nothing was tried — the same rule `X-Provider-Used` follows
+		// two fields down, and it shipped broken in 0.7.0. A request refused before a provider is
+		// chosen (a bad URL, the edge guard, every provider cooling) has an empty attempt list, so
+		// this emitted a bare `X-Chain:` with nothing after the colon. `X-Attempts: 0` already
+		// says nothing was tried; a present-but-empty header says it worse and invites a caller to
+		// parse the empty string as a chain of one.
+		...(r.attempts.length === 0
+			? {}
+			: { 'X-Chain': r.attempts.map((a) => `${a.provider}:${a.outcome}`).join('>') }),
 		// `mixed` is rare and is not an error: it means the chain genuinely spent in two
 		// currencies. Reporting the units instead of a number keeps the header parseable — a
 		// caller reading it as a float gets NaN rather than a plausible wrong figure.
