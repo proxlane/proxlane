@@ -176,13 +176,32 @@ if (import.meta.filename === process.argv[1]) {
 	if (skipped > 0) {
 		process.stdout.write(`  skipping ${skipped} private package(s), which never reach npm\n`);
 	}
-	if (packages.length === 0) {
-		// Non-zero denominator. Called only when `published == 'true'`, so an empty list means
-		// the wiring is wrong, not that there is nothing to check.
+	// THE EMPTY LIST AND THE ALL-PRIVATE LIST ARE DIFFERENT THINGS, and conflating them failed a
+	// release. The comment here used to read "called only when `published == 'true'`, so an empty
+	// list means the wiring is wrong" — but `changesets/action` reports `published: true` once it
+	// has VERSIONED and TAGGED something, and `privatePackages.tag` is deliberately on, so a
+	// release where only private packages changed sets that flag while sending nothing to npm.
+	//
+	// That is exactly what 0.7.1 was: `@proxlane/gateway` and `@proxlane/web`, both `private`,
+	// nothing publishable touched. The check filtered both out, saw zero, and failed a release
+	// that had done everything right — after the tags were already cut, so it left the image
+	// unbuilt and the deploy unrun.
+	//
+	// So the non-zero denominator applies to what changesets HANDED US, not to what survived the
+	// private filter. An empty input still means the wiring is wrong; an input that was entirely
+	// private means there was genuinely nothing for npm to receive.
+	if (all.length === 0) {
 		process.stderr.write(
-			'::error::no published packages to verify — this check proved nothing\n',
+			'::error::changesets reported a publish but named no packages — this check proved nothing\n',
 		);
 		process.exit(1);
+	}
+	if (packages.length === 0) {
+		process.stdout.write(
+			`  every one of the ${all.length} versioned package(s) is private, so nothing reached ` +
+				'npm and there is no credential posture to verify.\n',
+		);
+		process.exit(0);
 	}
 
 	const fetchVersions: Fetcher = async (name) => {

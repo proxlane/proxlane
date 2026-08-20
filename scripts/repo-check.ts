@@ -1789,6 +1789,43 @@ function matchesOwner(pattern: string, file: string): boolean {
 			checked32 += shown.size;
 		}
 
+		// 2b. THE PANEL THAT SHOWS THEM MUST SURVIVE THE LONGEST ONE.
+		//
+		// `x-chain` is far longer than any other header value on this page, and adding it broke the
+		// layout in two places at once: a `1fr` grid track carries `min-width: auto`, so it refused
+		// to shrink below the chain, took the width out of the name column beside it, and left the
+		// header NAMES breaking mid-word — `x-` / `outcome-` / `class` — while the chain itself
+		// still overflowed and clipped.
+		//
+		// This guards the mechanism rather than the appearance, which is the honest limit of a
+		// check that cannot lay out a page: the value track must be allowed to shrink, and a
+		// header name must never wrap. Both are one-line properties of the grid that renders them.
+		if (/'x-chain'/.test(page)) {
+			const grid = /<dl className="grid ([^"]*)"/.exec(page)?.[1] ?? '';
+			if (grid === '') {
+				fail(
+					'32',
+					`${PAGE} no longer renders the headers in a <dl> grid — this check stopped checking`,
+				);
+			} else {
+				if (!grid.includes('minmax(0,')) {
+					fail(
+						'32',
+						`${PAGE} shows x-chain in a grid whose value track cannot shrink (${grid}). ` +
+							'A bare `1fr` has min-width:auto, so the longest value squeezes the name ' +
+							'column until header names break mid-word. Use minmax(0,1fr).',
+					);
+				}
+				if (!/<dt className="whitespace-nowrap/.test(page)) {
+					fail(
+						'32',
+						`${PAGE} lets header NAMES wrap. A name broken across lines is not a name.`,
+					);
+				}
+			}
+			checked32 += 1;
+		}
+
 		// 3. The version in the banner actually shipped. Allowed to LAG — a transcript is a record
 		//    of one run — so this is assertion 30's position, not "must be newest".
 		const named = /const BANNER_VERSION = '([^']+)'/.exec(page)?.[1];
