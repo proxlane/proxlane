@@ -232,10 +232,8 @@
 		"brief": ".claude/agents/seo-content.md",
 		"spec": "docs/operating.md#a4-publishing-workflow",
 		"subject": "scripts/content-lint.ts",
-		"blockedBy": ["apps/web/content"],
-		"status": "not-implemented",
-		"gate": "Zero MDX pages. A check with nothing to check is not a pass.",
-		"ci": "none"
+		"status": "implemented",
+		"ci": "pr"
 	},
 	"docs:check": {
 		"id": "docs:check",

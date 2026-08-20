@@ -12,7 +12,7 @@
 		"changeset": "changeset",
 		"check": "node scripts/check.ts",
 		"conformance": "turbo run build --filter=@proxlane/adapters && node scripts/conformance.ts",
-		"content:lint": "node scripts/not-implemented.ts content:lint",
+		"content:lint": "node scripts/content-lint.ts",
 		"dev": "turbo run dev --parallel",
 		"docs:check": "node scripts/openapi.ts && node scripts/docs-check.ts",
 		"k6:soak": "node scripts/k6-soak.ts test/k6/soak.js",

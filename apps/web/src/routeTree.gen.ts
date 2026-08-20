@@ -21,6 +21,10 @@ import { Route as DocsHostingRouteImport } from './routes/docs/hosting'
 import { Route as DocsOutcomesRouteImport } from './routes/docs/outcomes'
 import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
 import { Route as DocsUseCasesRouteImport } from './routes/docs/use-cases'
+import { Route as Symptoms200CaptchaBodyRouteImport } from './routes/symptoms/200-captcha-body'
+import { Route as Symptoms403WhileScrapingRouteImport } from './routes/symptoms/403-while-scraping'
+import { Route as SymptomsCloudflareChallengePlaywrightRouteImport } from './routes/symptoms/cloudflare-challenge-playwright'
+import { Route as SymptomsDatadomeDetectionRouteImport } from './routes/symptoms/datadome-detection'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -82,6 +86,29 @@ const DocsUseCasesRoute = DocsUseCasesRouteImport.update({
   path: '/docs/use-cases',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Symptoms200CaptchaBodyRoute = Symptoms200CaptchaBodyRouteImport.update({
+  id: '/symptoms/200-captcha-body',
+  path: '/symptoms/200-captcha-body',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Symptoms403WhileScrapingRoute =
+  Symptoms403WhileScrapingRouteImport.update({
+    id: '/symptoms/403-while-scraping',
+    path: '/symptoms/403-while-scraping',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const SymptomsCloudflareChallengePlaywrightRoute =
+  SymptomsCloudflareChallengePlaywrightRouteImport.update({
+    id: '/symptoms/cloudflare-challenge-playwright',
+    path: '/symptoms/cloudflare-challenge-playwright',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const SymptomsDatadomeDetectionRoute =
+  SymptomsDatadomeDetectionRouteImport.update({
+    id: '/symptoms/datadome-detection',
+    path: '/symptoms/datadome-detection',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -95,6 +122,10 @@ export interface FileRoutesByFullPath {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
+  '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
+  '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
+  '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
+  '/symptoms/datadome-detection': typeof SymptomsDatadomeDetectionRoute
   '/docs/': typeof DocsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -109,6 +140,10 @@ export interface FileRoutesByTo {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
+  '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
+  '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
+  '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
+  '/symptoms/datadome-detection': typeof SymptomsDatadomeDetectionRoute
   '/docs': typeof DocsIndexRoute
 }
 export interface FileRoutesById {
@@ -124,6 +159,10 @@ export interface FileRoutesById {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
+  '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
+  '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
+  '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
+  '/symptoms/datadome-detection': typeof SymptomsDatadomeDetectionRoute
   '/docs/': typeof DocsIndexRoute
 }
 export interface FileRouteTypes {
@@ -140,6 +179,10 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/quickstart'
     | '/docs/use-cases'
+    | '/symptoms/200-captcha-body'
+    | '/symptoms/403-while-scraping'
+    | '/symptoms/cloudflare-challenge-playwright'
+    | '/symptoms/datadome-detection'
     | '/docs/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -154,6 +197,10 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/quickstart'
     | '/docs/use-cases'
+    | '/symptoms/200-captcha-body'
+    | '/symptoms/403-while-scraping'
+    | '/symptoms/cloudflare-challenge-playwright'
+    | '/symptoms/datadome-detection'
     | '/docs'
   id:
     | '__root__'
@@ -168,6 +215,10 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/quickstart'
     | '/docs/use-cases'
+    | '/symptoms/200-captcha-body'
+    | '/symptoms/403-while-scraping'
+    | '/symptoms/cloudflare-challenge-playwright'
+    | '/symptoms/datadome-detection'
     | '/docs/'
   fileRoutesById: FileRoutesById
 }
@@ -183,6 +234,10 @@ export interface RootRouteChildren {
   DocsOutcomesRoute: typeof DocsOutcomesRoute
   DocsQuickstartRoute: typeof DocsQuickstartRoute
   DocsUseCasesRoute: typeof DocsUseCasesRoute
+  Symptoms200CaptchaBodyRoute: typeof Symptoms200CaptchaBodyRoute
+  Symptoms403WhileScrapingRoute: typeof Symptoms403WhileScrapingRoute
+  SymptomsCloudflareChallengePlaywrightRoute: typeof SymptomsCloudflareChallengePlaywrightRoute
+  SymptomsDatadomeDetectionRoute: typeof SymptomsDatadomeDetectionRoute
   DocsIndexRoute: typeof DocsIndexRoute
 }
 
@@ -272,6 +327,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsUseCasesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/symptoms/200-captcha-body': {
+      id: '/symptoms/200-captcha-body'
+      path: '/symptoms/200-captcha-body'
+      fullPath: '/symptoms/200-captcha-body'
+      preLoaderRoute: typeof Symptoms200CaptchaBodyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/symptoms/403-while-scraping': {
+      id: '/symptoms/403-while-scraping'
+      path: '/symptoms/403-while-scraping'
+      fullPath: '/symptoms/403-while-scraping'
+      preLoaderRoute: typeof Symptoms403WhileScrapingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/symptoms/cloudflare-challenge-playwright': {
+      id: '/symptoms/cloudflare-challenge-playwright'
+      path: '/symptoms/cloudflare-challenge-playwright'
+      fullPath: '/symptoms/cloudflare-challenge-playwright'
+      preLoaderRoute: typeof SymptomsCloudflareChallengePlaywrightRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/symptoms/datadome-detection': {
+      id: '/symptoms/datadome-detection'
+      path: '/symptoms/datadome-detection'
+      fullPath: '/symptoms/datadome-detection'
+      preLoaderRoute: typeof SymptomsDatadomeDetectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -287,6 +370,11 @@ const rootRouteChildren: RootRouteChildren = {
   DocsOutcomesRoute: DocsOutcomesRoute,
   DocsQuickstartRoute: DocsQuickstartRoute,
   DocsUseCasesRoute: DocsUseCasesRoute,
+  Symptoms200CaptchaBodyRoute: Symptoms200CaptchaBodyRoute,
+  Symptoms403WhileScrapingRoute: Symptoms403WhileScrapingRoute,
+  SymptomsCloudflareChallengePlaywrightRoute:
+    SymptomsCloudflareChallengePlaywrightRoute,
+  SymptomsDatadomeDetectionRoute: SymptomsDatadomeDetectionRoute,
   DocsIndexRoute: DocsIndexRoute,
 }
 export const routeTree = rootRouteImport

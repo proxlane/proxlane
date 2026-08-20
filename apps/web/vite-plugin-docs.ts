@@ -46,6 +46,16 @@ export interface RenderedDoc {
 	readonly slug: string;
 	readonly title: string;
 	readonly summary: string;
+	/**
+	 * The literal search query a page answers. Symptom pages only, and optional everywhere.
+	 *
+	 * A docs page is named for what it documents. A symptom page is named for what somebody
+	 * typed into a search box while their scraper was broken, and the two are rarely the same
+	 * string: "Scraper returns 403" is the heading, "why does my scraper get 403" is the query.
+	 * Keeping them apart lets the heading stay readable without the page drifting off the thing
+	 * it was written to answer, and gives `content:lint` something concrete to check.
+	 */
+	readonly query?: string;
 	readonly html: string;
 	/** Every h2 and h3, in document order, for the on-page contents. */
 	readonly headings: readonly DocHeading[];
@@ -71,7 +81,7 @@ function slug(text: string, seen: Map<string, number>): string {
 }
 
 /**
- * Frontmatter, deliberately minimal: `title` and `summary`, both required.
+ * Frontmatter, deliberately minimal: `title` and `summary` required, `query` optional.
  *
  * Not YAML, and not a YAML parser. Two flat string fields is the entire contract, and a
  * parser for arbitrary YAML would invite the frontmatter to grow into configuration that
@@ -266,6 +276,7 @@ export async function renderDoc(file: string, slugName: string): Promise<Rendere
 		slug: slugName,
 		title: meta.title as string,
 		summary: meta.summary as string,
+		...(meta.query === undefined ? {} : { query: meta.query }),
 		html: md.render(body),
 		headings,
 	};

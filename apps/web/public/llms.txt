@@ -14,6 +14,10 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 ## Docs
 
 - [FAQ](https://proxlane.dev/docs/faq): what it does, what it costs, what happens to your keys.
+- [Scraper returns 403](https://proxlane.dev/symptoms/403-while-scraping): why does my scraper get 403
+- [200 response with a captcha page](https://proxlane.dev/symptoms/200-captcha-body): scraper returns 200 but body is a captcha
+- [Cloudflare challenge page in Playwright](https://proxlane.dev/symptoms/cloudflare-challenge-playwright): playwright still gets the cloudflare challenge page
+- [DataDome block detection](https://proxlane.dev/symptoms/datadome-detection): how to detect a datadome block
 - [Quickstart](https://proxlane.dev/docs/quickstart): Make your first request in about a minute.
 - [Hosting](https://proxlane.dev/docs/hosting): Where the gateway runs well, where it runs badly, and why.
 - [API reference](https://proxlane.dev/docs/api): Every endpoint, parameter and header the gateway implements.
