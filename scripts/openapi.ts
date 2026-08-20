@@ -122,6 +122,11 @@ const HEADERS: Record<string, { description: string; schema: object }> = {
 		description: 'How many providers were tried.',
 		schema: { type: 'integer', minimum: 0 },
 	},
+	'X-Chain': {
+		description:
+			'Every attempt as `provider:outcome`, in order. The only header that names who FAILED — X-Provider-Used names the winner, so a request that failed over and then succeeded otherwise looks like a clean single-hop 200. Always present; a single-attempt request has a one-element chain.',
+		schema: { type: 'string', example: 'scraperapi:PROVIDER_TIMEOUT>scrapfly:OK' },
+	},
 	'X-Cost-Estimate': {
 		description:
 			'Credits, summed across every attempt including the ones that failed. A failover that burned two charged hops reports both.',

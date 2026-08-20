@@ -373,6 +373,7 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Outcome` | every scrape | What happened. See [outcomes](/docs/outcomes) |
 | `X-Outcome-Class` | always | The coarse class. Branch on this one |
 | `X-Attempts` | always | How many providers were tried |
+| `X-Chain` | always | Every attempt as `provider:outcome`, in order |
 | `X-Cost-Estimate` | always | Cost across all attempts, in the unit below. `mixed` if the chain spent in two units |
 | `X-Cost-Unit` | when one unit | `provider-credits` or `usd-cents` |
 | `Server-Timing` | always | `gw` is Proxlane, `up` is the providers, `total` is both |
@@ -391,6 +392,19 @@ became one. This is the reason to branch on the class.
 
 **`X-Cost-Estimate` covers every attempt**, not just the one that worked. A failover that
 burned two charged hops reports both.
+
+**`X-Chain` is the one that says who failed.** `X-Provider-Used` names the winner, so a
+request that failed over and then succeeded returns a clean 200 that hides the provider which
+cost you 22 seconds:
+
+```
+X-Chain: scraperapi:PROVIDER_TIMEOUT>scrapfly:OK
+X-Provider-Used: scrapfly
+X-Attempts: 2
+```
+
+It is always present, and a single-attempt request has a one-element chain. That matters: an
+absent header cannot say "nothing failed".
 
 **`Retry-After` is never guessed.** If it is absent, Proxlane does not know when to retry. A
 number you can trust is worth more than a number that is always present.

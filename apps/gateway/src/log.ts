@@ -29,6 +29,8 @@ export interface RequestLine {
 	readonly status: number;
 	readonly provider?: string;
 	readonly attempts?: number;
+	/** Every attempt as `provider:outcome`, in order. The only field that names who FAILED. */
+	readonly chain?: string;
 	readonly cost?: string;
 	readonly detect?: string;
 	/** Gateway-internal milliseconds — ours, and the number `k6:soak` gates on. */

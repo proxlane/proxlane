@@ -437,6 +437,53 @@ describe('failures reach the caller as a status they can branch on', () => {
 		expect(body.attempts).toHaveLength(2);
 	});
 
+	it('names the provider that FAILED, not just the one that served', async () => {
+		// THE REGRESSION THIS EXISTS FOR, and it shipped as a clean 200. On the live gateway's
+		// first real incident four requests timed out at one provider, failed over, and every
+		// one returned 200 with `X-Provider-Used: scrapfly`. Nothing in the response, and
+		// nothing in the request log, named the provider that had just cost 22 seconds. Working
+		// it out needed /health/cooldowns, which expires — by the next morning it was gone.
+		const merged = headersFor(
+			{
+				outcome: 'OK',
+				provider: 'second',
+				attempts: [
+					{ provider: 'first', outcome: 'PROVIDER_TIMEOUT', budgetMs: 1, upstreamMs: 1 },
+					{ provider: 'second', outcome: 'OK', budgetMs: 1, upstreamMs: 1 },
+				],
+			},
+			5,
+		);
+		expect(merged['X-Chain']).toBe('first:PROVIDER_TIMEOUT>second:OK');
+		// The two headers that could NOT answer it, asserted here so a future change that drops
+		// X-Chain in favour of "the other headers already cover it" fails rather than argues.
+		expect(merged['X-Provider-Used']).toBe('second');
+		expect(merged['X-Attempts']).toBe('2');
+	});
+
+	it('still emits a one-element chain when nothing failed', async () => {
+		// An ABSENT header cannot say "nothing failed" — it is indistinguishable from an older
+		// gateway, or from a bug. A one-element chain says it positively.
+		const merged = headersFor(
+			{
+				outcome: 'OK',
+				provider: 'only',
+				attempts: [{ provider: 'only', outcome: 'OK', budgetMs: 1, upstreamMs: 1 }],
+			},
+			5,
+		);
+		expect(merged['X-Chain']).toBe('only:OK');
+	});
+
+	it('puts the chain in the request log, where the history lives', async () => {
+		// The header answers "what happened to THIS request". The log is the only place that can
+		// answer "which provider has been flaky this week", which is the question that actually
+		// decides whether to keep paying one.
+		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`);
+		expect(r.status).toBe(200);
+		expect(r.headers.get('x-chain')).toBe(`${r.headers.get('x-provider-used')}:OK`);
+	});
+
 	it('answers a refused target as 403 without contacting a provider', async () => {
 		const r = await get(
 			`api_key=${API_KEY}&url=${encodeURIComponent('http://169.254.169.254/')}`,

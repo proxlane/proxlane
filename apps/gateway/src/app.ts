@@ -211,6 +211,20 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
 		// what integration code should switch on. See `OutcomeClass` in @proxlane/shared.
 		'X-Outcome-Class': outcomeClass(r.outcome),
 		'X-Attempts': String(r.attempts.length),
+		// WHO FAILED, not just who served. `X-Provider-Used` names the winner and `X-Attempts`
+		// counts the tries, and between them they cannot answer the first question anyone asks
+		// after a failover: which provider was flaky?
+		//
+		// It went unnoticed because the error body already carries the full attempt list, so a
+		// FAILED request explains itself. A request that failed over and then SUCCEEDED returns
+		// 200 and says nothing, and that is the common case — on this gateway's first real
+		// incident, four requests timed out at one provider, failed over, and every one of them
+		// returned a clean 200. Identifying the culprit needed `/health/cooldowns`, which expires,
+		// so by the next morning the evidence would have been gone.
+		//
+		// Only ever provider ids and outcome names, both closed vocabularies of our own, so this
+		// cannot leak a target, a key or a caller's URL the way logging a chain of URLs would.
+		'X-Chain': r.attempts.map((a) => `${a.provider}:${a.outcome}`).join('>'),
 		// `mixed` is rare and is not an error: it means the chain genuinely spent in two
 		// currencies. Reporting the units instead of a number keeps the header parseable — a
 		// caller reading it as a float gets NaN rather than a plausible wrong figure.
@@ -696,6 +710,9 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 								? {}
 								: { provider: h('X-Provider-Used') as string }),
 							...(attempts === undefined ? {} : { attempts: Number(attempts) }),
+							// Logged even when it holds one attempt: a one-element chain is how the
+							// log says "nothing failed", and an absent field cannot say that.
+							...(h('X-Chain') === undefined ? {} : { chain: h('X-Chain') as string }),
 							...(h('X-Cost-Estimate') === undefined
 								? {}
 								: { cost: h('X-Cost-Estimate') as string }),
