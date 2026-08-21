@@ -205,6 +205,39 @@ describe('the menu is a diagram, and the diagram lines up', () => {
 		expect(lineLeft + 0.5).toBe(size / 2);
 	});
 
+	it("hangs the sheet at exactly the pill's width", () => {
+		// The bar pads the pill in from the page edge; the sheet insets itself from the same bar.
+		// Those are one measurement expressed twice, so they drift the moment one grows a
+		// breakpoint the other does not — which is what happened: `px-4 sm:px-8` against a bare
+		// `inset-x-4`, so the two agreed at 390px and the sheet hung 16px past the pill on each
+		// side from 640 up. Measured, pill [32,719] against sheet [16,735] at 751px.
+		const steps = (cls: string, prop: string): Record<string, string> => {
+			const out: Record<string, string> = {};
+			for (const m of cls.matchAll(new RegExp(`(?:^|\\s)(?:(\\w+):)?${prop}-(\\d+)`, 'g'))) {
+				out[m[1] ?? 'base'] = m[2] as string;
+			}
+			return out;
+		};
+		const bar = steps(barClass(true), 'px');
+		const sheet = steps(sheetClass(true), 'inset-x');
+		expect(Object.keys(bar).length, 'read no padding steps off barClass').toBeGreaterThan(1);
+		expect(sheet).toEqual(bar);
+	});
+
+	it('paints the sheet opaquely, because it sits over a scrim', () => {
+		// The scrim is dark in BOTH themes. A translucent surface on top of it is grey, and the
+		// light theme rendered a near-white menu as mid-grey that read as disabled. Glass belongs
+		// to the pill scrolling over content, not to a panel over a scrim.
+		const nav = /<nav className="([^"]*rounded-card[^"]*)"/.exec(src)?.[1];
+		expect(nav, 'no sheet nav in the source').toBeDefined();
+		expect(nav).toContain('bg-[color:var(--color-surface)]');
+		// `bg-…/72` is the tell. An alpha on the surface is the bug this fixed.
+		expect(nav).not.toMatch(/bg-\[color:var\(--color-[a-z]+\)\]\/\d+/);
+		// And the pill goes solid with it — it holds the control that closes the menu.
+		expect(pillClass(false, true)).toContain('bg-[color:var(--color-surface)]');
+		expect(pillClass(false, true)).not.toMatch(/\/\d+/);
+	});
+
 	it('switches the row and the sheet at the same width', () => {
 		// TWO HALVES OF ONE CONTROL. The row is hidden below a breakpoint and the sheet above it,
 		// so if the two ever name different breakpoints there is a band of widths showing both or

@@ -93,17 +93,22 @@ export function scrimClass(stuck: boolean): string {
 /**
  * The pill. Each state supplies its OWN background, border and shadow, and never the other's.
  */
-export function pillClass(stuck: boolean): string {
+export function pillClass(stuck: boolean, open = false): string {
 	return [
 		// `relative z-40` so the scrim cannot paint over it: the pill holds the control that CLOSES
 		// the menu, and a blurred close button is the one thing on screen that must stay legible.
 		'relative z-40 flex items-center justify-between gap-4 rounded-full border px-4 py-1.5 sm:gap-6 sm:px-5',
 		'transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-(--ease-lane)',
-		stuck
-			? // Glass: the ground at 72%, blurred and saturated so the field behind reads as depth
-				// rather than noise, a hairline, and the shadow every panel uses to sit on paper.
-				'border-[color:var(--color-rule)] bg-[color:var(--color-ground)]/72 shadow-panel backdrop-blur-xl backdrop-saturate-150'
-			: 'border-transparent bg-transparent shadow-none backdrop-blur-none',
+		open
+			? // Over the scrim, with the sheet, and solid for the same reason: 72% of a light ground
+				// on top of a dark scrim is grey, and the control that CLOSES the menu is the last
+				// thing on screen that should be hard to read.
+				'border-[color:var(--color-rule)] bg-[color:var(--color-surface)] shadow-panel'
+			: stuck
+				? // Glass: the ground at 72%, blurred and saturated so the field behind reads as
+					// depth rather than noise, a hairline, and the shadow every panel uses.
+					'border-[color:var(--color-rule)] bg-[color:var(--color-ground)]/72 shadow-panel backdrop-blur-xl backdrop-saturate-150'
+				: 'border-transparent bg-transparent shadow-none backdrop-blur-none',
 	].join(' ');
 }
 
@@ -117,7 +122,11 @@ export function pillClass(stuck: boolean): string {
  */
 export function sheetClass(open: boolean): string {
 	return [
-		'absolute inset-x-4 top-full z-40 origin-top md:hidden',
+		// `inset-x-4 sm:inset-x-8` MIRRORS `barClass`'s `px-4 sm:px-8`, because the sheet has to be
+		// exactly as wide as the pill it hangs from. It only had the first half, so the two lined
+		// up at 390px and the sheet grew 16px past the pill on each side from 640 up — measured,
+		// pill [32,719] against sheet [16,735] at 751px.
+		'absolute inset-x-4 top-full z-40 origin-top sm:inset-x-8 md:hidden',
 		'transition-[opacity,transform] duration-300 ease-(--ease-lane) motion-reduce:transition-none',
 		open
 			? 'translate-y-0 scale-100 opacity-100'
@@ -180,7 +189,7 @@ export function SiteHeader() {
 			<div ref={sentinel} aria-hidden="true" className="h-0" />
 			<div className={`relative ${barClass(stuck)}`}>
 				<div aria-hidden="true" className={scrimClass(stuck)} />
-				<header className={pillClass(stuck || open)}>
+				<header className={pillClass(stuck, open)}>
 					{/* THE MARK, then the name. One mark here and in the footer: this used to draw the
 					    word alone with its `o` replaced by a raspberry ring, a second logo sharing
 					    nothing with the tri-line station but its colour.
@@ -294,7 +303,13 @@ function MobileSheet({
 				className={overlayClass(open)}
 			/>
 			<div id="site-menu" aria-hidden={!open} className={sheetClass(open)}>
-				<nav className="rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-ground)]/85 p-2 shadow-panel backdrop-blur-xl backdrop-saturate-150">
+				{/* OPAQUE, AND NO BLUR. Translucent glass is right for a pill scrolling over the page;
+				    over a scrim it just dilutes. The scrim is dark in BOTH themes, so at 85% the light
+				    theme rendered a near-white surface as mid-grey and the whole menu read as
+				    disabled. Blur behind an opaque surface is a paint nobody sees.
+				    `--color-surface` rather than `--color-ground`: it is the token every other panel
+				    on this site sits on, and this is a panel. */}
+				<nav className="rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] p-2 shadow-panel">
 					{/* The track. Inset top and bottom to the first and last node's centre, so the line
 					    runs BETWEEN stations rather than past them, the way a route diagram does. */}
 					<div className="relative pl-6">
