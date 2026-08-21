@@ -2124,8 +2124,95 @@ function matchesOwner(pattern: string, file: string): boolean {
 			}
 		};
 		walk(WEB);
+
+		// AND EVERY HOP AFTER THE FIRST, because banning the barrel here only bans it HERE. It
+		// happened again the moment `apps/web` took a dependency on `@proxlane/adapters`:
+		// `contract.ts` imported the shared barrel, so the browser got `node:crypto` through a
+		// package that never mentions it. This assertion was green throughout. Hydration was
+		// dead, the page server-rendered perfectly, and the only symptom was a control that
+		// would not click.
+		//
+		// So the graph is walked instead of the directory. Static imports only — a dynamic
+		// `import()` is a separate chunk that never executes unless something calls it, which is
+		// exactly how `REGISTRY` keeps four adapters out of the eager bundle.
+		const BUILTIN = /from '(node:[a-z_/]+)'/;
+		const seen = new Set<string>();
+		const trail = new Map<string, string>();
+
+		/** `@proxlane/x` -> packages/x/src/index.ts, `@proxlane/x/y` -> packages/x/src/y.ts. */
+		const resolve = (spec: string, fromFile: string): string | undefined => {
+			if (spec.startsWith('.')) {
+				const base = join(dirname(fromFile), spec).replace(/\.js$/, '');
+				for (const c of [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`]) {
+					if (has(c)) return c;
+				}
+				return undefined;
+			}
+			const m = /^@proxlane\/([a-z-]+)(?:\/(.+))?$/.exec(spec);
+			if (m === null) return undefined;
+			const sub = (m[2] ?? 'index').replace(/\.js$/, '');
+			for (const c of [
+				`packages/${m[1]}/src/${sub}.ts`,
+				`packages/${m[1]}/src/${sub}/index.ts`,
+			]) {
+				if (has(c)) return c;
+			}
+			return undefined;
+		};
+
+		const follow = (file: string, from: string): void => {
+			if (seen.has(file)) return;
+			seen.add(file);
+			trail.set(file, from);
+			for (const line of read(file).split('\n')) {
+				const t = line.trimStart();
+				if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) continue;
+				// `import(` is lazy and does not reach the eager bundle.
+				if (/\bimport\(/.test(t)) continue;
+				// `import type` is ERASED — `verbatimModuleSyntax` guarantees it — so it carries
+				// nothing into the bundle. Following it reported `node:fs` reaching the browser
+				// through a Vite plugin that a route imports two interfaces from. A whole-line
+				// form only: `import { type A, b }` still emits a value import for `b`.
+				if (/^(?:import|export) type\b/.test(t)) continue;
+				const builtin = BUILTIN.exec(t);
+				if (builtin !== null) {
+					// Reconstruct how the browser got here — the useful half of the message.
+					const path: string[] = [];
+					for (let n: string | undefined = file; n !== undefined; n = trail.get(n)) {
+						path.unshift(n);
+						if (path.length > 8) break;
+					}
+					fail(
+						'35',
+						`${builtin[1]} reaches the browser bundle via ${path.join(' -> ')}. One thrown ` +
+							'module kills hydration site-wide. Import by a subpath that does not carry it.',
+					);
+					continue;
+				}
+				const spec = /from '([^']+)'/.exec(t)?.[1];
+				if (spec === undefined) continue;
+				const next = resolve(spec, file);
+				if (next !== undefined) follow(next, file);
+			}
+		};
+
+		// Every web source is an entry: the router loads all of them.
+		const entries: string[] = [];
+		const collect = (dir: string): void => {
+			for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+				const rel = `${dir}/${e.name}`;
+				if (e.isDirectory()) collect(rel);
+				else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) entries.push(rel);
+			}
+		};
+		collect(WEB);
+		for (const e of entries) follow(e, '');
+
 		if (scanned === 0) fail('35', 'scanned no web sources — this check stopped checking');
-		else ok('35', scanned, 'web sources import shared by subpath, not by barrel');
+		else if (seen.size <= entries.length) {
+			// The walk must actually leave `apps/web`, or it is checking the same thing twice.
+			fail('35', 'the import walk never reached a workspace package — it stopped checking');
+		} else ok('35', seen.size, 'no Node builtin is reachable from a web source');
 	}
 }
 

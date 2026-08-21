@@ -30,6 +30,7 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 
 ## Tools
 
+- [Scraping API comparison](https://proxlane.dev/scraping-api-comparison): what ScraperAPI, ScrapingBee, Scrapfly and Bright Data each charge on top of their base rate for JS rendering, residential proxies and country targeting, from their own published rates. Compares multipliers, which are dimensionless; never compares base rates across billing units.
 - [Block page detector](https://proxlane.dev/block-page-detector): paste a response body and see whether it is a block page, which rule fires, and what the gateway would do with it. Runs client-side; makes no request to any target.
 
 ## Other formats

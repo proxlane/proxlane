@@ -16,13 +16,17 @@
 		"./outcome": {
 			"types": "./dist/outcome.d.mts",
 			"default": "./dist/outcome.mjs"
+		},
+		"./error-body": {
+			"types": "./dist/error-body.d.mts",
+			"default": "./dist/error-body.mjs"
 		}
 	},
 	"files": [
 		"dist"
 	],
 	"scripts": {
-		"build": "tsdown src/index.ts src/outcome.ts --format esm --dts",
+		"build": "tsdown src/index.ts src/outcome.ts src/error-body.ts --format esm --dts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"clean": "rm -rf dist"
 	},

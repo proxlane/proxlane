@@ -79,6 +79,45 @@ describe('the static list mirrors the registry', () => {
 		expect(checked).toBeGreaterThan(0);
 	});
 
+	it('prices requests at a plausible scale for their unit', () => {
+		// A UNIT-SCALE GUARD, and it exists because one shipped. Bright Data's base was 1,500
+		// microcredits against `unit: 'usd-cents'`. The arithmetic: a credit is 1,000,000 micro,
+		// a "credit" there is one US cent, and $1.50 per 1,000 requests is 0.15 cents — so
+		// 150,000. The 1,500 came from $0.0015 x 1e6, which is micro-DOLLARS. A hundred times
+		// too low, in the estimate of the only provider that reports no cost of its own.
+		//
+		// Nothing could see it: every structural test passed, the ratios between cells were all
+		// correct, and a wrong absolute scale is invisible to a comparison of multipliers.
+		//
+		// THE BAND IS DELIBERATELY WIDE. It is not a claim about what scraping costs; it is the
+		// observation that no provider charges less than a hundredth of its own unit per request
+		// or more than a thousand of them, so anything outside is an exponent, not a price.
+		const FLOOR = 10_000; // 0.01 of one credit / cent
+		const CEILING = 1_000_000_000; // 1,000 credits / cents
+		let priced = 0;
+		for (const c of CAPABILITIES) {
+			for (const tier of TIERS) {
+				for (const cost of [
+					c.costTable.matrix[tier].plain,
+					c.costTable.matrix[tier].rendered,
+				]) {
+					// Zero is a real price — the keyless dev adapter is genuinely free — and null
+					// means not sold. Neither has a scale to get wrong.
+					if (cost === null || cost === 0) continue;
+					expect(
+						cost,
+						`${c.id} ${tier}: ${cost} looks like a unit-scale slip`,
+					).toBeGreaterThanOrEqual(FLOOR);
+					expect(cost, `${c.id} ${tier}: ${cost} is implausibly large`).toBeLessThanOrEqual(
+						CEILING,
+					);
+					priced += 1;
+				}
+			}
+		}
+		expect(priced, 'no priced cells to check').toBeGreaterThan(0);
+	});
+
 	it('never prices rendering below a plain request', () => {
 		// Rendering runs a browser. No provider gives that away cheaper than not doing it, so a
 		// row where `rendered` undercuts `plain` is a transcription slip, not a bargain. The kind
