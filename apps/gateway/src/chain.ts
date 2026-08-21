@@ -9,6 +9,7 @@ import {
 	type Adapter,
 	type CostUnit,
 	conflictApplies,
+	costOf,
 	type GatewayRequest,
 	type Outcome,
 	type ParsedResult,
@@ -108,6 +109,39 @@ export interface Attempt {
 	 * ScraperAPI to Bright Data produces two numbers that must not be added.
 	 */
 	readonly costUnit?: CostUnit;
+	/**
+	 * Whether the provider TOLD us this figure or we worked it out from our own table.
+	 *
+	 * The adapters have always produced it and this record threw it away, which quietly made
+	 * `integrations.md` section 4 unbuildable: "we store `reported` and diff against our
+	 * estimate. Sustained drift > 10% on any (provider, feature) pair opens an alert: our table
+	 * is stale." You cannot diff the two if you cannot tell which one you stored.
+	 *
+	 * That matters more than it sounds. A week of checking found three of four cost tables wrong,
+	 * and re-reading four vendors' pricing pages is what found them — which does not scale to ten
+	 * providers. The gateway already sees the provider's own number on most responses. Keeping it
+	 * labelled is what turns live traffic into the drift detector instead of a human with a
+	 * calendar reminder.
+	 */
+	readonly costSource?: 'reported' | 'estimated';
+	/**
+	 * What our own cost table SAYS this attempt should have cost, for the shape we sent.
+	 *
+	 * Recorded beside the provider's own figure so the two can be subtracted. They have always
+	 * sat microseconds apart in this function — `parsed.cost` on one side, `req.premium` and
+	 * `req.renderJs` on the other — and `costOf` was never called here. The website compares
+	 * prices; the gateway, which gets the vendor's real answer back on three of four providers,
+	 * compared nothing.
+	 *
+	 * That is the difference between finding a wrong price by re-reading four vendors' pricing
+	 * pages, which does not scale past about four, and finding it in the first request that hits
+	 * the cell. Scrapfly's residential+render error would have read predicted 125,000,000 against
+	 * a reported 30,000,000 on the very first such request the gateway ever served.
+	 *
+	 * Absent when the table cannot price the shape at all — a combination the provider does not
+	 * sell should be a routing decision, not a silent zero.
+	 */
+	readonly costPredicted?: number;
 }
 
 export interface ChainResult {
@@ -649,6 +683,17 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					: {
 							costMicrocredits: parsed.cost.microcredits,
 							costUnit: adapter.capabilities.costTable.unit,
+							costSource: parsed.cost.source,
+							// The oracle. Only meaningful next to a `reported` figure, but recorded
+							// either way: an `estimated` cost that disagrees with the table it came
+							// from would mean the adapter and the table have diverged.
+							...((): { costPredicted?: number } => {
+								const predicted = costOf(adapter.capabilities.costTable, {
+									premium: req.premium,
+									renderJs: req.renderJs,
+								});
+								return predicted === null ? {} : { costPredicted: predicted };
+							})(),
 						}),
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
 			});

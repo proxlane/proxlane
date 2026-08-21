@@ -113,6 +113,11 @@ const HEADERS: Record<string, { description: string; schema: object }> = {
 			"What X-Cost-Estimate counts. `provider-credits` is the serving provider's own credits; `usd-cents` is money, used by providers that bill per request and issue no credits. Absent when a failover chain spent in more than one unit, in which case X-Cost-Estimate is the literal string `mixed` rather than a sum of incomparable numbers — the per-attempt figures in the body each carry their own unit.",
 		schema: { type: 'string', enum: ['provider-credits', 'usd-cents'] },
 	},
+	'X-Cost-Source': {
+		description:
+			'Whose number X-Cost-Estimate is. `reported` means the providers told us what they charged and the adapter passed it through — three of the four do. `estimated` means they said nothing and we applied our own table, which is our model of their pricing rather than their answer, and is the one worth treating with suspicion. `mixed` when a chain used both, which a failover across providers routinely does. Absent when nothing was charged.',
+		schema: { type: 'string', enum: ['reported', 'estimated', 'mixed'] },
+	},
 	'X-Outcome-Class': {
 		description:
 			'The coarse class. Closed: these six never grow. This is the one to branch on.',

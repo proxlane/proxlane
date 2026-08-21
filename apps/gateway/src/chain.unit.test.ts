@@ -8,7 +8,7 @@ import type {
 	Outcome,
 	ProviderCapabilities,
 } from '@proxlane/adapters';
-import { CAPABILITIES } from '@proxlane/adapters';
+import { CAPABILITIES, costOf } from '@proxlane/adapters';
 import { describe, expect, it } from 'vitest';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
 import { isCapable, runChain } from './chain.js';
@@ -157,6 +157,81 @@ describe('the budget arithmetic that makes three attempts possible', () => {
 	it('refuses rather than opening a connection that cannot finish', () => {
 		const b = hopBudget(MIN_USEFUL_ATTEMPT_MS - 1, 0, 70_000);
 		expect(b.kind).toBe('exhausted');
+	});
+});
+
+describe('an attempt records what the cost was and where it came from', () => {
+	// THE ORACLE. The provider's own figure and our table's prediction have always sat
+	// microseconds apart inside `runChain` and were never subtracted — `costOf` had no caller in
+	// the gateway at all. That is the difference between finding a wrong price by re-reading four
+	// vendors' pricing pages, which does not scale, and finding it on the first request that hits
+	// the cell.
+	//
+	// `integrations.md` section 4 has promised this since before the gateway shipped: "we store
+	// `reported` and diff against our estimate. Sustained drift > 10% on any (provider, feature)
+	// pair opens an alert: our table is stale." You cannot diff two numbers when you keep one.
+	const reporting = (
+		microcredits: number,
+		over: Partial<ProviderCapabilities> = {},
+	): Adapter => ({
+		...adapterOf('a', 'OK', over),
+		parse: () => ({ outcome: 'OK', cost: { microcredits, source: 'reported' } }),
+	});
+
+	it('keeps the provider figure, our prediction, and which is which', async () => {
+		const a = reporting(30_000_000, { premiumTiers: new Set(['none', 'residential']) });
+		const r = await runChain(req({ premium: 'residential' }), {
+			transport: transportOf([okResponse]),
+			candidates: [{ adapter: a, key: 'K' }],
+			maxBodyBytes: 1_000,
+		});
+		const attempt = r.attempts[0];
+		expect(attempt?.costMicrocredits).toBe(30_000_000);
+		expect(attempt?.costSource).toBe('reported');
+		// Our table's own answer for the shape we sent, so a disagreement is visible rather than
+		// discarded. Compared against `costOf` rather than a literal: the fixture's table is not
+		// the thing under test, the fact that the gateway consults it is.
+		expect(attempt?.costPredicted).toBe(
+			costOf(a.capabilities.costTable, { premium: 'residential', renderJs: false }),
+		);
+	});
+
+	it('predicts nothing for a shape the table does not price', async () => {
+		// A null cell means the provider does not sell that combination. Recording a zero would
+		// make an unsellable shape look free, which is worse than saying nothing at all.
+		const a = reporting(1, {
+			premiumTiers: new Set(['none', 'residential']),
+			costTable: {
+				effectiveDate: '2026-08-21',
+				sourceUrl: 'https://x.test/',
+				unit: 'provider-credits',
+				matrix: {
+					none: { plain: 1, rendered: 1 },
+					residential: { plain: null, rendered: null },
+					stealth: { plain: null, rendered: null },
+				},
+			},
+		});
+		const r = await runChain(req({ premium: 'residential' }), {
+			transport: transportOf([okResponse]),
+			candidates: [{ adapter: a, key: 'K' }],
+			maxBodyBytes: 1_000,
+		});
+		expect(r.attempts[0]?.costPredicted).toBeUndefined();
+	});
+
+	it('predicts for the rendered cell when the request rendered', async () => {
+		// The prediction has to follow the SHAPE, not the provider. Reading the plain cell for a
+		// rendered request is how a 10x surcharge disappears from the comparison entirely.
+		const a = reporting(10_000_000);
+		const r = await runChain(req({ renderJs: true }), {
+			transport: transportOf([okResponse]),
+			candidates: [{ adapter: a, key: 'K' }],
+			maxBodyBytes: 1_000,
+		});
+		expect(r.attempts[0]?.costPredicted).toBe(
+			costOf(a.capabilities.costTable, { premium: 'none', renderJs: true }),
+		);
 	});
 });
 
