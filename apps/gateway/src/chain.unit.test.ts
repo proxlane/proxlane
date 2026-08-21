@@ -8,6 +8,7 @@ import type {
 	Outcome,
 	ProviderCapabilities,
 } from '@proxlane/adapters';
+import { CAPABILITIES } from '@proxlane/adapters';
 import { describe, expect, it } from 'vitest';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
 import { isCapable, runChain } from './chain.js';
@@ -163,6 +164,84 @@ describe('capability filtering happens before anyone is charged', () => {
 	it('excludes a provider that cannot render JS', () => {
 		expect(isCapable(caps({ id: 'a', renderJs: false }), req({ renderJs: true }))).toBe(false);
 		expect(isCapable(caps({ id: 'a', renderJs: true }), req({ renderJs: true }))).toBe(true);
+	});
+
+	it('excludes a combination the provider sells only separately', () => {
+		// THE CHECK THAT READS TWO FIELDS AT ONCE. Everything else here asks "does this provider
+		// do X"; this asks "does it do X AND Y together". ScraperAPI sells sessions and it sells
+		// premium proxies, and its docs say `session_number` "Can not be combined with
+		// premium/ultra_premium" — so the router used to send exactly that and let the provider
+		// decide which half to drop.
+		const withConflict = caps({
+			id: 'a',
+			sessions: true,
+			// The default fixture sells `none` only, and the tier check runs BEFORE conflicts — so
+			// without this the provider is excluded for the ordinary reason and the conjunction is
+			// never reached. The test would pass for the wrong reason.
+			premiumTiers: new Set(['none', 'residential']),
+			conflicts: [
+				{ sessions: true, premium: ['residential'], why: 'https://example.test/docs' },
+			],
+		});
+		// Each half alone is still served, which is the point of a conjunction.
+		expect(isCapable(withConflict, req({ sessionId: 's' })), 'session alone').toBe(true);
+		expect(isCapable(withConflict, req({ premium: 'residential' })), 'premium alone').toBe(
+			true,
+		);
+		// Together, it is not.
+		expect(
+			isCapable(withConflict, req({ sessionId: 's', premium: 'residential' })),
+			'both together',
+		).toBe(false);
+	});
+
+	it('declares no conflict that is really a ban', () => {
+		// A CONFLICT IS A CONJUNCTION, and this is what separates the two. If dropping any single
+		// named condition still excludes the provider, the conflict was not about the combination
+		// — it was banning one feature outright, which `premiumTiers`/`sessions` already express
+		// and which silently removes the provider from chains it could serve.
+		//
+		// Caught by mutation: a conflict written `sessions: false` skips the session check
+		// entirely and degrades to "never serves residential". The type forbids it, this covers
+		// the case where somebody defeats the type.
+		let checked = 0;
+		for (const c of CAPABILITIES) {
+			for (const k of c.conflicts ?? []) {
+				const base = { url: 'https://x.test/', method: 'GET' as const, renderJs: false };
+				// The request that the conflict is about: every condition satisfied.
+				const both = {
+					...base,
+					premium: (k.premium?.[0] ?? 'none') as never,
+					...(k.sessions === true ? { sessionId: 's' } : {}),
+					...(k.renderJs !== undefined ? { renderJs: k.renderJs } : {}),
+					...(k.binary === true ? { binary: true } : {}),
+					...(k.method !== undefined ? { method: k.method } : {}),
+				};
+				expect(isCapable(c, both as never), `${c.id}: the conflict does not apply`).toBe(false);
+
+				// Now drop the session half. The provider must still serve it, or this was a ban.
+				if (k.sessions === true && k.premium !== undefined) {
+					const premiumOnly = { ...both, sessionId: undefined };
+					expect(
+						isCapable(c, premiumOnly as never),
+						`${c.id}: excluded on ${k.premium[0]} alone — that is a ban, not a conflict`,
+					).toBe(true);
+					const sessionOnly = { ...both, premium: 'none' as never };
+					expect(
+						isCapable(c, sessionOnly as never),
+						`${c.id}: excluded on a session alone — that is a ban, not a conflict`,
+					).toBe(true);
+					checked += 1;
+				}
+			}
+		}
+		expect(checked, 'no real conflict to check').toBeGreaterThan(0);
+	});
+
+	it('leaves a provider with no conflicts alone', () => {
+		// `conflicts` is optional and absent on three of four adapters. An undefined list must
+		// not exclude anything, or the field becomes a way to silently empty every chain.
+		expect(isCapable(caps({ id: 'a', sessions: true }), req({ sessionId: 's' }))).toBe(true);
 	});
 
 	it('excludes on tier, POST, sessions and country', () => {

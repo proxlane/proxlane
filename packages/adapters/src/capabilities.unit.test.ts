@@ -16,7 +16,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TIERS = ['none', 'residential', 'stealth'] as const;
 
 import { CAPABILITIES, capabilitiesFor } from './capabilities.js';
-import { cheapestCost, costOf } from './contract.js';
+import { cheapestCost, conflictApplies, costOf } from './contract.js';
 import { REGISTRY } from './registry.js';
 
 describe('the static list mirrors the registry', () => {
@@ -63,6 +63,66 @@ describe('the static list mirrors the registry', () => {
 			checked += 1;
 		}
 		expect(checked).toBeGreaterThan(0);
+	});
+
+	it('states a source for every combination it refuses', () => {
+		// A conflict removes a provider from a chain entirely, which is the most consequential
+		// thing any of this data does. Same rule as a cost table's sourceUrl: a constraint
+		// sourced from memory is folklore.
+		let checked = 0;
+		for (const c of CAPABILITIES) {
+			for (const k of c.conflicts ?? []) {
+				expect(k.why.length, `${c.id} conflict has no reason`).toBeGreaterThan(20);
+				expect(k.why, `${c.id} conflict cites no source`).toContain('http');
+				checked += 1;
+			}
+		}
+		// Vacuous if nobody declares one, and one provider does.
+		expect(checked, 'no conflicts declared anywhere').toBeGreaterThan(0);
+	});
+
+	it('never declares a conflict that matches everything', () => {
+		// An empty conflict applies to every request, silently removing the provider from every
+		// chain. `conflictApplies` returns false for one, and this stops it being written at all.
+		const anyRequest = {
+			premium: 'none',
+			renderJs: false,
+			method: 'GET',
+		} as Parameters<typeof conflictApplies>[1];
+		for (const c of CAPABILITIES) {
+			for (const k of c.conflicts ?? []) {
+				const names =
+					k.sessions !== undefined ||
+					k.renderJs !== undefined ||
+					k.premium !== undefined ||
+					k.binary !== undefined ||
+					k.method !== undefined;
+				expect(names, `${c.id} has a conflict that names no condition`).toBe(true);
+			}
+		}
+		expect(conflictApplies({ why: 'names nothing' }, anyRequest)).toBe(false);
+	});
+
+	it('applies a conflict only when every named condition holds', () => {
+		// The conjunction itself. Each part alone must NOT exclude the provider — that is the
+		// whole difference between a conflict and the independent fields above it.
+		const k = {
+			sessions: true,
+			premium: ['residential', 'stealth'],
+			why: 'https://example.test/docs',
+		} as const;
+		const base = { premium: 'none', renderJs: false, method: 'GET' } as const;
+		expect(conflictApplies(k, base), 'neither part').toBe(false);
+		expect(conflictApplies(k, { ...base, sessionId: '1' }), 'session alone').toBe(false);
+		expect(conflictApplies(k, { ...base, premium: 'residential' }), 'premium alone').toBe(
+			false,
+		);
+		expect(
+			conflictApplies(k, { ...base, sessionId: '1', premium: 'residential' }),
+			'both together',
+		).toBe(true);
+		// And a tier outside the list is unaffected.
+		expect(conflictApplies(k, { ...base, sessionId: '1', premium: 'none' })).toBe(false);
 	});
 
 	it('gives a POST a chain, not a single provider', () => {

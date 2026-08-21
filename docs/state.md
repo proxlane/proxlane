@@ -24,14 +24,14 @@ capture; five of the six had a defect only a real page could show.
 ## Blocked on
 
 Owner decisions and external answers. None is unblocked by writing code.
-- **The capability model describes one field at a time** — and three real cases need more.
-  Countries are tier-gated (ScraperAPI `us`/`eu` on Hobby vs 79 on Business; ScrapingBee 42 classic
-  vs 243 premium) and BYOK means the plan is the caller's, so `all` over-claims and any finite set
-  breaks someone. ScraperAPI's `session_number` cannot combine with premium, yet both are declared
-  and `chain.ts` checks them separately. Needs tier-keyed sets and a `supports(req)` predicate;
-  throwing in `translate()` pages a human and is for OUR bugs, not a caller's. Also open: `zz`
-  buys a paid attempt everywhere, and nobody has verified whether a bad country code errors or
+- **Countries are tier-gated and one set cannot say so** — ScraperAPI sells `us`/`eu` on Hobby and
+  79 codes on Business; ScrapingBee 42 on classic and 243 on premium. BYOK means the plan is the
+  caller's, so `all` over-claims and any finite set breaks someone. Needs a tier-keyed set. Also
+  open: `zz` buys a paid attempt everywhere, and nobody has checked whether a bad code errors or
   silently serves elsewhere. *platform's.*
+- **Sessions are wired on one adapter** — so `sessionId` + residential has no provider: ScraperAPI
+  is the only one and it refuses that pair. ScrapingBee (`session_id`) and Scrapfly (`session`)
+  support sessions and neither forbids it. Same shape POST had. *adapter-engineer's.*
 - **Secret scanning depth** — core scanning and push protection are on. Non-provider patterns and
   validity checks need paid Secret Protection: buy it, or accept a bespoke key shape unscanned.
 - **Where `k6:soak` runs** — harness green, venue undecided. Gateway-internal time includes

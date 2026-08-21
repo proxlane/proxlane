@@ -178,6 +178,53 @@ export function costOf(
 
 // ------------------------------------------------------- capabilities
 
+/**
+ * One unsellable combination. Every field present must match for the conflict to apply, so a
+ * conflict naming two things is a conjunction and one naming a single thing is a plain exclusion.
+ *
+ * `premium` is a LIST because a conflict usually covers several tiers at once, and spelling it
+ * out beats a `not: 'none'` that reads backwards at the call site.
+ */
+export interface CapabilityConflict {
+	readonly sessions?: true;
+	readonly renderJs?: boolean;
+	readonly premium?: readonly PremiumTier[];
+	readonly binary?: true;
+	readonly method?: 'POST';
+	/**
+	 * Where the provider says so. Same rule as a cost table's `sourceUrl`: a constraint sourced
+	 * from memory is folklore, and this one decides whether a caller gets served at all.
+	 */
+	readonly why: string;
+}
+
+/** Does this conflict apply to this request? All named conditions must hold. */
+export function conflictApplies(
+	c: CapabilityConflict,
+	req: {
+		readonly premium: PremiumTier;
+		readonly renderJs: boolean;
+		readonly sessionId?: string;
+		readonly binary?: boolean;
+		readonly method: 'GET' | 'POST';
+	},
+): boolean {
+	if (c.sessions === true && req.sessionId === undefined) return false;
+	if (c.renderJs !== undefined && c.renderJs !== req.renderJs) return false;
+	if (c.premium !== undefined && !c.premium.includes(req.premium)) return false;
+	if (c.binary === true && req.binary !== true) return false;
+	if (c.method !== undefined && c.method !== req.method) return false;
+	// An empty conflict would match everything, which would silently remove a provider from every
+	// chain. A conflict has to name something.
+	return (
+		c.sessions !== undefined ||
+		c.renderJs !== undefined ||
+		c.premium !== undefined ||
+		c.binary !== undefined ||
+		c.method !== undefined
+	);
+}
+
 export type ProviderId = string;
 
 export interface ProviderCapabilities {
@@ -198,6 +245,26 @@ export interface ProviderCapabilities {
 	readonly renderJs: boolean;
 	readonly countryCodes: ReadonlySet<string> | 'all';
 	readonly premiumTiers: ReadonlySet<PremiumTier>;
+	/**
+	 * Combinations this provider will not serve, even though each part is offered alone.
+	 *
+	 * EVERY OTHER FIELD HERE IS INDEPENDENT, and `isCapable` checks them one at a time, so a
+	 * provider that sells two things separately but not together could not be described. That is
+	 * not hypothetical: ScraperAPI's `session_number` "Can not be combined with
+	 * premium/ultra_premium", and we declared sessions and all three tiers — each true alone — so
+	 * the router happily sent requests asking for both.
+	 *
+	 * DATA, NOT A PREDICATE. The obvious fix is a `supports(req)` function on the adapter, and it
+	 * is the wrong one here: capabilities are data precisely so `proxlane providers`, the docs
+	 * site and the comparison page render from the same source the router filters on. A function
+	 * cannot be printed, so a predicate would hide the one thing a caller most needs to know —
+	 * that a combination they are about to ask for is unsellable.
+	 *
+	 * Throwing in `translate()` is also wrong, and looks right: that path returns INVALID_REQUEST
+	 * and PAGES A HUMAN. It is the backstop for a capability we declared and cannot honour, not
+	 * for a caller asking a provider for something it does not sell.
+	 */
+	readonly conflicts?: readonly CapabilityConflict[];
 	/*
 	 * A LIMIT OF THESE FIELDS, recorded where somebody will hit it. Every capability here is
 	 * independent, and `chain.ts` checks them one at a time, so a provider that supports two
