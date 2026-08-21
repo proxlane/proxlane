@@ -176,6 +176,7 @@ faithfully reflects a table that is now wrong.
 | `apps/web/content/**` | hand-written MDX pages | seo-content |
 | `apps/web/content/docs/**` | the docs site's markdown. **After `apps/web/content/**`** — last match wins, and these are the reference pages, not marketing copy | docs-writer |
 | `apps/web/src/generators/**` | generated pages, sitemap, OG, affiliate flow | growth-engineer |
+| `apps/web/src/routes/outcomes/**` | the routes the generators feed. **After `apps/web/**`** — the generator's author owns its output, or a change to what is generated lands in front of a different reviewer than the change that generates it | growth-engineer |
 | `apps/web/src/routes/docs/**` | docs site, `llms.txt`, markdown-at-`.md`, OpenAPI | docs-writer |
 | `apps/web/src/routes/symptoms/**` | the symptom pages' routes. **After `apps/web/**`** — they are thin wrappers over `content/symptoms/**`, and splitting a page from its route puts a rename in front of two reviewers | seo-content |
 | `apps/worker/**` | queues. Owned now, created by the PR that adds the first one | data-engineer |

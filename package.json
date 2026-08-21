@@ -19,7 +19,7 @@
 		"lighthouse:assert": "node scripts/lighthouse-assert.ts --config=tooling/lighthouse/lighthouserc.json",
 		"lint": "biome ci .",
 		"new-adapter": "node scripts/new-adapter.ts",
-		"pages:check": "node scripts/not-implemented.ts pages:check",
+		"pages:check": "node scripts/pages-check.ts",
 		"record": "node scripts/record.ts",
 		"release:dry": "node scripts/release-dry.ts",
 		"repo:check": "node scripts/repo-check.ts",
