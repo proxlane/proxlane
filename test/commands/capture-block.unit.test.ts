@@ -156,4 +156,55 @@ describe('a capture carries no name and no secret', () => {
 		);
 		expect(c.bodyBase64).toBe(bytes);
 	});
+
+	it('redacts a key inside a bodyBase64 body, which is the DOCUMENTED path', () => {
+		// THE BRANCH THE SUITE NEVER RAN. Redaction was asserted only on the `body` string path,
+		// and the `bodyBase64` path — the one the usage text prefers, because bytes survive a
+		// charset the text form loses — was exercised with an EMPTY secret list, so the
+		// assertion could not fire on it. `pnpm test:unit` was green with that path performing
+		// no sanitisation whatsoever. Same shape as asserting a value against the function that
+		// produced it.
+		const key = 'sk-live-abcdefghijklmnop';
+		const c = buildCapture(
+			{
+				url: 'https://web-scraping.dev/x',
+				status: 200,
+				bodyBase64: Buffer.from(`<html>blocked, key ${key}</html>`, 'utf8').toString('base64'),
+			},
+			{ rule: 'none', targetClass: 'sandbox', now: '2026-08-21T00:00:00.000Z' },
+			[key],
+		);
+		const body = Buffer.from(c.bodyBase64, 'base64').toString('utf8');
+		expect(body, 'the bodyBase64 path skipped sanitisation').not.toContain(key);
+		// And it is still the body, not an empty string that trivially passes.
+		expect(body).toContain('blocked');
+	});
+
+	it('redacts an identifying field on BOTH paths, not just secrets', () => {
+		// `client_ip` is our egress address as the provider saw it, and CLAUDE.md bans an IP
+		// from this repo outright. `sanitizeBody` redacts it; neither path here ever called
+		// `sanitizeBody`, so a capture — a real response from real traffic, and therefore MORE
+		// likely to carry one than a recording against a fixed test target — stored it verbatim.
+		const envelope = JSON.stringify({ client_ip: '203.0.113.7', result: 'blocked' });
+		for (const ex of [
+			{ url: 'https://web-scraping.dev/x', status: 200, body: envelope },
+			{
+				url: 'https://web-scraping.dev/x',
+				status: 200,
+				bodyBase64: Buffer.from(envelope, 'utf8').toString('base64'),
+			},
+		]) {
+			const c = buildCapture(
+				ex,
+				{ rule: 'none', targetClass: 'sandbox', now: '2026-08-21T00:00:00.000Z' },
+				[],
+			);
+			const body = Buffer.from(c.bodyBase64, 'base64').toString('utf8');
+			expect(
+				body,
+				`${'body' in ex ? 'body' : 'bodyBase64'} kept the egress address`,
+			).not.toContain('203.0.113.7');
+			expect(body).toContain('REDACTED');
+		}
+	});
 });
