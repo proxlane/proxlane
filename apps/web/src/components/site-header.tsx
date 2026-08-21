@@ -116,7 +116,7 @@ export function pillClass(stuck: boolean): string {
  */
 export function sheetClass(open: boolean): string {
 	return [
-		'absolute inset-x-4 top-full z-40 origin-top sm:hidden',
+		'absolute inset-x-4 top-full z-40 origin-top md:hidden',
 		'transition-[opacity,transform] duration-300 ease-(--ease-lane) motion-reduce:transition-none',
 		open
 			? 'translate-y-0 scale-100 opacity-100'
@@ -127,7 +127,7 @@ export function sheetClass(open: boolean): string {
 /** The scrim. `pointer-events-none` when closed, or an invisible layer eats the whole page. */
 export function overlayClass(open: boolean): string {
 	return [
-		'fixed inset-0 z-30 bg-[color:var(--color-scrim)] backdrop-blur-[2px] sm:hidden',
+		'fixed inset-0 z-30 bg-[color:var(--color-scrim)] backdrop-blur-[2px] md:hidden',
 		'transition-opacity duration-300 ease-(--ease-lane)',
 		open ? 'opacity-100' : 'pointer-events-none opacity-0',
 	].join(' ');
@@ -198,7 +198,7 @@ export function SiteHeader() {
 						    pill put it in two places at once on a phone: once in the bar and again in the
 						    sheet below it, which is a menu that half works. On a phone the pill is the
 						    wordmark, the theme, and the way in. */}
-						<span className="hidden sm:contents">
+						<span className="hidden md:contents">
 							{NAV.map((item) => (
 								<NavLink key={item.to} to={item.to}>
 									{item.label}
@@ -209,7 +209,7 @@ export function SiteHeader() {
 							</a>
 						</span>
 						<ThemeToggle />
-						<span className="hidden sm:contents">
+						<span className="hidden md:contents">
 							<Cta to="/docs/quickstart" size="sm">
 								Get started
 							</Cta>
@@ -226,8 +226,9 @@ export function SiteHeader() {
 /**
  * The disclosure. Two bars that become a cross, animated as transforms so it composites.
  *
- * `sm:hidden`, because above that the row shows everything and a menu holding the same links
- * twice is a second way to do one thing.
+ * `md:hidden`, because above that the row shows everything and a menu holding the same links
+ * twice is a second way to do one thing. `md` and not `sm`: measured, the row does not actually
+ * fit until 740px, and switching at 640 left "Get started" wrapping inside its own pill.
  */
 function MenuButton({
 	open,
@@ -245,7 +246,7 @@ function MenuButton({
 			aria-expanded={open}
 			aria-controls="site-menu"
 			aria-label={open ? 'Close menu' : 'Open menu'}
-			className="relative -mr-1 inline-flex size-11 items-center justify-center sm:hidden"
+			className="relative -mr-1 inline-flex size-11 items-center justify-center md:hidden"
 		>
 			<span className={`${bar} ${open ? 'rotate-45' : '-translate-y-[3px]'}`} />
 			<span className={`${bar} ${open ? '-rotate-45' : 'translate-y-[3px]'}`} />
@@ -298,7 +299,12 @@ function MobileSheet({
 					<div className="relative pl-6">
 						<span
 							aria-hidden="true"
-							className="absolute top-[26px] bottom-[26px] left-[9px] w-px bg-[color:var(--color-rule)]"
+							// `left-[5px]`, which is the STATION'S centre and not the container's. The node is
+							// 11px wide at `-left-6` inside a `pl-6` group, so its centre is 5.5px from the
+							// group's left edge; a 1px rule centred there starts at 5. It was at 9, so the
+							// line ran four pixels to the right of every dot it was drawing through.
+							// Measured: line centre 34.5px against dot centres at 30.5px.
+							className="absolute top-[26px] bottom-[26px] left-[5px] w-px bg-[color:var(--color-rule)]"
 						/>
 						{stations.map((item, i) => (
 							<Station
@@ -387,6 +393,22 @@ function NavLink({ to, children }: { readonly to: string; readonly children: str
 	return (
 		<Link
 			to={to}
+			// THE SAME RULE, HELD OPEN. The row had no current-page state at all: four identical
+			// links, and the only way to know where you were was to read the heading. The mobile
+			// sheet had one from the day it shipped — a filled station on the line — so the two
+			// halves of one nav disagreed about whether that mattered.
+			//
+			// Reusing the hover underline rather than inventing a second mark is the point. Hover
+			// grows it and being here keeps it, so the affordance and the state are the same
+			// object in two conditions, which is one thing to learn instead of two.
+			//
+			// Not `exact`: TanStack matches prefixes by default, so `/docs` stays lit on
+			// `/docs/quickstart`. A section that goes dark the moment you enter it is worse than
+			// no indicator, because it actively says you are somewhere else.
+			activeProps={{
+				className:
+					'text-[color:var(--color-ink)] after:scale-x-100 after:bg-[color:var(--color-accent)]',
+			}}
 			className={`${NAV_LINK} after:absolute after:right-0 after:bottom-2.5 after:left-0 after:h-px after:origin-center after:scale-x-0 after:bg-[color:var(--color-accent)] after:transition-transform after:duration-200 after:ease-(--ease-lane) hover:after:scale-x-100 motion-reduce:after:transition-none`}
 		>
 			{children}
