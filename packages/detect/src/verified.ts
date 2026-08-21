@@ -31,4 +31,10 @@ export const VERIFIED: Readonly<Record<string, VerifiedRule>> = {
 		lastVerified: '2026-08-21',
 		digests: ['61c20be6f1cf1cbe'],
 	},
+	datadome: {
+		captures: 1,
+		classes: ['bot-vendor-site'],
+		lastVerified: '2026-08-21',
+		digests: ['6a89f93e9da83547'],
+	},
 };

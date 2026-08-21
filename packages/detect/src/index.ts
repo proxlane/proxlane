@@ -79,6 +79,28 @@ export const RULES: readonly DetectRule[] = [
 	{
 		id: 'imperva-incapsula',
 		source: 'Imperva injects /_Incapsula_Resource on its block page',
+		/**
+		 * KNOWN OVER-BROAD, and measured rather than suspected.
+		 *
+		 * Imperva's own site serves `<script src="/_Incapsula_Resource?SWJIYLWA=…">` on an
+		 * ordinary 200 marketing page. The token is not exclusive to a block page: it is how an
+		 * Incapsula-protected site loads Imperva's client script at all, so any such site whose
+		 * page carries that tag is one this rule calls a block.
+		 *
+		 * The cost of that is not theoretical. A false positive here becomes SOFT_BLOCK, which
+		 * fails over, spends a second provider's credits, and hands the caller 502 for a page
+		 * that was fine.
+		 *
+		 * It has not fired in practice for a reason that is luck rather than design: on the page
+		 * measured, the tag sits at byte 263,564 and `SCAN_BYTES` stops at 262,144, so it is
+		 * 1,420 bytes past the window. The same page, shorter, fires. A no-fire capture of it is
+		 * in the private corpus.
+		 *
+		 * NOT NARROWED HERE, deliberately. A tighter signature needs a real Imperva BLOCK page to
+		 * check it against, and nobody has one — guessing at the query parameter that distinguishes
+		 * the two would be exactly the folklore `source` exists to keep out. `unverifiedRules()`
+		 * still lists this rule, which is the honest state.
+		 */
 		test: (h) => h.includes('_Incapsula_Resource'),
 	},
 	{

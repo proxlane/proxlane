@@ -139,6 +139,41 @@ describe('what this detector CANNOT catch, pinned with a real capture', () => {
 	});
 });
 
+describe('a rule that fires on ordinary pages, pinned because it does', () => {
+	// FOUND BY LOOKING, not by reasoning. Imperva's own site serves
+	// `<script src="/_Incapsula_Resource?SWJIYLWA=…">` on a plain 200 marketing page, so the
+	// token this rule matches is not exclusive to a block page — it is how any
+	// Incapsula-protected site loads Imperva's client script.
+	//
+	// On the real page it does not fire, and that is luck: the tag sits at byte 263,564 and
+	// SCAN_BYTES stops at 262,144. This reproduces the same markup inside the window, which is
+	// what a shorter page on the same site would look like.
+	const ordinaryIncapsulaPage =
+		'<html><head><title>Cyber Security Leader</title></head><body>' +
+		'<h1>Products</h1><p>Application security and DDoS protection.</p>' +
+		'<script type="text/javascript" src="/_Incapsula_Resource?SWJIYLWA=719d34d31c8"></script>' +
+		'</body></html>';
+
+	it('fires on a page that is plainly not a block', () => {
+		// Deliberately inverted, like the bespoke-block case above. The day someone narrows this
+		// rule against a real Imperva block page, this fails, and changing it is the visible
+		// record that the false positive closed.
+		const v = detect(new TextEncoder().encode(ordinaryIncapsulaPage), 'text/html', 'utf-8');
+		expect(
+			v.blocked,
+			'imperva-incapsula no longer fires on an ordinary page — narrow the test deliberately',
+		).toBe(true);
+		expect(v.ruleId).toBe('imperva-incapsula');
+	});
+
+	it('is not counted as confirmed while it does that', () => {
+		// A rule with a known false positive must not appear in the verified table. Capturing a
+		// page it wrongly fires on would not confirm it either — `corpus:verify` rejects a
+		// no-fire sample that any rule fires on.
+		expect(unverifiedRules()).toContain('imperva-incapsula');
+	});
+});
+
 describe('the corpus gap is stated, not discovered', () => {
 	it('reports every rule that no stored capture has confirmed', () => {
 		// THE DAY ARRIVED. This used to assert all six rules were unverified, with a comment
