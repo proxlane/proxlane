@@ -1,13 +1,24 @@
 {
 	"name": "@proxlane/sdk",
 	"version": "0.0.1",
-	"type": "module",
-	"license": "Apache-2.0",
+	"description": "Placeholder. Proxlane has no SDK yet \u2014 call the HTTP endpoint directly, it is one GET.",
+	"keywords": [
+		"web-scraping",
+		"scraping-api",
+		"proxlane",
+		"placeholder"
+	],
+	"homepage": "https://proxlane.dev",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/proxlane/proxlane.git",
 		"directory": "packages/sdk"
 	},
+	"bugs": {
+		"url": "https://github.com/proxlane/proxlane/issues"
+	},
+	"type": "module",
+	"license": "Apache-2.0",
 	"exports": {
 		".": {
 			"types": "./dist/index.d.mts",

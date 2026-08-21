@@ -1,13 +1,29 @@
 {
 	"name": "@proxlane/adapters",
 	"version": "0.6.0",
-	"type": "module",
-	"license": "Apache-2.0",
+	"description": "Provider adapters, capability registry and cost tables for Proxlane. Apache-2.0 \u2014 write one for your provider.",
+	"keywords": [
+		"web-scraping",
+		"scraping-api",
+		"adapter",
+		"scraperapi",
+		"scrapingbee",
+		"scrapfly",
+		"bright-data",
+		"proxy",
+		"cost"
+	],
+	"homepage": "https://proxlane.dev",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/proxlane/proxlane.git",
 		"directory": "packages/adapters"
 	},
+	"bugs": {
+		"url": "https://github.com/proxlane/proxlane/issues"
+	},
+	"type": "module",
+	"license": "Apache-2.0",
 	"exports": {
 		".": {
 			"types": "./dist/index.d.mts",

@@ -1,7 +1,9 @@
 # Proxlane
 
 Open source scraping proxy gateway. One endpoint in front of every scraping API
-provider, with automatic failover, cost-aware routing, and honest success detection.
+provider, with automatic failover, per-request cost visibility, and honest success detection.
+Cost is REPORTED, never routed on: `chain.ts` has no cost term and the README's own Why section
+calls it cost visibility. The tagline said "cost-aware routing" on four public surfaces.
 BYOK free forever, self-hostable, hosted credits at provider cost plus 5%.
 
 ## Docs, routed by when to read them
