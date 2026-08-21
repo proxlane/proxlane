@@ -363,6 +363,31 @@ export interface ProviderHttpResponse {
 	readonly body: Uint8Array;
 }
 
+/**
+ * The provider's own `Retry-After`, in milliseconds, when it sent one.
+ *
+ * `ParsedResult.retryAfterMs` has existed since the contract landed and the chain already arms
+ * cooldowns from it — and NO ADAPTER EVER SET IT. So a provider that capped us and said exactly
+ * how long to wait had that answer thrown away, the cooldown fell back to a 30s jittered guess,
+ * and the caller got a bare 429 with no hint at all. The field was plumbed end to end with
+ * nothing at the source.
+ *
+ * BOTH FORMS, because RFC 9110 allows either and providers use both: delta-seconds, and an
+ * HTTP-date. A date in the past clamps to zero rather than going negative — the header is a
+ * hint, and a negative wait is not one.
+ */
+export function retryAfterMsFrom(
+	headers: Readonly<Record<string, string>>,
+	now: number = Date.now(),
+): number | undefined {
+	const raw = headers['retry-after'] ?? headers['Retry-After'];
+	if (raw === undefined || raw.trim() === '') return undefined;
+	const seconds = Number(raw.trim());
+	if (Number.isFinite(seconds)) return Math.max(0, Math.round(seconds * 1000));
+	const at = Date.parse(raw);
+	return Number.isFinite(at) ? Math.max(0, at - now) : undefined;
+}
+
 export interface ParsedResult {
 	readonly outcome: Outcome;
 	readonly body?: Uint8Array;

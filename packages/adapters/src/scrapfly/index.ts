@@ -7,7 +7,7 @@ import type {
 	ProviderHttpRequest,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { carriesBody, cheapestCost } from '../contract.js';
+import { carriesBody, cheapestCost, retryAfterMsFrom } from '../contract.js';
 import { capabilities } from './capabilities.js';
 import { ScrapflyAccountError, ScrapflyEnvelope } from './schema.js';
 
@@ -211,6 +211,17 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	return {
 		...base,
 		outcome,
+		// THE PROVIDER'S OWN WAIT, when it capped us and said how long. `retryAfterMs` has been
+		// on ParsedResult since the contract landed and the chain arms cooldowns from it — and no
+		// adapter ever set it, so the number was discarded in favour of a 30s jittered guess and
+		// the caller got a bare 429. Only for RATE_LIMITED: on any other outcome a `Retry-After`
+		// header is about something else and would be a wait we invented.
+		...(outcome === 'RATE_LIMITED'
+			? (() => {
+					const retryAfterMs = retryAfterMsFrom(res.headers);
+					return retryAfterMs === undefined ? {} : { retryAfterMs };
+				})()
+			: {}),
 		upstreamStatusCode: result.status_code,
 		// Single-sourced in the contract, not decided here: three adapters each deciding it
 		// inline is how the rule drifted in the first place.
