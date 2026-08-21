@@ -16,6 +16,7 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { ctaClass } from './components/cta.js';
 import { barClass, pillClass, STUCK_AT_FIRST_PAINT } from './components/site-header.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -76,6 +77,53 @@ describe('the header server-renders the state a first paint is in', () => {
 
 	it('uses tokens for every colour it paints', () => {
 		expect(/#[0-9a-f]{3,8}\b/i.test(pillClass(true) + barClass(true))).toBe(false);
+	});
+});
+
+describe('motion uses the named curves, never a framework default', () => {
+	// `ease-out` is Tailwind's `cubic-bezier(0, 0, 0.2, 1)`. A site whose identity is a transit
+	// diagram should not move like every other Tailwind site, and a default curve is nobody's
+	// design decision. Two named tokens: `--ease-lane` decelerates and settles, like a train
+	// arriving; `--ease-interchange` overshoots, and is reserved for the mark's quarter turn.
+	it('names an easing token on every transition it declares', () => {
+		for (const cls of [barClass(true), pillClass(true), ctaClass('primary')]) {
+			expect(cls).toContain('transition-');
+			expect(cls).toContain('ease-(--ease-');
+			// The tell for a framework default slipping back in.
+			expect(cls).not.toMatch(/\bease-(out|in|in-out|linear)\b/);
+		}
+	});
+});
+
+describe('one call to action, not three', () => {
+	// There were three: a filled raspberry pill in the header, a filled raspberry rectangle in
+	// the hero, and an outlined rectangle beside it. Three shapes and two fills for one job.
+	it('never fills with the accent', () => {
+		// A solid raspberry block is the loudest thing on a page built from thin coloured lines.
+		// The accent means "this line is ours" everywhere else; a filled button spends it.
+		for (const tone of ['primary', 'quiet'] as const) {
+			expect(ctaClass(tone)).not.toContain('bg-[color:var(--color-accent)]');
+		}
+	});
+
+	it('carries the accent as a hairline and a glow', () => {
+		const primary = ctaClass('primary');
+		expect(primary).toContain('border-[color:var(--color-accent)]');
+		expect(primary).toContain('text-[color:var(--color-accent)]');
+		expect(primary).toContain('hover:shadow-');
+	});
+
+	it('is one shape in both tones', () => {
+		// Two weights of the same button, not two different buttons.
+		expect(ctaClass('primary')).toContain('rounded-full');
+		expect(ctaClass('quiet')).toContain('rounded-full');
+	});
+
+	it('paints no raw hex, including inside the glow', () => {
+		// The glow is the easiest place to reach for an rgba. `tokens:check` bans it, and a
+		// shadow is exactly the kind of value that gets typed by hand.
+		expect(/#[0-9a-f]{3,8}\b/i.test(ctaClass('primary'))).toBe(false);
+		expect(ctaClass('primary')).toContain('color-mix');
 	});
 });
 

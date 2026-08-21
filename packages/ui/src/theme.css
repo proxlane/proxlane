@@ -98,6 +98,23 @@
 	 * line halos in its OWN hue; the group sets `color` to its stroke for exactly this. */
 	--glow-line: none;
 
+	/* MOTION CURVES, NAMED, because `ease-out` is nobody's design decision.
+	 *
+	 * Tailwind's `ease-out` is `cubic-bezier(0, 0, 0.2, 1)`, the framework default, and a site
+	 * whose entire identity is a transit diagram should not move like every other Tailwind site.
+	 * Two curves, each with a job:
+	 *
+	 * `--ease-lane` decelerates hard and settles: fast off the mark, long tail, no overshoot.
+	 * It is how a train arrives at a platform, and it is the default for anything that changes
+	 * state — the header, a hover, a panel.
+	 *
+	 * `--ease-interchange` overshoots by a few percent and comes back. Reserved for the mark's
+	 * quarter turn, which is the one gesture allowed to have a personality. Overshoot on a
+	 * background or a border reads as a glitch; on a rotating object it reads as weight.
+	 */
+	--ease-lane: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-interchange: cubic-bezier(0.34, 1.56, 0.64, 1);
+
 	--radius-interchange: 9999px;
 	--radius-card: 4px;
 	--stroke-line: 3px;

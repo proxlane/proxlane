@@ -1826,6 +1826,65 @@ function matchesOwner(pattern: string, file: string): boolean {
 			checked32 += 1;
 		}
 
+		// 2c. THE SCENARIO BAR MUST NOT WRAP, for the same reason and on the same page.
+		//
+		// The `chain` label used to float loose above the figure, reading as a fourth tab. It was
+		// moved INTO the bar, which fixed it on a desktop and reintroduced it on a phone: the bar
+		// was `flex-wrap`, so at 390px the label took row one alone and the four tabs took row two.
+		// Identical symptom, same element, one breakpoint away.
+		//
+		// Mechanism, not appearance, exactly like 2b. Four one-line properties decide it: the bar
+		// does not wrap, the tab track may shrink and scrolls, and a tab label does not break. Miss
+		// the last one and the wrap just moves down into the button.
+		{
+			const bar =
+				/<div className="(flex [^"]*)">\s*<span className="[^"]*">\s*chain\s*<\/span>/.exec(
+					page,
+				)?.[1];
+			if (bar === undefined) {
+				fail(
+					'32',
+					`${PAGE} no longer renders the \`chain\` label inside a flex bar — this check stopped checking`,
+				);
+			} else {
+				if (bar.includes('flex-wrap')) {
+					fail(
+						'32',
+						`${PAGE} lets the scenario bar wrap (${bar}). At 390px that puts \`chain\` on ` +
+							'its own row above the tabs, which is the floating label the bar exists to fix.',
+					);
+				}
+				const track = /<div className="(flex [^"]*)">\s*\{SCENARIOS\.map/.exec(page)?.[1] ?? '';
+				if (track === '') {
+					fail('32', `${PAGE} no longer renders the scenario tabs in their own track`);
+				} else {
+					// A flex child defaults to min-width:auto, so without this the track refuses to
+					// shrink below its content and pushes the bar wider than the phone instead.
+					if (!track.includes('min-w-0')) {
+						fail(
+							'32',
+							`${PAGE} gives the tab track no min-w-0 (${track}), so it cannot shrink and ` +
+								'overflows the card rather than scrolling inside it.',
+						);
+					}
+					if (!track.includes('overflow-x-auto')) {
+						fail(
+							'32',
+							`${PAGE} does not scroll the scenario tabs, so the last one is unreachable.`,
+						);
+					}
+				}
+				if (!/className=\{`inline-flex [^`]*whitespace-nowrap/.test(page)) {
+					fail(
+						'32',
+						`${PAGE} lets a scenario tab LABEL wrap. "first hop" then breaks over two lines ` +
+							'inside its own button and doubles the bar height — the wrap moved, not went away.',
+					);
+				}
+			}
+			checked32 += 1;
+		}
+
 		// 3. The version in the banner actually shipped. Allowed to LAG — a transcript is a record
 		//    of one run — so this is assertion 30's position, not "must be newest".
 		const named = /const BANNER_VERSION = '([^']+)'/.exec(page)?.[1];

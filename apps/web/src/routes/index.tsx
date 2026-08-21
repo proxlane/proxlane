@@ -2,6 +2,7 @@ import { describeRoute, type RouteAttempt, RouteDiagram } from '@proxlane/route-
 import { createFileRoute } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { type Block, Panel, Transcript } from '../components/artifacts.js';
+import { Cta } from '../components/cta.js';
 
 export const Route = createFileRoute('/')({
 	// The homepage declares its own canonical and `og:url` now that the root no longer does.
@@ -451,9 +452,17 @@ function Hero({
 			    unmistakably a label, and the hero stops being the odd one out. */}
 			<figure className="mt-11 sm:mt-14">
 				<div className="overflow-hidden rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] shadow-panel">
-					<div className="flex flex-wrap items-center justify-between gap-x-6 border-[color:var(--color-rule)] border-b pr-2 pl-4">
-						<span className="font-mono text-[color:var(--color-slate)] text-xs">chain</span>
-						<div className="flex items-center">
+					{/* NO WRAP, AND THE TABS SCROLL. `flex-wrap` put `chain` alone on the first row of a
+					    390px phone and the four tabs on the second, which is the floating label the
+					    comment above says was fixed by moving it into the bar. It was fixed on a
+					    desktop and reintroduced on a phone by the same element.
+					    The tabs are a horizontal scroller instead, like every other overflowing thing
+					    on the site, with the brand scrollbar saying there is more to the right. */}
+					<div className="flex items-center justify-between gap-x-4 border-[color:var(--color-rule)] border-b pr-2 pl-4">
+						<span className="shrink-0 font-mono text-[color:var(--color-slate)] text-xs">
+							chain
+						</span>
+						<div className="flex min-w-0 items-center overflow-x-auto">
 							{SCENARIOS.map((s) => (
 								<ScenarioTab
 									key={s.id}
@@ -503,19 +512,15 @@ function Hero({
 				</figcaption>
 			</figure>
 
+			{/* ONE CTA COMPONENT, TWO WEIGHTS. These were a filled raspberry rectangle and an
+			    outlined one, while the header had a filled raspberry pill: three shapes and two
+			    fills for the same job. The accent is now a hairline and a glow rather than a
+			    block, so it stays the colour that means "this line is ours". */}
 			<div className="mt-8 flex flex-wrap items-center gap-3">
-				<a
-					href="/docs"
-					className="inline-flex min-h-12 items-center rounded-card bg-[color:var(--color-accent)] px-6 font-medium text-[0.9375rem] text-[color:var(--color-ground)] transition-opacity hover:opacity-85"
-				>
-					Bring your own keys
-				</a>
-				<a
-					href="https://github.com/proxlane/proxlane"
-					className="inline-flex min-h-12 items-center rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-ground)] px-6 font-medium text-[0.9375rem] transition-colors hover:border-[color:var(--color-ink)]"
-				>
+				<Cta to="/docs">Bring your own keys</Cta>
+				<Cta href="https://github.com/proxlane/proxlane" tone="quiet">
 					Read the source
-				</a>
+				</Cta>
 			</div>
 		</section>
 	);
@@ -551,7 +556,10 @@ function ScenarioTab({
 			// `fieldset`, whose `legend` cannot sit at the far end of a flex bar without a fight.
 			// A control that says what it does needs no group.
 			aria-label={`Show the ${label} chain`}
-			className={`inline-flex min-h-11 items-center px-2.5 font-mono text-xs transition-colors ${
+			// `whitespace-nowrap`, because the bar scrolls now. Without it "first hop" broke over two
+			// lines inside its own tab and pushed the bar to double height — the wrap moved from the
+			// row down into the button rather than going away.
+			className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap px-2.5 font-mono text-xs transition-colors ${
 				selected
 					? 'text-[color:var(--color-accent)]'
 					: 'text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
@@ -842,11 +850,16 @@ function Response({ scenario }: { readonly scenario: Scenario }) {
 				 * wraps instead of running out of the box. `break-all` rather than `break-words`:
 				 * a chain has no spaces to break at.
 				 */}
-				<dl className="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-10 font-mono text-[0.8125rem] leading-[2]">
+				{/* SCROLLS, DOES NOT WRAP. `x-chain` is one token with no spaces, so wrapping it broke
+				    the value across two lines mid-identifier and made a three-hop chain unreadable on a
+				    phone. A header value is a single string: it belongs on one line, and the line
+				    belongs in a scroller. `Panel` already gives the body `overflow-x-auto`, and the
+				    scrollbar is the brand raspberry, so the affordance says "there is more". */}
+				<dl className="grid w-max grid-cols-[auto_minmax(0,1fr)] gap-x-10 font-mono text-[0.8125rem] leading-[2]">
 					{headers.map(([name, value]) => (
 						<div key={name} className="contents">
 							<dt className="whitespace-nowrap text-[color:var(--color-slate)]">{name}</dt>
-							<dd className="break-all">{value}</dd>
+							<dd className="whitespace-nowrap">{value}</dd>
 						</div>
 					))}
 				</dl>
