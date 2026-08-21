@@ -1,9 +1,9 @@
 {
 	"$comment": [
 		"The machine-readable mirror of the Commands table in CLAUDE.md.",
-		"repo:check derives the count from parsing that table — never from a literal here.",
+		"repo:check derives the count from parsing that table \u2014 never from a literal here.",
 		"",
-		"kind        root-script | filtered-script | bin — decides how the entry is resolved.",
+		"kind        root-script | filtered-script | bin \u2014 decides how the entry is resolved.",
 		"subject     the path whose existence defines `implemented`. Asserted.",
 		"blockedBy   documentation for the stub message. NEVER asserted: conflating it with",
 		"            subject fires a false red the moment the blocking file lands.",
@@ -28,7 +28,7 @@
 		"subject": "turbo.json",
 		"status": "implemented",
 		"ci": "none",
-		"$comment": "persistent task — never in the CI matrix, never spawned by the contract test"
+		"$comment": "persistent task \u2014 never in the CI matrix, never spawned by the contract test"
 	},
 	"build": {
 		"id": "build",
@@ -50,7 +50,7 @@
 		"status": "implemented",
 		"gate": "The one command a contributor runs before pushing. Derived from this file.",
 		"ci": "none",
-		"$comment": "ci:none deliberately — CI runs the matrix in PARALLEL. Running check as a job would re-run every other job serially inside one runner and roughly triple the wall clock for no extra coverage."
+		"$comment": "ci:none deliberately \u2014 CI runs the matrix in PARALLEL. Running check as a job would re-run every other job serially inside one runner and roughly triple the wall clock for no extra coverage."
 	},
 	"typecheck": {
 		"id": "typecheck",
@@ -276,6 +276,18 @@
 		"status": "implemented",
 		"gate": "The self-host support surface. --version and --help work; doctor exits 1 until it has checks to run.",
 		"ci": "none",
-		"$comment": "the only kind:bin entry — resolved via the root workspace dependency on `proxlane`, which links its bin into node_modules/.bin"
+		"$comment": "the only kind:bin entry \u2014 resolved via the root workspace dependency on `proxlane`, which links its bin into node_modules/.bin"
+	},
+	"capture-block": {
+		"id": "capture-block",
+		"kind": "root-script",
+		"owner": "adapter-engineer",
+		"brief": ".claude/agents/adapter-engineer.md",
+		"spec": "docs/integrations.md#6",
+		"subject": "scripts/capture-block.ts",
+		"status": "implemented",
+		"gate": "plan.md section 19 decides where a capture lands, not the caller. A target that is not a purpose-built scraping sandbox needs PROXLANE_PRIVATE_CORPUS and never enters this repo.",
+		"ci": "none",
+		"argsRequired": true
 	}
 }

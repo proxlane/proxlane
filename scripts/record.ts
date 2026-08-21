@@ -41,9 +41,13 @@ try {
 //
 // Note what is NOT here: block and captcha. You cannot summon a block from httpbin on
 // demand — real block pages come from real targets that fight back, and plan.md section 19
-// keeps those out of the public corpus by default. Those fixtures are captured from live
-// traffic via `--from-exchange`, not invented here. A hand-written block fixture would be
-// a fabrication, and this whole layer rests on them being real.
+// keeps those out of the public corpus by default. A hand-written block fixture would be a
+// fabrication, and this whole layer rests on them being real.
+//
+// `pnpm capture-block` is where those come from. This comment used to name a `--from-exchange`
+// flag that appeared nowhere else in the repository — the mechanism was never built, so the
+// corpus gap could not close even with a real capture in hand. Section 19 decides where a
+// capture lands, and the tool enforces it rather than asking the caller to remember.
 
 export type TargetCategory =
 	| 'success-html'

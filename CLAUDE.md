@@ -244,6 +244,7 @@ strip a leading `pnpm `, drop `[…]` and `<…>` argument placeholders.
 | `pnpm test:live` | the canary, scheduled not PR-blocking |
 | `pnpm conformance [--adapter=<id>]` | adapter-engineer |
 | `pnpm new-adapter <id>` · `pnpm record --adapter=<id>` | adapter authoring |
+| `pnpm capture-block --in=<file>` | the block-page corpus. `plan.md` §19 picks the destination, not the caller |
 | `pnpm k6:soak` | platform-engineer |
 | `pnpm lighthouse:assert` · `pnpm tokens:check` | design-engineer |
 | `pnpm selfhost:smoke` | devex-engineer |
