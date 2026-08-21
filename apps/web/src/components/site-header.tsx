@@ -45,6 +45,7 @@ const NAV_LINK =
  */
 const NAV: readonly { readonly to: string; readonly label: string }[] = [
 	{ to: '/docs', label: 'docs' },
+	{ to: '/scraping-api-comparison', label: 'compare' },
 	{ to: '/block-page-detector', label: 'detector' },
 	{ to: '/symptoms', label: 'troubleshooting' },
 ];

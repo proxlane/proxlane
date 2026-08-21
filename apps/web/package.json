@@ -15,6 +15,7 @@
 		"@base-ui/react": "catalog:",
 		"@fontsource-variable/hanken-grotesk": "catalog:",
 		"@fontsource/ibm-plex-mono": "catalog:",
+		"@proxlane/adapters": "workspace:*",
 		"@proxlane/detect": "workspace:*",
 		"@proxlane/route-viz": "workspace:*",
 		"@proxlane/shared": "workspace:*",

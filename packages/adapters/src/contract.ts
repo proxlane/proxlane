@@ -15,37 +15,37 @@
 // author imports everything from `@proxlane/adapters` and never needs to know. See
 // `packages/shared/src/outcome.ts` for why it is not defined here.
 
+export type { ErrorBody, ErrorCode, GatewayErrorCode } from '@proxlane/shared/error-body';
+export {
+	DEFAULT_DOCS_URL,
+	errorBody,
+	errorClassFor,
+	GATEWAY_ERROR_CODES,
+} from '@proxlane/shared/error-body';
 export type {
 	CooldownScope,
-	ErrorBody,
-	ErrorCode,
-	GatewayErrorCode,
 	GatewayRequest,
 	Outcome,
 	OutcomeClass,
 	OutcomePolicy,
 	PremiumTier,
-} from '@proxlane/shared';
+} from '@proxlane/shared/outcome';
 export {
 	CLASS_ADVICE,
 	carriesBody,
 	cooldownScope,
-	DEFAULT_DOCS_URL,
 	DOCS_BASE,
 	docsUrlFor,
-	errorBody,
-	errorClassFor,
 	FAILOVER,
-	GATEWAY_ERROR_CODES,
 	OUTCOME_CLASSES,
 	OUTCOMES,
 	outcomeClass,
 	outcomesInClass,
 	policyFor,
 	shouldFailover,
-} from '@proxlane/shared';
+} from '@proxlane/shared/outcome';
 
-import type { GatewayRequest, Outcome, PremiumTier } from '@proxlane/shared';
+import type { GatewayRequest, Outcome, PremiumTier } from '@proxlane/shared/outcome';
 
 // ---------------------------------------------------------------- cost
 

@@ -11,8 +11,8 @@ const costTable: CostTable = {
 	/** Web Unlocker bills money per request and issues no credits, so cents is its native unit. */
 	unit: 'usd-cents',
 	/**
-	 * FLAT, AND THAT IS THE INTERESTING PART. $1.50 per 1,000 requests on pay-as-you-go, so 1,500
-	 * microcredits each if a credit is a cent — and the same figure whatever you ask for. Their
+	 * FLAT, AND THAT IS THE INTERESTING PART. $1.50 per 1,000 requests on pay-as-you-go, and the
+	 * same figure whatever you ask for. Their
 	 * docs list "Full browser rendering" under what every plan includes, and the `render`
 	 * parameter carries a latency warning and no price. It is the only one of the four that does
 	 * not surcharge for rendering.
@@ -30,7 +30,19 @@ const costTable: CostTable = {
 	 * `integrations.md` section 4.
 	 */
 	matrix: {
-		none: { plain: 1_500, rendered: 1_500 },
+		/**
+		 * 150,000, and it was 1,500 — a hundred times too low.
+		 *
+		 * The arithmetic, because getting it wrong once is easy: `unit` is `usd-cents`, so one
+		 * "credit" here is one US cent, and a credit is 1,000,000 microcredits. $1.50 per 1,000
+		 * requests is $0.0015 each, which is 0.15 cents, which is 150,000 microcredits.
+		 *
+		 * The old number came from $0.0015 x 1e6, which is micro-DOLLARS against a field that
+		 * says cents. It mattered more here than it would anywhere else: Bright Data is the only
+		 * one of the four that reports no cost on the response, so this is not a routing hint
+		 * that gets corrected — it is the figure `x-cost-estimate` actually returns.
+		 */
+		none: { plain: 150_000, rendered: 150_000 },
 		// `null`, matching `premiumTiers` below, which holds `none` alone. An Unlocker zone is
 		// already residential-grade, but the tier is fixed at zone-configuration time and
 		// `proxy_type` is rejected per-request, so the adapter cannot honour a caller asking for

@@ -19,6 +19,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as shared from '@proxlane/shared';
+import * as errorBody from '@proxlane/shared/error-body';
+import * as outcome from '@proxlane/shared/outcome';
 import { describe, expect, it } from 'vitest';
 import * as adapters from './contract.js';
 
@@ -145,7 +147,11 @@ function sharedTypeExports(): string[] {
 function adapterTypeReexports(): string[] {
 	const src = readFileSync(join(ROOT, 'packages/adapters/src/contract.ts'), 'utf8');
 	const names = new Set<string>();
-	for (const block of src.matchAll(/export type \{([^}]*)\} from '@proxlane\/shared'/g)) {
+	// ANY shared specifier, barrel or subpath. `contract.ts` re-exports from
+	// `@proxlane/shared/outcome` and `@proxlane/shared/error-body` now — the barrel drags
+	// `node:crypto` into anything that loads it, which killed hydration once it reached the web
+	// app through this package. Anchoring on the bare barrel made this partition silently empty.
+	for (const block of src.matchAll(/export type \{([^}]*)\} from '@proxlane\/shared[^']*'/g)) {
 		for (const raw of (block[1] ?? '').split(',')) {
 			const n = raw.trim();
 			if (n !== '') names.add(n);
@@ -218,15 +224,32 @@ describe('every shared export is classified, so the list cannot drift', () => {
 
 describe('the re-exports are the same bindings', () => {
 	it('re-exports identity, not a copy', () => {
-		// A local re-implementation would satisfy the partition and then drift. Identity is what
-		// makes `FAILOVER` the same object from either import path.
-		const shipped = Object.keys(shared).filter((n) => n in adapters);
+		// A local re-implementation would satisfy the partition above and then drift. Identity is
+		// what makes `FAILOVER` the same object however you reach it.
+		//
+		// COMPARED AGAINST THE SUBPATHS `contract.ts` ACTUALLY IMPORTS, which is a change worth
+		// explaining. It used to compare against the `@proxlane/shared` barrel, and that stopped
+		// working when contract moved to `@proxlane/shared/outcome` and `/error-body` — the
+		// barrel re-exports `id.ts`, which imports `node:crypto`, and pulling it through this
+		// package into `apps/web` killed hydration site-wide.
+		//
+		// Under vitest a barrel import and a subpath import resolve to different module
+		// instances, so comparing across them measures the RESOLVER rather than this package.
+		// (That was already true of `/outcome` before this change; the test only passed because
+		// contract happened to use the same path it did.) The built artifact does share: node
+		// against `dist/` reports `index.mjs` and `outcome.mjs` and `error-body.mjs` all handing
+		// back the same objects, because tsdown code-splits them.
+		//
+		// So this asserts the thing that is ours to get wrong: contract re-exports the binding it
+		// imported, rather than cloning it.
+		const sources: Record<string, unknown> = { ...outcome, ...errorBody };
+		const shipped = Object.keys(sources).filter((n) => n in adapters);
 		expect(shipped.length).toBeGreaterThan(5);
 		for (const name of shipped) {
 			expect(
 				(adapters as Record<string, unknown>)[name],
-				`${name} differs between the two import paths`,
-			).toBe((shared as Record<string, unknown>)[name]);
+				`${name} is a copy, not the binding contract.ts imported`,
+			).toBe(sources[name]);
 		}
 	});
 });
