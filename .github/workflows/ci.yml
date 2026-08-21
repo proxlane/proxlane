@@ -98,10 +98,18 @@ jobs:
           VERSION=8.30.1
           # From the release's own checksums.txt, fetched 2026-08-07.
           SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-          curl -sSLo /tmp/gitleaks.tar.gz \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          # `--fail` and `--retry`, because without them a bad response BECOMES a checksum
+          # mismatch. `curl -sSLo` writes an error page or a truncated body to the file on any
+          # HTTP status, the hash then differs, and this job reported "checksum mismatch —
+          # refusing to run it" on a release nobody had touched. In the job whose entire purpose
+          # is supply-chain hygiene, "the download failed" must not be indistinguishable from
+          # "the artifact was tampered with", and it must not be the scarier of the two that
+          # gets asserted.
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            || { echo "::error::could not download gitleaks ${VERSION} — a network or release problem, not a security one"; exit 1; }
           echo "${SHA256}  /tmp/gitleaks.tar.gz" | sha256sum -c - \
-            || { echo "::error::gitleaks checksum mismatch — refusing to run it"; exit 1; }
+            || { echo "::error::gitleaks ${VERSION} downloaded but its checksum does not match the pin. The download succeeded, so this is the artifact having changed. Verify against the release's checksums.txt before touching the pin."; exit 1; }
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           /tmp/gitleaks detect --source . --redact --no-banner --exit-code 1
 
