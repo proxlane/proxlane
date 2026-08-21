@@ -25,6 +25,7 @@
 //
 // Run:  pnpm capture-block --in=<response.json> --rule=<id|none> --class=<target-class>
 
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -218,7 +219,13 @@ if (import.meta.filename === process.argv[1]) {
 	);
 
 	mkdirSync(dest.dir, { recursive: true });
-	const name = `${rule === 'none' ? 'no-fire' : rule}-${targetClass}-${capture.capturedAt.slice(0, 10)}.json`;
+	// A CONTENT DIGEST IN THE NAME, because rule + class + date is not unique. Two ordinary pages
+	// from the same vendor site, captured the same day, produced the same filename and the second
+	// silently overwrote the first — losing a capture taken from a different network, which was
+	// the whole point of taking it. The digest also makes a re-capture of the SAME bytes a no-op
+	// rather than a duplicate.
+	const digest = createHash('sha256').update(capture.bodyBase64).digest('hex').slice(0, 8);
+	const name = `${rule === 'none' ? 'no-fire' : rule}-${targetClass}-${capture.capturedAt.slice(0, 10)}-${digest}.json`;
 	const out = join(dest.dir, name);
 	writeFileSync(out, `${JSON.stringify(capture, null, '\t')}\n`);
 

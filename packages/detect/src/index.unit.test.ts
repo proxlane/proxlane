@@ -217,37 +217,59 @@ describe('akamai encodes its own signature, and the rule reads it either way', (
 	});
 });
 
-describe('a rule that fires on ordinary pages, pinned because it does', () => {
-	// FOUND BY LOOKING, not by reasoning. Imperva's own site serves
-	// `<script src="/_Incapsula_Resource?SWJIYLWA=…">` on a plain 200 marketing page, so the
-	// token this rule matches is not exclusive to a block page — it is how any
-	// Incapsula-protected site loads Imperva's client script.
-	//
-	// On the real page it does not fire, and that is luck: the tag sits at byte 263,564 and
-	// SCAN_BYTES stops at 262,144. This reproduces the same markup inside the window, which is
-	// what a shorter page on the same site would look like.
+describe('the imperva rule means blocked, not merely protected', () => {
+	// IT USED TO MATCH `_Incapsula_Resource` ALONE, which is how any Incapsula-protected site
+	// loads Imperva's client script — so every page on such a site was one this rule called
+	// blocked. Measured on Imperva's own 200 marketing page, fetched twice from different
+	// networks. It never fired only because the tag sat 1,420 bytes past SCAN_BYTES.
 	const ordinaryIncapsulaPage =
 		'<html><head><title>Cyber Security Leader</title></head><body>' +
 		'<h1>Products</h1><p>Application security and DDoS protection.</p>' +
 		'<script type="text/javascript" src="/_Incapsula_Resource?SWJIYLWA=719d34d31c8"></script>' +
 		'</body></html>';
+	// The documented block shape: an iframe to the resource with CWUDNSAI, and the incident text.
+	const blockPage =
+		'<html><head><title>Request unsuccessful.</title></head><body>' +
+		'<iframe src="/_Incapsula_Resource?CWUDNSAI=9&xinfo=7-1234&incident_id=123-456"></iframe>' +
+		'</body></html><!-- Request unsuccessful. Incapsula incident ID: 123-456789 -->';
 
-	it('fires on a page that is plainly not a block', () => {
-		// Deliberately inverted, like the bespoke-block case above. The day someone narrows this
-		// rule against a real Imperva block page, this fails, and changing it is the visible
-		// record that the false positive closed.
+	it('does not fire on an ordinary page from a protected site', () => {
 		const v = detect(new TextEncoder().encode(ordinaryIncapsulaPage), 'text/html', 'utf-8');
-		expect(
-			v.blocked,
-			'imperva-incapsula no longer fires on an ordinary page — narrow the test deliberately',
-		).toBe(true);
+		expect(v.blocked, 'the false positive is back').toBe(false);
+	});
+
+	it('fires on the documented block shape', () => {
+		const v = detect(new TextEncoder().encode(blockPage), 'text/html', 'utf-8');
+		expect(v.blocked).toBe(true);
 		expect(v.ruleId).toBe('imperva-incapsula');
 	});
 
-	it('is not counted as confirmed while it does that', () => {
-		// A rule with a known false positive must not appear in the verified table. Capturing a
-		// page it wrongly fires on would not confirm it either — `corpus:verify` rejects a
-		// no-fire sample that any rule fires on.
+	it('does not fire on prose about the error', () => {
+		// `Incapsula incident ID` is a phrase, and an article explaining the error carries it.
+		// That is why the rule keys on the iframe and not on the words.
+		const article =
+			'<html><body><h1>What is an Incapsula incident ID?</h1>' +
+			'<p>If you see "Request unsuccessful", you have been blocked.</p></body></html>';
+		expect(detect(new TextEncoder().encode(article), 'text/html', 'utf-8').blocked).toBe(false);
+	});
+
+	it('survives Imperva rotating the query parameter', () => {
+		// THE REASON THIS IS STRUCTURAL. Three parameter names for the same resource have been
+		// observed: `CWUDNSAI` on publicly documented block pages, `SWUDNSAI` in this repo's own
+		// rule sample, and `SWJIYLWA` on the live marketing page. A rule keyed to any one of them
+		// would work until Imperva rolled it. Framing the resource is the invariant.
+		for (const param of ['CWUDNSAI', 'SWUDNSAI', 'SWJIYLWA', 'ZZQQXXYY']) {
+			const page = `<html><body><iframe src="/_Incapsula_Resource?${param}=9"></iframe></body></html>`;
+			expect(detect(new TextEncoder().encode(page), 'text/html', 'utf-8').ruleId, param).toBe(
+				'imperva-incapsula',
+			);
+		}
+	});
+
+	it('is still not counted as confirmed', () => {
+		// Both real captures are NEGATIVE: they show the false positive is closed, not that the
+		// rule fires on a block. Imperva blocked neither request, so nobody has a positive
+		// capture. The table must keep saying so.
 		expect(unverifiedRules()).toContain('imperva-incapsula');
 	});
 });
