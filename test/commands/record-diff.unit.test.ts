@@ -25,7 +25,7 @@ const b64 = (o: unknown) => Buffer.from(JSON.stringify(o), 'utf8').toString('bas
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
 /** A recording pass where everything recorded. Anything else is a separate test below. */
-const CLEAN = { failed: 0, skipped: [] as string[] };
+const CLEAN = { failed: 0, skipped: [] as string[], mismatched: [] as string[] };
 
 /** A fixture as `record.ts` writes one. */
 function fixture(opts: {
@@ -128,13 +128,13 @@ describe('a changed shape is drift, and is never silently absorbed', () => {
 		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 	});
 
-	it('catches the same shape parsing to a different outcome', () => {
-		// The most consequential drift there is: nothing about the envelope moved, but what the
-		// adapter concludes from it did.
-		write(committed, fixture({ expect: 'OK' }));
-		write(fresh, fixture({ at: daysAgo(0), expect: 'SOFT_BLOCK' }));
-		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
-	});
+	// THE TEST THAT USED TO SIT HERE ASSERTED THE DECORATION. It hand-set two different `expect`
+	// values and checked they were noticed — but a real recording writes `expect` verbatim from
+	// the TARGETS matrix on both sides, so the two can never differ in practice. The test passed
+	// by constructing a state the recorder cannot produce.
+	//
+	// The real claim, checked against the real verdict, is in
+	// "a response that still records but parses differently is drift" at the end of this file.
 
 	it('leaves the committed fixture exactly as it was when it reports drift', () => {
 		// THE MUTATION THAT MATTERS. If renewal ever wrote the fresh FILE rather than its date,
@@ -227,7 +227,9 @@ describe('a pass that could not record is not a pass', () => {
 		write(committed, fixture({}));
 		write(fresh, fixture({ at: daysAgo(0) }));
 		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(0);
-		expect(reportDiff('x', committed, fresh, { failed: 1, skipped: [] })).toBe(1);
+		expect(reportDiff('x', committed, fresh, { failed: 1, skipped: [], mismatched: [] })).toBe(
+			1,
+		);
 	});
 
 	it('reports a committed fixture this run recorded nothing for', () => {
@@ -248,7 +250,9 @@ describe('a category that was deliberately skipped is named, not counted as conf
 		write(committed, fixture({}));
 		writeFileSync(join(committed, 'deadline.json'), `${JSON.stringify(fixture({}))}\n`);
 		write(fresh, fixture({ at: daysAgo(0) }));
-		expect(reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'] })).toBe(0);
+		expect(
+			reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'], mismatched: [] }),
+		).toBe(0);
 	});
 
 	it('says so in the output, rather than letting it pass unmentioned', () => {
@@ -260,7 +264,7 @@ describe('a category that was deliberately skipped is named, not counted as conf
 		write(committed, fixture({}));
 		writeFileSync(join(committed, 'deadline.json'), `${JSON.stringify(fixture({}))}\n`);
 		write(fresh, fixture({ at: daysAgo(0) }));
-		reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'] });
+		reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'], mismatched: [] });
 		expect(said.join('')).toContain('NOT CHECKED');
 		expect(said.join('')).toContain('deadline');
 	});
@@ -269,6 +273,40 @@ describe('a category that was deliberately skipped is named, not counted as conf
 		// The degenerate case, and the one an empty comparison hides behind: nothing compared,
 		// nothing changed, therefore green. An empty comparison is not a clean one.
 		writeFileSync(join(committed, 'deadline.json'), `${JSON.stringify(fixture({}))}\n`);
-		expect(reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'] })).toBe(1);
+		expect(
+			reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'], mismatched: [] }),
+		).toBe(1);
+	});
+});
+
+describe('a response that still records but parses differently is drift', () => {
+	// THE CHECK THAT COULD NOT FIRE. It read `before.expect !== after.expect` — and `expect` is
+	// written verbatim from the TARGETS matrix on every recording, so both sides were the same
+	// literal from the same constant. Meanwhile the real verdict, `parse()` run over the bytes
+	// just recorded, was computed for the console line and thrown away in diff mode.
+	//
+	// A comparison whose two sides come from one place, inside the command built to prevent
+	// exactly that. Found by the review panel, in code written the same day.
+	it('reports a category whose fresh recording no longer parses as expected', () => {
+		write(committed, fixture({}));
+		write(fresh, fixture({ at: daysAgo(0) }));
+		// Byte-identical shape, so nothing else can explain the failure.
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(0);
+		expect(
+			reportDiff('x', committed, fresh, {
+				failed: 0,
+				skipped: [],
+				mismatched: ['success-html'],
+			}),
+		).toBe(1);
+	});
+
+	it('ignores a mismatch in a category it is not comparing', () => {
+		// The other direction: a mismatch elsewhere must not condemn this fixture.
+		write(committed, fixture({}));
+		write(fresh, fixture({ at: daysAgo(0) }));
+		expect(
+			reportDiff('x', committed, fresh, { failed: 0, skipped: [], mismatched: ['render-js'] }),
+		).toBe(0);
 	});
 });
