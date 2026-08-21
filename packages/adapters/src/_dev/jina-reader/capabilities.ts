@@ -15,11 +15,23 @@ const costTable: CostTable = {
 	 * would make a zero that cannot be compared with anything look like one that can.
 	 */
 	unit: 'usd-cents',
-	// Genuinely zero on the keyless tier — which is the entire reason this adapter exists.
-	// The service meters by tokens (it returns `x-usage-tokens`) and rate-limits anonymous
-	// callers rather than charging them, so there is no credit to convert.
-	base: 0,
-	multipliers: {},
+	/**
+	 * Genuinely zero on the keyless tier — which is the entire reason this adapter exists. The
+	 * service meters by tokens (it returns `x-usage-tokens`) and rate-limits anonymous callers
+	 * rather than charging them, so there is no credit to convert.
+	 *
+	 * `null` on the tiers it does not sell, matching `premiumTiers`, which holds `none` alone.
+	 * Zero and "not sold" are different answers and the matrix makes us give one of them: a zero
+	 * in the residential row would advertise free residential proxies.
+	 *
+	 * Rendering is always on and cannot be turned off, so both columns of `none` are the same
+	 * number rather than one of them being null — the request is served either way.
+	 */
+	matrix: {
+		none: { plain: 0, rendered: 0 },
+		residential: { plain: null, rendered: null },
+		stealth: { plain: null, rendered: null },
+	},
 };
 
 export const capabilities: ProviderCapabilities = {

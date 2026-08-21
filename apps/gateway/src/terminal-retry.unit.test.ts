@@ -31,8 +31,11 @@ function caps(id: string, over: Partial<ProviderCapabilities> = {}): ProviderCap
 			effectiveDate: '2026-08-08',
 			sourceUrl: 'https://x.test/',
 			unit: 'provider-credits',
-			base: 100,
-			multipliers: {},
+			matrix: {
+				none: { plain: 100, rendered: 100 },
+				residential: { plain: 100, rendered: 100 },
+				stealth: { plain: 100, rendered: 100 },
+			},
 		},
 		...over,
 	};

@@ -921,8 +921,11 @@ describe('cost is never summed across units', () => {
 					effectiveDate: '2026-08-19',
 					sourceUrl: 'https://x.test/',
 					unit: 'usd-cents',
-					base: 1_500,
-					multipliers: {},
+					matrix: {
+						none: { plain: 1_500, rendered: 1_500 },
+						residential: { plain: 1_500, rendered: 1_500 },
+						stealth: { plain: 1_500, rendered: 1_500 },
+					},
 				},
 			},
 			translate: () => ({

@@ -96,6 +96,30 @@ function field(src: string, id: string, name: string): string {
 	return src.slice(from, i).replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Rendering's cost as a factor of a plain request, at the default tier.
+ *
+ * THROWS RATHER THAN SHRUGGING. The version before this fell back to `'?'` when its regex missed,
+ * and the day the multipliers block was replaced it wrote "?×" into four rows of the README
+ * without anybody's build going red. A generator that cannot read its input has to say so — the
+ * same lesson as the "0 regions" it printed one column to the left.
+ */
+function renderFactor(src: string, id: string): string {
+	const row = /none: \{ plain: ([0-9_]+|null), rendered: ([0-9_]+|null) \}/.exec(src);
+	if (row === null) {
+		throw new Error(`${id}: cannot read matrix.none from capabilities.ts`);
+	}
+	const num = (t: string): number | null => (t === 'null' ? null : Number(t.replace(/_/g, '')));
+	const plain = num(row[1] as string);
+	const rendered = num(row[2] as string);
+	if (plain === null || rendered === null) {
+		throw new Error(`${id}: matrix.none has a null cell; the default tier must be sellable`);
+	}
+	if (plain === 0) throw new Error(`${id}: matrix.none.plain is 0, so a factor is undefined`);
+	const f = rendered / plain;
+	return Number.isInteger(f) ? String(f) : f.toFixed(1);
+}
+
 function rowFor(id: string): Row {
 	const src = readFileSync(join(SRC, id, 'capabilities.ts'), 'utf8');
 	// Anchored to the start of a line with one tab: these fields sit at the top level of the
@@ -121,9 +145,14 @@ function rowFor(id: string): Row {
 		geo: countries === "'all'" ? 'all' : `${codes} regions`,
 		sessions: field(src, id, 'sessions') === 'true',
 		post: field(src, id, 'post') === 'true',
-		// From the nested multipliers block, which is the number that actually differs between
-		// providers and the one a reader is choosing on.
-		renderMultiplier: (/^\t\trenderJs: ([0-9.]+),$/m.exec(src)?.[1] ?? '?') as string,
+		// What rendering costs, as a factor of a plain request at the default tier. Derived from
+		// the cost matrix rather than read off a multiplier, because there are no multipliers any
+		// more: Scrapfly is additive and ScraperAPI's combinations are named values, so a single
+		// "renderJs" number was never something every provider had.
+		//
+		// This is the column a reader chooses on, and it moved when the matrix landed: Scrapfly
+		// reads 6x now, not 5x, because their rendering is +5 on a base of 1.
+		renderMultiplier: renderFactor(src, id),
 	};
 }
 

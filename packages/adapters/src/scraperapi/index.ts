@@ -6,7 +6,7 @@ import type {
 	ProviderHttpRequest,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { carriesBody, MICROCREDITS_PER_CREDIT } from '../contract.js';
+import { carriesBody, cheapestCost, MICROCREDITS_PER_CREDIT } from '../contract.js';
 import { capabilities } from './capabilities.js';
 
 // Both functions are PURE. No I/O, no clock, no randomness — that is what lets them be
@@ -137,7 +137,7 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 					microcredits: Math.round(reported * MICROCREDITS_PER_CREDIT),
 					source: 'reported' as const,
 				}
-			: { microcredits: capabilities.costTable.base, source: 'estimated' as const },
+			: { microcredits: cheapestCost(capabilities.costTable), source: 'estimated' as const },
 	};
 
 	// Body inclusion routes through the contract's carriesBody(), never a per-branch

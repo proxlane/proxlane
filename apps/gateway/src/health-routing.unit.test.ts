@@ -28,8 +28,11 @@ function caps(id: string): ProviderCapabilities {
 			effectiveDate: '2026-08-08',
 			sourceUrl: 'https://x.test/',
 			unit: 'provider-credits',
-			base: 1,
-			multipliers: {},
+			matrix: {
+				none: { plain: 1, rendered: 1 },
+				residential: { plain: 1, rendered: 1 },
+				stealth: { plain: 1, rendered: 1 },
+			},
 		},
 	};
 }

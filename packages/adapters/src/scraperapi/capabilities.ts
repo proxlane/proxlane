@@ -5,22 +5,31 @@ import type { CostTable, ProviderCapabilities } from '../contract.js';
 // router filters the failover chain on these before it sends anything.
 
 const costTable: CostTable = {
-	effectiveDate: '2026-08-07',
+	effectiveDate: '2026-08-21',
 	sourceUrl: 'https://docs.scraperapi.com/control-and-optimization/supported-parameters',
 	/** ScraperAPI sells credits; what a credit costs depends on the plan. */
 	unit: 'provider-credits',
-	// 1 credit for a plain request.
-	base: 1_000_000,
-	multipliers: {
-		// render=true is 10 credits, premium=true is 10, ultra_premium=true is 30.
-		//
-		// Documented INDIVIDUALLY. ScraperAPI does not publish the cost of render+premium
-		// together, and multiplying the two (100x) is a guess. The router would use that guess
-		// to pick the cheapest provider, so a wrong number here is a wrong routing decision
-		// billed to a real customer. Recorded as a known gap rather than invented — the live
-		// canary reports actual credit spend, and these get corrected from observation.
-		renderJs: 10,
-		premium: { none: 1, residential: 10, stealth: 30 },
+	/**
+	 * Read off their parameter table. The combinations are NAMED VALUES, which is why this is a
+	 * matrix and not a formula: `premium` is 10 and `render` is 10, but both together is 25 and
+	 * not 100. Their own wording on `ultra_premium`: "Requests using this parameter cost 30 API
+	 * credits, or 75 if used in combination with JavaScript rendering."
+	 *
+	 * `stealth` is our name for their `ultra_premium`. They ship no parameter called stealth.
+	 *
+	 * NOT MODELLED, deliberately, and recorded here so the next reader does not think we missed
+	 * it: ScraperAPI also prices by TARGET DOMAIN — Amazon 5 credits, Google and Bing 25,
+	 * LinkedIn 30 — and adds 10 for bot-protected domains. Whether those replace this matrix or
+	 * stack on top of it is not published anywhere, and inventing the interaction would put a
+	 * confident wrong number where an absent one is honest. `sa-credit-cost` returns the real
+	 * figure per request and `parse()` reads it, so the ledger is exact regardless. Filed in
+	 * `state.md`. Source for the domain classes:
+	 * https://docs.scraperapi.com/getting-started/quick-start/credits-and-requests-costs
+	 */
+	matrix: {
+		none: { plain: 1_000_000, rendered: 10_000_000 },
+		residential: { plain: 10_000_000, rendered: 25_000_000 },
+		stealth: { plain: 30_000_000, rendered: 75_000_000 },
 	},
 };
 

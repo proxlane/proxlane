@@ -61,8 +61,11 @@ function mockAdapter(endpoint: string, line: 1 | 2 | 3, id: string): Adapter {
 				effectiveDate: '2026-01-01',
 				sourceUrl: 'https://example.invalid/mock-pricing',
 				unit: 'provider-credits',
-				base: 1_000_000,
-				multipliers: { renderJs: 5, premium: { none: 1, residential: 10, stealth: 30 } },
+				matrix: {
+					none: { plain: 1_000_000, rendered: 5_000_000 },
+					residential: { plain: 10_000_000, rendered: 25_000_000 },
+					stealth: { plain: 30_000_000, rendered: 75_000_000 },
+				},
 			},
 		},
 		translate(req: GatewayRequest): ProviderHttpRequest {

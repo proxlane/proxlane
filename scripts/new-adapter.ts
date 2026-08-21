@@ -67,8 +67,18 @@ const costTable: CostTable = {
 	// request. Three launch providers are the former and one is the latter; mixing them silently
 	// is what made X-Cost-Estimate add a credit to a fraction of a cent.
 	unit: 'provider-credits',
-	base: 0,
-	multipliers: {},
+	/**
+	 * SIX CELLS, ALL REQUIRED, all zero until you read the provider's price page and replace
+	 * them. There is no formula to fill in and nothing to approximate: find the published cost
+	 * for each combination and write it down, or write \`null\` if they do not sell it.
+	 *
+	 * Zeroes here are a placeholder that \`repo:check\` will not let you ship.
+	 */
+	matrix: {
+		none: { plain: 0, rendered: 0 },
+		residential: { plain: 0, rendered: 0 },
+		stealth: { plain: 0, rendered: 0 },
+	},
 };
 
 export const capabilities: ProviderCapabilities = {
