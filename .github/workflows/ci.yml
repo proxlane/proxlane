@@ -5,7 +5,13 @@ on:
     # ready_for_review is NOT in the default set (opened, synchronize, reopened). Without
     # it a draft skips every job, ci-complete goes green on "skipped", and marking the PR
     # ready never re-runs anything — leaving a merge-eligible green that tested nothing.
-    types: [opened, synchronize, reopened, ready_for_review]
+    #
+    # `labeled`/`unlabeled` for the same class of reason. `security-review` gates on the
+    # `security-reviewed` label, and the default set does not include labelling — so adding the
+    # label left the failed run untouched and the only way forward was an empty commit. A gate
+    # whose satisfying action does not re-run it is a gate nobody satisfies. Caught on the very
+    # PR that introduced it.
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   push:
     branches: [main]
 
@@ -273,6 +279,12 @@ jobs:
 
   security-review:
     runs-on: ubuntu-latest
+    # Scoped to this job rather than the workflow: only this one reads PR metadata, and the
+    # workflow-level grant is `contents: read`. Read-only — the job checks for a label, it
+    # never sets one, because a gate that can satisfy itself is not a gate.
+    permissions:
+      contents: read
+      pull-requests: read
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v7
@@ -280,7 +292,11 @@ jobs:
       - shell: bash
         env:
           # The labels on this PR, so the gate below can read an explicit acknowledgement.
-          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          # From the API, not the event payload. The payload is frozen at trigger time, so
+          # re-running a failed job by hand would re-read the labels as they were when it first
+          # ran — which is exactly the state the person re-running is trying to change.
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           # Conditional by design. security-engineer has no write tools and cannot own the
           # code it reviews, so the trigger set lives in a file both this job and
@@ -316,7 +332,8 @@ jobs:
           # does not exist: label the PR `security-reviewed` once the pass has been done. That is
           # a deliberate act by a human, which is the whole point, and it is visible on the PR
           # afterwards rather than buried in a log.
-          if echo "$LABELS" | tr ',' '\n' | grep -qx 'security-reviewed'; then
+          LABELS=$(gh api "repos/${{ github.repository }}/issues/$PR/labels" --jq '.[].name')
+          if echo "$LABELS" | grep -qx 'security-reviewed'; then
             echo "::notice title=security-review::acknowledged via the security-reviewed label"
             exit 0
           fi
