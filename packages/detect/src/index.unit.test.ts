@@ -139,6 +139,44 @@ describe('what this detector CANNOT catch, pinned with a real capture', () => {
 	});
 });
 
+describe('a cloudflare block is a block, not a challenge', () => {
+	// RULE ORDER WAS HIDING ONE OF THEM. A real Cloudflare block page — "Sorry, you have been
+	// blocked", 403 — carries `cf-error-details` AND `/cdn-cgi/challenge-platform/`, because the
+	// block page loads the same script. With the challenge rule first, every block resolved to
+	// `cloudflare-challenge` and `cloudflare-blocked` could never fire: dead code that looked
+	// fine because it was never wrong.
+	//
+	// Both are SOFT_BLOCK, so the outcome never changed. `X-Detect-Rule` is what a caller reads
+	// to find out why, and it said the wrong thing.
+	const blockPage =
+		'<html><head><title>Attention Required! | Cloudflare</title></head><body>' +
+		'<div class="cf-wrapper"><div id="cf-error-details">Sorry, you have been blocked</div></div>' +
+		'<script src="/cdn-cgi/challenge-platform/h/b/orchestrate/jsch/v1"></script></body></html>';
+	const challengePage =
+		'<html><head><script src="/cdn-cgi/challenge-platform/h/b/orchestrate/jsch/v1"></script>' +
+		'</head><body>Checking your browser</body></html>';
+
+	it('calls a page that says it blocked you blocked', () => {
+		const v = detect(new TextEncoder().encode(blockPage), 'text/html', 'utf-8');
+		expect(v.ruleId).toBe('cloudflare-blocked');
+	});
+
+	it('still calls a plain challenge a challenge', () => {
+		// The half that reordering could have broken. Verified against two real challenge
+		// captures, neither of which carries `cf-error-details`.
+		const v = detect(new TextEncoder().encode(challengePage), 'text/html', 'utf-8');
+		expect(v.ruleId).toBe('cloudflare-challenge');
+	});
+
+	it('keeps the specific rule ahead of the general one', () => {
+		// The invariant, not the outcome: if these two ever swap back, the block page silently
+		// starts reporting the wrong rule again and no assertion above would necessarily catch
+		// it on a future page shape.
+		const ids = RULES.map((r) => r.id);
+		expect(ids.indexOf('cloudflare-blocked')).toBeLessThan(ids.indexOf('cloudflare-challenge'));
+	});
+});
+
 describe('akamai encodes its own signature, and the rule reads it either way', () => {
 	// A REAL DENY PAGE IS 371 BYTES AND ENTITY-ENCODED. Akamai writes the reference URL as
 	// `https&#58;&#47;&#47;errors&#46;edgesuite&#46;net&#47;18&#46;…`, so the literal
