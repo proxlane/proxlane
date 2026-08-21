@@ -70,13 +70,28 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # NO `|| echo` HERE. An alert that cannot be delivered is the same as no alert,
+          # and this one could not be for eleven weeks: `flag:provider-drift` had never been
+          # created, `gh` resolves label names server-side and errors when one is missing, and
+          # the `|| echo` turned that into a warning on a run `continue-on-error` had already
+          # made green. Assertion 40 now holds every `--label` to `.github/labels.json`; this
+          # is the second guard, for what an offline check cannot see.
+          #
           # A failing canary means a provider changed under us. That is the signal the
           # whole adapter layer exists to surface, so it opens an issue rather than
           # turning a scheduled run red where nobody looks.
           gh issue create --title "provider drift: canary failed $(date -u +%F)" \
             --label "flag:provider-drift" \
-            --body "\`pnpm test:live\` failed on the scheduled canary. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            || echo "::warning::could not open an issue (labels may not exist yet)"
+            --body "\`pnpm test:live\` failed on the scheduled canary. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      # THE LAUNCH GATE READS THE STEP, NOT THE JOB. `continue-on-error: true` above makes the
+      # job green whether the canary passed or failed — by design, so drift opens an issue
+      # rather than reddening a scheduled run nobody looks at. But `state.md` counts "three
+      # consecutive scheduled greens" as operations.md section 9's launch gate, and under that
+      # setting a green is not evidence the canary passed. This makes the two differ.
+      - if: steps.run.outcome == 'failure'
+        run: |
+          echo "::error title=canary::test:live failed. This run does NOT count toward the three consecutive greens in operations.md section 9."
+          exit 1
 
   cost-drift:
     if: github.event.schedule == '23 6 * * 2' || inputs.job == 'cost-drift'
@@ -143,6 +158,18 @@ jobs:
           SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
           BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
         run: pnpm record --diff --adapter=${{ matrix.adapter }}
+      # A SECOND, SCOPED PASS, because `--timeout-ms` is global and would time out every other
+      # category. Without it `deadline` is skipped — it needs a budget below the target's 30s
+      # delay — so `deadline.json` sat exempt from drift detection every single week while the
+      # report called everything else confirmed. `--diff` now names what it skipped rather than
+      # passing over it in silence; this is what stops it having anything to name.
+      - if: steps.keyed.outputs.yes == 'true'
+        env:
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
+          SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
+          SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
+          BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
+        run: pnpm record --diff --adapter=${{ matrix.adapter }} --only=deadline --timeout-ms=5000
       # An identical re-recording renews the fixture's date, but only once it is 30 days old, so
       # this opens a pull request roughly monthly rather than weekly. Without it the renewal is
       # discarded with the runner and `repo:check`'s freshness assertion ages out fixtures that

@@ -548,18 +548,58 @@ export const RENEW_AFTER_DAYS = 30;
  * old, or a weekly job produces a weekly pull request of nothing but timestamps, which is how a
  * reviewer learns to approve this job's diffs without reading them.
  */
-export function reportDiff(adapterId: string, committedDir: string, freshDir: string): number {
+export function reportDiff(
+	adapterId: string,
+	committedDir: string,
+	freshDir: string,
+	run: { readonly failed: number; readonly skipped: readonly string[] },
+): number {
+	// A RECORDING PASS THAT COULD NOT RECORD IS NOT EVIDENCE OF NO DRIFT, and this is the hole
+	// that shipped in the commit which fixed the previous version of this hole. `failed` was
+	// incremented by three paths in the loop above — oversize, transport failure, deadline
+	// refusal — and read by nothing in diff mode. So on a Wednesday when a provider was
+	// unreachable, the fresh directory came back empty, the comparison had nothing to compare,
+	// and the job printed "0 fixture(s) unchanged in shape" and exited 0. Reproduced against
+	// the real corpus: 11 committed Scrapfly fixtures, none compared, exit 0.
+	if (run.failed > 0) {
+		process.stderr.write(
+			`\n  ${adapterId}: ${run.failed} recording(s) failed, so nothing can be concluded about\n` +
+				'  drift. A pass that could not record is not a pass.\n\n',
+		);
+		return 1;
+	}
+
 	if (!existsSync(committedDir)) {
 		process.stdout.write(`\n  ${adapterId}: no committed fixtures to diff against\n\n`);
 		return 0;
 	}
 
 	const changed: string[] = [];
+	const unchecked: string[] = [];
 	let confirmed = 0;
 	let renewed = 0;
 
-	for (const name of readdirSync(freshDir).filter((f) => f.endsWith('.json'))) {
+	// THE UNION OF BOTH DIRECTORIES, not just the fresh one. Walking only what was recorded
+	// this run means a category that stopped recording disappears from the report entirely —
+	// the fixture most likely to have drifted is the one silently dropped from the comparison.
+	const jsons = (d: string) =>
+		existsSync(d) ? readdirSync(d).filter((f) => f.endsWith('.json')) : [];
+	const names = [...new Set([...jsons(committedDir), ...jsons(freshDir)])].sort();
+
+	for (const name of names) {
 		const committedPath = join(committedDir, name);
+		const freshPath = join(freshDir, name);
+
+		if (!existsSync(freshPath)) {
+			// Deliberately not recorded this run, or not recorded at all. Only the first is
+			// acceptable, and it still has to be SAID: `deadline` needs `--timeout-ms` below the
+			// target's delay, so without a second scoped pass it is exempt from drift detection
+			// every single week while the report calls everything else confirmed.
+			const category = name.replace(/\.json$/, '');
+			if (run.skipped.includes(category)) unchecked.push(category);
+			else changed.push(`${name}: committed, but this run recorded nothing for it`);
+			continue;
+		}
 		if (!existsSync(committedPath)) {
 			changed.push(`${name}: recorded now, absent from the corpus`);
 			continue;
@@ -605,16 +645,31 @@ export function reportDiff(adapterId: string, committedDir: string, freshDir: st
 		}
 	}
 
+	const uncheckedLine =
+		unchecked.length > 0
+			? `  NOT CHECKED: ${unchecked.join(', ')} — re-run with --only=<category> --timeout-ms=<n>\n`
+			: '';
+
 	if (changed.length === 0) {
+		// Non-zero denominator. Comparing nothing and calling it unchanged is the failure this
+		// whole function was rewritten to remove, so it cannot be allowed to pass quietly.
+		if (confirmed + renewed === 0) {
+			process.stderr.write(
+				`\n  ${adapterId}: nothing was compared. ${unchecked.length} skipped, 0 recorded.\n` +
+					'  An empty comparison is not a clean one.\n\n',
+			);
+			return 1;
+		}
 		process.stdout.write(
 			`\n  ${adapterId}: ${confirmed + renewed} fixture(s) unchanged in shape` +
-				`${renewed > 0 ? `, ${renewed} date(s) renewed` : ''}\n\n`,
+				`${renewed > 0 ? `, ${renewed} date(s) renewed` : ''}\n${uncheckedLine}\n`,
 		);
 		return 0;
 	}
 	process.stderr.write(
 		`\n  ${adapterId}: ${changed.length} fixture(s) changed shape\n\n` +
 			changed.map((c) => `    ${c}\n`).join('') +
+			uncheckedLine +
 			`\n  ${confirmed + renewed} unchanged. Re-record with \`pnpm record --adapter=${adapterId}\`\n` +
 			'  and read the diff: a provider changing its response shape is what this job exists\n' +
 			'  to catch, and it is what breaks parse().\n\n',
@@ -962,7 +1017,7 @@ if (import.meta.filename === process.argv[1]) {
 	}
 
 	if (diff) {
-		process.exit(reportDiff(adapterId, committedDir, outDir));
+		process.exit(reportDiff(adapterId, committedDir, outDir, { failed, skipped }));
 	}
 
 	process.stdout.write(

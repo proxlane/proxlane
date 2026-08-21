@@ -19,7 +19,7 @@ failures and real providers have bad hours. **5 of 6 detect rules are confirmed*
 capture; five of the six had a defect only a real page could show.
 
 **The canary gate is 1 of 3.** §9 wants three consecutive *scheduled* greens; the first landed
-**2026-08-17** and cron is Mondays, so it clears **2026-08-31**. Count scheduled runs only.
+**2026-08-17**, cron is Mondays, so it clears **2026-08-31**. The gate reads the step, not the job.
 
 ## Blocked on
 
