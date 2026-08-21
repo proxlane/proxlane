@@ -2470,6 +2470,72 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------------------------------------------- assertion 39: fixtures have a shelf life
+//
+// `recordedAt` WAS WRITTEN TWICE AND READ NOWHERE. Every fixture has carried one since the day
+// `record.ts` was written, and nothing in the repository had ever looked at it — so a recording
+// of a provider API as it behaved a year ago was indistinguishable from one taken this morning,
+// and the contract suite would go on replaying it either way. A field nobody reads is a field
+// that can say anything.
+//
+// THE WINDOW IS DELIBERATELY WIDE, and the reason matters more than the number. `record --diff`
+// re-records weekly and stamps the date forward when the bytes are identical, so a fixture under
+// an adapter with a key in CI never approaches this. Crossing it therefore does not mean "old",
+// it means NOTHING HAS SUCCESSFULLY RE-RECORDED THIS IN FOUR MONTHS — the weekly job is dormant
+// for want of a key, or it has been failing, or this adapter was never in the matrix. That is a
+// finding about the drift detector, not a mandate to re-record on a schedule.
+{
+	const MAX_AGE_DAYS = 120;
+	const now = Date.now();
+	let checked39 = 0;
+	const stale: string[] = [];
+	const undated: string[] = [];
+
+	const fixtures = execFileSync('git', ['ls-files', '*/fixtures/*.json'], {
+		cwd: ROOT,
+		encoding: 'utf8',
+	})
+		.split('\n')
+		.filter(Boolean);
+
+	for (const f of fixtures) {
+		let at: unknown;
+		try {
+			at = (JSON.parse(readFileSync(join(ROOT, f), 'utf8')) as Record<string, unknown>)
+				.recordedAt;
+		} catch {
+			fail('39', `${f} is not readable JSON`);
+			continue;
+		}
+		checked39 += 1;
+		const ms = typeof at === 'string' ? Date.parse(at) : Number.NaN;
+		if (!Number.isFinite(ms)) {
+			undated.push(f);
+			continue;
+		}
+		const days = Math.floor((now - ms) / 86_400_000);
+		if (days > MAX_AGE_DAYS) stale.push(`${f} (${days}d)`);
+	}
+
+	// Non-zero denominator. Every claim above is vacuous over an empty fixture corpus, and the
+	// corpus is exactly the thing that would go missing without anybody noticing.
+	if (checked39 === 0) {
+		fail('39', 'no fixtures found at all — the contract suite is replaying nothing');
+	}
+	for (const f of undated) {
+		fail('39', `${f} has no parseable recordedAt, so its age cannot be known`);
+	}
+	if (stale.length > 0) {
+		fail(
+			'39',
+			`${stale.length} fixture(s) have not re-recorded in ${MAX_AGE_DAYS} days, which means ` +
+				`the weekly record-diff job is not covering them: ${stale.slice(0, 4).join(', ')}` +
+				`${stale.length > 4 ? ` and ${stale.length - 4} more` : ''}`,
+		);
+	}
+	ok('39', checked39, `fixtures re-recorded within ${MAX_AGE_DAYS} days`);
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

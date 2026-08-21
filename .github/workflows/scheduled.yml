@@ -86,13 +86,81 @@ jobs:
       - uses: ./.github/actions/setup
       - run: echo "::notice::cost-drift needs the ledger and a cost table with reported values; neither exists"
 
+  # Re-record every fixture and compare. This is the only thing in the repo that can notice a
+  # provider changing its response shape underneath us.
+  #
+  # IT RAN FOR WEEKS WITHOUT COMPARING ANYTHING. The step was
+  # `pnpm record --diff || echo "::notice::record is a stub; nothing to diff yet"`, and `--diff`
+  # existed nowhere in `scripts/record.ts` — so it exited 2 on the missing `--adapter`, the
+  # `|| echo` swallowed that, and the job went green every Wednesday. It also had no provider
+  # keys, so it could not have worked even if the flag had existed. Two independent failures,
+  # either one sufficient, in six lines of YAML.
+  #
+  # `|| echo` is gone. Drift fails the job.
   record-diff:
     if: github.event.schedule == '29 6 * * 3' || inputs.job == 'record-diff'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # The secret name is carried explicitly rather than derived from the adapter id. The
+        # `secrets` context is looked up by an exact name, and `record.ts` derives its env var
+        # by uppercasing — so a matrix of lowercase ids would silently find nothing and every
+        # leg would report itself dormant, which reads exactly like "no keys configured".
+        include:
+          - adapter: scraperapi
+            secret: SCRAPERAPI_KEY
+          - adapter: scrapingbee
+            secret: SCRAPINGBEE_KEY
+          - adapter: scrapfly
+            secret: SCRAPFLY_KEY
+          - adapter: brightdata
+            secret: BRIGHTDATA_KEY
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - run: pnpm record --diff || echo "::notice::record is a stub; nothing to diff yet"
+      # Dormant rather than red when a key is absent, the same call the canary makes above and
+      # for the same reason: a weekly failure nobody can act on is how a real one stops being
+      # read. Per adapter, so three keys do not go dark because the fourth is missing.
+      - id: keyed
+        env:
+          KEY: ${{ secrets[matrix.secret] }}
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=record-diff::No ${{ matrix.adapter }} key, so its fixtures were not checked for drift this week. Add ${{ matrix.secret }} to repository secrets."
+          fi
+      # Spends credits: one request per category. That is the price of knowing.
+      - if: steps.keyed.outputs.yes == 'true'
+        env:
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
+          SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
+          SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
+          BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
+        run: pnpm record --diff --adapter=${{ matrix.adapter }}
+      # An identical re-recording renews the fixture's date, but only once it is 30 days old, so
+      # this opens a pull request roughly monthly rather than weekly. Without it the renewal is
+      # discarded with the runner and `repo:check`'s freshness assertion ages out fixtures that
+      # were in fact confirmed days earlier.
+      - if: steps.keyed.outputs.yes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git diff --quiet && exit 0
+          BRANCH="chore/fixture-dates-${{ matrix.adapter }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git commit -am "chore(adapters): renew ${{ matrix.adapter }} fixture dates"
+          git push -f origin "$BRANCH"
+          gh pr view "$BRANCH" >/dev/null 2>&1 || gh pr create --base main --head "$BRANCH" \
+            --title "chore(adapters): renew ${{ matrix.adapter }} fixture dates" \
+            --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job."
 
   # Provenance for the published health figures.
   #
