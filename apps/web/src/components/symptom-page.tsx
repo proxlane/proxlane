@@ -27,7 +27,7 @@ export interface SymptomDoc {
 
 export function SymptomPage({ doc }: { readonly doc: SymptomDoc }) {
 	return (
-		<article className="mx-auto w-full max-w-[46rem] px-5 py-14 sm:px-8 sm:py-20">
+		<article className="mx-auto w-full max-w-[46rem] py-12 sm:py-20">
 			{/* The query, shown. It is what the reader typed, so seeing it back is the fastest
 			    possible confirmation that they are in the right place — faster than reading the
 			    heading, which is our words for their problem. */}

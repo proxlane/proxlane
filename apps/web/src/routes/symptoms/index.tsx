@@ -31,7 +31,7 @@ export const Route = createFileRoute('/symptoms/')({
 			'/symptoms',
 		),
 	component: () => (
-		<div className="mx-auto w-full max-w-[46rem] px-5 py-14 sm:px-8 sm:py-20">
+		<div className="mx-auto w-full max-w-[46rem] py-12 sm:py-20">
 			<h1 className="font-semibold text-[2rem] text-[color:var(--color-ink)] leading-[1.15] tracking-[-0.02em]">
 				Troubleshooting
 			</h1>

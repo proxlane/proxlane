@@ -16,7 +16,7 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { headerClass, STUCK_AT_FIRST_PAINT } from './components/site-header.js';
+import { barClass, pillClass, STUCK_AT_FIRST_PAINT } from './components/site-header.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROUTES = resolve(HERE, 'routes');
@@ -30,26 +30,52 @@ describe('the header server-renders the state a first paint is in', () => {
 		expect(STUCK_AT_FIRST_PAINT).toBe(false);
 	});
 
-	it('wears nothing at rest and the full treatment when stuck', () => {
-		const rest = headerClass(false);
-		const stuck = headerClass(true);
-		// Sticky in both: the positioning is not the state, the treatment is.
-		expect(rest).toContain('sticky');
-		expect(stuck).toContain('sticky');
-		// At rest it must not paint a ground over the fixed field behind the page.
-		expect(rest).not.toContain('backdrop-blur');
-		expect(rest).not.toContain('--color-ground');
+	it('wears nothing at rest and full glass when stuck', () => {
+		const rest = pillClass(false);
+		const stuck = pillClass(true);
+		// At rest it must paint nothing over the fixed field the page scrolls across.
+		expect(rest).toContain('bg-transparent');
 		expect(rest).toContain('border-transparent');
-		// Stuck it separates itself: ground, hairline, blur.
-		expect(stuck).toContain('backdrop-blur');
+		expect(rest).toContain('shadow-none');
+		expect(rest).toContain('backdrop-blur-none');
+		// Stuck it is glass: ground, hairline, lift, blur.
 		expect(stuck).toContain('--color-ground');
 		expect(stuck).toContain('--color-rule');
+		expect(stuck).toContain('shadow-panel');
+		expect(stuck).toContain('backdrop-blur-xl');
+	});
+
+	it('never emits a utility together with its own override', () => {
+		// THE BUG THIS FILE EXISTS FOR. The first version put `bg-transparent` and
+		// `bg-[…]/85` in one class list and left the winner to Tailwind's layer order. It
+		// chose `bg-transparent`, while `backdrop-blur-md` had no competitor and applied.
+		// The header blurred the text behind it and painted nothing on top, which is the
+		// least readable thing it could have done.
+		//
+		// Measured on the real page: `blur(12px)` with `backgroundColor: rgba(0,0,0,0)`.
+		for (const cls of [pillClass(true), pillClass(false)]) {
+			const groups: ReadonlyArray<readonly [string, string]> = [
+				['bg-transparent', 'bg-[color:var(--color-ground)]'],
+				['border-transparent', 'border-[color:var(--color-rule)]'],
+				['shadow-none', 'shadow-panel'],
+				['backdrop-blur-none', 'backdrop-blur-xl'],
+			];
+			for (const [a, b] of groups) {
+				expect(cls.includes(a) && cls.includes(b), `${a} and ${b} both present`).toBe(false);
+			}
+		}
+	});
+
+	it('changes the bar rhythm rather than the page edges', () => {
+		// The pill floats inside a full-width bar. Rounding the bar would round the page.
+		expect(barClass(true)).toContain('sticky');
+		expect(barClass(false)).toContain('sticky');
+		expect(barClass(true)).not.toContain('rounded');
+		expect(barClass(true)).not.toBe(barClass(false));
 	});
 
 	it('uses tokens for every colour it paints', () => {
-		// `tokens:check` bans raw hex in this directory. Asserted here too, because a colour that
-		// slips in only shows up in one theme and usually the one nobody screenshots.
-		expect(/#[0-9a-f]{3,8}\b/i.test(headerClass(true))).toBe(false);
+		expect(/#[0-9a-f]{3,8}\b/i.test(pillClass(true) + barClass(true))).toBe(false);
 	});
 });
 

@@ -2005,6 +2005,56 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------------- 35: the browser bundle never imports a Node builtin by accident
+//
+// `@proxlane/shared`'s barrel re-exports `id.ts`, which imports `node:crypto`. Import the
+// barrel from anything the browser loads and the builtin comes with it. Vite externalises it
+// and the page throws on load, which does not break that route: it kills HYDRATION FOR THE
+// WHOLE SITE, because one thrown module takes the client bundle with it.
+//
+// It cost an afternoon. The sticky header stopped reacting to scroll, the header looked wrong,
+// and the cause was a `policyFor` import three files away in a route nobody was looking at.
+// Nothing failed. `pnpm check` was green, the pages served, the markup was correct, and only a
+// real browser noticed.
+//
+// The subpath `@proxlane/shared/outcome` exists precisely for this and was already used
+// correctly by the docs page next door, which is what makes the barrel import a slip rather
+// than a missing capability.
+{
+	const WEB = 'apps/web/src';
+	const BARREL = /from '@proxlane\/shared'/;
+	if (!has(WEB)) {
+		fail('35', `${WEB} is missing`);
+	} else {
+		let scanned = 0;
+		const walk = (dir: string): void => {
+			for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+				const rel = `${dir}/${entry.name}`;
+				if (entry.isDirectory()) {
+					walk(rel);
+				} else if (/\.tsx?$/.test(entry.name)) {
+					scanned += 1;
+					const src = read(rel);
+					// Comments mention the package by name constantly; only a real import counts.
+					for (const line of src.split('\n')) {
+						if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) continue;
+						if (BARREL.test(line)) {
+							fail(
+								'35',
+								`${rel} imports the \`@proxlane/shared\` barrel, which pulls node:crypto into ` +
+									'the browser and kills hydration site-wide. Use `@proxlane/shared/outcome`.',
+							);
+						}
+					}
+				}
+			}
+		};
+		walk(WEB);
+		if (scanned === 0) fail('35', 'scanned no web sources — this check stopped checking');
+		else ok('35', scanned, 'web sources import shared by subpath, not by barrel');
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;
