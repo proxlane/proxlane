@@ -84,23 +84,96 @@ export type CostUnit =
 	/** US cents. For providers that bill money per request and issue no credits. */
 	| 'usd-cents';
 
+/**
+ * What one request costs, for every shape of request we can ask for.
+ *
+ * THIS USED TO BE `base` TIMES A SET OF MULTIPLIERS, and no provider prices that way. The
+ * shape was known-inadequate and said so in its own comments — scrapingbee's read "the
+ * combination cannot be expressed and the estimate for renderJs+residential is 2x too high" —
+ * but the fix belonged to the contract, so every adapter wrote the closest product it could
+ * and left a note. Checked against all four vendors' published rates on 2026-08-21:
+ *
+ *   ScraperAPI  combinations are NAMED, not derived. render 10, premium 10, and the two
+ *               together 25 — not 100. ultra_premium+render is 75, not 300.
+ *   ScrapingBee a 2-D lookup on (tier, render_js). premium is 10 without rendering and 25
+ *               with it, and render_js DEFAULTS TO TRUE.
+ *   Scrapfly    additive. residential 25, rendering +5, together 30 — the product said 125,
+ *               which is 4.17x too high on exactly the requests it is best at.
+ *   Bright Data flat. One price whatever you ask for.
+ *
+ * A product cannot express a sum, a named pair, or a lookup. So the table stops being a
+ * formula and becomes the answers: one cost per (premiumTier, renderJs) pair, exhaustive and
+ * required, in the provider's own unit.
+ *
+ * EXHAUSTIVE IS THE POINT. Six cells with no defaults means a new adapter cannot ship a
+ * partial table, and cannot approximate one either — there is nothing to approximate, only
+ * six numbers to read off a page. `null` says the provider does not sell that combination,
+ * which is a different fact from "we did not look" and the type makes you pick one.
+ */
 export interface CostTable {
-	/** ISO date. A table without one cannot be audited against a provider's price change. */
+	/**
+	 * The day somebody last read `sourceUrl` and confirmed these numbers. Not the day they were
+	 * first written: prices move, and only the re-read date says how much to trust them.
+	 */
 	readonly effectiveDate: string;
-	/** Where the numbers came from. */
+	/** The page these were read off. One click for a reader who thinks we are wrong. */
 	readonly sourceUrl: string;
 	/**
-	 * What `base` counts. REQUIRED, so a new adapter cannot quietly introduce a third unit —
-	 * which is exactly how the first two got mixed.
+	 * What the numbers count. REQUIRED, so a new adapter cannot quietly introduce a third unit —
+	 * which is exactly how the first two got mixed. Costs in different units are never compared.
 	 */
 	readonly unit: CostUnit;
-	readonly base: Microcredits;
-	readonly multipliers: {
-		readonly renderJs?: number;
-		readonly premium?: Partial<Record<PremiumTier, number>>;
-		/** Providers price some domains differently; keyed by registrable domain. */
-		readonly domain?: Readonly<Record<string, number>>;
-	};
+	/**
+	 * Cost of one request, by proxy tier and whether JavaScript is rendered.
+	 *
+	 * `null` means the provider does not sell that combination — ScrapingBee's stealth tier
+	 * without rendering is theirs, listed as "coming soon" with no price.
+	 */
+	readonly matrix: Readonly<Record<PremiumTier, CostRow>>;
+}
+
+/** One tier's two prices. Both required; `null` is a real answer and absence is not. */
+export interface CostRow {
+	/** No JavaScript rendering. */
+	readonly plain: Microcredits | null;
+	/** With JavaScript rendering. */
+	readonly rendered: Microcredits | null;
+}
+
+/**
+ * The cheapest request this provider sells, for callers that cannot know the shape.
+ *
+ * `parse()` takes a response and nothing else, so an adapter falling back to an estimate has no
+ * idea whether the caller asked for rendering or a residential IP. It used to reach for `base`,
+ * which meant the same thing and hid it. This is named for what it is: a FLOOR, correct only for
+ * the plainest request and an under-estimate for every other.
+ *
+ * Three of the four providers report their real cost on the response and `parse()` prefers it, so
+ * this is the path taken when a provider stays silent — and the result carries
+ * `source: 'estimated'` so nothing downstream mistakes it for a fact.
+ */
+export function cheapestCost(table: CostTable): Microcredits {
+	const cells = Object.values(table.matrix).flatMap((r) =>
+		[r.plain, r.rendered].filter((n): n is Microcredits => n !== null),
+	);
+	if (cells.length === 0) {
+		throw new Error('cost matrix sells nothing: every combination is null');
+	}
+	return Math.min(...cells);
+}
+
+/**
+ * What one request costs at this provider, or `null` if it will not serve that shape.
+ *
+ * The single reader of `matrix`, so the lookup exists once. Adapters call it for their
+ * pre-flight estimate; the page and the CLI call it to compare.
+ */
+export function costOf(
+	table: CostTable,
+	shape: { readonly premium: PremiumTier; readonly renderJs: boolean },
+): Microcredits | null {
+	const row = table.matrix[shape.premium];
+	return shape.renderJs ? row.rendered : row.plain;
 }
 
 // ------------------------------------------------------- capabilities

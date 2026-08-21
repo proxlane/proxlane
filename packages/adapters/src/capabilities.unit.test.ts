@@ -6,7 +6,12 @@
 // traffic. Both directions are asserted, because only one of them is the obvious one.
 
 import { describe, expect, it } from 'vitest';
+
+/** Exhaustive over `PremiumTier`; a new tier should break this file until it is priced. */
+const TIERS = ['none', 'residential', 'stealth'] as const;
+
 import { CAPABILITIES, capabilitiesFor } from './capabilities.js';
+import { cheapestCost, costOf } from './contract.js';
 import { REGISTRY } from './registry.js';
 
 describe('the static list mirrors the registry', () => {
@@ -31,6 +36,64 @@ describe('the static list mirrors the registry', () => {
 		// A line identifies a provider everywhere it appears, so two sharing one is a colour
 		// collision in the diagram and an ambiguous reference in every doc.
 		expect(new Set(lines).size).toBe(lines.length);
+	});
+
+	it('never prices rendering below a plain request', () => {
+		// Rendering runs a browser. No provider gives that away cheaper than not doing it, so a
+		// row where `rendered` undercuts `plain` is a transcription slip, not a bargain. The kind
+		// of thing that is obvious once stated and invisible in a wall of six-digit numbers.
+		for (const c of CAPABILITIES) {
+			for (const tier of TIERS) {
+				const { plain, rendered } = c.costTable.matrix[tier];
+				if (plain === null || rendered === null) continue;
+				expect(rendered, `${c.id} ${tier}: rendered undercuts plain`).toBeGreaterThanOrEqual(
+					plain,
+				);
+			}
+		}
+	});
+
+	it('sells exactly the tiers it says it sells', () => {
+		// TWO FIELDS THAT CAN DISAGREE, so something has to hold them together. `premiumTiers`
+		// gates the chain in `chain.ts`; the matrix says what each tier costs. A tier priced but
+		// not offered is dead data; a tier offered but priced `null` routes traffic to a
+		// combination the provider will not serve.
+		for (const c of CAPABILITIES) {
+			for (const tier of TIERS) {
+				const row = c.costTable.matrix[tier];
+				const priced = row.plain !== null || row.rendered !== null;
+				expect(
+					priced,
+					`${c.id}: ${tier} offered=${c.premiumTiers.has(tier)} priced=${priced}`,
+				).toBe(c.premiumTiers.has(tier));
+			}
+		}
+	});
+
+	it('prices no rendered request at a provider that cannot render', () => {
+		for (const c of CAPABILITIES) {
+			if (c.renderJs) continue;
+			for (const tier of TIERS) {
+				expect(c.costTable.matrix[tier].rendered, `${c.id} ${tier}`).toBeNull();
+			}
+		}
+	});
+
+	it('reads both columns through costOf', () => {
+		// The lookup exists once so nothing reimplements `renderJs ? rendered : plain`. Asserted
+		// against the cells rather than against a number, and both columns are reached — the
+		// first version only ever asked for `plain` and would have passed with `rendered` wired
+		// to the wrong field.
+		let reached = 0;
+		for (const c of CAPABILITIES) {
+			for (const tier of TIERS) {
+				const row = c.costTable.matrix[tier];
+				expect(costOf(c.costTable, { premium: tier, renderJs: false })).toBe(row.plain);
+				expect(costOf(c.costTable, { premium: tier, renderJs: true })).toBe(row.rendered);
+				reached += 2;
+			}
+		}
+		expect(reached).toBeGreaterThan(0);
 	});
 
 	it('records country lists that are lists, not excerpts', () => {
@@ -71,7 +134,23 @@ describe('the static list mirrors the registry', () => {
 		// units — this is what makes that distinction checkable rather than a convention.
 		for (const c of CAPABILITIES) {
 			expect(c.costTable.unit, c.id).toBeTruthy();
-			expect(c.costTable.base, c.id).toBeGreaterThan(0);
+			// Every cell decided: a number, or `null` for a combination the provider does not
+			// sell. `undefined` would mean nobody looked, and the matrix exists to make that
+			// impossible to ship.
+			for (const tier of ['none', 'residential', 'stealth'] as const) {
+				const row = c.costTable.matrix[tier];
+				for (const [col, v] of [
+					['plain', row.plain],
+					['rendered', row.rendered],
+				] as const) {
+					expect(
+						v === null || (typeof v === 'number' && v >= 0),
+						`${c.id} ${tier}.${col}`,
+					).toBe(true);
+				}
+			}
+			// And it sells SOMETHING, or the provider is in the registry serving nothing.
+			expect(cheapestCost(c.costTable), c.id).toBeGreaterThanOrEqual(0);
 			expect(c.costTable.sourceUrl, c.id).toMatch(/^https:\/\//);
 			expect(c.costTable.effectiveDate, c.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		}

@@ -7,7 +7,7 @@ import type {
 	ProviderHttpRequest,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { carriesBody } from '../contract.js';
+import { carriesBody, cheapestCost } from '../contract.js';
 import { capabilities } from './capabilities.js';
 import { ScrapingbeeMeta } from './schema.js';
 
@@ -115,7 +115,7 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	const charset = /charset=([^;]+)/i.exec(contentType ?? '')?.[1]?.trim();
 
 	const baseCost = {
-		microcredits: capabilities.costTable.base,
+		microcredits: cheapestCost(capabilities.costTable),
 		source: 'estimated' as const,
 	};
 	const withoutMeta = {

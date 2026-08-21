@@ -138,7 +138,7 @@ you configured and the URL you asked for.
 |---|---|---|---|---|---|---|
 | ScraperAPI | **shipped** | yes | all | yes | — | 10× |
 | ScrapingBee | **shipped** | yes | 42 regions | — | — | 5× |
-| Scrapfly | **shipped** | yes | all | — | — | 5× |
+| Scrapfly | **shipped** | yes | all | — | — | 6× |
 | Bright Data Web Unlocker | **shipped** | yes | all | — | yes | 1× |
 | Zyte | planned | | | | | |
 | Oxylabs Web Scraper API | planned | | | | | |

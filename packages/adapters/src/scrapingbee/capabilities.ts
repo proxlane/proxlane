@@ -1,25 +1,32 @@
 import type { CostTable, ProviderCapabilities } from '../contract.js';
 
 const costTable: CostTable = {
-	effectiveDate: '2026-08-07',
+	effectiveDate: '2026-08-21',
 	sourceUrl: 'https://www.scrapingbee.com/documentation/',
 	/** ScrapingBee sells credits; what a credit costs depends on the plan. */
 	unit: 'provider-credits',
-	// 1 credit for a plain fetch.
-	base: 1_000_000,
-	multipliers: {
-		renderJs: 5,
-		premium: { none: 1, residential: 10, stealth: 75 },
+	/**
+	 * Their published table, transcribed cell for cell. It is a two-dimensional lookup and always
+	 * was — "Each request with this parameter will count as 25 API credits with Javascript
+	 * enabled. If used without JavaScript rendering it will cost 10 credits."
+	 *
+	 * The old table said premium was 10 flat, and its own comment already knew: "the combination
+	 * cannot be expressed and the estimate for renderJs+residential is 2x too high". It was the
+	 * contract that could not express it, so this is that fix rather than a correction to a
+	 * careless number.
+	 *
+	 * WORTH KNOWING: `render_js` DEFAULTS TO TRUE at ScrapingBee, so the rendered column is what
+	 * a naive caller actually pays. The floor for them is 5, not 1.
+	 *
+	 * `stealth.plain` is `null` because they do not sell it — the row exists in their table
+	 * reading "(coming soon)". That is a different fact from us not having looked, and the type
+	 * makes us say which.
+	 */
+	matrix: {
+		none: { plain: 1_000_000, rendered: 5_000_000 },
+		residential: { plain: 10_000_000, rendered: 25_000_000 },
+		stealth: { plain: null, rendered: 75_000_000 },
 	},
-	// KNOWN GAP, and a limit of CostTable rather than of this adapter. ScrapingBee's pricing
-	// is not multiplicative: render is 5, premium is 10, and the two TOGETHER are 25 — not
-	// 50. CostTable models cost as base × independent multipliers, so the combination cannot
-	// be expressed and the estimate for renderJs+residential is 2x too high.
-	//
-	// It matters less here than it would elsewhere, because ScrapingBee REPORTS the real
-	// figure per request in `spb-cost` and parse() reads it, so the ledger is exact and only
-	// the pre-flight routing estimate is affected. ScraperAPI has the same shape of problem
-	// with no reported number to fall back on.
 };
 
 export const capabilities: ProviderCapabilities = {

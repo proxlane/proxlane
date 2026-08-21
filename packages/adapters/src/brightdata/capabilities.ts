@@ -6,32 +6,37 @@ import type { CostTable, ProviderCapabilities } from '../contract.js';
 // pay for — which is the point. Adapters are Apache-2.0 so exactly this can happen.
 
 const costTable: CostTable = {
-	effectiveDate: '2026-08-16',
+	effectiveDate: '2026-08-21',
 	sourceUrl: 'https://brightdata.com/pricing/web-unlocker',
-	/** Bright Data Web Unlocker bills money per request and issues no credits, so cents is its native unit rather than a conversion. */
+	/** Web Unlocker bills money per request and issues no credits, so cents is its native unit. */
 	unit: 'usd-cents',
 	/**
-	 * $1.50 per 1,000 requests on pay-as-you-go, so 1,500 microcredits each if a credit is a
-	 * cent. Volume tiers exist ($1.30/1k on Scale) and are NOT modelled: the router would use
-	 * a rate this account may not be on to decide who gets paid, and a wrong number here is a
-	 * wrong routing decision billed to a real customer.
+	 * FLAT, AND THAT IS THE INTERESTING PART. $1.50 per 1,000 requests on pay-as-you-go, so 1,500
+	 * microcredits each if a credit is a cent — and the same figure whatever you ask for. Their
+	 * docs list "Full browser rendering" under what every plan includes, and the `render`
+	 * parameter carries a latency warning and no price. It is the only one of the four that does
+	 * not surcharge for rendering.
+	 *
+	 * Do not confuse it with Browser API / Scraping Browser, which is a different product for
+	 * INTERACTING with a page and is billed per gigabyte.
+	 *
+	 * Volume tiers exist (Scale is $499/mo including 383K, then $1.30/1k) and are NOT modelled:
+	 * the router would use a rate this account may not be on to decide who gets paid.
+	 *
+	 * NOT MODELLED, and both are real: "Premium Domains" is a higher per-domain rate whose price
+	 * is only visible inside a logged-in account, and enabling custom headers flips them from
+	 * charging for successes to charging for "100% of the requests (both successful and failed)",
+	 * which makes the effective cost $1.50 divided by the success rate. Filed in `state.md`.
 	 */
-	base: 1_500,
-	multipliers: {
-		/**
-		 * NO RENDER MULTIPLIER, and that is a real difference from the other three.
-		 *
-		 * The Unlocker decides for itself whether a page needs JavaScript and does not charge
-		 * differently for it. Where ScraperAPI is 10x for `render=true`, this is 1x — so on a
-		 * JS-heavy target it can be the cheapest option in the chain even though its base rate
-		 * is the highest.
-		 */
-		renderJs: 1,
-		/**
-		 * Nor a premium multiplier. Unblocking IS the product: there is no cheaper non-premium
-		 * tier to fall back to, so every tier this adapter accepts costs the same.
-		 */
-		premium: { none: 1, residential: 1, stealth: 1 },
+	matrix: {
+		none: { plain: 1_500, rendered: 1_500 },
+		// `null`, matching `premiumTiers` below, which holds `none` alone. An Unlocker zone is
+		// already residential-grade, but the tier is fixed at zone-configuration time and
+		// `proxy_type` is rejected per-request, so the adapter cannot honour a caller asking for
+		// one. Pricing a tier we refuse to serve would put the provider back in chains that
+		// `premiumTiers` deliberately keeps it out of.
+		residential: { plain: null, rendered: null },
+		stealth: { plain: null, rendered: null },
 	},
 };
 

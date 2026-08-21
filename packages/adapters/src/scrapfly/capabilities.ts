@@ -1,20 +1,33 @@
 import type { CostTable, ProviderCapabilities } from '../contract.js';
 
 const costTable: CostTable = {
-	effectiveDate: '2026-08-07',
-	sourceUrl: 'https://scrapfly.io/docs/scrape-api/getting-started',
+	effectiveDate: '2026-08-21',
+	sourceUrl: 'https://scrapfly.io/docs/scrape-api/billing',
 	/** Scrapfly sells credits; what a credit costs depends on the plan. */
 	unit: 'provider-credits',
-	// 1 credit on the datacenter pool, confirmed live: the success probe reported
-	// `PROXY_DATACENTER_NETWORK, amount 1`.
-	base: 1_000_000,
-	multipliers: {
-		renderJs: 5,
-		premium: { none: 1, residential: 25, stealth: 25 },
+	/**
+	 * SCRAPFLY IS ADDITIVE, and modelling it as a product was the worst of the four errors. Their
+	 * billing page: "Additional Features (added to base cost)", with the proxy pools listed as
+	 * mutually exclusive bases — datacenter 1, residential 25 — and browser rendering as "+5".
+	 * Their own worked example is "25 + 5 = 30 credits".
+	 *
+	 * The old table gave residential+render as 25 x 5 = 125. Four times what Scrapfly charges,
+	 * on precisely the hard requests they are best at, so any cost-aware ordering would have
+	 * skipped them for it. The file's previous comment called the multiplicative model "an
+	 * approximation" that "matters least here", and that was the wrong call.
+	 *
+	 * `stealth` is our name for their ASP, and it is FREE ON ITS OWN: "It's totally free on
+	 * non-blocked scrape... just keep it enabled, no extra cost is applied on non-protected
+	 * traffic." So it costs the datacenter base. It can escalate — ASP "may dynamically upgrade
+	 * the proxy pool", taking it to the residential figures — and the docs do not say when, so
+	 * the documented price is what goes here. `X-Scrapfly-Api-Cost` carries the real number and
+	 * `parse()` reads it.
+	 */
+	matrix: {
+		none: { plain: 1_000_000, rendered: 6_000_000 },
+		residential: { plain: 25_000_000, rendered: 30_000_000 },
+		stealth: { plain: 1_000_000, rendered: 6_000_000 },
 	},
-	// As with the other two, the multiplicative model is an approximation. It matters least
-	// here: Scrapfly reports `context.cost.total` per request and parse() uses it, so the
-	// ledger is exact and only the pre-flight routing estimate leans on these numbers.
 };
 
 export const capabilities: ProviderCapabilities = {

@@ -7,7 +7,7 @@ import type {
 	ProviderHttpRequest,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { carriesBody } from '../contract.js';
+import { carriesBody, cheapestCost } from '../contract.js';
 import { capabilities } from './capabilities.js';
 import { ScrapflyAccountError, ScrapflyEnvelope } from './schema.js';
 
@@ -124,7 +124,7 @@ function outcomeForAccountError(e: ScrapflyAccountError): Outcome | undefined {
 
 function parse(res: ProviderHttpResponse): ParsedResult {
 	const fallbackCost = {
-		microcredits: capabilities.costTable.base,
+		microcredits: cheapestCost(capabilities.costTable),
 		source: 'estimated' as const,
 	};
 

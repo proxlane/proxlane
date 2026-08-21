@@ -5,7 +5,7 @@ import type {
 	ProviderHttpRequest,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { MICROCREDITS_PER_CREDIT } from '../contract.js';
+import { cheapestCost, MICROCREDITS_PER_CREDIT } from '../contract.js';
 import { capabilities } from './capabilities.js';
 import {
 	BRD_ERROR_HEADER,
@@ -105,7 +105,7 @@ function header(headers: Record<string, unknown>, name: string): string | undefi
 
 /** Billed per successful request, one flat rate. */
 const COST = {
-	microcredits: capabilities.costTable.base,
+	microcredits: cheapestCost(capabilities.costTable),
 	source: 'estimated' as const,
 };
 
