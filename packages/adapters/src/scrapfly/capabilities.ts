@@ -53,7 +53,7 @@ export const capabilities: ProviderCapabilities = {
 	// ~12.5s, `/delay/20` does not complete at all, so the usable band is genuinely narrow.
 	maxTimeoutMs: 50_000,
 	fastTimeoutMs: 20_000,
-	post: false,
+	post: true,
 	/**
 	 * Scrapfly reports `result.format: 'binary'` for a non-text body and base64-encodes the
 	 * content, which `parse` already decodes — so bytes round-trip exactly, with the target's

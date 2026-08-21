@@ -53,6 +53,7 @@ const FORBIDDEN: ReadonlyMap<Outcome, string> = new Map([
 const EXPECTED: Readonly<Record<string, Outcome | 'provider-dependent'>> = {
 	'success-html': 'OK',
 	'success-json': 'OK',
+	post: 'OK',
 	'render-js': 'OK',
 	'target-not-found': 'TARGET_NOT_FOUND',
 	'target-error': 'TARGET_ERROR',

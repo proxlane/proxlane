@@ -30,9 +30,12 @@ const ENDPOINT = 'https://app.scrapingbee.com/api/v1/';
 const INITIAL_STATUS = 'spb-initial-status-code';
 
 function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
-	if (req.method !== 'GET') {
-		throw new Error('scrapingbee: POST is not implemented (capabilities.post is false)');
-	}
+	// POST REACHES THE TARGET. This used to throw, which meant a POST had a chain of exactly
+	// one provider — Bright Data — and could not fail over at all, on a product whose headline
+	// feature is failover. Nothing was missing but the implementation.
+	//
+	// ScrapingBee: "Data will be forwarded transparently to the target web page." The key is
+	// already a Bearer header, which is the form their POST documentation requires.
 
 	const p = new URLSearchParams();
 	p.set('url', req.url);
@@ -76,7 +79,8 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 
 	return {
 		url: `${ENDPOINT}?${p.toString()}`,
-		method: 'GET',
+		method: req.method,
+		...(req.body === undefined ? {} : { body: req.body }),
 		headers,
 		timeoutMs: capabilities.maxTimeoutMs,
 	};
