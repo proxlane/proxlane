@@ -31,7 +31,7 @@ export const Route = createFileRoute('/symptoms/')({
 			'/symptoms',
 		),
 	component: () => (
-		<div className="mx-auto w-full max-w-[46rem] py-12 sm:py-20">
+		<div className="mx-auto w-full max-w-[54rem] py-12 sm:py-20">
 			<h1 className="font-semibold text-[2rem] text-[color:var(--color-ink)] leading-[1.15] tracking-[-0.02em]">
 				Troubleshooting
 			</h1>
@@ -39,11 +39,20 @@ export const Route = createFileRoute('/symptoms/')({
 				Start from what you can see. Each page answers one question and says plainly where the
 				answer is a documented hypothesis rather than something we have confirmed.
 			</p>
-			<ul className="mt-10 divide-y divide-[color:var(--color-rule)] border-[color:var(--color-rule)] border-t border-b">
+			{/* `border-t` only. With `border-b` the last row got a rule under it and the list looked
+			    unfinished, as though a fifth item had failed to load. A divided list closes on its
+			    last item, not on a line. */}
+			<ul className="mt-10 divide-y divide-[color:var(--color-rule)] border-[color:var(--color-rule)] border-t">
 				{PAGES.map(({ to, doc }) => (
 					<li key={to}>
-						<Link to={to} className="group block py-5">
-							<span className="block font-mono text-[color:var(--color-slate)] text-xs">
+						{/* The accent arrives on hover as a rule down the left, the same gesture the answer
+						    callout uses on every symptom page. It is the one branded thing in a list that
+						    was otherwise entirely grey. */}
+						<Link
+							to={to}
+							className="group -mx-3 block border-transparent border-l-2 px-3 py-5 transition-[border-color,background-color] duration-200 hover:border-[color:var(--color-accent)] hover:bg-[color:var(--color-surface)]/40"
+						>
+							<span className="block font-mono text-[color:var(--color-slate)] text-xs transition-colors group-hover:text-[color:var(--color-accent)]">
 								{doc.query}
 							</span>
 							<span className="mt-1.5 block font-medium text-[color:var(--color-ink)] text-lg group-hover:underline">

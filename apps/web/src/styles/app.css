@@ -37,7 +37,31 @@ html {
 
 html {
 	caret-color: var(--color-accent);
-	scrollbar-color: var(--color-rule) transparent;
+	/* The brand colour on the thumb, not the rule grey. A scrollbar is one of the few chrome
+	   surfaces a site is allowed to own, and on the pages that scroll horizontally it is a
+	   affordance rather than decoration: it is the thing telling you there is more to the right. */
+	scrollbar-color: var(--color-accent) transparent;
+	scrollbar-width: thin;
+}
+
+/* WebKit needs its own rules; `scrollbar-color` above covers Firefox. Kept thin and quiet
+   until hovered, so a code panel does not grow a permanent bright bar across its bottom. */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: color-mix(in oklab, var(--color-accent) 55%, transparent);
+	border-radius: var(--radius-interchange);
+}
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-accent);
+}
+::-webkit-scrollbar-corner {
+	background: transparent;
 }
 
 a {

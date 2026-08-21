@@ -25,11 +25,28 @@
 
 import { Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
+import { Cta } from './cta.js';
 import { ThemeToggle } from './theme-toggle.js';
 import { Mark, Wordmark } from './wordmark.js';
 
 const NAV_LINK =
 	'relative inline-flex min-h-11 items-center transition-colors duration-200 hover:text-[color:var(--color-ink)]';
+
+/**
+ * The nav, once, so the row and the mobile sheet cannot drift apart.
+ *
+ * "troubleshooting" is fifteen characters and it does not fit a 390px pill beside a wordmark,
+ * a theme control and a call to action. The previous answer was to hide it below `sm`, which
+ * meant a phone had no route to those pages at all — the pages most likely to be READ on a
+ * phone, since somebody debugging on the move is exactly who searches for them.
+ *
+ * So the row keeps what fits and everything lives in the sheet. That also answers the real
+ * question, which was not this label: the next three links have somewhere to go.
+ */
+const NAV: readonly { readonly to: string; readonly label: string }[] = [
+	{ to: '/docs', label: 'docs' },
+	{ to: '/symptoms', label: 'troubleshooting' },
+];
 
 /**
  * The state the SERVER renders. Named so a test can assert it: rendering the component needs a
@@ -46,7 +63,7 @@ export const STUCK_AT_FIRST_PAINT = false;
 export function barClass(stuck: boolean): string {
 	return [
 		'sticky top-0 z-40 -mx-6 px-4 sm:-mx-10 sm:px-8',
-		'transition-[padding] duration-300 ease-out',
+		'transition-[padding] duration-300 ease-(--ease-lane)',
 		stuck ? 'pt-3 pb-2' : 'pt-5 pb-5',
 	].join(' ');
 }
@@ -66,7 +83,7 @@ export function scrimClass(stuck: boolean): string {
 	return [
 		'pointer-events-none absolute inset-x-0 top-0 -z-10 h-full',
 		'bg-gradient-to-b from-[color:var(--color-ground)] via-[color:var(--color-ground)]/85 to-transparent',
-		'transition-opacity duration-300 ease-out',
+		'transition-opacity duration-300 ease-(--ease-lane)',
 		stuck ? 'opacity-100' : 'opacity-0',
 	].join(' ');
 }
@@ -77,7 +94,7 @@ export function scrimClass(stuck: boolean): string {
 export function pillClass(stuck: boolean): string {
 	return [
 		'flex items-center justify-between gap-4 rounded-full border px-4 py-1.5 sm:gap-6 sm:px-5',
-		'transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out',
+		'transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-(--ease-lane)',
 		stuck
 			? // Glass: the ground at 72%, blurred and saturated so the field behind reads as depth
 				// rather than noise, a hairline, and the shadow every panel uses to sit on paper.
@@ -89,6 +106,7 @@ export function pillClass(stuck: boolean): string {
 export function SiteHeader() {
 	const sentinel = useRef<HTMLDivElement>(null);
 	const [stuck, setStuck] = useState(STUCK_AT_FIRST_PAINT);
+	const [open, setOpen] = useState(false);
 
 	useEffect(() => {
 		const el = sentinel.current;
@@ -120,31 +138,122 @@ export function SiteHeader() {
 						aria-label="proxlane, home"
 						className="group inline-flex min-h-11 items-center gap-2.5 font-medium text-[color:var(--color-ink)] text-lg"
 					>
-						<Mark className="size-[18px] shrink-0 transition-transform duration-500 ease-out group-hover:rotate-90 motion-reduce:transition-none" />
+						<Mark className="size-[18px] shrink-0 transition-transform duration-500 ease-(--ease-interchange) group-hover:rotate-90 motion-reduce:transition-none" />
 						<Wordmark />
 					</Link>
 					<nav className="flex items-center gap-4 text-[color:var(--color-slate)] text-sm sm:gap-5">
-						<NavLink to="/docs">docs</NavLink>
-						{/* Named for the reader's situation rather than our directory: someone whose
-						    scrape just broke is troubleshooting, "symptoms" is what we call the folder.
-						    Hidden on the narrowest phones, where it is a fourth control across 342px. */}
+						{/* EVERY LINK IS HIDDEN BELOW `sm`, not just the long one. Keeping `docs` in the
+						    pill put it in two places at once on a phone: once in the bar and again in the
+						    sheet below it, which is a menu that half works. On a phone the pill is the
+						    wordmark, the theme, and the way in. */}
 						<span className="hidden sm:contents">
-							<NavLink to="/symptoms">troubleshooting</NavLink>
+							{NAV.map((item) => (
+								<NavLink key={item.to} to={item.to}>
+									{item.label}
+								</NavLink>
+							))}
+							<a className={NAV_LINK} href="https://github.com/proxlane/proxlane">
+								github
+							</a>
 						</span>
-						<a className={NAV_LINK} href="https://github.com/proxlane/proxlane">
-							github
-						</a>
 						<ThemeToggle />
-						<Link
-							to="/docs/quickstart"
-							className="ml-0.5 hidden min-h-9 items-center rounded-full bg-[color:var(--color-accent)] px-4 font-medium text-[color:var(--color-ground)] text-sm transition-[transform,opacity] duration-200 ease-out hover:-translate-y-px hover:opacity-90 motion-reduce:transition-none sm:inline-flex"
-						>
-							Get started
-						</Link>
+						<span className="hidden sm:contents">
+							<Cta to="/docs/quickstart" size="sm">
+								Get started
+							</Cta>
+						</span>
+						<MenuButton open={open} onToggle={() => setOpen((v) => !v)} />
 					</nav>
 				</header>
+				<MobileSheet open={open} onNavigate={() => setOpen(false)} />
 			</div>
 		</>
+	);
+}
+
+/**
+ * The disclosure. Two bars that become a cross, animated as transforms so it composites.
+ *
+ * `sm:hidden`, because above that the row shows everything and a menu holding the same links
+ * twice is a second way to do one thing.
+ */
+function MenuButton({
+	open,
+	onToggle,
+}: {
+	readonly open: boolean;
+	readonly onToggle: () => void;
+}) {
+	const bar =
+		'absolute left-1/2 h-px w-4 -translate-x-1/2 bg-[color:var(--color-ink)] transition-transform duration-300 ease-(--ease-lane) motion-reduce:transition-none';
+	return (
+		<button
+			type="button"
+			onClick={onToggle}
+			aria-expanded={open}
+			aria-controls="site-menu"
+			aria-label={open ? 'Close menu' : 'Open menu'}
+			className="relative -mr-1 inline-flex size-11 items-center justify-center sm:hidden"
+		>
+			<span className={`${bar} ${open ? 'rotate-45' : '-translate-y-[3px]'}`} />
+			<span className={`${bar} ${open ? '-rotate-45' : 'translate-y-[3px]'}`} />
+		</button>
+	);
+}
+
+/**
+ * The sheet: every nav item, at a size a thumb can hit.
+ *
+ * Grid-rows from 0fr to 1fr rather than a height, so it animates without anybody measuring
+ * anything, and `overflow-hidden` on the wrapper is what makes that work. Height animation
+ * would need a ResizeObserver to stay honest as the list grows, which is the whole point of
+ * having a sheet.
+ *
+ * `aria-hidden` and `invisible` when closed, or a screen reader reads a menu that is not there
+ * and a keyboard tabs into links nobody can see.
+ */
+function MobileSheet({
+	open,
+	onNavigate,
+}: {
+	readonly open: boolean;
+	readonly onNavigate: () => void;
+}) {
+	return (
+		<div
+			id="site-menu"
+			aria-hidden={!open}
+			className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-(--ease-lane) sm:hidden motion-reduce:transition-none ${
+				open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+			}`}
+		>
+			<div className={`min-h-0 ${open ? '' : 'invisible'}`}>
+				<nav className="mt-2 flex flex-col rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-ground)]/85 p-2 shadow-panel backdrop-blur-xl">
+					{NAV.map((item) => (
+						<Link
+							key={item.to}
+							to={item.to}
+							onClick={onNavigate}
+							className="rounded-card px-3 py-3 text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-surface)]"
+						>
+							{item.label}
+						</Link>
+					))}
+					<a
+						href="https://github.com/proxlane/proxlane"
+						onClick={onNavigate}
+						className="rounded-card px-3 py-3 text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-surface)]"
+					>
+						github
+					</a>
+					<span className="mt-1 px-1 pb-1">
+						<Cta to="/docs/quickstart" size="sm">
+							Get started
+						</Cta>
+					</span>
+				</nav>
+			</div>
+		</div>
 	);
 }
 
@@ -159,7 +268,7 @@ function NavLink({ to, children }: { readonly to: string; readonly children: str
 	return (
 		<Link
 			to={to}
-			className={`${NAV_LINK} after:absolute after:right-0 after:bottom-2.5 after:left-0 after:h-px after:origin-center after:scale-x-0 after:bg-[color:var(--color-accent)] after:transition-transform after:duration-200 after:ease-out hover:after:scale-x-100 motion-reduce:after:transition-none`}
+			className={`${NAV_LINK} after:absolute after:right-0 after:bottom-2.5 after:left-0 after:h-px after:origin-center after:scale-x-0 after:bg-[color:var(--color-accent)] after:transition-transform after:duration-200 after:ease-(--ease-lane) hover:after:scale-x-100 motion-reduce:after:transition-none`}
 		>
 			{children}
 		</Link>
