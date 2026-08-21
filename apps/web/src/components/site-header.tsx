@@ -94,13 +94,42 @@ export function scrimClass(stuck: boolean): string {
  */
 export function pillClass(stuck: boolean): string {
 	return [
-		'flex items-center justify-between gap-4 rounded-full border px-4 py-1.5 sm:gap-6 sm:px-5',
+		// `relative z-40` so the scrim cannot paint over it: the pill holds the control that CLOSES
+		// the menu, and a blurred close button is the one thing on screen that must stay legible.
+		'relative z-40 flex items-center justify-between gap-4 rounded-full border px-4 py-1.5 sm:gap-6 sm:px-5',
 		'transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-(--ease-lane)',
 		stuck
 			? // Glass: the ground at 72%, blurred and saturated so the field behind reads as depth
 				// rather than noise, a hairline, and the shadow every panel uses to sit on paper.
 				'border-[color:var(--color-rule)] bg-[color:var(--color-ground)]/72 shadow-panel backdrop-blur-xl backdrop-saturate-150'
 			: 'border-transparent bg-transparent shadow-none backdrop-blur-none',
+	].join(' ');
+}
+
+/**
+ * The sheet.
+ *
+ * `absolute`, and that is the whole point rather than a detail. The first version animated
+ * `grid-template-rows` in the normal flow, so opening the menu pushed every pixel of the page
+ * down and closing it snapped them back. Exported so a test can hold it to that: a menu that
+ * moves the content behind it is the defect this replaced.
+ */
+export function sheetClass(open: boolean): string {
+	return [
+		'absolute inset-x-4 top-full z-40 origin-top sm:hidden',
+		'transition-[opacity,transform] duration-300 ease-(--ease-lane) motion-reduce:transition-none',
+		open
+			? 'translate-y-0 scale-100 opacity-100'
+			: 'pointer-events-none -translate-y-2 scale-[0.98] opacity-0',
+	].join(' ');
+}
+
+/** The scrim. `pointer-events-none` when closed, or an invisible layer eats the whole page. */
+export function overlayClass(open: boolean): string {
+	return [
+		'fixed inset-0 z-30 bg-[color:var(--color-scrim)] backdrop-blur-[2px] sm:hidden',
+		'transition-opacity duration-300 ease-(--ease-lane)',
+		open ? 'opacity-100' : 'pointer-events-none opacity-0',
 	].join(' ');
 }
 
@@ -122,13 +151,35 @@ export function SiteHeader() {
 		return () => io.disconnect();
 	}, []);
 
+	/**
+	 * Escape closes it, and the page underneath stops scrolling while it is open.
+	 *
+	 * Both are what makes an overlay an overlay rather than a box that happens to be on top. The
+	 * scrim catches taps, but a touch-drag on it scrolls the document behind unless the document
+	 * is told not to, and a menu whose background slides away under your thumb feels broken in a
+	 * way nobody can name.
+	 */
+	useEffect(() => {
+		if (!open) return;
+		const onKey = (e: KeyboardEvent): void => {
+			if (e.key === 'Escape') setOpen(false);
+		};
+		document.addEventListener('keydown', onKey);
+		const previous = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+		return () => {
+			document.removeEventListener('keydown', onKey);
+			document.body.style.overflow = previous;
+		};
+	}, [open]);
+
 	return (
 		<>
 			{/* Zero height, so it reserves no space and changes no layout. */}
 			<div ref={sentinel} aria-hidden="true" className="h-0" />
 			<div className={`relative ${barClass(stuck)}`}>
 				<div aria-hidden="true" className={scrimClass(stuck)} />
-				<header className={pillClass(stuck)}>
+				<header className={pillClass(stuck || open)}>
 					{/* THE MARK, then the name. One mark here and in the footer: this used to draw the
 					    word alone with its `o` replaced by a raspberry ring, a second logo sharing
 					    nothing with the tri-line station but its colour.
@@ -166,7 +217,7 @@ export function SiteHeader() {
 						<MenuButton open={open} onToggle={() => setOpen((v) => !v)} />
 					</nav>
 				</header>
-				<MobileSheet open={open} onNavigate={() => setOpen(false)} />
+				<MobileSheet open={open} onClose={() => setOpen(false)} />
 			</div>
 		</>
 	);
@@ -203,58 +254,125 @@ function MenuButton({
 }
 
 /**
- * The sheet: every nav item, at a size a thumb can hit.
+ * The menu, as a piece of the diagram.
  *
- * Grid-rows from 0fr to 1fr rather than a height, so it animates without anybody measuring
- * anything, and `overflow-hidden` on the wrapper is what makes that work. Height animation
- * would need a ResizeObserver to stay honest as the list grows, which is the whole point of
- * having a sheet.
+ * IT OVERLAYS, IT DOES NOT PUSH. The first version animated `grid-template-rows` in the normal
+ * flow, so opening it shoved the whole page down and closing it yanked it back. That is the
+ * cheapest possible disclosure and it reads as one: the content you were looking at moves,
+ * which is the opposite of what a menu is for. `absolute` under the bar leaves the page alone.
  *
- * `aria-hidden` and `invisible` when closed, or a screen reader reads a menu that is not there
- * and a keyboard tabs into links nobody can see.
+ * IT IS A LANE. Providers are lines and stations are stops everywhere else on this site, and the
+ * menu was the one surface with none of that in it — four rows of text in a rounded box, which
+ * is every mobile menu ever shipped. A rule down the left with a node per destination is the
+ * same drawing as the hero, at nav scale, and the current page is the filled station.
+ *
+ * NEVER A LINE COLOUR. `--color-line-1..4` identify PROVIDERS wherever they appear, so painting
+ * nav items with them would say the docs page is ScraperAPI. The rule colour draws the track and
+ * the accent marks where you are, which is the same distinction the rest of the site makes.
+ *
+ * The stagger is on the way IN only. Closing one item at a time reads as reluctance; a menu
+ * should leave at once.
  */
 function MobileSheet({
 	open,
-	onNavigate,
+	onClose,
 }: {
 	readonly open: boolean;
-	readonly onNavigate: () => void;
+	readonly onClose: () => void;
 }) {
+	const stations = [...NAV, { to: 'https://github.com/proxlane/proxlane', label: 'github' }];
 	return (
-		<div
-			id="site-menu"
-			aria-hidden={!open}
-			className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-(--ease-lane) sm:hidden motion-reduce:transition-none ${
-				open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-			}`}
-		>
-			<div className={`min-h-0 ${open ? '' : 'invisible'}`}>
-				<nav className="mt-2 flex flex-col rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-ground)]/85 p-2 shadow-panel backdrop-blur-xl">
-					{NAV.map((item) => (
-						<Link
-							key={item.to}
-							to={item.to}
-							onClick={onNavigate}
-							className="rounded-card px-3 py-3 text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-surface)]"
-						>
-							{item.label}
-						</Link>
-					))}
-					<a
-						href="https://github.com/proxlane/proxlane"
-						onClick={onNavigate}
-						className="rounded-card px-3 py-3 text-[color:var(--color-ink)] transition-colors hover:bg-[color:var(--color-surface)]"
-					>
-						github
-					</a>
-					<span className="mt-1 px-1 pb-1">
+		<>
+			{/* The page recedes. Tapping it closes, which is the gesture everyone tries first. */}
+			<button
+				type="button"
+				tabIndex={-1}
+				aria-hidden="true"
+				onClick={onClose}
+				className={overlayClass(open)}
+			/>
+			<div id="site-menu" aria-hidden={!open} className={sheetClass(open)}>
+				<nav className="rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-ground)]/85 p-2 shadow-panel backdrop-blur-xl backdrop-saturate-150">
+					{/* The track. Inset top and bottom to the first and last node's centre, so the line
+					    runs BETWEEN stations rather than past them, the way a route diagram does. */}
+					<div className="relative pl-6">
+						<span
+							aria-hidden="true"
+							className="absolute top-[26px] bottom-[26px] left-[9px] w-px bg-[color:var(--color-rule)]"
+						/>
+						{stations.map((item, i) => (
+							<Station
+								key={item.to}
+								to={item.to}
+								label={item.label}
+								index={i}
+								open={open}
+								onClose={onClose}
+							/>
+						))}
+					</div>
+					<span className="mt-2 block border-[color:var(--color-rule)] border-t pt-3 pb-1 pl-1">
 						<Cta to="/docs/quickstart" size="sm">
 							Get started
 						</Cta>
 					</span>
 				</nav>
 			</div>
-		</div>
+		</>
+	);
+}
+
+/**
+ * One stop on the line.
+ *
+ * A ring that fills when you are there. `activeProps` rather than reading the location, because
+ * the router already knows and a second source of truth about the current route is a bug waiting
+ * for a redirect.
+ */
+function Station({
+	to,
+	label,
+	index,
+	open,
+	onClose,
+}: {
+	readonly to: string;
+	readonly label: string;
+	readonly index: number;
+	readonly open: boolean;
+	readonly onClose: () => void;
+}) {
+	// Delay on the way in, none on the way out. Inline because it is per-index; a class per
+	// position would be five utilities describing one number.
+	const style = { transitionDelay: open ? `${60 + index * 45}ms` : '0ms' };
+	const shell =
+		'group relative flex min-h-11 items-center py-2.5 text-[color:var(--color-ink)] transition-[opacity,transform] duration-300 ease-(--ease-lane) motion-reduce:transition-none';
+	const enter = open ? 'translate-x-0 opacity-100' : '-translate-x-1 opacity-0';
+	const node =
+		'-left-6 absolute top-1/2 size-[11px] -translate-y-1/2 rounded-full border-2 bg-[color:var(--color-ground)] transition-colors duration-200';
+
+	const external = to.startsWith('http');
+	const inner = (
+		<>
+			<span
+				aria-hidden="true"
+				className={`${node} border-[color:var(--color-slate)] group-hover:border-[color:var(--color-accent)] group-data-[status=active]:border-[color:var(--color-accent)] group-data-[status=active]:bg-[color:var(--color-accent)]`}
+			/>
+			{label}
+		</>
+	);
+
+	if (external) {
+		return (
+			<a href={to} onClick={onClose} style={style} className={`${shell} ${enter}`}>
+				{inner}
+			</a>
+		);
+	}
+	return (
+		<Link to={to} onClick={onClose} style={style} className={`${shell} ${enter}`}>
+			{inner}
+		</Link>
 	);
 }
 

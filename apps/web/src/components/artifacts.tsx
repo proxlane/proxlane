@@ -172,7 +172,12 @@ export function Transcript({ blocks }: { readonly blocks: readonly Block[] }) {
 
 	const full = blocks.map((b) => (b.cmd === undefined ? b.out : `$ ${b.cmd}\n`)).join('');
 	const preClass =
-		'col-start-1 row-start-1 whitespace-pre-wrap break-words font-mono text-[0.8125rem] leading-[1.9]';
+		// `whitespace-pre`, NOT `pre-wrap`. This is a terminal. `break-words` was splitting
+		// `curl -sD- "localhost:8787/v1?api_key=...` across two lines mid-URL on a phone, which is
+		// a command nobody can copy by eye and a transcript that never happened. A real terminal
+		// scrolls sideways, so this one does too: `Panel`'s body is already `overflow-x-auto`, with
+		// the raspberry scrollbar saying there is more to the right.
+		'col-start-1 row-start-1 whitespace-pre font-mono text-[0.8125rem] leading-[1.9]';
 
 	const endsOnOutput = blocks[blocks.length - 1]?.cmd === undefined;
 	let before = 0;
