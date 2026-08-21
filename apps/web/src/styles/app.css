@@ -96,7 +96,17 @@ pre,
  * beats `@layer utilities`, so a Tailwind class cannot win here — `focus-visible:outline-offset-
  * [-2px]` computed to `2px`, measured. Same shape as the header background bug. */
 .focus-inset:focus-visible {
-	outline-offset: -2px;
+	/* A HAIRLINE AND A BLOOM, not a 2px rectangle. The global rule is right for a link or a
+	 * button, where the ring is a short perimeter around a small target. Around a ten-row
+	 * textarea it becomes a large block of saturated colour and reads as an error state — which
+	 * is what the raspberry means everywhere else on this site.
+	 *
+	 * This is the same language the call to action already uses and the one that was asked for:
+	 * a thin accent edge with a soft glow, never a fill. The indicator is still ~4px of banding,
+	 * so it clears the WCAG 2.4.13 perimeter requirement that a bare 1px line would not. */
+	outline: 1px solid var(--color-accent);
+	outline-offset: -1px;
+	box-shadow: inset 0 0 0 3px color-mix(in oklab, var(--color-accent) 14%, transparent);
 }
 
 /* Tailwind v4's Preflight dropped `cursor: pointer` on `<button>` — v3 set it, v4 defers to
