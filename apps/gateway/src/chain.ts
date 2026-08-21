@@ -218,6 +218,17 @@ export function isCapable(caps: ProviderCapabilities, req: GatewayRequest): bool
 	if (req.countryCode !== undefined && caps.countryCodes !== 'all') {
 		if (!caps.countryCodes.has(req.countryCode.toLowerCase())) return false;
 	}
+	// THE COST MATRIX IS A CAPABILITY CLAIM, and nothing read it. `contract.ts` defines a null
+	// cell as "the provider does not sell that combination" — and ScrapingBee's
+	// `stealth: { plain: null, ... }` says exactly that, while `premiumTiers` offers the tier
+	// whole and declares no conflict. So the router sent stealth-without-rendering to a provider
+	// its own table says will not serve it, and paid for the attempt to find out.
+	//
+	// A conflict could express this, but it would be a second declaration of a fact the matrix
+	// already holds, and the two would drift. Reading the matrix is the derivation.
+	if (costOf(caps.costTable, { premium: req.premium, renderJs: req.renderJs }) === null) {
+		return false;
+	}
 	// LAST, and it is the only check that reads more than one field at a time. Everything above
 	// asks "does this provider do X"; a conflict asks "does it do X AND Y together", which is a
 	// question the independent fields cannot pose. ScraperAPI sells sessions and it sells premium

@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import {
 	type Adapter,
 	carriesBody,
+	costOf,
 	type GatewayRequest,
 	OUTCOMES,
 	type Outcome,
@@ -251,6 +252,47 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 				'translate',
 				`declares the "${tier}" tier but selecting it does not change the request`,
 			);
+	}
+
+	// TWO TIERS THAT SEND A BYTE-IDENTICAL REQUEST MUST CARRY THE SAME PRICE.
+	//
+	// WHAT THIS DOES NOT CATCH, said plainly because the first version of this comment claimed
+	// otherwise. Scrapfly's `stealth` row was priced at the datacenter base while `translate()`
+	// sends `proxy_pool=public_residential_pool` for it — a real 25x published as 1x. This check
+	// does not see that: stealth and residential differ in the `asp` flag, so their wire forms
+	// are not identical, and the pair is skipped. Only the parameter that drives the price is
+	// the same, and which parameter that is, is provider knowledge no generic check has.
+	//
+	// The general answer is reported-versus-predicted measurement — the gateway already emits
+	// `X-Cost-Source` and records `costPredicted` per attempt — not a smarter static rule. The
+	// specific answer lives in each adapter's own unit test, next to the translate() it reads.
+	//
+	// What remains here is still worth having: an adapter that declares a tier, sends exactly
+	// the same request for it, and charges a different price for it is wrong however it got
+	// there.
+	const tiers = [...caps.premiumTiers];
+	for (let i = 0; i < tiers.length; i++) {
+		for (let j = i + 1; j < tiers.length; j++) {
+			const a = tiers[i] as PremiumTier;
+			const b = tiers[j] as PremiumTier;
+			for (const renderJs of [false, true]) {
+				if (renderJs && !caps.renderJs) continue;
+				if (
+					wireOf({ ...base, premium: a, renderJs }) !==
+					wireOf({ ...base, premium: b, renderJs })
+				)
+					continue;
+				checks++;
+				const ca = costOf(caps.costTable, { premium: a, renderJs });
+				const cb = costOf(caps.costTable, { premium: b, renderJs });
+				if (ca !== cb)
+					fail(
+						'translate',
+						`"${a}" and "${b}" send an identical request${renderJs ? ' with rendering' : ''} ` +
+							`but are priced ${String(ca)} and ${String(cb)}. One of the two is wrong.`,
+					);
+			}
+		}
 	}
 	if (caps.countryCodes === 'all' || caps.countryCodes.size > 0) {
 		const cc = caps.countryCodes === 'all' ? 'de' : [...caps.countryCodes][0];

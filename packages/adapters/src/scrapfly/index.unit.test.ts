@@ -7,7 +7,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { GatewayRequest, Outcome, ProviderHttpResponse } from '../contract.js';
+import type {
+	GatewayRequest,
+	Outcome,
+	PremiumTier,
+	ProviderHttpResponse,
+} from '../contract.js';
+import { costOf } from '../contract.js';
 import { ScrapflyAdapter } from './index.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -200,5 +206,55 @@ describe('scrapfly translate', () => {
 		// body as a form post and change the content type on the target's behalf.
 		expect(ScrapflyAdapter.translate(req, 'K').body).toBeUndefined();
 		expect(ScrapflyAdapter.translate(req, 'K').method).toBe('GET');
+	});
+});
+
+describe('the cost table prices what translate() actually sends', () => {
+	// THE CELL THAT WAS WRONG, AND THE SHAPE OF WHY. `stealth` was priced at the datacenter base
+	// on the reasoning that Scrapfly's ASP flag is "totally free on non-blocked scrape". True of
+	// the flag, and beside the point: `translate()` sends `proxy_pool=public_residential_pool`
+	// for every tier except `none`, so a stealth request IS a residential request and costs the
+	// residential figures. The free thing and the expensive thing are two different parameters,
+	// and the comment reasoned about only one of them. It published 1x against a real 25x on
+	// `/scraping-api-comparison`.
+	//
+	// Conformance cannot catch this — stealth and residential differ in `asp`, so their wire
+	// forms are not identical and its pair check skips them. Which parameter drives the price is
+	// provider knowledge, so the check belongs here, reading this adapter's own output.
+	const poolFor = (premium: PremiumTier): string => {
+		const wire = ScrapflyAdapter.translate(
+			{
+				url: 'https://example.com/',
+				renderJs: false,
+				premium,
+				method: 'GET',
+				deadlineMs: 30_000,
+			},
+			'K',
+		);
+		return new URL(wire.url).searchParams.get('proxy_pool') ?? '';
+	};
+
+	it('sends the residential pool for more than one tier', () => {
+		// Non-zero denominator. If translate() ever stopped sharing a pool across tiers, the
+		// assertion below would be vacuous rather than satisfied.
+		const pools = (['none', 'residential', 'stealth'] as PremiumTier[]).map(poolFor);
+		expect(new Set(pools).size, 'every tier sends a distinct pool').toBeLessThan(pools.length);
+	});
+
+	it('charges the residential price for every tier that uses the residential pool', () => {
+		const residentialPool = poolFor('residential');
+		expect(residentialPool).toContain('residential');
+		const floor = costOf(ScrapflyAdapter.capabilities.costTable, {
+			premium: 'residential',
+			renderJs: false,
+		});
+		expect(floor).not.toBeNull();
+
+		for (const premium of ['none', 'residential', 'stealth'] as PremiumTier[]) {
+			if (poolFor(premium) !== residentialPool) continue;
+			const cost = costOf(ScrapflyAdapter.capabilities.costTable, { premium, renderJs: false });
+			expect(cost, `${premium} sends the residential pool but is priced below it`).toBe(floor);
+		}
 	});
 });

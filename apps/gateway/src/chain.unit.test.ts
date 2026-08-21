@@ -241,6 +241,40 @@ describe('capability filtering happens before anyone is charged', () => {
 		expect(isCapable(caps({ id: 'a', renderJs: true }), req({ renderJs: true }))).toBe(true);
 	});
 
+	it('excludes a provider whose cost matrix marks the combination unsold', () => {
+		// THE COST MATRIX IS A CAPABILITY CLAIM AND NOTHING READ IT. `contract.ts` defines a null
+		// cell as "the provider does not sell that combination". ScrapingBee's real table has
+		// `stealth: { plain: null, rendered: 75_000_000 }` — it sells stealth only WITH rendering
+		// — while `premiumTiers` offers the tier whole and declares no conflict. So the router
+		// sent stealth-without-rendering to a provider its own table says will not serve it, and
+		// paid for the attempt to discover that.
+		const sellsStealthOnlyRendered = caps({
+			id: 'a',
+			premiumTiers: new Set(['none', 'stealth']),
+			costTable: {
+				effectiveDate: '2026-08-21',
+				sourceUrl: 'https://x.test/',
+				unit: 'provider-credits',
+				matrix: {
+					none: { plain: 1, rendered: 1 },
+					residential: { plain: null, rendered: null },
+					stealth: { plain: null, rendered: 75 },
+				},
+			},
+		});
+		expect(
+			isCapable(sellsStealthOnlyRendered, req({ premium: 'stealth', renderJs: false })),
+			'a null cell means the provider does not sell that combination',
+		).toBe(false);
+		// And the combination it DOES sell still routes, or the fix is just an outage.
+		expect(
+			isCapable(sellsStealthOnlyRendered, req({ premium: 'stealth', renderJs: true })),
+		).toBe(true);
+		expect(isCapable(sellsStealthOnlyRendered, req({ premium: 'none', renderJs: false }))).toBe(
+			true,
+		);
+	});
+
 	it('excludes a combination the provider sells only separately', () => {
 		// THE CHECK THAT READS TWO FIELDS AT ONCE. Everything else here asks "does this provider
 		// do X"; this asks "does it do X AND Y together". ScraperAPI sells sessions and it sells

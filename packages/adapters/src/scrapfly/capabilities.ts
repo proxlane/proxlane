@@ -16,17 +16,24 @@ const costTable: CostTable = {
 	 * skipped them for it. The file's previous comment called the multiplicative model "an
 	 * approximation" that "matters least here", and that was the wrong call.
 	 *
-	 * `stealth` is our name for their ASP, and it is FREE ON ITS OWN: "It's totally free on
-	 * non-blocked scrape... just keep it enabled, no extra cost is applied on non-protected
-	 * traffic." So it costs the datacenter base. It can escalate — ASP "may dynamically upgrade
-	 * the proxy pool", taking it to the residential figures — and the docs do not say when, so
-	 * the documented price is what goes here. `X-Scrapfly-Api-Cost` carries the real number and
-	 * `parse()` reads it.
+	 * `stealth` is our name for their ASP, and the ASP FLAG is free on its own: "It's totally
+	 * free on non-blocked scrape... no extra cost is applied on non-protected traffic."
+	 *
+	 * THAT REASONING PRICED THE FLAG AND IGNORED THE POOL. `translate()` sends
+	 * `proxy_pool=public_residential_pool` for every tier except `none` — stealth included — so
+	 * a stealth request is a residential request with ASP on, and it costs the residential
+	 * figures. Priced at the datacenter base it read 1x on `/scraping-api-comparison`, a public
+	 * page, against a real 25x. The free thing and the expensive thing are two different
+	 * parameters, and the comment reasoned about only one of them.
+	 *
+	 * It can still escalate above this — ASP "may dynamically upgrade the proxy pool" and the
+	 * docs do not say when — so `X-Scrapfly-Api-Cost` carries the real number and `parse()`
+	 * reads it. This is the floor, and now it is the right floor.
 	 */
 	matrix: {
 		none: { plain: 1_000_000, rendered: 6_000_000 },
 		residential: { plain: 25_000_000, rendered: 30_000_000 },
-		stealth: { plain: 1_000_000, rendered: 6_000_000 },
+		stealth: { plain: 25_000_000, rendered: 30_000_000 },
 	},
 };
 
