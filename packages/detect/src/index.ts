@@ -95,8 +95,14 @@ export interface DetectVerdict {
 	readonly ruleId?: string;
 }
 
-/** How much of a body to look at. Every known interstitial is small; a real page is not. */
-const SCAN_BYTES = 256 * 1024;
+/**
+ * How much of a body to look at. Every known interstitial is small; a real page is not.
+ *
+ * Exported because a caller that shows a verdict has to be able to say what the verdict was
+ * formed from. A paste longer than this is scanned in part, and a tool that did not say so
+ * would report "not blocked" about bytes it never read.
+ */
+export const SCAN_BYTES = 256 * 1024;
 
 /**
  * Does this response look like a challenge rather than the page?

@@ -27,6 +27,7 @@ const ROUTES = join(ROOT, 'apps/web/src/routes/symptoms');
 const SITEMAP = join(ROOT, 'apps/web/public/sitemap.xml');
 const LLMS = join(ROOT, 'apps/web/public/llms.txt');
 const DOC_ROUTES = join(ROOT, 'apps/web/src/routes/docs');
+const WEB_ROUTES = join(ROOT, 'apps/web/src/routes');
 
 const failures: string[] = [];
 const notes: string[] = [];
@@ -151,7 +152,26 @@ const docRoutes = existsSync(DOC_ROUTES)
 		)
 	: new Set<string>();
 const symptomRoutes = new Set(pages.map((p) => `/symptoms/${p.slug}`));
-const known = new Set([...docRoutes, ...symptomRoutes, '/docs', '/symptoms', '/']);
+// Top-level routes come off disk too, for the same reason the other two do. They used to be a
+// three-item literal, which meant a page like /block-page-detector was rejected as "not a route"
+// while sitting right there in the directory — a check that says the writer is wrong when the
+// check is the thing that is out of date.
+const topRoutes = existsSync(WEB_ROUTES)
+	? new Set(
+			readdirSync(WEB_ROUTES)
+				.filter((f) => f.endsWith('.tsx') && !f.startsWith('__'))
+				.map((f) => (f === 'index.tsx' ? '/' : `/${f.replace(/\.tsx$/, '')}`)),
+		)
+	: new Set<string>();
+
+const known = new Set([
+	...docRoutes,
+	...symptomRoutes,
+	...topRoutes,
+	'/docs',
+	'/symptoms',
+	'/',
+]);
 
 let links = 0;
 for (const p of pages) {

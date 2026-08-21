@@ -196,6 +196,9 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: 'catalog:'
         version: 5.3.0
+      '@proxlane/detect':
+        specifier: workspace:*
+        version: link:../../packages/detect
       '@proxlane/route-viz':
         specifier: workspace:*
         version: link:../../packages/route-viz

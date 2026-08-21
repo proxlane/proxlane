@@ -28,6 +28,10 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 - [Use cases](https://proxlane.dev/docs/use-cases): What Proxlane is good at, and what it is not for.
 - [Changelog](https://proxlane.dev/docs/changelog): What changed, per package, newest first.
 
+## Tools
+
+- [Block page detector](https://proxlane.dev/block-page-detector): paste a response body and see whether it is a block page, which rule fires, and what the gateway would do with it. Runs client-side; makes no request to any target.
+
 ## Other formats
 
 - [Everything in one file](https://proxlane.dev/llms-full.txt): every page concatenated.

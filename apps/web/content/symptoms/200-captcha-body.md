@@ -89,3 +89,5 @@ that the body is not trustworthy.
   response you see.
 - [Outcomes reference](/docs/outcomes): the full table, including what carries a body back
   and what doesn't.
+- [Block page detector](/block-page-detector): paste the body you got and see which rule
+  fires, if any. Runs in your browser.

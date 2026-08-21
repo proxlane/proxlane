@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BlockPageDetectorRouteImport } from './routes/block-page-detector'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as DocsAdaptersRouteImport } from './routes/docs/adapters'
 import { Route as DocsAgentsRouteImport } from './routes/docs/agents'
@@ -31,6 +32,11 @@ import { Route as SymptomsDatadomeDetectionRouteImport } from './routes/symptoms
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlockPageDetectorRoute = BlockPageDetectorRouteImport.update({
+  id: '/block-page-detector',
+  path: '/block-page-detector',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsIndexRoute = DocsIndexRouteImport.update({
@@ -124,6 +130,7 @@ const SymptomsDatadomeDetectionRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/block-page-detector': typeof BlockPageDetectorRoute
   '/docs/adapters': typeof DocsAdaptersRoute
   '/docs/agents': typeof DocsAgentsRoute
   '/docs/api': typeof DocsApiRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/block-page-detector': typeof BlockPageDetectorRoute
   '/docs/adapters': typeof DocsAdaptersRoute
   '/docs/agents': typeof DocsAgentsRoute
   '/docs/api': typeof DocsApiRoute
@@ -165,6 +173,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/block-page-detector': typeof BlockPageDetectorRoute
   '/docs/adapters': typeof DocsAdaptersRoute
   '/docs/agents': typeof DocsAgentsRoute
   '/docs/api': typeof DocsApiRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/block-page-detector'
     | '/docs/adapters'
     | '/docs/agents'
     | '/docs/api'
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/block-page-detector'
     | '/docs/adapters'
     | '/docs/agents'
     | '/docs/api'
@@ -227,6 +238,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/block-page-detector'
     | '/docs/adapters'
     | '/docs/agents'
     | '/docs/api'
@@ -248,6 +260,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BlockPageDetectorRoute: typeof BlockPageDetectorRoute
   DocsAdaptersRoute: typeof DocsAdaptersRoute
   DocsAgentsRoute: typeof DocsAgentsRoute
   DocsApiRoute: typeof DocsApiRoute
@@ -274,6 +287,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/block-page-detector': {
+      id: '/block-page-detector'
+      path: '/block-page-detector'
+      fullPath: '/block-page-detector'
+      preLoaderRoute: typeof BlockPageDetectorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs/': {
@@ -400,6 +420,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BlockPageDetectorRoute: BlockPageDetectorRoute,
   DocsAdaptersRoute: DocsAdaptersRoute,
   DocsAgentsRoute: DocsAgentsRoute,
   DocsApiRoute: DocsApiRoute,

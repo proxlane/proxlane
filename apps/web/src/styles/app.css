@@ -86,6 +86,19 @@ pre,
 	outline-offset: 2px;
 }
 
+/* The same ring, drawn INSIDE, for a control that fills a clipping panel edge to edge.
+ *
+ * The rule above sits the ring 2px outside the element. In a `overflow-hidden` card that is
+ * clipped down to a single raspberry line along whichever edge is not against the border, which
+ * reads as an error state rather than as focus. Seen on the detector's textarea.
+ *
+ * UNLAYERED, AND IT HAS TO BE. The rule it overrides is unlayered, and unlayered CSS always
+ * beats `@layer utilities`, so a Tailwind class cannot win here — `focus-visible:outline-offset-
+ * [-2px]` computed to `2px`, measured. Same shape as the header background bug. */
+.focus-inset:focus-visible {
+	outline-offset: -2px;
+}
+
 /* Tailwind v4's Preflight dropped `cursor: pointer` on `<button>` — v3 set it, v4 defers to
  * the browser, which uses the arrow. Every button on this page therefore read as inert on
  * hover while being the most interactive thing in view. Restored here rather than as a utility
