@@ -45,7 +45,11 @@ Proxlane holds two things worth attacking. Other people's provider API keys, and
 
 ## What is deployed today
 
-Nothing. There is no hosted service, so none of our infrastructure holds anyone's keys. The npm packages are `0.0.1` placeholders. Self-hosters build from this repo.
+**No hosted service, and no third party's keys are held by us.** That is the sentence the two gaps below are scoped against, and it still holds: there is no endpoint you can sign up for and nothing of yours is stored anywhere we run.
+
+What does run is one self-hosted instance, operated by the maintainer, holding only the maintainer's own provider keys — the same posture the guide describes for you. It is a target for the gaps below in exactly the way your own instance is, and no more.
+
+The npm packages are published at real versions, not placeholders: `proxlane`, `@proxlane/sdk`, `@proxlane/adapters`, `@proxlane/detect` and `@proxlane/shared`. A supply-chain finding against a published tarball is in scope.
 
 Two gaps, stated because their absence is the finding and you should not have to read the source to learn them:
 

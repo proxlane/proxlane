@@ -45,9 +45,15 @@ required variable PROXLANE_API_KEY is missing a value
 
 `--project-directory .` works too. Pick one; do not omit both.
 
-No `--build`: Compose pulls `ghcr.io/proxlane/gateway:latest` from the registry even though
-the compose file also declares a `build:`, because Compose v2 prefers a resolvable image. The
-build path is still there if you want it — add `--build`.
+No `--build`: Compose pulls the **pinned** gateway image from the registry even though the
+compose file also declares a `build:`, because Compose v2 prefers a resolvable image. The tag is
+in `docker/compose.yml` and is a specific version, never `:latest` — `operating.md` B8 says the
+pin is the supported choice and `:latest` is the unstable one. This paragraph said `:latest` for
+as long as the file said otherwise, and the file was five minors behind besides, so a reader
+following it got a gateway that predated most of the headers the API reference describes.
+`repo:check` assertion 30 now holds the pin to the newest release.
+
+The build path is still there if you want it — add `--build`.
 
 ### Check it came up
 

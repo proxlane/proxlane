@@ -52,6 +52,11 @@
 			"name": "question"
 		},
 		{
+			"name": "security-reviewed",
+			"description": "The security-engineer pass has been run on this diff",
+			"color": "0B6E5A"
+		},
+		{
 			"color": "1D76DB",
 			"description": "New capability, not a fix",
 			"name": "type:feature"

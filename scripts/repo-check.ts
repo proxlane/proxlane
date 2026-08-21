@@ -1480,7 +1480,15 @@ function matchesOwner(pattern: string, file: string): boolean {
 //
 // The hostname list is a STATIC ban, not a lookup. Resolving DNS in `repo:check` would make a
 // clean clone on a plane fail, and CI would be asserting that a registrar works — the same
-// reason `k6` has no row in the toolchain table. Delete an entry here the day it resolves.
+// reason `k6` has no row in the toolchain table.
+//
+// "DELETE AN ENTRY THE DAY IT RESOLVES" WAS THE WRONG RULE, and `api.proxlane.dev` resolves
+// today. It is not a public endpoint: hosted credits are phase 3, and the README's own first
+// paragraph says there is no hosted endpoint. Pointing a reader at a hostname that answers is
+// worse than pointing them at one that does not — a 401 reads as "I set it up wrong", where
+// NXDOMAIN reads as "this does not exist yet", which is the truth. So the ban is on hostnames
+// this project does not offer readers, and resolving is not what lifts it. Shipping the hosted
+// endpoint is.
 {
 	const DEAD_HOSTS = ['api.proxlane.dev', 'docs.proxlane.dev'];
 	const readme = has('README.md') ? read('README.md') : '';
@@ -1525,16 +1533,38 @@ function matchesOwner(pattern: string, file: string): boolean {
 		}
 
 		// b. no dead hostnames, anywhere a reader can reach
-		const docs = ['README.md', 'docs/self-hosting.md', 'CONTRIBUTING.md'].filter(has);
-		if (docs.length === 0) fail('29', 'found no docs to scan for dead hostnames');
+		// EVERY SURFACE A READER REACHES, not three markdown files. The scan covered the README,
+		// the self-hosting guide and CONTRIBUTING — and not the landing page, the docs site or
+		// the agent-facing summaries, which is where a hostname is most likely to be typed and
+		// most likely to be read.
+		const docs = [
+			...['README.md', 'docs/self-hosting.md', 'CONTRIBUTING.md'],
+			...execFileSync(
+				'git',
+				['ls-files', 'apps/web/content/**/*.md', 'apps/web/public/llms*.txt'],
+				{
+					cwd: ROOT,
+					encoding: 'utf8',
+				},
+			)
+				.split('\n')
+				.filter(Boolean),
+		].filter(has);
+		if (docs.length < 3) {
+			fail(
+				'29',
+				`found only ${docs.length} docs to scan for dead hostnames — this stopped checking`,
+			);
+		}
 		for (const file of docs) {
 			const body = read(file);
 			for (const host of DEAD_HOSTS) {
 				if (body.includes(host)) {
 					fail(
 						'29',
-						`${file} names ${host}, which has no DNS record. Point at proxlane.dev, or ` +
-							'delete the entry from DEAD_HOSTS once it resolves.',
+						`${file} names ${host}, which this project does not offer readers. Point at ` +
+							'proxlane.dev. Remove it from DEAD_HOSTS when the endpoint actually ships, ' +
+							'not when the DNS record appears.',
 					);
 				}
 			}
@@ -1606,6 +1636,27 @@ function matchesOwner(pattern: string, file: string): boolean {
 			if (released.size === 0) {
 				fail('30', `parsed no released versions from ${CHANGELOG}`);
 			} else {
+				// THE LATEST RELEASE, NOT MERELY A RELEASE. Pinning `a` released version stops a
+				// tag that never shipped and nothing else — the file sat on 0.3.2 while the
+				// gateway reached 0.8.0, so a reader following the self-hosting guide verbatim
+				// got a gateway five minors old and then read `api.md`, which opens with
+				// "Everything here is implemented", and found none of the headers it describes.
+				// The first `##` heading in a changeset-written CHANGELOG is the newest release.
+				const latest = /^## (\d+\.\d+\.\d+)$/m.exec(read(CHANGELOG))?.[1];
+				if (latest === undefined) {
+					fail('30', `could not read the newest release from ${CHANGELOG}`);
+				} else {
+					for (const pin of pins) {
+						if (pin !== 'latest' && pin !== latest) {
+							fail(
+								'30',
+								`${COMPOSE} pins gateway:${pin}; the newest release is ${latest}. A ` +
+									'self-hoster following the guide gets that version and the docs describe ' +
+									'this one. Owner: release-manager.',
+							);
+						}
+					}
+				}
 				for (const pin of pins) {
 					if (!/^\d+\.\d+\.\d+$/.test(pin)) {
 						fail(
@@ -2793,6 +2844,67 @@ function matchesOwner(pattern: string, file: string): boolean {
 		}
 	}
 	ok('43', checked43, 'files checked for a retracted claim');
+}
+
+// ----------------- assertion 46: the deploy filter lists every package the site builds from
+//
+// A PATH FILTER IS A NARROWING, NOT A DESCRIPTION — the workflow's own comment says so, and then
+// the list named `ui` and `route-viz` and stopped. `apps/web` also depends on `adapters`,
+// `detect` and `shared`, so correcting a cost table or a detect rule landed on `main` and the
+// live site went on serving the old figure with no error anywhere. The landing page's provider
+// table is now built from `CAPABILITIES`, which turns that gap from theoretical into the normal
+// case.
+//
+// DERIVED FROM THE MANIFEST, because that is the only list that cannot be forgotten: adding a
+// workspace dependency to `apps/web` is what makes the site depend on it.
+{
+	const WF = '.github/workflows/deploy-web.yml';
+	const MANIFEST = 'apps/web/package.json';
+	if (!has(WF) || !has(MANIFEST)) {
+		fail('46', `${WF} or ${MANIFEST} is missing, so the deploy filter cannot be checked`);
+	} else {
+		const pkg = JSON.parse(read(MANIFEST)) as {
+			dependencies?: Record<string, string>;
+			devDependencies?: Record<string, string>;
+		};
+		const names = Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })
+			.filter(([, v]) => String(v).startsWith('workspace:'))
+			.map(([k]) => k);
+
+		// Map each package name to its directory by reading the manifests, rather than assuming
+		// the directory matches the scoped name — `proxlane` lives in `packages/cli`.
+		const dirs = new Map<string, string>();
+		for (const f of execFileSync('git', ['ls-files', 'packages/*/package.json'], {
+			cwd: ROOT,
+			encoding: 'utf8',
+		})
+			.split('\n')
+			.filter(Boolean)) {
+			const name = (JSON.parse(readFileSync(join(ROOT, f), 'utf8')) as { name?: string }).name;
+			if (name !== undefined) dirs.set(name, f.replace(/\/package\.json$/, ''));
+		}
+
+		const wf = read(WF);
+		const needed = names.map((n) => dirs.get(n)).filter((d): d is string => d !== undefined);
+		// Non-zero denominator. `tooling/*` packages have no `packages/` directory and drop out
+		// here, so an empty list means the manifest parse broke rather than that nothing is needed.
+		if (needed.length === 0) {
+			fail(
+				'46',
+				`parsed no workspace package directories from ${MANIFEST} — this stopped checking`,
+			);
+		} else {
+			const missing = needed.filter((d) => !wf.includes(`'${d}/**'`));
+			if (missing.length > 0) {
+				fail(
+					'46',
+					`${WF} does not deploy on changes to ${missing.join(', ')}, which ${MANIFEST} ` +
+						'depends on. A change there lands on main and the live site stays stale.',
+				);
+			}
+			ok('46', needed.length, 'the web deploy filter covers every package the site imports');
+		}
+	}
 }
 
 // ------------------ assertion 44: the homepage banner prints the order the gateway routes in

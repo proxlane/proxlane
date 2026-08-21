@@ -278,6 +278,9 @@ jobs:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - shell: bash
+        env:
+          # The labels on this PR, so the gate below can read an explicit acknowledgement.
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
           # Conditional by design. security-engineer has no write tools and cannot own the
           # code it reviews, so the trigger set lives in a file both this job and
@@ -296,12 +299,29 @@ jobs:
             }));
             console.log(hit.join("\n"));
           ' "$CHANGED")
-          if [ -n "$MATCH" ]; then
-            echo "::notice title=security-review::this diff is security-touching and needs security-engineer's review"
-            echo "$MATCH"
-          else
+          if [ -z "$MATCH" ]; then
             echo "not security-touching"
+            exit 0
           fi
+          echo "security-touching files in this diff:"
+          echo "$MATCH"
+          # A NOTICE INSIDE A GREEN CHECK ROUTES NOWHERE. `operating.md` B6 lists this among ten
+          # "all blocking" jobs and `repo:check` reports it as covered, but the job was an echo:
+          # a PR rewriting `packages/shared/src/edge-guard.ts` printed a `::notice::` and merged
+          # with nothing seen by anybody. CODEOWNERS cannot compensate — CLAUDE.md deliberately
+          # gives security-engineer only `SECURITY.md`, because it has no write tools and cannot
+          # own code it cannot edit — so this job IS the routing.
+          #
+          # The gate is an explicit acknowledgement rather than an approval from an account that
+          # does not exist: label the PR `security-reviewed` once the pass has been done. That is
+          # a deliberate act by a human, which is the whole point, and it is visible on the PR
+          # afterwards rather than buried in a log.
+          if echo "$LABELS" | tr ',' '\n' | grep -qx 'security-reviewed'; then
+            echo "::notice title=security-review::acknowledged via the security-reviewed label"
+            exit 0
+          fi
+          echo "::error title=security-review::This diff touches security-sensitive paths. Run the security-engineer pass, then add the 'security-reviewed' label to this PR."
+          exit 1
 
   # One required check for the ruleset. Requiring B6's ten by name would leave every PR
   # permanently pending: six report under different names and four never report at all.
