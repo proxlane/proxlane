@@ -552,7 +552,12 @@ export function reportDiff(
 	adapterId: string,
 	committedDir: string,
 	freshDir: string,
-	run: { readonly failed: number; readonly skipped: readonly string[] },
+	run: {
+		readonly failed: number;
+		readonly skipped: readonly string[];
+		/** Categories whose fresh recording no longer parses to the outcome the matrix expects. */
+		readonly mismatched: readonly string[];
+	},
 ): number {
 	// A RECORDING PASS THAT COULD NOT RECORD IS NOT EVIDENCE OF NO DRIFT, and this is the hole
 	// that shipped in the commit which fixed the previous version of this hole. `failed` was
@@ -610,10 +615,21 @@ export function reportDiff(
 			unknown
 		>;
 
-		// The outcome the contract suite asserts. A response that still has the same shape but
-		// now parses to a different outcome is the most consequential drift there is.
-		if (before.expect !== after.expect) {
-			changed.push(`${name}: expected ${String(before.expect)}, now ${String(after.expect)}`);
+		// A RESPONSE THAT PARSES TO A DIFFERENT OUTCOME is the most consequential drift there is,
+		// and this compared two copies of the same source constant. `expect` is written verbatim
+		// from the TARGETS matrix on every recording, so `before.expect` and `after.expect` are
+		// the same literal and the branch could not fire — while the REAL verdict, `parse()` run
+		// over the bytes just recorded, was computed for the console line and then discarded in
+		// diff mode.
+		//
+		// `run.mismatched` carries it now. Exactly the shape of the defect this whole command
+		// exists to prevent, in the command itself: a comparison whose two sides come from one
+		// place.
+		const category = name.replace(/\.json$/, '');
+		if (run.mismatched.includes(category)) {
+			changed.push(
+				`${category}: still records, but parse() no longer produces ${String(before.expect)}`,
+			);
 			continue;
 		}
 
@@ -1026,7 +1042,7 @@ if (import.meta.filename === process.argv[1]) {
 	}
 
 	if (diff) {
-		process.exit(reportDiff(adapterId, committedDir, outDir, { failed, skipped }));
+		process.exit(reportDiff(adapterId, committedDir, outDir, { failed, skipped, mismatched }));
 	}
 
 	process.stdout.write(
