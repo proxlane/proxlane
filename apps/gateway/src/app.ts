@@ -292,6 +292,45 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
  *
  * Returns `'invalid'` rather than throwing, so the caller owns the 400 body and its docs link.
  */
+/**
+ * Read a request body, stopping the moment it exceeds the cap.
+ *
+ * THE POINT IS WHERE IT STOPS. `c.req.text()` resolves only after the whole body is in memory,
+ * so checking the size afterwards refuses the request having already paid for it — and the
+ * gateway's memory budget is `maxInflight * bodyCap * 2.5`, which assumes no single request
+ * exceeds the cap. `@hono/node-server` imposes no limit of its own, so nothing upstream helped.
+ *
+ * Chunks are counted as BYTES and the reader is cancelled at the threshold, so the peak
+ * allocation is bounded by the cap plus one chunk rather than by what the caller chose to send.
+ */
+export async function readRequestBodyCapped(
+	stream: ReadableStream<Uint8Array> | null,
+	capBytes: number,
+): Promise<string | 'too-large'> {
+	if (stream === null) return '';
+	const reader = stream.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			if (value === undefined) continue;
+			total += value.byteLength;
+			if (total > capBytes) {
+				// Stop pulling. Without this the sender keeps streaming into a request that is
+				// already refused, which is the cost this function exists to avoid.
+				await reader.cancel().catch(() => {});
+				return 'too-large';
+			}
+			chunks.push(value);
+		}
+	} finally {
+		reader.releaseLock();
+	}
+	return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
 export function requestedDeadline(
 	raw: string | undefined,
 	serverBudgetMs: number,
@@ -540,19 +579,33 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		// gets; guessing at JSON versus form encoding here would corrupt one of them.
 		let body: string | undefined;
 		if (c.req.method === 'POST') {
-			body = await c.req.text();
-			// The same cap the RESPONSE uses, applied to the request. Without it a caller can
-			// push an unbounded body through a gateway whose memory budget is sized on
-			// `maxInflight * bodyCap * 2.5` — see operations.md section 1. Bytes, not
-			// characters: a multi-byte body would otherwise pass a length check and blow the cap.
-			const size = Buffer.byteLength(body, 'utf8');
-			if (size > deps.maxBodyBytes) {
-				return errorWith(c, 413, {
+			// THE CAP USED TO BE CHECKED AFTER THE ALLOCATION IT EXISTS TO PREVENT. `c.req.text()`
+			// reads the entire body into a string first, so a caller could push an arbitrarily
+			// large request through a gateway whose memory budget is sized on
+			// `maxInflight * bodyCap * 2.5` (operations.md section 1) and the 413 arrived only
+			// once the damage was done. Nothing upstream caps it: `@hono/node-server` imposes no
+			// body limit.
+			//
+			// Two guards, because either alone is incomplete. The declared length refuses the
+			// honest caller for free; the streaming count refuses the one who lies about it or
+			// sends no length at all.
+			const declared = Number(c.req.header('content-length'));
+			const tooLarge = (size: number | string) =>
+				errorWith(c, 413, {
 					code: 'RESPONSE_TOO_LARGE',
 					message: `request body is ${size} bytes, over the ${deps.maxBodyBytes} cap`,
 					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
 				});
+			if (Number.isFinite(declared) && declared > deps.maxBodyBytes) {
+				return tooLarge(declared);
 			}
+			const read = await readRequestBodyCapped(c.req.raw.body, deps.maxBodyBytes);
+			if (read === 'too-large') {
+				// Bytes, not characters: a multi-byte body would otherwise pass a length check
+				// and blow the cap.
+				return tooLarge(`over ${deps.maxBodyBytes}`);
+			}
+			body = read;
 		}
 
 		const req: GatewayRequest = {
@@ -600,6 +653,13 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			transport: deps.transport,
 			candidates,
 			maxBodyBytes: deps.maxBodyBytes,
+			// THE CLIENT'S SIGNAL, WHICH NOTHING READ. `c.req.raw.signal` has always been here
+			// and was never threaded anywhere, so a caller that hung up at 5s left the chain
+			// walking every provider for the full deadline — 120s by default — paying each hop
+			// and discarding the response. The in-flight slot was held for all of it, so the
+			// gateway shed real traffic at `maxInflight` to protect a request nobody was waiting
+			// for.
+			clientSignal: c.req.raw.signal,
 			...(deps.health === undefined ? {} : { health: deps.health }),
 			...(deps.cooldowns === undefined ? {} : { cooldowns: deps.cooldowns }),
 			...(deps.orgId === undefined ? {} : { orgId: deps.orgId }),

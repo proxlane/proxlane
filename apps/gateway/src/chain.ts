@@ -180,6 +180,13 @@ export interface ChainDeps {
 	 */
 	readonly candidates: ReadonlyArray<{ adapter: Adapter; key: string }>;
 	readonly maxBodyBytes: number;
+	/**
+	 * The caller's signal, so a client that hangs up stops costing money.
+	 *
+	 * Threaded to the transport rather than checked here: an in-flight fetch is where the spend
+	 * is, and aborting between hops would still pay for the hop already running.
+	 */
+	readonly clientSignal?: AbortSignal;
 	readonly now?: () => number;
 	/** Omit to route without health. The chain then behaves exactly as it did before. */
 	readonly health?: HealthStore;
@@ -604,6 +611,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			const res = await deps.transport.execute(wire, {
 				budgetMs: budget.perAttemptMs,
 				maxBodyBytes: deps.maxBodyBytes,
+				...(deps.clientSignal === undefined ? {} : { clientSignal: deps.clientSignal }),
 			});
 			const upstreamMs = performance.now() - upstreamStart;
 
@@ -626,6 +634,16 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 						}
 					}
 					break;
+				case 'client-gone':
+					// NOTHING IS RECORDED AND NOTHING IS COOLED. The caller hung up; no provider
+					// did anything wrong, and filing this as PROVIDER_TIMEOUT would cool a healthy
+					// provider and feed the health statistic a failure nobody caused. The probe
+					// claim is still settled — `settleProbe` runs from the `finally` below.
+					return {
+						outcome: 'BUDGET_EXCEEDED',
+						attempts,
+						reason: 'the caller disconnected',
+					};
 				case 'timeout':
 					outcome = 'PROVIDER_TIMEOUT';
 					break;
