@@ -1,5 +1,26 @@
 # @proxlane/shared
 
+## 0.7.0
+
+### Minor Changes
+
+- [#156](https://github.com/proxlane/proxlane/pull/156) [`6b89f31`](https://github.com/proxlane/proxlane/commit/6b89f312b442b53d231141356124217438f14e53) Thanks [@scarsam](https://github.com/scarsam)! - A scraping API comparison at `/scraping-api-comparison`: pick a request shape and see what each
+  provider charges on top of its own base rate, from their published tables. Compares multipliers,
+  which are dimensionless, and never compares base rates across billing units. Fixes Bright Data's
+  base cost, which was a hundred times too low — the only provider whose cost we estimate rather
+  than read off the response. `@proxlane/shared` gains an `./error-body` subpath so `@proxlane/adapters`
+  no longer drags `node:crypto` into anything that imports it.
+
+### Patch Changes
+
+- [#142](https://github.com/proxlane/proxlane/pull/142) [`d8f0661`](https://github.com/proxlane/proxlane/commit/d8f06614cc3c2279b06b222a85dc1f3524bfb048) Thanks [@scarsam](https://github.com/scarsam)! - The global deadline defaults to 120s, which `operations.md` decided some time ago and the
+  gateway never picked up. At 90s a three-hop chain gave the terminal provider 38s of its 70s cap,
+  because the budget reserves time for every hop still to come. The hop that exists to rescue a
+  failing request was the one being cut short.
+
+  Callers still ask for less via `timeout` and never for more. The operator's deadline is the
+  ceiling, because it bounds how long one request holds an in-flight slot.
+
 ## 0.6.0
 
 ### Minor Changes

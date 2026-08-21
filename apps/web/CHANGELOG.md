@@ -1,5 +1,91 @@
 # @proxlane/web
 
+## 0.7.0
+
+### Minor Changes
+
+- [#146](https://github.com/proxlane/proxlane/pull/146) [`0875239`](https://github.com/proxlane/proxlane/commit/08752392dcf904d7184f471ca0fb8cd0f8964b96) Thanks [@scarsam](https://github.com/scarsam)! - The site header sticks, and stays transparent until you scroll so it is not a bar sitting on
+  the page's background field. Adds a troubleshooting link and a `/symptoms` index, which the four
+  symptom pages did not have. Anchor offsets and the docs sidebar move down to clear it.
+
+- [#148](https://github.com/proxlane/proxlane/pull/148) [`06defba`](https://github.com/proxlane/proxlane/commit/06defba051bcb81963e7974d12ba743417c9da82) Thanks [@scarsam](https://github.com/scarsam)! - A mobile menu, so the nav is no longer limited to what fits a 390px pill. One call to action in
+  two weights, an accent hairline with a glow rather than three different filled buttons. Panels
+  scroll horizontally instead of breaking a header value mid-token, with a raspberry scrollbar
+  site-wide. The chain selector keeps its label on one row on a phone and scrolls its tabs. The
+  troubleshooting index loses its trailing rule and gains an accent on hover.
+
+- [#145](https://github.com/proxlane/proxlane/pull/145) [`42fcbe9`](https://github.com/proxlane/proxlane/commit/42fcbe9b3caa888cf1896191acfeff78ac2a0546) Thanks [@scarsam](https://github.com/scarsam)! - One page per outcome at `/outcomes/*`, generated from the taxonomy rather than written, for the
+  reader who pastes `X-Outcome: SOFT_BLOCK` into a search box and gets a table they have to scan.
+  `pages:check` holds the generated set, the sitemap and the route to each other, and keeps two
+  blocked decisions blocked.
+
+- [#149](https://github.com/proxlane/proxlane/pull/149) [`b322019`](https://github.com/proxlane/proxlane/commit/b3220195158a2162cfce7c518a12a5600ac03b2b) Thanks [@scarsam](https://github.com/scarsam)! - A block page detector at `/block-page-detector`. Paste a response body and it runs the gateway's
+  own detector in your browser, names the rule that fired, and reads the consequence out of the
+  same policy table the router uses. Nothing is sent anywhere. `@proxlane/detect` now exports
+  `SCAN_BYTES`, so a caller can say how much of a body a verdict was formed from.
+
+- [#144](https://github.com/proxlane/proxlane/pull/144) [`1e98766`](https://github.com/proxlane/proxlane/commit/1e9876671ab17a43c515489058b4e7088d1c9d4e) Thanks [@scarsam](https://github.com/scarsam)! - Four symptom pages at `/symptoms/*`, answering the questions people actually search when a
+  scraper misbehaves: a 403, a 200 with a captcha in the body, a Cloudflare challenge surviving a
+  headless browser, and identifying a DataDome block. `content:lint` gates them against the
+  checklist `operating.md` already specified.
+
+- [#156](https://github.com/proxlane/proxlane/pull/156) [`6b89f31`](https://github.com/proxlane/proxlane/commit/6b89f312b442b53d231141356124217438f14e53) Thanks [@scarsam](https://github.com/scarsam)! - A scraping API comparison at `/scraping-api-comparison`: pick a request shape and see what each
+  provider charges on top of its own base rate, from their published tables. Compares multipliers,
+  which are dimensionless, and never compares base rates across billing units. Fixes Bright Data's
+  base cost, which was a hundred times too low — the only provider whose cost we estimate rather
+  than read off the response. `@proxlane/shared` gains an `./error-body` subpath so `@proxlane/adapters`
+  no longer drags `node:crypto` into anything that imports it.
+
+### Patch Changes
+
+- [#157](https://github.com/proxlane/proxlane/pull/157) [`b22ac4a`](https://github.com/proxlane/proxlane/commit/b22ac4af4c0711deddaed8cf359dd685e4dae1b4) Thanks [@scarsam](https://github.com/scarsam)! - The focus ring on the detector's textarea is a hairline with a soft glow rather than a 2px
+  raspberry rectangle. Around a full-height control the old one read as an error state, which is
+  what that colour means everywhere else on the site.
+
+- [#150](https://github.com/proxlane/proxlane/pull/150) [`856f7e0`](https://github.com/proxlane/proxlane/commit/856f7e09856f33ef13ffe8349ce374da2e61e478) Thanks [@scarsam](https://github.com/scarsam)! - The mobile menu overlays the page instead of pushing it down, closes on Escape or a tap outside,
+  and draws its destinations as stations on a line with the current page filled in. The terminal
+  transcripts scroll sideways rather than breaking a command mid-URL.
+
+- [#139](https://github.com/proxlane/proxlane/pull/139) [`a5ad3df`](https://github.com/proxlane/proxlane/commit/a5ad3dfd328d1b1298024edaf0d23012784c5b0b) Thanks [@scarsam](https://github.com/scarsam)! - The response-header panel no longer breaks header names mid-word or clip long values. `x-chain`
+  is much longer than anything else on the page, and a `1fr` grid track will not shrink below its
+  content, so it took the width out of the name column beside it and still overflowed.
+
+- [#159](https://github.com/proxlane/proxlane/pull/159) [`a30e357`](https://github.com/proxlane/proxlane/commit/a30e3575e5dca5f3fa66e6b2a985d5b84b144fed) Thanks [@scarsam](https://github.com/scarsam)! - The mobile menu is exactly as wide as the header pill it hangs from, at every width, and both go
+  opaque while it is open. The scrim is dark in both themes, so a translucent surface over it
+  rendered the light theme's near-white menu as mid-grey.
+
+- [#154](https://github.com/proxlane/proxlane/pull/154) [`72e6f06`](https://github.com/proxlane/proxlane/commit/72e6f06ffbaaf79975f6a3c5f8fdb7ff385823c6) Thanks [@scarsam](https://github.com/scarsam)! - The nav marks the page you are on, the menu's track runs through the centre of its stations
+  instead of four pixels to the right of them, and the full nav row only appears at the width it
+  actually fits — below 740px "Get started" was wrapping to two lines inside its own pill.
+
+- [#143](https://github.com/proxlane/proxlane/pull/143) [`9a160f1`](https://github.com/proxlane/proxlane/commit/9a160f1b4b7b615e9f99a3a90d342cdc08a074e4) Thanks [@scarsam](https://github.com/scarsam)! - `Panel`, `Transcript` and `CopyButton` move out of the landing-page route into
+  `components/artifacts.tsx`, so a second page can use them. Pure move, no visual change. They
+  also get their first tests, which is only possible now that something can import them.
+
+- [#147](https://github.com/proxlane/proxlane/pull/147) [`267d357`](https://github.com/proxlane/proxlane/commit/267d357720e2f664079cf7398cb88991d4245a4b) Thanks [@scarsam](https://github.com/scarsam)! - The sticky header actually paints now. It emitted `bg-transparent` and its own override in one
+  class list, so Tailwind's layer order picked the transparent one while the blur applied anyway:
+  the header blurred the text behind it and put nothing on top. It is a floating glass pill, with
+  a scrim so content dissolves under it rather than being sliced.
+
+  Also fixes a hydration bug that broke the whole site's client JS: an `@proxlane/shared` barrel
+  import pulled `node:crypto` into the browser bundle.
+
+- [#161](https://github.com/proxlane/proxlane/pull/161) [`23bfca6`](https://github.com/proxlane/proxlane/commit/23bfca6a5801453995d66db313791c2beba4b252) Thanks [@scarsam](https://github.com/scarsam)! - Code blocks look the same everywhere. A lone fence in the docs now renders in the framed,
+  labelled window the homepage and tab groups already used, and the copy control sits in that bar
+  with the same icon and label instead of a text-only button floating over the corner on hover.
+
+- [#167](https://github.com/proxlane/proxlane/pull/167) [`2690ec7`](https://github.com/proxlane/proxlane/commit/2690ec70f27cde5529160829950ab5d3e7afda88) Thanks [@scarsam](https://github.com/scarsam)! - The FAQ said the detector's rules had never seen a real block page. Five of six have now been
+  confirmed against one, and five of six turned out to have a defect only a real page could show.
+
+- [#162](https://github.com/proxlane/proxlane/pull/162) [`d9525c0`](https://github.com/proxlane/proxlane/commit/d9525c0e3619f4619bd081d82362e6ae2f21d20a) Thanks [@scarsam](https://github.com/scarsam)! - Whether a detection rule has been confirmed by a real block page is now derived from stored
+  captures rather than a hand-set boolean. `pnpm corpus:verify` runs every capture through the real
+  detector and generates the table, recording each capture's SHA-256, so a claim points at an
+  artefact. `cloudflare-challenge` is the first rule confirmed against the thing it describes.
+- Updated dependencies [[`fd84d98`](https://github.com/proxlane/proxlane/commit/fd84d98b7830db868079f68309c5b533cbb6474b), [`935ab4e`](https://github.com/proxlane/proxlane/commit/935ab4e0f67e7c9ada38c541c4db4203fe6ebe1a), [`dc62320`](https://github.com/proxlane/proxlane/commit/dc623207db4dec332def4a37ef9e1097a80db9ec), [`2a9142d`](https://github.com/proxlane/proxlane/commit/2a9142d9fb41baca8914fc6146966ea16d32584e), [`30c894a`](https://github.com/proxlane/proxlane/commit/30c894aa8d4c86b10b6f7e7f6ec78b01dd85a7ac), [`ea6e393`](https://github.com/proxlane/proxlane/commit/ea6e39310d697ff52697f760fd27a4dd1428965b), [`b322019`](https://github.com/proxlane/proxlane/commit/b3220195158a2162cfce7c518a12a5600ac03b2b), [`a342613`](https://github.com/proxlane/proxlane/commit/a3426138432009ead7c2fe507d0ff3f94d011a19), [`2690ec7`](https://github.com/proxlane/proxlane/commit/2690ec70f27cde5529160829950ab5d3e7afda88), [`d8f0661`](https://github.com/proxlane/proxlane/commit/d8f06614cc3c2279b06b222a85dc1f3524bfb048), [`9127601`](https://github.com/proxlane/proxlane/commit/91276017d7146a72a6467236eb216108fdf9cdbb), [`d9525c0`](https://github.com/proxlane/proxlane/commit/d9525c0e3619f4619bd081d82362e6ae2f21d20a), [`40897dc`](https://github.com/proxlane/proxlane/commit/40897dc56281f657e49fb4a471d05795ded3beba), [`6b89f31`](https://github.com/proxlane/proxlane/commit/6b89f312b442b53d231141356124217438f14e53)]:
+  - @proxlane/detect@0.2.0
+  - @proxlane/adapters@0.6.0
+  - @proxlane/shared@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

@@ -1,5 +1,44 @@
 # @proxlane/adapters
 
+## 0.6.0
+
+### Minor Changes
+
+- [#152](https://github.com/proxlane/proxlane/pull/152) [`dc62320`](https://github.com/proxlane/proxlane/commit/dc623207db4dec332def4a37ef9e1097a80db9ec) Thanks [@scarsam](https://github.com/scarsam)! - `CostTable` stops being `base × multipliers` and becomes a matrix: one cost per proxy tier and
+  render state, exhaustive, `null` where the provider does not sell that combination. No provider
+  prices multiplicatively, so every adapter had been writing the closest product it could and
+  leaving a note about it. Scrapfly is additive and was estimated 4.17× too high on residential
+  plus rendering; ScrapingBee's premium tier is 25 credits with rendering, not 10. `proxlane
+providers --json` now emits the matrix and, for the first time, the cost `unit` alongside it.
+
+### Patch Changes
+
+- [#153](https://github.com/proxlane/proxlane/pull/153) [`2a9142d`](https://github.com/proxlane/proxlane/commit/2a9142d9fb41baca8914fc6146966ea16d32584e) Thanks [@scarsam](https://github.com/scarsam)! - Cost tables must now carry a source URL and the date somebody last read it, no two providers may
+  cite the same page, the scaffold's placeholder zeroes cannot ship, and a table nobody has re-read
+  in a year fails the build. No test can verify a price without fetching a vendor's marketing site
+  in CI, so this enforces the next best thing.
+
+- [#151](https://github.com/proxlane/proxlane/pull/151) [`ea6e393`](https://github.com/proxlane/proxlane/commit/ea6e39310d697ff52697f760fd27a4dd1428965b) Thanks [@scarsam](https://github.com/scarsam)! - ScrapingBee's country list goes from 7 codes to the 42 it actually sells on classic proxies. The
+  seven were an example table in their docs, and the router filters the failover chain on this set,
+  so the provider was silently ineligible for thirty-five countries. `ru` leaves: it is premium-only,
+  and classic silently serves `us` instead of erroring. Adds `CAPABILITIES`, a static export of every
+  adapter's capabilities that does not load the adapters, and cross-provider assertions over it.
+
+- [#155](https://github.com/proxlane/proxlane/pull/155) [`40897dc`](https://github.com/proxlane/proxlane/commit/40897dc56281f657e49fb4a471d05795ded3beba) Thanks [@scarsam](https://github.com/scarsam)! - `post` and `sessions` now say what they mean: a claim about the adapter, not about the provider.
+  Both were undocumented booleans, and a research pass against the vendors' docs reported all four
+  as live bugs because every provider sells POST and sessions — while every value was correct, since
+  the field describes what `translate()` actually wires. Tests now hold each claim to the code that
+  implements it.
+
+- [#156](https://github.com/proxlane/proxlane/pull/156) [`6b89f31`](https://github.com/proxlane/proxlane/commit/6b89f312b442b53d231141356124217438f14e53) Thanks [@scarsam](https://github.com/scarsam)! - A scraping API comparison at `/scraping-api-comparison`: pick a request shape and see what each
+  provider charges on top of its own base rate, from their published tables. Compares multipliers,
+  which are dimensionless, and never compares base rates across billing units. Fixes Bright Data's
+  base cost, which was a hundred times too low — the only provider whose cost we estimate rather
+  than read off the response. `@proxlane/shared` gains an `./error-body` subpath so `@proxlane/adapters`
+  no longer drags `node:crypto` into anything that imports it.
+- Updated dependencies [[`d8f0661`](https://github.com/proxlane/proxlane/commit/d8f06614cc3c2279b06b222a85dc1f3524bfb048), [`6b89f31`](https://github.com/proxlane/proxlane/commit/6b89f312b442b53d231141356124217438f14e53)]:
+  - @proxlane/shared@0.7.0
+
 ## 0.5.1
 
 ### Patch Changes
