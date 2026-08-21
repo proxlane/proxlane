@@ -264,7 +264,7 @@ Scheduled:
 
 | Job | Cadence | Action on failure |
 |---|---|---|
-| `canary:live` | **weekly at launch, nightly once revenue exists.** This is the one definition of canary cadence; every other doc references it | opens a `provider-drift` issue tagged with the provider |
+| `canary:live` | **weekly at launch, nightly once revenue exists.** This is the one definition of canary cadence; every other doc references it | opens a `flag:provider-drift` issue, and fails the run if it cannot — the label lives in `.github/labels.json`, held there by `repo:check` assertion 40 |
 | `cost-drift` | weekly | issue if reported cost diverges from our table by >10% |
 | `record:diff` | weekly | uploads a diff artifact when recorded responses change |
 | `deps` | Renovate, weekly | auto-merge patch, PR for minor and major |

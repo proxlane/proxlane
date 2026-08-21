@@ -2536,6 +2536,74 @@ function matchesOwner(pattern: string, file: string): boolean {
 	ok('39', checked39, `fixtures re-recorded within ${MAX_AGE_DAYS} days`);
 }
 
+// --------------------------------------- assertion 40: a label named is a label that exists
+//
+// THE CANARY'S ONLY ALARM COULD NOT RING FOR ELEVEN WEEKS. Its failure step is
+// `gh issue create --label "flag:provider-drift"`, that label had never been created, and
+// `gh` resolves label names server-side and errors when one is missing. The step ended in
+// `|| echo "::warning::…"`, and the step above it is `continue-on-error: true` by design —
+// the issue was meant to BE the signal. So a provider changing its response shape produced a
+// green scheduled run, no issue, and one annotation inside a log nobody opens.
+//
+// `.github/labels.json` is now the checked-in set and this holds every reference to it.
+// WHAT IT CANNOT CHECK, stated plainly because the gap is the whole story: GitHub is the
+// authority, and nothing offline proves the manifest and the repository agree. A network call
+// here would fail `repo:check` from a clean clone, the same reason `k6` has no toolchain row
+// and `DEAD_HOSTS` is a static list rather than a lookup. The second guard is that the
+// canary's `|| echo` is gone, so an undeliverable alert now goes red at the moment it matters.
+{
+	const MANIFEST = '.github/labels.json';
+	let known: Set<string>;
+	try {
+		const raw = JSON.parse(readFileSync(join(ROOT, MANIFEST), 'utf8')) as {
+			labels?: { name?: string }[];
+		};
+		// Read the `labels` ARRAY, never the object's keys — assertion 29 derived a command
+		// count from `Object.keys(commands.json)` and counted the `$comment` block as a
+		// command, which is how the README came to advertise 28 of them where 27 exist.
+		known = new Set((raw.labels ?? []).map((l) => String(l.name)));
+	} catch {
+		fail('40', `${MANIFEST} is missing or not JSON — nothing holds workflow labels to reality`);
+		known = new Set();
+	}
+	if (known.size === 0) fail('40', `${MANIFEST} declares no labels`);
+
+	const refs: { label: string; where: string }[] = [];
+	const ghFiles = execFileSync('git', ['ls-files', '.github/*.yml', '.github/**/*.yml'], {
+		cwd: ROOT,
+		encoding: 'utf8',
+	})
+		.split('\n')
+		.filter(Boolean);
+
+	for (const f of ghFiles) {
+		const src = readFileSync(join(ROOT, f), 'utf8');
+		// `--label "x"` / `--label x` in a workflow step.
+		for (const m of src.matchAll(/--label[= ]+["']?([^"'\s\\]+)/g)) {
+			if (m[1]) refs.push({ label: m[1], where: f });
+		}
+		// `labels: [a, b]` in an issue-template front matter.
+		for (const m of src.matchAll(/^labels:\s*\[([^\]]+)\]/gm)) {
+			for (const l of (m[1] ?? '').split(',')) {
+				const name = l.trim().replace(/^["']|["']$/g, '');
+				if (name) refs.push({ label: name, where: f });
+			}
+		}
+	}
+
+	// Non-zero denominator. The canary and two issue templates reference labels; a run that
+	// found none has stopped reading the files rather than found them clean.
+	if (refs.length === 0) {
+		fail('40', 'no label references found in .github — this check stopped checking');
+	}
+	for (const r of refs) {
+		if (!known.has(r.label)) {
+			fail('40', `${r.where} names label "${r.label}", absent from ${MANIFEST}`);
+		}
+	}
+	ok('40', refs.length, `label references resolve to a declared label`);
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

@@ -1,0 +1,65 @@
+{
+	"$comment": "The labels this repository uses. Checked in so repo:check can hold every --label in a workflow, and every labels: in an issue template, to a name that exists. It could not before: the canary opened its provider-drift issue with --label flag:provider-drift, that label had never been created, gh resolves labels server-side and errors, and || echo turned the error into a warning on an already-green run. The alarm could not ring for eleven weeks. This file is the offline half; GitHub is still the authority, and nothing here proves the two agree.",
+	"labels": [
+		{
+			"color": "0B6E5A",
+			"description": "A provider adapter: contract, cost table, capabilities",
+			"name": "adapter"
+		},
+		{
+			"color": "d73a4a",
+			"description": "Something isn't working",
+			"name": "bug"
+		},
+		{
+			"color": "0075ca",
+			"description": "Improvements or additions to documentation",
+			"name": "documentation"
+		},
+		{
+			"color": "cfd3d7",
+			"description": "This issue or pull request already exists",
+			"name": "duplicate"
+		},
+		{
+			"color": "a2eeef",
+			"description": "New feature or request",
+			"name": "enhancement"
+		},
+		{
+			"color": "B3271E",
+			"description": "A provider's response shape or outcome changed under us",
+			"name": "flag:provider-drift"
+		},
+		{
+			"color": "7057ff",
+			"description": "Good for newcomers",
+			"name": "good first issue"
+		},
+		{
+			"color": "008672",
+			"description": "Extra attention is needed",
+			"name": "help wanted"
+		},
+		{
+			"color": "e4e669",
+			"description": "This doesn't seem right",
+			"name": "invalid"
+		},
+		{
+			"color": "d876e3",
+			"description": "Further information is requested",
+			"name": "question"
+		},
+		{
+			"color": "1D76DB",
+			"description": "New capability, not a fix",
+			"name": "type:feature"
+		},
+		{
+			"color": "ffffff",
+			"description": "This will not be worked on",
+			"name": "wontfix"
+		}
+	]
+}

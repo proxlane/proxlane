@@ -24,6 +24,9 @@ import { RENEW_AFTER_DAYS, reportDiff } from '../../scripts/record.ts';
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64');
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
+/** A recording pass where everything recorded. Anything else is a separate test below. */
+const CLEAN = { failed: 0, skipped: [] as string[] };
+
 /** A fixture as `record.ts` writes one. */
 function fixture(opts: {
 	at?: string;
@@ -65,7 +68,7 @@ describe('rotating values are not drift', () => {
 		// THE CASE THAT KILLED THE BYTE COMPARISON, in miniature: same fields, all new values.
 		write(committed, fixture({ body: { uuid: 'a', os: 'windows', duration: 0.99 } }));
 		write(fresh, fixture({ at: daysAgo(0), body: { uuid: 'b', os: 'mac', duration: 1.55 } }));
-		expect(reportDiff('x', committed, fresh)).toBe(0);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(0);
 	});
 
 	it('accepts a header whose value counts down, and notices one that vanishes', () => {
@@ -75,10 +78,10 @@ describe('rotating values are not drift', () => {
 			fresh,
 			fixture({ at: daysAgo(0), headers: { ...headers, 'x-remaining-credit': '467' } }),
 		);
-		expect(reportDiff('x', committed, fresh)).toBe(0);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(0);
 
 		write(fresh, fixture({ at: daysAgo(0), headers: { 'content-type': 'application/json' } }));
-		expect(reportDiff('x', committed, fresh)).toBe(1);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 	});
 
 	it('treats a non-JSON body as opaque, because the web changes and that is not news', () => {
@@ -92,7 +95,7 @@ describe('rotating values are not drift', () => {
 		});
 		write(committed, html('<html>monday</html>'));
 		write(fresh, { ...html('<html>friday, quite different</html>'), recordedAt: daysAgo(0) });
-		expect(reportDiff('x', committed, fresh)).toBe(0);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(0);
 	});
 });
 
@@ -100,7 +103,7 @@ describe('a changed shape is drift, and is never silently absorbed', () => {
 	it('catches a field that disappeared', () => {
 		write(committed, fixture({ body: { result: { content: 'x', status_code: 200 } } }));
 		write(fresh, fixture({ at: daysAgo(0), body: { result: { content: 'x' } } }));
-		expect(reportDiff('x', committed, fresh)).toBe(1);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 	});
 
 	it('catches a leaf whose type changed under an unchanged field name', () => {
@@ -110,19 +113,19 @@ describe('a changed shape is drift, and is never silently absorbed', () => {
 		// passed with leaf types stripped out of the signature entirely.
 		write(committed, fixture({ body: { result: { status_code: 200 } } }));
 		write(fresh, fixture({ at: daysAgo(0), body: { result: { status_code: '200' } } }));
-		expect(reportDiff('x', committed, fresh)).toBe(1);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 	});
 
 	it('catches a field that appeared, not only one that vanished', () => {
 		write(committed, fixture({ body: { result: { content: 'x' } } }));
 		write(fresh, fixture({ at: daysAgo(0), body: { result: { content: 'x', warning: 'y' } } }));
-		expect(reportDiff('x', committed, fresh)).toBe(1);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 	});
 
 	it('catches a changed status', () => {
 		write(committed, fixture({}));
 		write(fresh, fixture({ at: daysAgo(0), status: 429 }));
-		expect(reportDiff('x', committed, fresh)).toBe(1);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 	});
 
 	it('catches the same shape parsing to a different outcome', () => {
@@ -130,7 +133,7 @@ describe('a changed shape is drift, and is never silently absorbed', () => {
 		// adapter concludes from it did.
 		write(committed, fixture({ expect: 'OK' }));
 		write(fresh, fixture({ at: daysAgo(0), expect: 'SOFT_BLOCK' }));
-		expect(reportDiff('x', committed, fresh)).toBe(1);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 	});
 
 	it('leaves the committed fixture exactly as it was when it reports drift', () => {
@@ -139,7 +142,7 @@ describe('a changed shape is drift, and is never silently absorbed', () => {
 		const before = fixture({ at: daysAgo(90) });
 		write(committed, before);
 		write(fresh, fixture({ at: daysAgo(0), status: 500 }));
-		expect(reportDiff('x', committed, fresh)).toBe(1);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 		expect(read(committed)).toEqual(before);
 	});
 });
@@ -151,7 +154,7 @@ describe('an unchanged shape confirms a fixture rather than churning it', () => 
 		const was = daysAgo(3);
 		write(committed, fixture({ at: was }));
 		write(fresh, fixture({ at: daysAgo(0) }));
-		expect(reportDiff('x', committed, fresh)).toBe(0);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(0);
 		expect(read(committed).recordedAt).toBe(was);
 	});
 
@@ -169,7 +172,7 @@ describe('an unchanged shape confirms a fixture rather than churning it', () => 
 		write(committed, before);
 		write(fresh, fixture({ at: daysAgo(0), body: { uuid: 'b', os: 'mac' } }));
 
-		expect(reportDiff('x', committed, fresh)).toBe(0);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(0);
 		const after = read(committed);
 		expect(Date.parse(String(after.recordedAt))).toBeGreaterThan(Date.parse(was));
 		expect(after.response).toEqual(before.response);
@@ -179,7 +182,7 @@ describe('an unchanged shape confirms a fixture rather than churning it', () => 
 describe('the corpus itself', () => {
 	it('reports a category that records now but is absent from the corpus', () => {
 		write(fresh, fixture({ at: daysAgo(0) }));
-		expect(reportDiff('x', committed, fresh)).toBe(1);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 	});
 
 	it('does not let one unchanged fixture mask a changed one', () => {
@@ -190,18 +193,82 @@ describe('the corpus itself', () => {
 			join(fresh, 'post.json'),
 			`${JSON.stringify(fixture({ at: daysAgo(0), status: 500 }))}\n`,
 		);
-		expect(reportDiff('x', committed, fresh)).toBe(1);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
 	});
 
 	it('exits 0 for an adapter with no corpus yet, rather than calling every category new', () => {
 		write(fresh, fixture({ at: daysAgo(0) }));
-		expect(reportDiff('x', join(committed, 'nope'), fresh)).toBe(0);
+		expect(reportDiff('x', join(committed, 'nope'), fresh, CLEAN)).toBe(0);
 	});
 
 	it('still reports when the directory exists but is empty', () => {
 		const empty = join(committed, 'empty');
 		mkdirSync(empty);
 		write(fresh, fixture({ at: daysAgo(0) }));
-		expect(reportDiff('x', empty, fresh)).toBe(1);
+		expect(reportDiff('x', empty, fresh, CLEAN)).toBe(1);
+	});
+});
+
+describe('a pass that could not record is not a pass', () => {
+	// THE HOLE THAT SHIPPED IN THE COMMIT THAT FIXED THE PREVIOUS HOLE. `reportDiff` walked only
+	// the fresh directory and never read the recording loop's `failed` counter, so a Wednesday
+	// where the provider was unreachable produced an empty temp dir, nothing to compare, and
+	// "0 fixture(s) unchanged in shape" — exit 0. Found by an independent review panel, which
+	// reproduced it against the real corpus: 11 committed fixtures, none compared, exit 0.
+	it('exits 1 when the fresh directory is empty and the corpus is not', () => {
+		write(committed, fixture({}));
+		writeFileSync(join(committed, 'post.json'), `${JSON.stringify(fixture({}))}\n`);
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
+	});
+
+	it('exits 1 when a recording failed, even where every surviving fixture matches', () => {
+		// The subtler direction: one category failed, the rest recorded and matched perfectly.
+		// Reporting "all unchanged" here is a claim about a fixture nobody looked at.
+		write(committed, fixture({}));
+		write(fresh, fixture({ at: daysAgo(0) }));
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(0);
+		expect(reportDiff('x', committed, fresh, { failed: 1, skipped: [] })).toBe(1);
+	});
+
+	it('reports a committed fixture this run recorded nothing for', () => {
+		// Walking only the fresh directory made this invisible — the fixture most likely to have
+		// drifted is the one that silently dropped out of the comparison.
+		write(committed, fixture({}));
+		writeFileSync(join(committed, 'render-js.json'), `${JSON.stringify(fixture({}))}\n`);
+		write(fresh, fixture({ at: daysAgo(0) }));
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
+	});
+});
+
+describe('a category that was deliberately skipped is named, not counted as confirmed', () => {
+	// `deadline` needs `--timeout-ms` below the target delay, and the weekly job does not pass
+	// one — so `deadline.json` was exempt from drift detection every single week while the
+	// report called everything else confirmed. Being skipped is acceptable; being silent is not.
+	it('does not report a skipped category as drift', () => {
+		write(committed, fixture({}));
+		writeFileSync(join(committed, 'deadline.json'), `${JSON.stringify(fixture({}))}\n`);
+		write(fresh, fixture({ at: daysAgo(0) }));
+		expect(reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'] })).toBe(0);
+	});
+
+	it('says so in the output, rather than letting it pass unmentioned', () => {
+		const said: string[] = [];
+		vi.mocked(process.stdout.write).mockImplementation((c: unknown) => {
+			said.push(String(c));
+			return true;
+		});
+		write(committed, fixture({}));
+		writeFileSync(join(committed, 'deadline.json'), `${JSON.stringify(fixture({}))}\n`);
+		write(fresh, fixture({ at: daysAgo(0) }));
+		reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'] });
+		expect(said.join('')).toContain('NOT CHECKED');
+		expect(said.join('')).toContain('deadline');
+	});
+
+	it('refuses to call a run clean when EVERY category was skipped', () => {
+		// The degenerate case, and the one an empty comparison hides behind: nothing compared,
+		// nothing changed, therefore green. An empty comparison is not a clean one.
+		writeFileSync(join(committed, 'deadline.json'), `${JSON.stringify(fixture({}))}\n`);
+		expect(reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'] })).toBe(1);
 	});
 });
