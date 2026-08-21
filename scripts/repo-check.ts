@@ -2746,6 +2746,65 @@ function matchesOwner(pattern: string, file: string): boolean {
 	ok('42', checked42, 'surfaces describing the chain name every shipped provider');
 }
 
+// ------------------------------------- assertion 43: a retracted claim stays retracted
+//
+// `repo:check` bans retired FIGURES — a stale command count, a stale adapter count, a hostname
+// with no DNS record. Nothing banned a retired SENTENCE, and one sat in `health.ts` for as long
+// as the function existed: "the terminal hop is the least-degraded member of the chain". Best
+// first means worst last, so it was never true in any configuration. `integrations.md` section
+// 5 was corrected; the docstring and the test named after it were not, and the test asserted
+// the negation of its own title while passing.
+//
+// It is not cosmetic. Section 5 gives the terminal hop 75s against everyone else's 22s, so a
+// cap chosen by position hands the worst provider 3.4x the budget. `chain.ts` keys the cap off
+// health to avoid that, and anyone "fixing" `orderChain` to match its own docstring would
+// reopen the defect.
+//
+// ONE EXEMPTION, NAMED: the paragraph in `integrations.md` that records the retraction has to
+// be able to quote the claim it is retracting. Everything else is banned. This is the third
+// time a ban has had to exempt the text explaining the ban — see the `--color-line-` and
+// `verifiedAgainstRealCapture` assertions, which both fired on their own comments first.
+{
+	const RETRACTED = [
+		{
+			// Matched on the CLAIM FORM, not on the words. "terminal hop" appears legitimately all
+			// over `chain.ts` and section 5; only the assertion that it holds the healthiest
+			// member is retired.
+			pattern:
+				/terminal hop (?:is|holds|gets)[^.]{0,40}(least-degraded|healthiest|most healthy)/i,
+			what: 'the terminal hop holds the least-degraded member',
+			why: 'best first means worst last; integrations.md section 5 records the retraction',
+		},
+	];
+	// The one place allowed to quote a retracted claim, because its job is to retract it.
+	const EXEMPT = new Set(['docs/integrations.md', 'scripts/repo-check.ts']);
+
+	const scanned = execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.md'], {
+		cwd: ROOT,
+		encoding: 'utf8',
+	})
+		.split('\n')
+		.filter(Boolean)
+		.filter((f) => !EXEMPT.has(f) && !f.includes('/dist/') && !f.includes('CHANGELOG'));
+
+	// Non-zero denominator, and a real floor: this walks most of the repository, so a glob that
+	// silently stopped matching would otherwise report a clean scan of nothing.
+	if (scanned.length < 50) {
+		fail('43', `scanned only ${scanned.length} files; the glob has stopped matching`);
+	}
+	let checked43 = 0;
+	for (const f of scanned) {
+		const text = readFileSync(join(ROOT, f), 'utf8').replace(/\s+/g, ' ');
+		for (const r of RETRACTED) {
+			checked43 += 1;
+			if (r.pattern.test(text)) {
+				fail('43', `${f} still claims ${r.what} — ${r.why}`);
+			}
+		}
+	}
+	ok('43', checked43, 'files checked for a retracted claim');
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

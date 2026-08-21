@@ -355,10 +355,14 @@ describe('the per-request deadline', () => {
 		expect(r.status).toBe(200);
 	});
 
-	it('cannot ask for MORE than the server budgeted', async () => {
-		// The ceiling is what bounds how long one request holds an in-flight slot, and
-		// `maxInflight` is sized on the assumption that it holds. A caller raising it would make
-		// the memory arithmetic in operations.md section 1 false.
+	it('accepts a timeout above the budget rather than rejecting it', async () => {
+		// WHAT THIS CAN ACTUALLY SEE, renamed to match. It used to be called "cannot ask for
+		// MORE than the server budgeted" and assert only `status === 200`, which is true with
+		// the clamp and true without it — the effective deadline reaches no response header, so
+		// end to end there was nothing to observe and the check could not have caught its
+		// removal. The clamp itself is `requestedDeadline`, held to its rule in
+		// `deadline.unit.test.ts`; this asserts only that an over-large ask is clamped rather
+		// than refused, which is the part a caller sees.
 		const r = await get(
 			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&timeout=99999999`,
 		);
@@ -585,9 +589,15 @@ describe('cooldowns, over real HTTP', () => {
 		const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(target)}`);
 		expect(r.status).toBe(503);
 		expect(r.headers.get('x-outcome')).toBe('NO_PROVIDER_AVAILABLE');
-		const retry = Number(r.headers.get('retry-after'));
+		// ASSERT THE HEADER IS THERE BEFORE ASSERTING ANYTHING ABOUT ITS VALUE. `Number(null)`
+		// is 0, which is finite, at least 0 and at most 900 — so every line below used to pass
+		// with the header absent, which is precisely the state this test exists to forbid.
+		const raw = r.headers.get('retry-after');
+		expect(raw, 'a 503 with no Retry-After tells a caller to guess').not.toBeNull();
+		const retry = Number(raw);
 		expect(Number.isFinite(retry)).toBe(true);
-		expect(retry).toBeGreaterThanOrEqual(0);
+		// And never zero, which is a hot loop dressed as an answer.
+		expect(retry).toBeGreaterThan(0);
 		expect(retry).toBeLessThanOrEqual(15 * 60);
 	});
 

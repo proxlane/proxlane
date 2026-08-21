@@ -399,10 +399,19 @@ export function probeDelayMs(attempt: number): number {
  *
  * "Never put a degraded provider in the terminal hop" is unsatisfiable the moment two of
  * three are degraded, and two simultaneous degradations is exactly the correlated scenario
- * this system exists for. So rank by (state, static priority) and let position fall out. The
- * invariant that survives every configuration: THE TERMINAL HOP IS THE LEAST-DEGRADED MEMBER
- * OF THE CHAIN, which matters because section 5 gives that hop 75s against everyone else's
- * 22s. Handing the least reliable member 3.4x the budget is a promotion, not a demotion.
+ * this system exists for. So rank by (state, static priority) and let position fall out.
+ *
+ * WHICH MAKES THE TERMINAL HOP THE LEAST HEALTHY MEMBER, not the healthiest. Best first means
+ * worst last; that is what ranking by state does. This docstring asserted the opposite for as
+ * long as the function existed, and `integrations.md` section 5 was corrected while this was
+ * not. Assertion 43 now bans that sentence everywhere but the paragraph retracting it — which
+ * fired on this very comment when the comment restated the claim in order to disown it.
+ *
+ * It matters because section 5 gives the terminal hop 75s against everyone else's 22s, so a
+ * cap chosen by POSITION hands the worst provider 3.4x the budget: a promotion, and a timeout
+ * there consumes the budget failover exists to preserve. `chain.ts` compensates by keying the
+ * cap off health rather than position. Anyone "fixing" this function to match the sentence
+ * that used to be here would reopen exactly that defect.
  */
 const RANK = { healthy: 0, degraded: 1, demoted: 2 } as const;
 

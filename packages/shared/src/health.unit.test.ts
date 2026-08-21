@@ -471,10 +471,11 @@ describe('probe backoff', () => {
 describe('chain ordering', () => {
 	const p = (id: string, state: HealthState['state']) => ({ id, state });
 
-	it('puts the least-degraded member in the terminal hop, for 0 through 3 degraded', () => {
-		// Section 5 gives the terminal hop 75s against everyone else's 22s, so "move the
-		// degraded one to the tail" is a 3.4x budget promotion. The invariant that is
-		// satisfiable for every configuration is this one.
+	it('never puts a healthier member behind a worse one, for 0 through 3 degraded', () => {
+		// RENAMED, BECAUSE THE OLD TITLE ASSERTED THE NEGATION OF THIS BODY. It read "puts the
+		// least-degraded member in the terminal hop" while the code below checks the tail is
+		// never WORSE than the head — the opposite claim — and passed, because a passing test
+		// says nothing about its own name. `integrations.md` section 5 records the retraction.
 		const cases: Array<HealthState['state'][]> = [
 			['healthy', 'healthy', 'healthy'],
 			['degraded', 'healthy', 'healthy'],
