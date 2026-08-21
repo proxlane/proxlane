@@ -5,7 +5,7 @@ import type {
 	ProviderHttpRequest,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { cheapestCost, MICROCREDITS_PER_CREDIT } from '../contract.js';
+import { carriesBody, cheapestCost, MICROCREDITS_PER_CREDIT } from '../contract.js';
 import { capabilities } from './capabilities.js';
 import {
 	BRD_ERROR_HEADER,
@@ -148,24 +148,26 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	// Reading only the status would file all three as PROVIDER_ERROR: blaming the provider for a
 	// dead target, cooling it down for a domain that is simply gone, and failing over twice more
 	// to rediscover the same 404.
-	if (code !== undefined && message !== undefined) {
-		if (code === 'http_status') {
+	// GATED ON THE CODE ALONE, not on the code AND the message. Requiring both meant an error
+	// code arriving without `x-brd-err-msg` fell past every branch here, past the status
+	// section below, and out of the bottom as OK carrying the body — so `reject_block` with no
+	// message string was returned to the caller as a successful scrape of a captcha page. That
+	// is the exact failure the detector exists to prevent, produced by the adapter itself.
+	// Message-dependent branches are guarded individually below.
+	if (code !== undefined) {
+		if (code === 'http_status' && message !== undefined) {
 			// The target's status is in the message here rather than the status header, because
 			// Bright Data rejected the response and reports its own 502 as the status.
 			const target = targetStatusFromMessage(message);
-			if (target === 404) {
-				return { outcome: 'TARGET_NOT_FOUND', upstreamStatusCode: 404, cost: COST };
-			}
+			if (target === 404) return result(res, 'TARGET_NOT_FOUND', 404);
 			if (target !== undefined && target >= 500) {
 				return { outcome: 'TARGET_ERROR', upstreamStatusCode: target, cost: COST };
 			}
-			if (target === 429) {
-				return { outcome: 'TARGET_RATE_LIMITED', upstreamStatusCode: 429, cost: COST };
-			}
+			if (target === 429) return result(res, 'TARGET_RATE_LIMITED', 429);
 			if (target === 403 || target === 401) {
 				// The target refused, having been unblocked successfully. That is a hard block: the
 				// provider did its job and the site said no anyway.
-				return { outcome: 'HARD_BLOCK', upstreamStatusCode: target, cost: COST };
+				return result(res, 'HARD_BLOCK', target);
 			}
 		}
 		// THE PROVIDER SAYING IT WAS BLOCKED. `reject_block` means the Unlocker reached the
@@ -177,9 +179,7 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		//
 		// HARD_BLOCK is the one block an adapter may return, precisely because the provider says
 		// so in the response. SOFT_BLOCK stays the gateway's to assign, after detection.
-		if (code === 'reject_block') {
-			return { outcome: 'HARD_BLOCK', ...upstream(targetStatus), cost: COST };
-		}
+		if (code === 'reject_block') return result(res, 'HARD_BLOCK', targetStatus);
 		// A HOST THAT DOES NOT EXIST, which arrives as `proxy_error` — the same code Bright Data
 		// uses for its own network trouble. Left in the catch-all below it became PROVIDER_ERROR:
 		// a dead domain blamed on the provider, cooling it for everyone, and since PROVIDER_ERROR
@@ -188,7 +188,11 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		// Matched on the message because `proxy_error` genuinely covers both. A reword falls back
 		// to PROVIDER_ERROR, which is the previous behaviour rather than something new; the
 		// fixture is what keeps it from happening quietly.
-		if (code === 'proxy_error' && /could not resolve host/i.test(message)) {
+		if (
+			code === 'proxy_error' &&
+			message !== undefined &&
+			/could not resolve host/i.test(message)
+		) {
 			return { outcome: 'TARGET_ERROR', ...upstream(targetStatus), cost: COST };
 		}
 		// Anything else Bright Data names is its own failure to deliver a page.
@@ -196,14 +200,10 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	}
 
 	// No error header: the status header carries the target's real answer.
-	if (targetStatus === 404) {
-		return { outcome: 'TARGET_NOT_FOUND', upstreamStatusCode: 404, cost: COST };
-	}
-	if (targetStatus === 429) {
-		return { outcome: 'TARGET_RATE_LIMITED', upstreamStatusCode: 429, cost: COST };
-	}
+	if (targetStatus === 404) return result(res, 'TARGET_NOT_FOUND', 404);
+	if (targetStatus === 429) return result(res, 'TARGET_RATE_LIMITED', 429);
 	if (targetStatus === 403 || targetStatus === 401) {
-		return { outcome: 'HARD_BLOCK', upstreamStatusCode: targetStatus, cost: COST };
+		return result(res, 'HARD_BLOCK', targetStatus);
 	}
 	if (targetStatus !== undefined && targetStatus >= 500) {
 		return { outcome: 'TARGET_ERROR', upstreamStatusCode: targetStatus, cost: COST };
@@ -212,19 +212,40 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	// A 2xx or 3xx with a body. NOT called a success here: the detector runs downstream and
 	// decides whether this is content or a challenge page wearing a 200.
 	//
-	// THE BODY IS THE ORIGINAL BYTES, which is the whole gain of raw mode — no decode, no
-	// re-encode, so a JPEG survives and the detector fingerprints what the target actually sent.
+	return result(res, 'OK', targetStatus);
+}
+
+/**
+ * One result constructor, so `carriesBody()` decides rather than eight return sites.
+ *
+ * SEVEN OF THEM FORGOT. Only the OK path attached `res.body`, so a target 404, a 429 and every
+ * hard block came back empty — while ScraperAPI, ScrapingBee and Scrapfly all returned the
+ * target's real page. "Drop-in replacement" depended on which provider won the chain, and the
+ * conformance check written to catch exactly that had `&& result.outcome === 'OK'` on the end
+ * of its condition, so it only ever enforced the one case that was already right.
+ *
+ * Reading `carriesBody` here means the adapter cannot disagree with the taxonomy: adding an
+ * outcome to it changes this adapter without anybody editing this adapter.
+ */
+function result(
+	res: ProviderHttpResponse,
+	outcome: ParsedResult['outcome'],
+	status: number | undefined,
+): ParsedResult {
+	if (!carriesBody(outcome)) return { outcome, ...upstream(status), cost: COST };
 	const contentType = header(res.headers, 'content-type');
 	const charset = charsetFrom(contentType);
 	return {
-		outcome: 'OK',
+		outcome,
+		// THE ORIGINAL BYTES, which is the whole gain of raw mode — no decode, no re-encode, so
+		// a JPEG survives and the detector fingerprints what the target actually sent.
 		body: res.body,
 		contentType: contentType ?? 'application/octet-stream',
 		// The TARGET's charset, from its own content-type, rather than the utf-8 the json
 		// envelope forced us to claim. Absent when they sent none, which is honest: the detector
 		// works on bytes and the gateway decides how to decode.
 		...(charset === undefined ? {} : { charset }),
-		...upstream(targetStatus),
+		...upstream(status),
 		cost: COST,
 	};
 }
