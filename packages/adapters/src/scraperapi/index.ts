@@ -6,7 +6,12 @@ import type {
 	ProviderHttpRequest,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { carriesBody, cheapestCost, MICROCREDITS_PER_CREDIT } from '../contract.js';
+import {
+	carriesBody,
+	cheapestCost,
+	MICROCREDITS_PER_CREDIT,
+	retryAfterMsFrom,
+} from '../contract.js';
 import { capabilities } from './capabilities.js';
 
 // Both functions are PURE. No I/O, no clock, no randomness — that is what lets them be
@@ -154,6 +159,17 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		outcome,
 		...(upstreamStatusCode === undefined ? {} : { upstreamStatusCode }),
 		...(carriesBody(outcome) ? { body: res.body } : {}),
+		// THE PROVIDER'S OWN WAIT, when it capped us and said how long. `retryAfterMs` has been
+		// on ParsedResult since the contract landed and the chain arms cooldowns from it — and no
+		// adapter ever set it, so the number was discarded in favour of a 30s jittered guess and
+		// the caller got a bare 429. Only for RATE_LIMITED: on any other outcome a `Retry-After`
+		// is about something else and would be a wait we invented.
+		...(outcome === 'RATE_LIMITED'
+			? (() => {
+					const retryAfterMs = retryAfterMsFrom(res.headers);
+					return retryAfterMs === undefined ? {} : { retryAfterMs };
+				})()
+			: {}),
 	});
 
 	// `sa-statuscode` is the discriminator, exactly as ScrapingBee's `spb-initial-status-code`

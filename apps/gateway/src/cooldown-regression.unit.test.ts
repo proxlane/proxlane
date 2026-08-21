@@ -839,3 +839,109 @@ describe('a throwing release cannot break a request', () => {
 		);
 	});
 });
+
+describe('an answered request keeps its answer when the chain runs out', () => {
+	// CHAIN [a, b], a ANSWERS, b's PROBE CLAIM IS LOST to a concurrent request. The walk exits
+	// normally with attempts recorded, and the exhausted-chain return reported `lastOutcome` —
+	// the NAME of a's outcome and nothing else. So a caller who had a real answer, with a body
+	// and a detect rule attached, received the outcome stripped of all of it: no
+	// `X-Provider-Used`, no `X-Detect-Rule`, no body, on a response whose `X-Outcome` named a
+	// provider fault.
+	//
+	// THE RACE HAS TO HAPPEN DURING THE WALK, which the first version of this test got wrong.
+	// Taking b's probe slot up front excludes it at snapshot time, so the chain is [a] alone and
+	// the in-loop return fires — the mutation survived and the test still passed. The real
+	// sequence is: b looks claimable when the snapshot is taken, and the claim fails when the
+	// chain reaches it. That is a store whose `check` and `claim` disagree, which is exactly
+	// what concurrency produces.
+	function losesClaimFor(inner: InMemoryCooldownStore, provider: string): CooldownStore {
+		return {
+			check: (keys, now) => inner.check(keys, now),
+			claim: (key, now) =>
+				key === blk(provider) ? Promise.resolve(false) : inner.claim(key, now),
+			arm: (key, now, retryAfterMs) => inner.arm(key, now, retryAfterMs),
+			clear: (key) => inner.clear(key),
+			release: (key) => inner.release(key),
+			list: (now) => inner.list(now),
+		};
+	}
+
+	it('returns the full result, not just the outcome name', async () => {
+		const inner = new InMemoryCooldownStore(() => 0.9);
+		// `b` is half-open: expired, probe not taken — so the snapshot offers it.
+		expired(inner, blk('b'));
+
+		const r = await chain(
+			[
+				['a', 'SOFT_BLOCK'],
+				['b', 'OK'],
+			],
+			{ cooldowns: losesClaimFor(inner, 'b') },
+		);
+
+		// The walk really did run out rather than returning from inside the loop.
+		expect(r.reason, 'this did not exercise the exhausted-chain path').toBe('chain exhausted');
+		expect(r.outcome, 'the outcome a produced').toBe('SOFT_BLOCK');
+		expect(r.provider, 'the provider that produced it went missing').toBe('a');
+		expect(r.attempts.map((x) => x.provider)).toEqual(['a']);
+		// The payload the caller had already been given, and which used to be dropped.
+		expect(r.result, 'the parsed result went missing').toBeDefined();
+	});
+
+	it('still reports NO_PROVIDER_AVAILABLE when nothing was ever attempted', async () => {
+		// The other direction, so "return the last completed result" cannot be satisfied by
+		// returning a stale one. With no attempt at all there is nothing to report but this.
+		const inner = new InMemoryCooldownStore(() => 0.9);
+		expired(inner, blk('a'));
+		const r = await chain([['a', 'OK']], { cooldowns: losesClaimFor(inner, 'a') });
+		expect(r.attempts.length).toBe(0);
+		expect(r.outcome).toBe('NO_PROVIDER_AVAILABLE');
+		expect(r.provider).toBeUndefined();
+	});
+});
+
+describe('a throwing health store cannot make the chain retry a provider', () => {
+	// `unusable.add` sat INSIDE the try that exists to swallow a throwing `record` — so it was
+	// skipped in exactly the case the try was written for, and which "failed the first time it
+	// was tested".
+	//
+	// IT ONLY BITES ON A RE-RANK, which is what makes it reachable rather than theoretical. A
+	// lost probe claim does `unusable.add(that provider); ranked = rank(); i = -1; continue` —
+	// it restarts the walk from the top of a freshly ranked chain. Any provider missing from
+	// `unusable` comes back, so a provider already attempted and already PAID FOR is attempted a
+	// second time. Chain [a, b]: a fails and its record throws, b's claim is lost, the walk
+	// restarts, and a is charged twice.
+	it('marks a provider attempted even when record() throws', async () => {
+		const throwing: HealthStore = {
+			...healthOf({}),
+			record: () => {
+				throw new Error('health store is down');
+			},
+		};
+		const inner = new InMemoryCooldownStore(() => 0.9);
+		// `b` is half-open, so the chain tries to claim its probe slot and loses it.
+		expired(inner, blk('b'));
+		const losing: CooldownStore = {
+			check: (keys, now) => inner.check(keys, now),
+			claim: (key, now) => (key === blk('b') ? Promise.resolve(false) : inner.claim(key, now)),
+			arm: (key, now, retryAfterMs) => inner.arm(key, now, retryAfterMs),
+			clear: (key) => inner.clear(key),
+			release: (key) => inner.release(key),
+			list: (now) => inner.list(now),
+		};
+
+		const r = await chain(
+			[
+				['a', 'PROVIDER_ERROR'],
+				['b', 'OK'],
+			],
+			{ cooldowns: losing, health: throwing },
+		);
+
+		// `a` was tried exactly once. Twice means the re-rank walked back over it.
+		expect(
+			r.attempts.filter((x) => x.provider === 'a').length,
+			'a was attempted more than once, so the chain paid twice for the same failure',
+		).toBe(1);
+	});
+});

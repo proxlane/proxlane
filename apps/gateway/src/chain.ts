@@ -477,6 +477,17 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	let forced = ranked.forced;
 
 	let lastOutcome: Outcome = 'NO_PROVIDER_AVAILABLE';
+	/**
+	 * The last attempt that actually finished, in full.
+	 *
+	 * `lastOutcome` alone was not enough. The exhausted-chain return reported its NAME and
+	 * nothing else, so a chain of [A, B] where A answered SOFT_BLOCK — body attached, detect rule
+	 * attached — and B's probe claim was lost to a concurrent request returned `SOFT_BLOCK` with
+	 * no provider, no body and no rule. The caller got the right outcome for a request that had
+	 * already been answered, stripped of the answer, and `X-Provider-Used` and `X-Detect-Rule`
+	 * both went missing on a response whose `X-Outcome` named a provider fault.
+	 */
+	let lastCompleted: ChainResult | undefined;
 	let onceUsed = false;
 	/** Spent across the whole request, not per provider. See TERMINAL_RETRIES. */
 	let terminalRetriesLeft = deps.terminalRetries ?? DEFAULT_TERMINAL_RETRIES;
@@ -634,10 +645,15 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			// this exact case failed the first time it was tested. Reporting the failure belongs
 			// to the implementation, which is the only layer that knows whether a write dropping
 			// is routine or an outage; the chain's job is to be unaffected either way.
+			// OUTSIDE THE TRY, and that is the whole point. This is the chain's own bookkeeping,
+			// not the health store's: it is what stops a later re-rank walking back over a
+			// provider already tried. Inside the `try` it was skipped exactly when `record`
+			// threw — which is the case the `try` exists for and which "failed the first time it
+			// was tested" — so a throwing store could make the chain retry a provider it had
+			// already paid for.
+			unusable.add(adapter.capabilities.id);
 			try {
 				deps.health?.record(adapter.capabilities.id, outcome, now());
-				// Attempted, so a later re-rank cannot walk back over it.
-				unusable.add(adapter.capabilities.id);
 			} catch {
 				// Intentionally swallowed. See above.
 			}
@@ -709,6 +725,14 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
 			});
 			lastOutcome = outcome;
+			lastCompleted = {
+				outcome,
+				attempts,
+				provider: adapter.capabilities.id,
+				providerHealth,
+				...(detectRuleId === undefined ? {} : { detectRuleId }),
+				...(parsed === undefined ? {} : { result: parsed }),
+			};
 
 			const policy = policyFor(outcome);
 			if (policy.failover === false) {
@@ -720,6 +744,12 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					attempts,
 					provider: adapter.capabilities.id,
 					providerHealth,
+					// THE PROVIDER TOLD US HOW LONG TO WAIT AND THE CALLER NEVER HEARD IT.
+					// `retryAfterMs` reached the cooldown store and stopped there, so a provider
+					// 429 came back as a bare 429 and a client looped as fast as it liked into a
+					// provider that had just capped us. `integrations.md` section 3 has specified
+					// `429 + Retry-After` for RATE_LIMITED since the taxonomy was written.
+					...(parsed?.retryAfterMs === undefined ? {} : { retryAfterMs: parsed.retryAfterMs }),
 					...(detectRuleId === undefined ? {} : { detectRuleId }),
 					...(parsed === undefined ? {} : { result: parsed }),
 				};
@@ -793,6 +823,10 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	// `X-Provider-Used` while `X-Outcome` named a provider fault.
 	//
 	// An exhausted chain is NO_PROVIDER_AVAILABLE, which is what it has always meant.
+	if (lastCompleted !== undefined) {
+		// The whole result, not its outcome name. See `lastCompleted` above.
+		return { ...lastCompleted, attempts, reason: 'chain exhausted' };
+	}
 	return {
 		outcome: attempts.length === 0 ? 'NO_PROVIDER_AVAILABLE' : lastOutcome,
 		attempts,

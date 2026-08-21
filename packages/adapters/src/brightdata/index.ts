@@ -5,7 +5,12 @@ import type {
 	ProviderHttpRequest,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { carriesBody, cheapestCost, MICROCREDITS_PER_CREDIT } from '../contract.js';
+import {
+	carriesBody,
+	cheapestCost,
+	MICROCREDITS_PER_CREDIT,
+	retryAfterMsFrom,
+} from '../contract.js';
 import { capabilities } from './capabilities.js';
 import {
 	BRD_ERROR_HEADER,
@@ -120,7 +125,17 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 			return { outcome: 'AUTH_FAILED', upstreamStatusCode: res.status, cost: COST };
 		}
 		if (res.status === 429) {
-			return { outcome: 'RATE_LIMITED', upstreamStatusCode: 429, cost: COST };
+			// THE PROVIDER'S OWN WAIT, when it sent one. `retryAfterMs` has been on ParsedResult
+			// since the contract landed and the chain already arms cooldowns from it — and no
+			// adapter ever set it, so the number the provider gave us was discarded and replaced
+			// by a 30s jittered guess.
+			const retryAfterMs = retryAfterMsFrom(res.headers);
+			return {
+				outcome: 'RATE_LIMITED',
+				upstreamStatusCode: 429,
+				...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+				cost: COST,
+			};
 		}
 		return { outcome: 'PROVIDER_ERROR', upstreamStatusCode: res.status, cost: COST };
 	}
