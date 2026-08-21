@@ -25,16 +25,28 @@ export interface VerifiedRule {
 }
 
 export const VERIFIED: Readonly<Record<string, VerifiedRule>> = {
-	'cloudflare-challenge': {
+	'akamai-bot-manager': {
 		captures: 1,
-		classes: ['bot-test-page'],
+		classes: ['retail'],
 		lastVerified: '2026-08-21',
-		digests: ['61c20be6f1cf1cbe'],
+		digests: ['05659c252ee5b2dc'],
+	},
+	'cloudflare-challenge': {
+		captures: 2,
+		classes: ['bot-test-page', 'business-data'],
+		lastVerified: '2026-08-21',
+		digests: ['61c20be6f1cf1cbe', '75915405343a92b9'],
 	},
 	datadome: {
 		captures: 1,
 		classes: ['bot-vendor-site'],
 		lastVerified: '2026-08-21',
 		digests: ['6a89f93e9da83547'],
+	},
+	perimeterx: {
+		captures: 1,
+		classes: ['property-listings'],
+		lastVerified: '2026-08-21',
+		digests: ['d74ab27907bd9761'],
 	},
 };
