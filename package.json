@@ -9,6 +9,7 @@
 	"scripts": {
 		"bootstrap": "node scripts/bootstrap.ts",
 		"build": "turbo run build",
+		"capture-block": "node scripts/capture-block.ts",
 		"changeset": "changeset",
 		"check": "node scripts/check.ts",
 		"conformance": "turbo run build --filter=@proxlane/adapters && node scripts/conformance.ts",
@@ -19,6 +20,7 @@
 		"lighthouse:assert": "node scripts/lighthouse-assert.ts --config=tooling/lighthouse/lighthouserc.json",
 		"lint": "biome ci .",
 		"new-adapter": "node scripts/new-adapter.ts",
+		"og:render": "node scripts/og-render.ts",
 		"pages:check": "node scripts/pages-check.ts",
 		"record": "node scripts/record.ts",
 		"release:dry": "node scripts/release-dry.ts",
@@ -30,8 +32,7 @@
 		"test:ssrf": "vitest run --project ssrf",
 		"test:unit": "vitest run --project unit",
 		"tokens:check": "node scripts/tokens-check.ts",
-		"typecheck": "turbo run typecheck",
-		"og:render": "node scripts/og-render.ts"
+		"typecheck": "turbo run typecheck"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "catalog:",
