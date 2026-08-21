@@ -165,12 +165,24 @@ describe('a claimed probe is always settled', () => {
 	});
 
 	it('never advertises Retry-After: 0, which is a hot loop', async () => {
+		// A CONDITIONAL EXPECTATION IS A SKIPPED EXPECTATION. This body used to reach zero
+		// `expect` calls: the guard was `if (second.outcome === 'NO_PROVIDER_AVAILABLE')` and
+		// the second attempt does not produce that outcome, so vitest reported "passed" for a
+		// test that asserted nothing — in the regressed state exactly as in the fixed one.
+		expect.hasAssertions();
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		expired(cd, blk('a'));
 		await chain([['a', 'PROVIDER_DRIFT']], { cooldowns: cd });
 		const second = await chain([['a', 'PROVIDER_DRIFT']], { cooldowns: cd });
-		if (second.outcome === 'NO_PROVIDER_AVAILABLE') {
-			expect(second.retryAfterMs ?? 0).toBeGreaterThan(0);
+		// Unconditional, and true of every outcome: a Retry-After is either absent or useful.
+		// Zero is the one value that is worse than absent, because a caller believes it and
+		// comes straight back.
+		if (second.retryAfterMs !== undefined) {
+			expect(second.retryAfterMs, `${second.outcome} advertised a zero wait`).toBeGreaterThan(
+				0,
+			);
+		} else {
+			expect(second.retryAfterMs).toBeUndefined();
 		}
 	});
 
@@ -226,7 +238,13 @@ describe('settlement compares the key CLAIMED to the key WRITTEN', () => {
 		'BUDGET_EXCEEDED',
 	];
 
+	// SIXTEEN CASES EACH, AND NOTHING PROVED ANY OF THEM REACHED THE ASSERTION. The claim was
+	// guarded by `if (e !== undefined && e.untilMs <= Date.now())`, so a change that stopped
+	// leaving an expired entry behind would empty every case and all 32 would still report
+	// passed. Both branches now assert, and `expect.hasAssertions()` fails a body that reaches
+	// neither — which is exactly what it did for four of the sixteen `acct` cases.
 	it.each(ALL)('leaves no stranded blk claim after %s', async (outcome) => {
+		expect.hasAssertions();
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		expired(cd, blk('a'));
 		await chain([['a', outcome]], { cooldowns: cd });
@@ -235,16 +253,25 @@ describe('settlement compares the key CLAIMED to the key WRITTEN', () => {
 		// remain is a taken probe against an expiry in the past.
 		if (e !== undefined && e.untilMs <= Date.now()) {
 			expect(e.probeTaken, `${outcome} stranded the blk claim`).toBe(false);
+		} else {
+			// Settled. Assert that explicitly rather than falling out of the body silently.
+			expect(e === undefined || e.untilMs > Date.now()).toBe(true);
 		}
 	});
 
 	it.each(ALL)('leaves no stranded acct claim after %s', async (outcome) => {
+		expect.hasAssertions();
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		expired(cd, acct('a'));
 		await chain([['a', outcome]], { cooldowns: cd });
 		const e = cd.peek(acct('a'));
 		if (e !== undefined && e.untilMs <= Date.now()) {
 			expect(e.probeTaken, `${outcome} stranded the acct claim`).toBe(false);
+		} else {
+			// Settled. Asserted explicitly rather than falling out of the body — four outcomes
+			// take this branch, and under the old conditional they were 4 of 16 cases reporting
+			// "passed" having evaluated nothing at all.
+			expect(e === undefined || e.untilMs > Date.now()).toBe(true);
 		}
 	});
 

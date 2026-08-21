@@ -280,6 +280,32 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
 	};
 }
 
+/**
+ * The per-request deadline a caller may have, given what they asked for.
+ *
+ * PULLED OUT OF THE HANDLER SO IT CAN BE HELD TO ITS RULE. The clamp is what bounds how long
+ * one request holds an in-flight slot, and `maxInflight` is sized on the assumption that it
+ * holds — so deleting it makes the memory arithmetic in `operations.md` section 1 false. The
+ * e2e test named for the ceiling asserted only that the request returned 200, which it does
+ * with or without the clamp, and the effective deadline reaches no response header. So the
+ * behaviour was not observable end to end and the test could not have caught its removal.
+ *
+ * Returns `'invalid'` rather than throwing, so the caller owns the 400 body and its docs link.
+ */
+export function requestedDeadline(
+	raw: string | undefined,
+	serverBudgetMs: number,
+): number | 'invalid' {
+	if (raw === undefined || raw === '') return serverBudgetMs;
+	const asked = Number(raw);
+	// Floored rather than accepted and then failed: `hopBudget` returns BUDGET_EXCEEDED below
+	// this without opening a connection, so `timeout=1` would be a 504 for a request that never
+	// tried anything — an error report where a 400 belongs.
+	if (!Number.isInteger(asked) || asked < MIN_USEFUL_ATTEMPT_MS) return 'invalid';
+	// LESS THAN THE OPERATOR BUDGETED, NEVER MORE.
+	return Math.min(asked, serverBudgetMs);
+}
+
 export function createApp(deps: AppDeps): Hono<Vars> {
 	const app = new Hono<Vars>();
 
@@ -495,19 +521,15 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		// Floored at MIN_USEFUL_ATTEMPT_MS rather than accepted and then failed. `hopBudget`
 		// returns BUDGET_EXCEEDED below that floor without opening a connection, so `timeout=1`
 		// would be a 504 that never tried anything — an error report where a 400 belongs.
-		const timeoutRaw = c.req.query('timeout');
-		let deadlineMs = deps.defaultDeadlineMs;
-		if (timeoutRaw !== undefined && timeoutRaw !== '') {
-			const asked = Number(timeoutRaw);
-			if (!Number.isInteger(asked) || asked < MIN_USEFUL_ATTEMPT_MS) {
-				return errorWith(c, 400, {
-					code: 'BAD_REQUEST',
-					message: `timeout must be a whole number of milliseconds, at least ${MIN_USEFUL_ATTEMPT_MS}`,
-					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
-				});
-			}
-			deadlineMs = Math.min(asked, deps.defaultDeadlineMs);
+		const asked = requestedDeadline(c.req.query('timeout'), deps.defaultDeadlineMs);
+		if (asked === 'invalid') {
+			return errorWith(c, 400, {
+				code: 'BAD_REQUEST',
+				message: `timeout must be a whole number of milliseconds, at least ${MIN_USEFUL_ATTEMPT_MS}`,
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
 		}
+		const deadlineMs = asked;
 
 		// POST was reachable everywhere except here. `GatewayRequest` has carried `method` and
 		// `body` since the contract landed, adapters declare a `post` capability, the chain

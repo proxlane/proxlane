@@ -9,9 +9,15 @@
 // a snapshot goes green on any change somebody accepts, and these are claims about what the
 // artifacts must always do.
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+
 import { type Block, CopyButton, Panel, Transcript } from './components/artifacts.js';
 
 /**
@@ -57,16 +63,22 @@ describe('a panel names what the block is', () => {
 });
 
 describe('copy copies the whole thing', () => {
-	it('carries the full text, not the visible slice', () => {
+	it('copies the prop, never anything derived from what is on screen', () => {
 		// THE FAILURE THIS GUARDS. A transcript animates: it renders a prefix of the command
 		// while typing. If the copy control ever took what is on screen rather than what was
 		// passed, a reader would paste half a command and it would look like it worked.
-		const long = 'docker run -p 8787:8787 --env-file .env ghcr.io/proxlane/gateway';
-		const html = render(CopyButton, { text: long, what: 'the command' });
-		// The text travels as a prop rather than as rendered output, so what is asserted is that
-		// rendering it does not leak a truncated copy into the markup.
-		expect(html).not.toContain(`${long.slice(0, 20)}…`);
-		expect(html).toContain('button');
+		//
+		// READ FROM THE SOURCE, AND HERE IS WHY. The earlier version rendered the component and
+		// asserted the markup did not contain a truncated copy — but `text` never reaches the
+		// markup at all. It goes to `navigator.clipboard.writeText` and nowhere else, so the
+		// assertion was true of every possible implementation, including one that copied a
+		// slice. Same reasoning as the copy-code injector test: this is a click handler, the
+		// unit project has no DOM, so the source is what can be checked.
+		const src = readFileSync(join(HERE, 'components', 'artifacts.tsx'), 'utf8');
+		expect(src).toMatch(/await navigator\.clipboard\.writeText\(text\);/);
+		// And nothing between the prop and the clipboard. A slice, a trim or a lookup at the
+		// rendered node is exactly the regression described above.
+		expect(src).not.toMatch(/writeText\([^)]*\.(slice|substring|textContent|innerText)/);
 	});
 
 	it('says what it will copy, for anyone who cannot see the icon', () => {
