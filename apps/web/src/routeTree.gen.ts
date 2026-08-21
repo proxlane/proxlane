@@ -22,6 +22,7 @@ import { Route as DocsOutcomesRouteImport } from './routes/docs/outcomes'
 import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
 import { Route as DocsUseCasesRouteImport } from './routes/docs/use-cases'
 import { Route as OutcomesSlugRouteImport } from './routes/outcomes/$slug'
+import { Route as SymptomsIndexRouteImport } from './routes/symptoms/index'
 import { Route as Symptoms200CaptchaBodyRouteImport } from './routes/symptoms/200-captcha-body'
 import { Route as Symptoms403WhileScrapingRouteImport } from './routes/symptoms/403-while-scraping'
 import { Route as SymptomsCloudflareChallengePlaywrightRouteImport } from './routes/symptoms/cloudflare-challenge-playwright'
@@ -92,6 +93,11 @@ const OutcomesSlugRoute = OutcomesSlugRouteImport.update({
   path: '/outcomes/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SymptomsIndexRoute = SymptomsIndexRouteImport.update({
+  id: '/symptoms/',
+  path: '/symptoms/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Symptoms200CaptchaBodyRoute = Symptoms200CaptchaBodyRouteImport.update({
   id: '/symptoms/200-captcha-body',
   path: '/symptoms/200-captcha-body',
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
   '/symptoms/datadome-detection': typeof SymptomsDatadomeDetectionRoute
   '/docs/': typeof DocsIndexRoute
+  '/symptoms/': typeof SymptomsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
   '/symptoms/datadome-detection': typeof SymptomsDatadomeDetectionRoute
   '/docs': typeof DocsIndexRoute
+  '/symptoms': typeof SymptomsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -173,6 +181,7 @@ export interface FileRoutesById {
   '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
   '/symptoms/datadome-detection': typeof SymptomsDatadomeDetectionRoute
   '/docs/': typeof DocsIndexRoute
+  '/symptoms/': typeof SymptomsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -194,6 +203,7 @@ export interface FileRouteTypes {
     | '/symptoms/cloudflare-challenge-playwright'
     | '/symptoms/datadome-detection'
     | '/docs/'
+    | '/symptoms/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/symptoms/cloudflare-challenge-playwright'
     | '/symptoms/datadome-detection'
     | '/docs'
+    | '/symptoms'
   id:
     | '__root__'
     | '/'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/symptoms/cloudflare-challenge-playwright'
     | '/symptoms/datadome-detection'
     | '/docs/'
+    | '/symptoms/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -252,6 +264,7 @@ export interface RootRouteChildren {
   SymptomsCloudflareChallengePlaywrightRoute: typeof SymptomsCloudflareChallengePlaywrightRoute
   SymptomsDatadomeDetectionRoute: typeof SymptomsDatadomeDetectionRoute
   DocsIndexRoute: typeof DocsIndexRoute
+  SymptomsIndexRoute: typeof SymptomsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -347,6 +360,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutcomesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/symptoms/': {
+      id: '/symptoms/'
+      path: '/symptoms'
+      fullPath: '/symptoms/'
+      preLoaderRoute: typeof SymptomsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/symptoms/200-captcha-body': {
       id: '/symptoms/200-captcha-body'
       path: '/symptoms/200-captcha-body'
@@ -397,6 +417,7 @@ const rootRouteChildren: RootRouteChildren = {
     SymptomsCloudflareChallengePlaywrightRoute,
   SymptomsDatadomeDetectionRoute: SymptomsDatadomeDetectionRoute,
   DocsIndexRoute: DocsIndexRoute,
+  SymptomsIndexRoute: SymptomsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

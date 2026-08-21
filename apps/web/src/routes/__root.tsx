@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
-import { createRootRoute, HeadContent, Link, Outlet, Scripts } from '@tanstack/react-router';
+import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import { ThemeToggle } from '../components/theme-toggle.js';
-import { Mark, Wordmark } from '../components/wordmark.js';
+import { SiteHeader } from '../components/site-header.js';
+import { Mark } from '../components/wordmark.js';
 import appCss from '../styles/app.css?url';
 
 /**
@@ -115,46 +115,6 @@ function RootDocument({ children }: { readonly children: ReactNode }) {
  * only as tall as its line box. `min-h-11` with `inline-flex` is what makes the target the
  * size it looks like it should be; the visual weight is unchanged.
  */
-const NAV_LINK =
-	'inline-flex min-h-11 items-center transition-colors hover:text-[color:var(--color-ink)]';
-
-function SiteHeader() {
-	return (
-		<header className="flex items-center justify-between gap-6 py-5">
-			{/* THE MARK, then the name. The header used to draw the word alone with its `o`
-			    replaced by a raspberry ring — a second logo that shared nothing with the tri-line
-			    station in the footer but its colour. One mark, both places.
-
-			    `gap-2.5` and 18px match the footer's proportion at nav scale. The mark is
-			    `aria-hidden` and the link carries the label, so it adds no announced text. */}
-			<Link
-				to="/"
-				aria-label="proxlane, home"
-				className="inline-flex min-h-11 items-center gap-2.5 font-medium text-[color:var(--color-ink)] text-lg"
-			>
-				<Mark className="size-[18px] shrink-0" />
-				<Wordmark />
-			</Link>
-			<nav className="flex items-center gap-6 text-[color:var(--color-slate)] text-sm">
-				<Link className={NAV_LINK} to="/docs">
-					docs
-				</Link>
-				<a className={NAV_LINK} href="https://github.com/proxlane/proxlane">
-					github
-				</a>
-				<ThemeToggle />
-				{/* Hidden on phones, where four controls and a wordmark do not fit across 342px and
-				    the hero's own call to action is one scroll away regardless. */}
-				<Link
-					to="/docs"
-					className="ml-1 hidden min-h-9 items-center rounded-card bg-[color:var(--color-accent)] px-3.5 font-medium text-[color:var(--color-ground)] text-sm transition-opacity hover:opacity-85 sm:inline-flex"
-				>
-					Get started
-				</Link>
-			</nav>
-		</header>
-	);
-}
 
 function SiteFooter() {
 	return (

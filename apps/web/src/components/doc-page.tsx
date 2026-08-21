@@ -159,7 +159,11 @@ function DocSidebar({ headings }: { readonly headings: readonly DocHeading[] | u
 			{/* Sticky wrapper, so search sits above the page list and both stay in view. On phones
 			    this is a wrapping row of page links: the headings are rendered in the content
 			    column instead, where they do not push the page down. */}
-			<div className="lg:sticky lg:top-8 lg:max-h-[calc(100dvh-4rem)] lg:overflow-y-auto lg:pb-8">
+			{/* `top-28`, not `top-8`, because the site header is sticky now. At 2rem this sidebar
+				    slid under it and the first two nav items were permanently hidden behind the
+				    wordmark. The header is about 5.25rem tall; 7rem clears it with air. The height
+				    cap follows: viewport minus the offset above and the padding below. */}
+			<div className="lg:sticky lg:top-28 lg:max-h-[calc(100dvh-9rem)] lg:overflow-y-auto lg:pb-8">
 				<DocSearch />
 				<ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1 lg:flex-col lg:gap-x-0">
 					{DOC_NAV.map((item) => {
