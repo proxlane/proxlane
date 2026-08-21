@@ -15,8 +15,8 @@ get their evidence. First real failover 2026-08-20: four timeouts, all four serv
 provider, no caller saw an error.
 
 Cooldowns route it. **Health is off unless `PROXLANE_HEALTH=on`**: calibration assumes independent
-failures and real providers have bad hours. The detector has **never seen a real block page**; a
-test asserts the count.
+failures and real providers have bad hours. **5 of 6 detect rules are confirmed** by a real
+capture; five of the six had a defect only a real page could show.
 
 **The canary gate is 1 of 3.** §9 wants three consecutive *scheduled* greens; the first landed
 **2026-08-17** and cron is Mondays, so it clears **2026-08-31**. Count scheduled runs only.
@@ -32,15 +32,15 @@ Owner decisions and external answers. None is unblocked by writing code.
   fail over. Needs tier-keyed sets and a `supports(req)` predicate. Throwing in `translate()` pages
   a human and is for OUR bugs, not a caller's. Also open: `zz` buys a paid attempt everywhere, and
   nobody has verified whether a bad country code errors or silently serves elsewhere. *platform's.*
-- **Secret scanning depth** — core scanning and push protection are on. Non-provider patterns
-  and validity checks need paid Secret Protection: buy it, or accept a bespoke key shape unscanned.
+- **Secret scanning depth** — core scanning and push protection are on. Non-provider patterns and
+  validity checks need paid Secret Protection: buy it, or accept a bespoke key shape unscanned.
 - **Where `k6:soak` runs** — harness green, venue undecided. Gateway-internal time includes
   event-loop starvation, so a p95 on the shared box measures the neighbours. *Before it is a gate.*
 - **Hosted credit margin** — `plan.md` §7, and it changed shape: the dominant unbilled spend is
   provider-billed non-`OK` outcomes, above all `TARGET_NOT_FOUND`, not failover — so it is *which
   outcomes the caller pays for*, not only the rate. Weeks of real traffic decide it. Phase 3.
-- **A private fixture corpus** — `plan.md` §19 bars recording named commercial targets here, and
-  the private half holding block and captcha fixtures does not exist. Unowned.
+- **The last detect rule** — `proxlane/corpus` (private) holds the captures; `capture-block` puts
+  them there, `corpus:verify` regenerates the claim. `imperva-incapsula` is safe but unconfirmed.
 - **Provider permission, in writing** — `plan.md` §18 gates the keyless paths (`npx proxlane try`,
   the blocked-domain checker, the playground, a free fallback) on permission and Swedish counsel;
   `_dev/jina-reader` stays out of `REGISTRY` meanwhile. `affiliate-emails.md` Q3 separately needs

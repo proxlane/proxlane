@@ -12,13 +12,18 @@
 // that has no reason to appear in ordinary content — never "captcha", never "access denied",
 // never a length heuristic.
 //
-// THE CORPUS IS HALF-BUILT AND SAYS SO. `integrations.md` section 6 wants every rule to have
-// real fire AND no-fire samples. The no-fire half is real: the pages recorded from three
-// providers. The fire half cannot be manufactured — you cannot summon a Cloudflare challenge
-// on demand, and fabricating one would make this whole layer decorative, the same reason
-// `pnpm record` ships no block fixture. So each rule carries `verifiedAgainstRealCapture`,
-// it is `false` for all of them today, and a test asserts that the count of unverified rules
-// is stated rather than discovered. Flip a flag when a real capture arrives.
+// THE CORPUS EXISTS NOW, and this paragraph used to say the opposite. `integrations.md` section
+// 6 wants every rule to have real fire AND no-fire samples. Both halves are real: the no-fire
+// pages recorded from three providers, and block pages captured from live traffic into a private
+// store, because `plan.md` section 19 keeps captures of named targets out of this repository.
+//
+// Five of six rules are confirmed by a capture that fired them, and `verified.ts` records each
+// claim with the capture's SHA-256. There is no `verifiedAgainstRealCapture` flag to flip: it was
+// a boolean anyone could type, and the website read it.
+//
+// THE CAPTURES PAID FOR THEMSELVES IMMEDIATELY. Five of the six rules had a defect that only a
+// real page could show: one could never match its own vendor's page, one was unreachable behind
+// another rule, one fired on ordinary pages, and one keyed on a parameter the vendor rotates.
 
 // WHAT THIS CANNOT CATCH, stated because the gap is structural rather than a missing rule.
 //

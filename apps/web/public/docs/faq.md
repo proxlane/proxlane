@@ -104,8 +104,15 @@ have it, and returns `NO_PROVIDER_AVAILABLE` rather than a corrupt file.
 Parts of it. The gateway, failover, cooldowns, the detector and the shipped adapters are built
 and tested.
 
-The honest caveat is on the feature we are named for: the detector's rules come from vendor
-signatures and have never seen a real block page in the wild. The
+The detector's rules started as vendor signatures. Five of the six have now been confirmed
+against a real captured block page, and checking them was worth it: five of six turned out to
+have a defect that only a real page could show. One could never match its own vendor's page,
+because the signature is HTML-encoded there. One was unreachable behind another rule. One fired
+on ordinary pages of protected sites, which would have failed over and charged you for a page
+that was fine.
+
+The sixth is `imperva-incapsula`. Its false positive is fixed, but nothing has captured it firing
+on a real block yet, so it is not counted as confirmed. The
 [Status section](https://github.com/proxlane/proxlane#status) is kept accurate rather than
 aspirational, and a check fails the build when it drifts.
 
