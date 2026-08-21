@@ -28,6 +28,27 @@ export const capabilities: ProviderCapabilities = {
 	id: 'scraperapi',
 	line: 1,
 	renderJs: true,
+	/**
+	 * `all`, and it is known to over-claim. Left that way ON PURPOSE, with the reason recorded
+	 * because the alternative looks more correct and is worse.
+	 *
+	 * ScraperAPI gates geotargeting BY PLAN: "Hobby and Startup plans support only US and EU
+	 * regional-based geotargeting (individual country codes are not supported)". Business and
+	 * above get the individual codes, and a further premium set on top of those.
+	 *
+	 * Launch is BYOK, so the plan belongs to the caller and we cannot see it. Applying
+	 * scrapingbee's rule — the set true on every tier — would give `{us, eu}` and drop
+	 * ScraperAPI out of the chain for every other country, including for the Business
+	 * customers who are paying for exactly that. Naming the Business set instead breaks the
+	 * Hobby ones. There is no flat set that is right, which is the actual finding.
+	 *
+	 * Whether an unsupported code errors or is silently ignored is NOT documented, and that
+	 * decides which way to fail: an error is a wasted attempt, silently ignoring it returns US
+	 * data labelled as German. Filed in `state.md`; do not guess it into this file.
+	 *
+	 * Source: https://docs.scraperapi.com/control-and-optimization/geotargeting/standard-geo
+	 * read 2026-08-21.
+	 */
 	countryCodes: 'all',
 	premiumTiers: new Set(['none', 'residential', 'stealth']),
 	sessions: true,
