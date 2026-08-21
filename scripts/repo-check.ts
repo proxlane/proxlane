@@ -2394,6 +2394,82 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------- 38: a rule is confirmed by a capture, never by somebody typing it
+//
+// `packages/detect/src/verified.ts` says which detection rules a real block page has confirmed,
+// and the website prints it. It replaced a hand-set boolean on each rule — false on all six, and
+// changeable to true in one keystroke with nothing behind it.
+//
+// CI CANNOT REGENERATE IT and must not pretend otherwise. Most captures live outside this
+// repository because `plan.md` section 19 keeps captures of named targets out of it, so there is
+// nothing here to recompute against. Same shape as the cost tables: unverifiable in CI, so the
+// discipline is provenance.
+//
+// What is checkable is that the table cannot degrade into the thing it replaced: every entry
+// names a real rule, cites at least one capture digest, and reports classes rather than names.
+{
+	const SRC = 'packages/detect/src/verified.ts';
+	const RULES_SRC = 'packages/detect/src/index.ts';
+	if (!has(SRC) || !has(RULES_SRC)) {
+		fail('38', `${SRC} or ${RULES_SRC} is missing`);
+	} else {
+		const src = read(SRC);
+		const ruleIds = new Set(
+			[...read(RULES_SRC).matchAll(/^\t\tid: '([a-z0-9-]+)',$/gm)].map((m) => m[1] as string),
+		);
+		if (ruleIds.size === 0) {
+			fail('38', `parsed no rule ids from ${RULES_SRC} — this check stopped checking`);
+		}
+
+		// The boolean must not come back. It is the whole reason this file exists.
+		// A DECLARATION, not the word. The file explains at length why the field is gone, so a
+		// substring test flags the comment that documents the fix. Same trap as the line-colour
+		// ban, which failed on the paragraph forbidding line colours.
+		if (/verifiedAgainstRealCapture\s*[?]?\s*:/.test(read(RULES_SRC))) {
+			fail(
+				'38',
+				`${RULES_SRC} declares verifiedAgainstRealCapture again. That field was a claim ` +
+					'anybody could type; the table is generated from captures instead.',
+			);
+		}
+
+		const entries = [...src.matchAll(/^\t'([a-z0-9-]+)': \{([\s\S]*?)^\t\},$/gm)];
+		let checked38 = 0;
+		for (const [, id, body] of entries) {
+			const name = id as string;
+			if (!ruleIds.has(name)) {
+				fail('38', `${SRC} claims a capture confirmed \`${name}\`, which is not a rule.`);
+			}
+			const captures = Number(/captures: (\d+)/.exec(body as string)?.[1] ?? '0');
+			const digests = [...(body as string).matchAll(/'([0-9a-f]{8,})'/g)].length;
+			// FROM THE `classes` ARRAY, not from every quoted token in the entry. Scanning the whole
+			// body swept up `lastVerified: '2026-08-21'` as a class — dates match `[a-z0-9-]+` —
+			// so a hostname could be planted in `classes` and the count still looked healthy.
+			// Verified by mutation: `classes: ['nowsecure.nl']` passed.
+			const classList = /classes: \[([^\]]*)\]/.exec(body as string)?.[1] ?? '';
+			const classes = [...classList.matchAll(/'([^']*)'/g)].map((m) => m[1] as string);
+			if (captures < 1) fail('38', `${SRC}: ${name} is verified by ${captures} captures.`);
+			if (digests < 1) {
+				// A claim with no artefact behind it is the boolean wearing a table.
+				fail('38', `${SRC}: ${name} cites no capture digest, so nothing backs the claim.`);
+			}
+			if (classes.length === 0) fail('38', `${SRC}: ${name} names no target class.`);
+			for (const c of classes) {
+				// Section 19: classes of target, never names. A dot is the tell for a hostname.
+				if (c.includes('.'))
+					fail('38', `${SRC}: ${name} names a host (\`${c}\`), not a class.`);
+			}
+			checked38 += 1;
+		}
+		// A table with no entries is the honest starting state and must not fail — but the file
+		// still has to exist and still has to export the shape, or nothing reads it.
+		if (!src.includes('export const VERIFIED')) {
+			fail('38', `${SRC} no longer exports VERIFIED — this check stopped checking`);
+		}
+		ok('38', checked38 + 1, 'verified rules cite a capture, and name classes not hosts');
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

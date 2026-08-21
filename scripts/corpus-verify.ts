@@ -27,7 +27,10 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { detect, RULES } from '../packages/detect/src/index.ts';
+// The BUILT detector, not the source. `index.ts` imports `./verified.js`, which Node's type
+// stripping will not resolve to a `.ts` file, and this script must run the same code the gateway
+// runs anyway. `conformance` builds first for the same reason; the npm script does the build.
+import { detect, RULES } from '../packages/detect/dist/index.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC_CORPUS = join(ROOT, 'packages/detect/corpus');

@@ -32,19 +32,24 @@
 // a different signal entirely — a per-domain baseline, or a user telling us — and that is
 // not a string match.
 
+import { VERIFIED, type VerifiedRule } from './verified.js';
+
 export interface DetectRule {
 	readonly id: string;
 	/** Where the signature is documented or publicly observable. Not folklore. */
 	readonly source: string;
 	readonly test: (html: string) => boolean;
-	/**
-	 * Has this rule ever been run against a REAL captured block page?
-	 *
-	 * False everywhere today, and that is the honest state rather than an oversight. A rule
-	 * written from a vendor's public markup is a hypothesis until a real capture confirms it.
-	 */
-	readonly verifiedAgainstRealCapture: boolean;
 }
+
+// NO `verifiedAgainstRealCapture` FIELD ANY MORE, and its absence is the point.
+//
+// It was a boolean on every rule, false on all six, and the website read it to print "no real
+// capture yet" next to each one. The most load-bearing honesty claim in the product was a value
+// anybody could change to `true` in one keystroke with no capture behind it.
+//
+// It is derived from `verified.ts` now: a rule counts as confirmed only because a stored capture,
+// run through this exact `detect()`, fired that exact rule — and the generated table records the
+// capture's SHA-256, so the claim points at an artefact instead of at a memory.
 
 /**
  * Vendor signatures. Each is a token the vendor's own challenge markup emits, chosen because
@@ -55,37 +60,31 @@ export const RULES: readonly DetectRule[] = [
 		id: 'cloudflare-challenge',
 		source: "Cloudflare's interstitial injects /cdn-cgi/challenge-platform/ scripts",
 		test: (h) => h.includes('/cdn-cgi/challenge-platform/'),
-		verifiedAgainstRealCapture: false,
 	},
 	{
 		id: 'cloudflare-blocked',
 		source: 'Cloudflare 1020/error pages carry cf-error-details or cf-wrapper markup',
 		test: (h) => h.includes('cf-error-details') || h.includes('__cf_chl_'),
-		verifiedAgainstRealCapture: false,
 	},
 	{
 		id: 'datadome',
 		source: 'DataDome serves its captcha from geo.captcha-delivery.com',
 		test: (h) => h.includes('geo.captcha-delivery.com') || h.includes('dd_cookie_test'),
-		verifiedAgainstRealCapture: false,
 	},
 	{
 		id: 'perimeterx',
 		source: 'PerimeterX block pages reference _pxhd / px-captcha',
 		test: (h) => h.includes('px-captcha') || h.includes('_pxhd'),
-		verifiedAgainstRealCapture: false,
 	},
 	{
 		id: 'imperva-incapsula',
 		source: 'Imperva injects /_Incapsula_Resource on its block page',
 		test: (h) => h.includes('_Incapsula_Resource'),
-		verifiedAgainstRealCapture: false,
 	},
 	{
 		id: 'akamai-bot-manager',
 		source: 'Akamai reference-id error pages include an errors.edgesuite.net asset',
 		test: (h) => h.includes('errors.edgesuite.net') || h.includes('AkamaiGHost'),
-		verifiedAgainstRealCapture: false,
 	},
 ];
 
@@ -141,7 +140,18 @@ export function detect(
 	return { blocked: false };
 }
 
-/** Rules with no real capture behind them yet. Reported, never silently tolerated. */
+/**
+ * Rules no stored capture has ever confirmed.
+ *
+ * Reported, never silently tolerated — and no longer self-reported. This reads the generated
+ * table, so a rule leaves this list by someone capturing a real page and running
+ * `pnpm corpus:verify --write`, not by editing a boolean.
+ */
 export function unverifiedRules(): readonly string[] {
-	return RULES.filter((r) => !r.verifiedAgainstRealCapture).map((r) => r.id);
+	return RULES.filter((r) => VERIFIED[r.id] === undefined).map((r) => r.id);
+}
+
+/** What confirms a rule, for anything that wants to show its provenance. */
+export function verificationFor(id: string): VerifiedRule | undefined {
+	return VERIFIED[id];
 }

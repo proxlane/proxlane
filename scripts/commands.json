@@ -289,5 +289,17 @@
 		"gate": "plan.md section 19 decides where a capture lands, not the caller. A target that is not a purpose-built scraping sandbox needs PROXLANE_PRIVATE_CORPUS and never enters this repo.",
 		"ci": "none",
 		"argsRequired": true
+	},
+	"corpus:verify": {
+		"id": "corpus:verify",
+		"kind": "root-script",
+		"owner": "adapter-engineer",
+		"brief": ".claude/agents/adapter-engineer.md",
+		"spec": "docs/integrations.md#6",
+		"subject": "scripts/corpus-verify.ts",
+		"status": "implemented",
+		"gate": "Most captures are private, so CI cannot regenerate the table and does not try. --write refuses without PROXLANE_PRIVATE_CORPUS rather than quietly retracting every claim those captures back.",
+		"ci": "none",
+		"argsRequired": false
 	}
 }

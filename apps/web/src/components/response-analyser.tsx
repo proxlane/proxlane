@@ -17,7 +17,7 @@
  * the only interesting case. Nobody needs a tool to know a 403 went wrong.
  */
 
-import { RULES, unverifiedRules } from '@proxlane/detect';
+import { RULES, unverifiedRules, verificationFor } from '@proxlane/detect';
 import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { type Analysis, analyse, CONTENT_TYPES } from '../lib/analyse.js';
@@ -233,6 +233,21 @@ function Consequences({ result }: { readonly result: Analysis }) {
  * behind them would be the ordinary way to present this. Naming the gap is both honest and the
  * clearest possible ask: the corpus is what the project needs next.
  */
+/**
+ * What confirmed a rule, in a sentence.
+ *
+ * Reads the generated table rather than restating it: `captures` and `classes` are written by
+ * `pnpm corpus:verify` from real captures, and the capture bodies themselves are not in this
+ * repository. Section 19 asks for classes of target and never names, which is exactly what the
+ * table holds, so this can print it verbatim.
+ */
+function describeVerification(id: string): string {
+	const v = verificationFor(id);
+	if (v === undefined) return '';
+	const n = v.captures === 1 ? '1 real capture' : `${v.captures} real captures`;
+	return `confirmed against ${n} (${v.classes.join(', ')}), ${v.lastVerified}`;
+}
+
 function RuleList() {
 	const unverified = new Set(unverifiedRules());
 	return (
@@ -249,9 +264,16 @@ function RuleList() {
 						<dt className="font-mono sm:whitespace-nowrap">{rule.id}</dt>
 						<dd className="mt-1 text-[color:var(--color-slate)] sm:mt-0">
 							{rule.source}
-							{unverified.has(rule.id) && (
+							{/* THE POSITIVE, not just the absence of the warning. A rule with nothing said
+							    about it reads as unremarkable; saying what confirmed it is the claim.
+							    Both halves come from the generated table, so neither can be typed. */}
+							{unverified.has(rule.id) ? (
 								<span className="mt-1 block font-mono text-[color:var(--color-accent)] text-xs">
 									no real capture yet
+								</span>
+							) : (
+								<span className="mt-1 block font-mono text-[color:var(--color-slate)] text-xs">
+									{describeVerification(rule.id)}
 								</span>
 							)}
 						</dd>

@@ -237,7 +237,7 @@ and read `GET /health/providers`.
 
 **Does not exist yet**: any database, request log or dashboard; hosted credits.
 
-`pnpm repo:check` reports which of the 27 commands are real. It is asserted against the
+`pnpm repo:check` reports which of the 28 commands are real. It is asserted against the
 filesystem, so it cannot drift the way a status section can — and it caught this one lying
 twice.
 
