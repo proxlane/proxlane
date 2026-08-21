@@ -386,9 +386,16 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 
 		// The body rule is the contract's, not the adapter's. This is the check that would
 		// have caught ScraperAPI returning bytes for TARGET_ERROR while the others did not.
+		//
+		// IT COULD NOT, BECAUSE OF A TRAILING CONJUNCT. `&& result.outcome === 'OK'` meant the
+		// must-carry direction was enforced for exactly one of the five outcomes `carriesBody`
+		// names, so the check written to catch cross-provider body divergence was neutered by
+		// the clause on the end of its own condition. A target 404 returned the target's real
+		// page through three providers and a JSON error envelope through the fourth, which
+		// makes "drop-in replacement" depend on which provider won the chain.
 		const hasBody = result.body !== undefined;
-		if (carriesBody(result.outcome) && !hasBody && result.outcome === 'OK')
-			fail('parse', `${category}: ${result.outcome} must carry the body`);
+		if (carriesBody(result.outcome) && !hasBody)
+			fail('parse', `${category}: ${result.outcome} must carry the body, per carriesBody()`);
 		if (!carriesBody(result.outcome) && hasBody)
 			fail('parse', `${category}: ${result.outcome} must NOT carry a body, per carriesBody()`);
 
