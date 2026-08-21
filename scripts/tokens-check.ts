@@ -350,6 +350,47 @@ for (const [n, owners] of [...slots].sort((a, b) => a[0] - b[0])) {
 		fail(`${owners.join(', ')} uses line ${n}, which has no token`);
 }
 
+// ------------------------------------------- focus, on a control that fills its panel
+//
+// `design.md` makes visible keyboard focus the quality floor, and the global rule draws it 2px
+// OUTSIDE the element. Inside a panel that clips, that ring survives only along whichever edge is
+// not against the border — it appeared as a single raspberry line under a textarea and read as an
+// error state rather than as focus. `.focus-inset` is the escape hatch, and both halves of it are
+// load-bearing: a negative offset so nothing clips it, and a hairline so it does not become a
+// large block of the one colour this site reserves for the call to action.
+{
+	const APP = join(ROOT, 'apps/web/src/styles/app.css');
+	const app = existsSync(APP) ? readFileSync(APP, 'utf8') : '';
+	const rule = /\.focus-inset:focus-visible\s*\{([^}]*)\}/.exec(app)?.[1];
+	if (rule === undefined) {
+		fail(
+			'apps/web/src/styles/app.css has no `.focus-inset:focus-visible` — the clipped focus ring returns without it',
+		);
+	} else {
+		const offset = /outline-offset:\s*(-?[\d.]+)px/.exec(rule)?.[1];
+		if (offset === undefined || Number(offset) >= 0) {
+			fail(
+				`.focus-inset draws its ring at offset ${offset ?? 'unset'}. It must be negative, or a ` +
+					'clipping panel shows one edge of it and it reads as an error, not as focus.',
+			);
+		}
+		const width = /outline:\s*([\d.]+)px/.exec(rule)?.[1];
+		if (width === undefined) {
+			fail('.focus-inset declares no outline width');
+		} else if (Number(width) > 1) {
+			fail(
+				`.focus-inset draws a ${width}px ring. Around a full-height control that is a block of ` +
+					'accent, which is what the call to action owns. A hairline plus a glow says the same thing.',
+			);
+		}
+		// The glow is what keeps the hairline above the WCAG 2.4.13 perimeter, so it is not
+		// decoration and must not be dropped as such.
+		if (!rule.includes('box-shadow')) {
+			fail('.focus-inset has a hairline and no glow, which is under the visible-focus floor.');
+		}
+	}
+}
+
 // ---------------------------------------------------------------- report
 
 if (failures.length > 0) {
