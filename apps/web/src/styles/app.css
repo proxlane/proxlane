@@ -189,7 +189,11 @@ body::before {
 	/* Space above a heading, never below: the gap belongs to the section starting, and equal
 	   pads make a heading float between two blocks instead of introducing one. */
 	margin-top: 2.4em;
-	scroll-margin-top: 2rem;
+	/* Clears the sticky header, which is about 5.25rem tall. At the old 2rem an anchor landed
+	   UNDER the header: the reader followed a link to a heading and arrived at the paragraph
+	   after it, with no way to tell they had. The header only became sticky recently, so this
+	   was correct until it silently was not. */
+	scroll-margin-top: 6.5rem;
 }
 .doc-prose h2 {
 	font-size: 1.3rem;
