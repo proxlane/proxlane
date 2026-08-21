@@ -379,8 +379,8 @@ own rule — if it breaks the budget, the ceiling was set wrong, not the work.
 
 ## Current status
 
-**Public since 2026-08-10.** Phase 1 shipped: three adapters, the gateway, the edge guard,
-the detector, 18 of 25 commands real. `main` carries a ruleset with no bypass actor, so
+**Public since 2026-08-10.** Phase 1 shipped: four adapters, the gateway, the edge guard,
+the detector, all 27 commands real. `main` carries a ruleset with no bypass actor, so
 blocking CI binds on the maintainer too.
 
 `pnpm repo:check` is what is built. **See `docs/state.md`** for what is in flight and what

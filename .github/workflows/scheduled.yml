@@ -47,12 +47,13 @@ jobs:
           SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
           SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
           SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
+          BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
         run: |
-          if [ -n "$SCRAPERAPI_KEY" ] || [ -n "$SCRAPINGBEE_KEY" ] || [ -n "$SCRAPFLY_KEY" ]; then
+          if [ -n "$SCRAPERAPI_KEY" ] || [ -n "$SCRAPINGBEE_KEY" ] || [ -n "$SCRAPFLY_KEY" ] || [ -n "$BRIGHTDATA_KEY" ]; then
             echo "yes=true" >> "$GITHUB_OUTPUT"
           else
             echo "yes=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=canary::No provider key secrets are set, so the canary is dormant. The three-week launch gate clock has NOT started. Add SCRAPERAPI_KEY, SCRAPINGBEE_KEY or SCRAPFLY_KEY."
+            echo "::warning title=canary::No provider key secrets are set, so the canary is dormant. The three-week launch gate clock has NOT started. Add SCRAPERAPI_KEY, SCRAPINGBEE_KEY, SCRAPFLY_KEY or BRIGHTDATA_KEY."
           fi
       - id: run
         if: steps.implemented.outputs.yes == 'true' && steps.keyed.outputs.yes == 'true'
@@ -64,6 +65,9 @@ jobs:
           SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
           SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
           SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
+          # The fourth adapter. Without it `test:live` generated zero tests for Bright Data
+          # and the canary went green anyway — a blind spot the size of a whole provider.
+          BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
         run: pnpm test:live
       - if: steps.keyed.outputs.yes == 'true' && steps.run.outcome == 'failure'
         shell: bash

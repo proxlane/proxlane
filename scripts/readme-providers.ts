@@ -39,12 +39,34 @@ export const END = '<!-- /generated:providers -->';
  */
 const PLANNED = ['Zyte', 'Oxylabs Web Scraper API', 'ScrapingAnt', 'Firecrawl'] as const;
 
-/** Display names, because `brightdata` is not what Bright Data calls itself. */
-const NAMES: Record<string, string> = {
+/**
+ * Display names, because `brightdata` is not what Bright Data calls itself.
+ *
+ * EXPORTED so `repo:check` assertion 42 can hold user-facing prose to the registry. Four public
+ * surfaces described the gateway as fronting three providers for as long as the fourth adapter
+ * had been shipping — the OpenAPI summary, the docs quickstart, the site's meta description and
+ * the docs index — because each was a sentence somebody typed once and nothing derived.
+ */
+export const NAMES: Record<string, string> = {
 	scraperapi: 'ScraperAPI',
 	scrapingbee: 'ScrapingBee',
 	scrapfly: 'Scrapfly',
 	brightdata: 'Bright Data Web Unlocker',
+};
+
+/**
+ * What PROSE calls each provider, which is not always what the product is called.
+ *
+ * The README table wants the product — "Bright Data Web Unlocker" is the thing with the cost
+ * table — and a sentence wants the company. Two forms, one file, and assertion 42 asserts every
+ * value here is a prefix of its `NAMES` entry and that the two maps have identical keys, so a
+ * new adapter cannot be added to one and forgotten in the other.
+ */
+export const PROSE: Record<string, string> = {
+	scraperapi: 'ScraperAPI',
+	scrapingbee: 'ScrapingBee',
+	scrapfly: 'Scrapfly',
+	brightdata: 'Bright Data',
 };
 
 interface Row {

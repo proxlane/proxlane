@@ -87,9 +87,9 @@ function DocsIndex() {
 		<DocPage title={TITLE} summary={SUMMARY}>
 			<div className="doc-prose max-w-[46rem]">
 				<p>
-					Proxlane routes scraping requests across ScraperAPI, ScrapingBee and Scrapfly. When a
-					provider blocks, errors or times out, the next one is tried. The response says exactly
-					what happened.
+					Proxlane routes scraping requests across ScraperAPI, ScrapingBee, Scrapfly and Bright
+					Data. When a provider blocks, errors or times out, the next one is tried. The response
+					says exactly what happened.
 				</p>
 				<p>
 					It is AGPL and self-hostable, and it uses your provider keys. There is no account to

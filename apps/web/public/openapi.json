@@ -4,7 +4,7 @@
 		"title": "Proxlane",
 		"version": "1",
 		"summary": "One endpoint in front of every scraping API.",
-		"description": "Routes a scrape across ScraperAPI, ScrapingBee and Scrapfly. When a provider blocks, errors or times out the next one is tried, and the response headers say what happened at every step.\n\nThis file is generated from the gateway's own outcome taxonomy, so the status codes and the X-Outcome enum below are the ones the router actually uses.\n\nSelf-hosted: there is no shared base URL. Point `servers` at your own gateway.",
+		"description": "Routes a scrape across ScraperAPI, ScrapingBee, Scrapfly and Bright Data. When a provider blocks, errors or times out the next one is tried, and the response headers say what happened at every step.\n\nThis file is generated from the gateway's own outcome taxonomy, so the status codes and the X-Outcome enum below are the ones the router actually uses.\n\nSelf-hosted: there is no shared base URL. Point `servers` at your own gateway.",
 		"license": {
 			"name": "AGPL-3.0-only",
 			"identifier": "AGPL-3.0-only"
