@@ -61,6 +61,21 @@ export const capabilities: ProviderCapabilities = {
 	countryCodes: 'all',
 	premiumTiers: new Set(['none', 'residential', 'stealth']),
 	sessions: true,
+	/**
+	 * Sessions and premium proxies are mutually exclusive here, which no independent field could
+	 * say. Their parameter table, verbatim: `session_number` "(Can not be combined with
+	 * `premium/ultra_premium`)".
+	 *
+	 * We declared sessions AND all three tiers, each true on its own, so the router sent requests
+	 * asking for both and ScraperAPI decided what to drop. Nothing reported it.
+	 */
+	conflicts: [
+		{
+			sessions: true,
+			premium: ['residential', 'stealth'],
+			why: 'session_number "Can not be combined with premium/ultra_premium" — https://docs.scraperapi.com/control-and-optimization/supported-parameters',
+		},
+	],
 	// 70s, not the 75_000 used as an illustrative figure in contract.ts. ScraperAPI's own
 	// billing rule is the source: a request cancelled from our side BEFORE 70 seconds is
 	// still charged, so 70s is the real boundary of an attempt and the docs beat the example.

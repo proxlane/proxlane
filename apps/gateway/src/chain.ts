@@ -8,6 +8,7 @@
 import {
 	type Adapter,
 	type CostUnit,
+	conflictApplies,
 	type GatewayRequest,
 	type Outcome,
 	type ParsedResult,
@@ -182,6 +183,13 @@ export function isCapable(caps: ProviderCapabilities, req: GatewayRequest): bool
 	if (req.sessionId !== undefined && !caps.sessions) return false;
 	if (req.countryCode !== undefined && caps.countryCodes !== 'all') {
 		if (!caps.countryCodes.has(req.countryCode.toLowerCase())) return false;
+	}
+	// LAST, and it is the only check that reads more than one field at a time. Everything above
+	// asks "does this provider do X"; a conflict asks "does it do X AND Y together", which is a
+	// question the independent fields cannot pose. ScraperAPI sells sessions and it sells premium
+	// proxies, and it will not sell them in the same request.
+	for (const c of caps.conflicts ?? []) {
+		if (conflictApplies(c, req)) return false;
 	}
 	return true;
 }
