@@ -1,5 +1,51 @@
 # @proxlane/gateway
 
+## 0.9.0
+
+### Minor Changes
+
+- [#182](https://github.com/proxlane/proxlane/pull/182) [`7d44744`](https://github.com/proxlane/proxlane/commit/7d4474488c6d254e48e10b69e95530fde99d66eb) Thanks [@scarsam](https://github.com/scarsam)! - The request-body cap now stops the read instead of measuring it afterwards. `c.req.text()`
+  resolved only once the whole body was in memory, so an oversized POST was refused having already
+  paid the allocation the cap exists to prevent.
+
+  A client that disconnects now aborts the in-flight provider request instead of leaving the chain
+  walking every provider for the full deadline. It is reported as its own outcome, never as
+  `PROVIDER_TIMEOUT` — blaming a healthy provider for a caller hanging up would cool it and feed the
+  health statistic a failure nobody caused.
+
+- [#170](https://github.com/proxlane/proxlane/pull/170) [`84e83ce`](https://github.com/proxlane/proxlane/commit/84e83cecd0218db1ffce4c75c7e22d7a6f8e3df4) Thanks [@scarsam](https://github.com/scarsam)! - Capabilities can now describe a combination a provider refuses even though it offers each part
+  alone. ScraperAPI's sessions and premium proxies are mutually exclusive by their own
+  documentation, and the router used to send requests asking for both. Declared as data rather than
+  a predicate, so `proxlane providers` prints it.
+
+- [#179](https://github.com/proxlane/proxlane/pull/179) [`8c05ff9`](https://github.com/proxlane/proxlane/commit/8c05ff918d74b70b6bff758469daaad906a08b80) Thanks [@scarsam](https://github.com/scarsam)! - Scrapfly's stealth tier is priced at the residential figures, which is what it costs: `translate()`
+  sends the residential proxy pool for every tier above `none`, so a stealth request is a residential
+  request. It was published at the datacenter base — 1x against a real 25x on the comparison page.
+
+  The router now reads the cost matrix as a capability claim. A null cell means the provider does not
+  sell that combination, and ScrapingBee's stealth-without-rendering is one — it was being routed
+  there and paid for.
+
+- [#171](https://github.com/proxlane/proxlane/pull/171) [`b0bf5b4`](https://github.com/proxlane/proxlane/commit/b0bf5b41800ba5a7196e8966e21f5a34d74eab3c) Thanks [@scarsam](https://github.com/scarsam)! - Every attempt now records the provider's reported cost, our own table's prediction for the same
+  request shape, and which of the two the figure came from. Responses carry `X-Cost-Source`:
+  `reported` when the provider told us, `estimated` when we worked it out. This is what makes a
+  wrong cost table findable from live traffic instead of by re-reading a vendor's pricing page.
+
+- [#181](https://github.com/proxlane/proxlane/pull/181) [`bb6348d`](https://github.com/proxlane/proxlane/commit/bb6348d23895edbf5efd2a21419d852980679205) Thanks [@scarsam](https://github.com/scarsam)! - A provider's own `Retry-After` now reaches the caller. `ParsedResult.retryAfterMs` had been in the
+  contract since it landed and the chain already armed cooldowns from it, but no adapter ever set
+  it — so a provider that capped us and said exactly how long to wait had that answer discarded, the
+  cooldown drew a 30s jittered guess, and the caller got a bare 429.
+
+  Two chain fixes: an answered request whose next candidate lost its probe claim kept only the
+  outcome name, dropping the provider, the body and the detect rule. And a throwing health store
+  could make the chain re-attempt — and re-pay for — a provider it had already tried.
+
+### Patch Changes
+
+- Updated dependencies [[`7d5c835`](https://github.com/proxlane/proxlane/commit/7d5c83592cfcc40281fdb9d465f020f922083282), [`84e83ce`](https://github.com/proxlane/proxlane/commit/84e83cecd0218db1ffce4c75c7e22d7a6f8e3df4), [`8c05ff9`](https://github.com/proxlane/proxlane/commit/8c05ff918d74b70b6bff758469daaad906a08b80), [`1248872`](https://github.com/proxlane/proxlane/commit/12488726f08b9e2dc0c047a56d56a4d926ac9625), [`292e67b`](https://github.com/proxlane/proxlane/commit/292e67b7fc1ec912a64910b88ae503e9b3180774), [`bb6348d`](https://github.com/proxlane/proxlane/commit/bb6348d23895edbf5efd2a21419d852980679205), [`df7a4c0`](https://github.com/proxlane/proxlane/commit/df7a4c0ba816b444c970433ab0625147714ae81b)]:
+  - @proxlane/adapters@0.7.0
+  - @proxlane/shared@0.7.1
+
 ## 0.8.0
 
 ### Minor Changes

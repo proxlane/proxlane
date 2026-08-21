@@ -1,5 +1,19 @@
 # @proxlane/shared
 
+## 0.7.1
+
+### Patch Changes
+
+- [#176](https://github.com/proxlane/proxlane/pull/176) [`292e67b`](https://github.com/proxlane/proxlane/commit/292e67b7fc1ec912a64910b88ae503e9b3180774) Thanks [@scarsam](https://github.com/scarsam)! - `orderChain`'s docstring described chain order backwards. Ranking best-first puts the least
+  healthy provider last, and the docs already recorded that; the source comment and the test named
+  after it still claimed the reverse, and that test asserted the opposite of its own title while
+  passing. Behaviour is unchanged — the comment was wrong, not the code.
+
+- [#183](https://github.com/proxlane/proxlane/pull/183) [`df7a4c0`](https://github.com/proxlane/proxlane/commit/df7a4c0ba816b444c970433ab0625147714ae81b) Thanks [@scarsam](https://github.com/scarsam)! - The edge guard now refuses three IPv6 forms that carried an IPv4 address past it: RFC 2765's
+  IPv4-translated `::ffff:0:0/96`, RFC 8215's local-use NAT64 prefix `64:ff9b:1::/48`, and the five
+  RFC 6052 embedding positions other than the well-known one. `http://[::ffff:0:169.254.169.254]/`
+  reached the cloud metadata endpoint.
+
 ## 0.7.0
 
 ### Minor Changes
