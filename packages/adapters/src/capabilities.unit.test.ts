@@ -65,6 +65,16 @@ describe('the static list mirrors the registry', () => {
 		expect(checked).toBeGreaterThan(0);
 	});
 
+	it('gives a POST a chain, not a single provider', () => {
+		// THE POINT OF WIRING IT. `chain.ts` filters the chain on `post`, so with one adapter
+		// implementing it a POST reached that provider or nothing — no failover at all, on the
+		// feature the product is named for. A chain of one is not a chain.
+		const canPost = CAPABILITIES.filter((c) => c.post);
+		expect(canPost.length, 'a POST still has no failover').toBeGreaterThan(1);
+		// And it is most of them, not a lucky pair: every launch provider documents POST.
+		expect(canPost.length).toBe(CAPABILITIES.length);
+	});
+
 	it('claims sessions only where translate() sends one', () => {
 		let checked = 0;
 		for (const c of CAPABILITIES) {

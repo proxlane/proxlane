@@ -28,10 +28,10 @@ Owner decisions and external answers. None is unblocked by writing code.
   Countries are tier-gated (ScraperAPI `us`/`eu` on Hobby vs 79 on Business; ScrapingBee 42 classic
   vs 243 premium) and BYOK means the plan is the caller's, so `all` over-claims and any finite set
   breaks someone. ScraperAPI's `session_number` cannot combine with premium, yet both are declared
-  and `chain.ts` checks them separately. POST is wired on one adapter of four, so a POST cannot
-  fail over. Needs tier-keyed sets and a `supports(req)` predicate. Throwing in `translate()` pages
-  a human and is for OUR bugs, not a caller's. Also open: `zz` buys a paid attempt everywhere, and
-  nobody has verified whether a bad country code errors or silently serves elsewhere. *platform's.*
+  and `chain.ts` checks them separately. Needs tier-keyed sets and a `supports(req)` predicate;
+  throwing in `translate()` pages a human and is for OUR bugs, not a caller's. Also open: `zz`
+  buys a paid attempt everywhere, and nobody has verified whether a bad country code errors or
+  silently serves elsewhere. *platform's.*
 - **Secret scanning depth** — core scanning and push protection are on. Non-provider patterns and
   validity checks need paid Secret Protection: buy it, or accept a bespoke key shape unscanned.
 - **Where `k6:soak` runs** — harness green, venue undecided. Gateway-internal time includes

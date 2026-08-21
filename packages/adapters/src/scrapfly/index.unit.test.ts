@@ -182,7 +182,23 @@ describe('scrapfly translate', () => {
 		expect(params(req, 'SECRET').get('key')).toBe('SECRET');
 	});
 
-	it('refuses POST rather than silently issuing a GET', () => {
-		expect(() => ScrapflyAdapter.translate({ ...req, method: 'POST' }, 'K')).toThrow(/POST/);
+	it('forwards a POST, method and body, rather than refusing it', () => {
+		// IT USED TO THROW. A POST therefore had a chain of exactly one provider — Bright Data,
+		// the only adapter that implemented it — and could not fail over at all, on a product
+		// whose headline feature is failover. The gateway had carried `method` and `body` on
+		// `GatewayRequest` the whole time; only this refused them.
+		//
+		// Verified live against `httpbin.dev/post`, which echoes what it received: the payload
+		// came back through all three providers. The recorded `post` fixture is that exchange.
+		const wire = ScrapflyAdapter.translate({ ...req, method: 'POST', body: '{"a":1}' }, 'K');
+		expect(wire.method).toBe('POST');
+		expect(wire.body).toBe('{"a":1}');
+	});
+
+	it('sends no body when there is none', () => {
+		// An empty string is not the same as absent: some providers treat a present-but-empty
+		// body as a form post and change the content type on the target's behalf.
+		expect(ScrapflyAdapter.translate(req, 'K').body).toBeUndefined();
+		expect(ScrapflyAdapter.translate(req, 'K').method).toBe('GET');
 	});
 });

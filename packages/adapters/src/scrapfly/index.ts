@@ -16,9 +16,12 @@ import { ScrapflyAccountError, ScrapflyEnvelope } from './schema.js';
 const ENDPOINT = 'https://api.scrapfly.io/scrape';
 
 function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
-	if (req.method !== 'GET') {
-		throw new Error('scrapfly: POST is not implemented (capabilities.post is false)');
-	}
+	// POST REACHES THE TARGET. This used to throw, which meant a POST had a chain of exactly
+	// one provider — Bright Data — and could not fail over at all, on a product whose headline
+	// feature is failover. Nothing was missing but the implementation.
+	//
+	// Scrapfly: "Minimal API call is a GET, POST, PUT, PATCH or HEAD request." The key travels in
+	// the query string either way, so only the method and body change.
 
 	const p = new URLSearchParams();
 	// UNLIKE the other two, the key has to travel in the query string: Scrapfly documents no
@@ -52,7 +55,8 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 
 	return {
 		url: `${ENDPOINT}?${p.toString()}`,
-		method: 'GET',
+		method: req.method,
+		...(req.body === undefined ? {} : { body: req.body }),
 		headers: { accept: 'application/json' },
 		timeoutMs: capabilities.maxTimeoutMs,
 	};

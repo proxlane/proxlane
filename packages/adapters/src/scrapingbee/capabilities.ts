@@ -107,7 +107,7 @@ export const capabilities: ProviderCapabilities = {
 	sessions: false,
 	maxTimeoutMs: 70_000,
 	fastTimeoutMs: 22_000,
-	post: false,
+	post: true,
 	/**
 	 * Passes the body through byte for byte — `parse` returns `res.body` untouched.
 	 * Verified against a JPEG on 2026-08-19: intact, `image/jpeg`, no charset.

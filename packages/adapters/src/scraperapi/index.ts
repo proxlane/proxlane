@@ -46,9 +46,13 @@ const TARGET_STATUS_HEADER = 'sa-statuscode';
 const CREDIT_COST_HEADER = 'sa-credit-cost';
 
 function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
-	if (req.method !== 'GET') {
-		throw new Error('scraperapi: POST is not implemented (capabilities.post is false)');
-	}
+	// POST REACHES THE TARGET. This used to throw, which meant a POST had a chain of exactly
+	// one provider — Bright Data — and could not fail over at all, on a product whose headline
+	// feature is failover. Nothing was missing but the implementation.
+	//
+	// ScraperAPI forwards a POST body to the target: "In addition to standard GET requests,
+	// ScraperAPI lets you send POST/PUT requests as well." The key already travels as a header,
+	// so the endpoint URL is unchanged and only the method and body move.
 
 	// EVERY parameter is set explicitly, including the ones whose default we happen to want.
 	// A provider changing a default must not silently change our behaviour, and conformance
@@ -87,7 +91,8 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 
 	return {
 		url: `${ENDPOINT}?${p.toString()}`,
-		method: 'GET',
+		method: req.method,
+		...(req.body === undefined ? {} : { body: req.body }),
 		headers,
 		timeoutMs: capabilities.maxTimeoutMs,
 	};

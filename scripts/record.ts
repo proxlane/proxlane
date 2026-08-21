@@ -52,6 +52,7 @@ try {
 export type TargetCategory =
 	| 'success-html'
 	| 'success-json'
+	| 'post'
 	| 'target-not-found'
 	| 'target-error'
 	| 'dead-host'
@@ -77,6 +78,12 @@ export interface Target {
 	 * category can only ever record something that is not a deadline.
 	 */
 	readonly needsDeadline?: true;
+	/**
+	 * Non-GET, for the categories that exercise a method the adapter has to forward. Absent
+	 * means GET, which is every other target.
+	 */
+	readonly method?: 'POST';
+	readonly body?: string;
 	readonly why: string;
 }
 
@@ -94,6 +101,18 @@ export const TARGETS: readonly Target[] = [
 		renderJs: false,
 		expect: 'OK',
 		why: 'non-HTML body: detection must not run on it',
+	},
+	{
+		// The body has to reach the TARGET, which is why this echoes rather than just accepting.
+		// httpbin.dev/post returns what it received, so a fixture that records a 200 with the
+		// body missing from the echo is a fixture that proves the opposite of what it claims.
+		category: 'post',
+		url: 'https://httpbin.dev/post',
+		method: 'POST',
+		body: '{"proxlane":"post-fixture"}',
+		renderJs: false,
+		expect: 'OK',
+		why: 'a POST body reaching the target, which three adapters used to refuse outright',
 	},
 	{
 		// httpbingo.org, NOT httpbin.dev, for the three status categories.
@@ -619,7 +638,8 @@ if (import.meta.filename === process.argv[1]) {
 		}
 		const req: GatewayRequest = {
 			url: target.url,
-			method: 'GET',
+			method: target.method ?? 'GET',
+			...(target.body === undefined ? {} : { body: target.body }),
 			renderJs: target.renderJs,
 			premium: 'none',
 			deadlineMs: 60_000,
