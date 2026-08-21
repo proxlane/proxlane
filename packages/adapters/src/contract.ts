@@ -198,11 +198,53 @@ export interface ProviderCapabilities {
 	readonly renderJs: boolean;
 	readonly countryCodes: ReadonlySet<string> | 'all';
 	readonly premiumTiers: ReadonlySet<PremiumTier>;
+	/*
+	 * A LIMIT OF THESE FIELDS, recorded where somebody will hit it. Every capability here is
+	 * independent, and `chain.ts` checks them one at a time, so a provider that supports two
+	 * things separately but not together cannot be described.
+	 *
+	 * ScraperAPI is the live case: `session_number` "Can not be combined with
+	 * premium/ultra_premium", and `premium` and `ultra_premium` exclude each other. We declare
+	 * sessions and all three tiers, all true individually, and the chain will happily route a
+	 * request asking for both.
+	 *
+	 * Throwing in `translate()` is NOT the fix. That path is the backstop for a capability we
+	 * declared and cannot honour, and it pages a human — right for our bug, wrong for a caller
+	 * asking a provider for a combination it does not sell. Needs a `supports(req)` predicate
+	 * on the adapter, which is a contract change. Filed in `state.md`.
+	 */
+	/**
+	 * Can THIS ADAPTER hold a session, not can the provider.
+	 *
+	 * THE DISTINCTION IS THE WHOLE POINT and it was undocumented, so two readers read it two
+	 * ways. A research pass against the vendors' docs flagged `sessions: false` on three
+	 * providers as a live bug, because all three sell sessions — and every value was correct,
+	 * because `translate()` wires one on exactly one of them.
+	 *
+	 * It has to mean the adapter. `chain.ts` filters the chain on this, so declaring what the
+	 * PROVIDER can do would route a session request to an adapter that silently drops the
+	 * session id and hands back an unrelated IP. A capability is a promise about behaviour we
+	 * ship, and the live canary checks it.
+	 *
+	 * So `false` here reads "not wired yet", never "impossible". Wiring it is an adapter change
+	 * and a capability flip in the same commit.
+	 */
 	readonly sessions: boolean;
 	/** Budget on the LAST hop, e.g. scraperapi 75_000. */
 	readonly maxTimeoutMs: number;
 	/** Budget on a non-terminal hop, e.g. scraperapi 22_000. */
 	readonly fastTimeoutMs: number;
+	/**
+	 * Can THIS ADAPTER forward a non-GET request, not can the provider. Same rule as `sessions`.
+	 *
+	 * All four launch providers document POST support. One adapter implements it: the other
+	 * three reject `req.method !== 'GET'` in `translate()` and hardcode GET, so `false` is what
+	 * is true of them.
+	 *
+	 * THE CONSEQUENCE IS WORTH KNOWING: a POST through the gateway therefore has a chain of
+	 * exactly one provider and cannot fail over at all. That is a real gap, recorded in
+	 * `state.md`, and it is a missing implementation rather than a missing capability.
+	 */
 	readonly post: boolean;
 	/**
 	 * Can this adapter return a response body byte for byte?

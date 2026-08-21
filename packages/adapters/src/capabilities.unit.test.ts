@@ -5,7 +5,12 @@
 // and the site advertises a provider nobody can reach, or hides one that is already serving
 // traffic. Both directions are asserted, because only one of them is the obvious one.
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** Exhaustive over `PremiumTier`; a new tier should break this file until it is priced. */
 const TIERS = ['none', 'residential', 'stealth'] as const;
@@ -36,6 +41,42 @@ describe('the static list mirrors the registry', () => {
 		// A line identifies a provider everywhere it appears, so two sharing one is a colour
 		// collision in the diagram and an ambiguous reference in every doc.
 		expect(new Set(lines).size).toBe(lines.length);
+	});
+
+	it('claims POST only where translate() actually forwards one', () => {
+		// `post` and `sessions` are claims about THIS ADAPTER, not about the provider — a
+		// distinction that was undocumented until it got mistaken for four live bugs. The
+		// dangerous direction is a `true` nothing implements: `chain.ts` filters on these, so a
+		// declared-but-unwired capability routes a request to an adapter that silently drops
+		// half of it. This reads the source and holds the claim to it.
+		const src = (id: string): string => readFileSync(join(HERE, id, 'index.ts'), 'utf8');
+		let checked = 0;
+		for (const c of CAPABILITIES) {
+			const code = src(c.id);
+			// The three that cannot do it all reject non-GET explicitly and hardcode the method,
+			// which is a far better tell than looking for the absence of something.
+			const refuses = /req\.method !== 'GET'/.test(code);
+			expect(
+				c.post,
+				`${c.id} declares post=${c.post} while translate ${refuses ? 'rejects' : 'forwards'} non-GET`,
+			).toBe(!refuses);
+			checked += 1;
+		}
+		expect(checked).toBeGreaterThan(0);
+	});
+
+	it('claims sessions only where translate() sends one', () => {
+		let checked = 0;
+		for (const c of CAPABILITIES) {
+			const code = readFileSync(join(HERE, c.id, 'index.ts'), 'utf8');
+			// It has to read `req.sessionId` to be able to forward it. Declaring the capability
+			// without touching the field promises a sticky IP and delivers a fresh one.
+			expect(code.includes('req.sessionId'), `${c.id} declares sessions=${c.sessions}`).toBe(
+				c.sessions,
+			);
+			checked += 1;
+		}
+		expect(checked).toBeGreaterThan(0);
 	});
 
 	it('never prices rendering below a plain request', () => {

@@ -11,12 +11,12 @@ Only what no command can answer: what is built is `pnpm repo:check`, what change
 
 **Public since 2026-08-10**, ruleset on `main` with no bypass actor. **It serves production
 traffic now**, and that traffic is where health calibration and the credit-rate question both
-get their evidence. First real failover 2026-08-20: four ScraperAPI timeouts, all four served
-by the next provider, no caller saw an error.
+get their evidence. First real failover 2026-08-20: four timeouts, all four served by the next
+provider, no caller saw an error.
 
-Cooldowns route it. **Health is off unless `PROXLANE_HEALTH=on`**: calibration assumes
-independent failures and real providers have bad hours. The detector has **never seen a real
-block page**; a test asserts the count.
+Cooldowns route it. **Health is off unless `PROXLANE_HEALTH=on`**: calibration assumes independent
+failures and real providers have bad hours. The detector has **never seen a real block page**; a
+test asserts the count.
 
 **The canary gate is 1 of 3.** §9 wants three consecutive *scheduled* greens; the first landed
 **2026-08-17** and cron is Mondays, so it clears **2026-08-31**. Count scheduled runs only.
@@ -24,26 +24,26 @@ block page**; a test asserts the count.
 ## Blocked on
 
 Owner decisions and external answers. None is unblocked by writing code.
-- **Countries: no flat set is right** — targeting is tier-gated (ScraperAPI `us`/`eu` on Hobby vs
-  79 on Business; ScrapingBee 42 classic vs 243 premium) and BYOK means the plan is the caller's,
-  so `all` over-claims and any finite set breaks someone. `zz` still buys a paid attempt at every
-  provider. Needs a tier-keyed set or a probe. Do bad codes error, or serve elsewhere? *platform's.*
+- **The capability model describes one field at a time** — and three real cases need more.
+  Countries are tier-gated (ScraperAPI `us`/`eu` on Hobby vs 79 on Business; ScrapingBee 42 classic
+  vs 243 premium) and BYOK means the plan is the caller's, so `all` over-claims and any finite set
+  breaks someone. ScraperAPI's `session_number` cannot combine with premium, yet both are declared
+  and `chain.ts` checks them separately. POST is wired on one adapter of four, so a POST cannot
+  fail over. Needs tier-keyed sets and a `supports(req)` predicate. Throwing in `translate()` pages
+  a human and is for OUR bugs, not a caller's. Also open: `zz` buys a paid attempt everywhere, and
+  nobody has verified whether a bad country code errors or silently serves elsewhere. *platform's.*
 - **Secret scanning depth** — core scanning and push protection are on. Non-provider patterns
   and validity checks need paid Secret Protection: buy it, or accept a bespoke key shape unscanned.
-- **Where `k6:soak` runs** — harness green, venue undecided. Gateway-internal time excludes
-  network but includes event-loop starvation, so a p95 on the shared box measures the neighbours.
-  Dedicated ephemeral box, or restate the threshold honestly. *Before it is a launch gate.*
+- **Where `k6:soak` runs** — harness green, venue undecided. Gateway-internal time includes
+  event-loop starvation, so a p95 on the shared box measures the neighbours. *Before it is a gate.*
 - **Hosted credit margin** — `plan.md` §7, and it changed shape: the dominant unbilled spend is
-  provider-billed non-`OK` outcomes, above all `TARGET_NOT_FOUND`, not failover. So it is *which
-  outcomes the caller pays for*, not only the rate. `X-Chain` logs `provider:outcome` per attempt,
-  so decide on weeks of real traffic. Blocks the ledger and Stripe. Phase 3; figures are private.
-- **A private fixture corpus** — `plan.md` §19 bars recording any named commercial target here,
-  and the private half holding block and captcha fixtures does not exist. Unowned build.
-- **Keyless paths and provider ToS** — `plan.md` §18. Needs provider permission in writing and
-  Swedish counsel. `npx proxlane try`, the blocked-domain checker, the playground and a **free
-  fallback** stay unbuilt; `_dev/jina-reader` stays out of `REGISTRY`. `/docs/adapters` ships
-  the custom-adapter story instead, which needs nobody's permission.
-- **Comparative content vs affiliate terms** — `affiliate-emails.md` Q3. Two launch
-  providers must confirm in writing. *External.*
+  provider-billed non-`OK` outcomes, above all `TARGET_NOT_FOUND`, not failover — so it is *which
+  outcomes the caller pays for*, not only the rate. Weeks of real traffic decide it. Phase 3.
+- **A private fixture corpus** — `plan.md` §19 bars recording named commercial targets here, and
+  the private half holding block and captcha fixtures does not exist. Unowned.
+- **Provider permission, in writing** — `plan.md` §18 gates the keyless paths (`npx proxlane try`,
+  the blocked-domain checker, the playground, a free fallback) on permission and Swedish counsel;
+  `_dev/jina-reader` stays out of `REGISTRY` meanwhile. `affiliate-emails.md` Q3 separately needs
+  two launch providers to confirm comparative content is allowed. *External.*
 - **Credits refundability** — `operations.md` §4. Confirm with the accountant before the
   ledger exists. *External.*
