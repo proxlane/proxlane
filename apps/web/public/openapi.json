@@ -141,6 +141,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -188,6 +191,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -247,6 +253,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -294,6 +303,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -343,6 +355,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -390,6 +405,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -439,6 +457,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -486,6 +507,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -535,6 +559,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -582,6 +609,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -740,6 +770,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -787,6 +820,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -846,6 +882,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -893,6 +932,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -942,6 +984,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -989,6 +1034,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -1038,6 +1086,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -1085,6 +1136,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -1134,6 +1188,9 @@
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
 							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
+							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
 							},
@@ -1181,6 +1238,9 @@
 							},
 							"X-Cost-Unit": {
 								"$ref": "#/components/headers/X-Cost-Unit"
+							},
+							"X-Cost-Source": {
+								"$ref": "#/components/headers/X-Cost-Source"
 							},
 							"X-Outcome-Class": {
 								"$ref": "#/components/headers/X-Outcome-Class"
@@ -1338,6 +1398,17 @@
 					"enum": [
 						"provider-credits",
 						"usd-cents"
+					]
+				}
+			},
+			"X-Cost-Source": {
+				"description": "Whose number X-Cost-Estimate is. `reported` means the providers told us what they charged and the adapter passed it through — three of the four do. `estimated` means they said nothing and we applied our own table, which is our model of their pricing rather than their answer, and is the one worth treating with suspicion. `mixed` when a chain used both, which a failover across providers routinely does. Absent when nothing was charged.",
+				"schema": {
+					"type": "string",
+					"enum": [
+						"reported",
+						"estimated",
+						"mixed"
 					]
 				}
 			},

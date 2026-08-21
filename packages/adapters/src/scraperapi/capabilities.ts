@@ -81,9 +81,11 @@ export const capabilities: ProviderCapabilities = {
 	// still charged, so 70s is the real boundary of an attempt and the docs beat the example.
 	maxTimeoutMs: 70_000,
 	fastTimeoutMs: 22_000,
-	// ScraperAPI does support POST. Declared false because translate() does not build one
-	// yet, and the honest direction is to under-route rather than to advertise a path that
-	// throws. Flip this in the same commit that implements it.
+	// Wired: translate() forwards the method and body, and a recorded `post` fixture shows the
+	// payload echoed back by the target. This comment previously said the opposite — it still
+	// read "declared false because translate() does not build one yet" after the flag was
+	// flipped, which is the same stale-claim failure the evidence discipline exists to stop, one
+	// commit after adding the feature.
 	post: true,
 	/**
 	 * Decodes bodies as text: the same JPEG came back as UTF-8 mojibake with

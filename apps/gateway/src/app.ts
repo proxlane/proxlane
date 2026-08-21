@@ -134,6 +134,14 @@ function keyMatches(presented: string, expected: string): boolean {
  */
 type Vars = { Variables: { requestId: string; startedAt: number } };
 
+/** `reported` if every charged attempt was the provider's own figure, `estimated` if none was. */
+function costSource(
+	charged: readonly { readonly costSource?: 'reported' | 'estimated' }[],
+): string {
+	const kinds = new Set(charged.map((a) => a.costSource ?? 'estimated'));
+	return kinds.size === 1 ? ([...kinds][0] as string) : 'mixed';
+}
+
 /**
  * Every error the gateway returns, with the two headers a caller branches on.
  *
@@ -238,6 +246,14 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
 		// currencies. Reporting the units instead of a number keeps the header parseable — a
 		// caller reading it as a float gets NaN rather than a plausible wrong figure.
 		'X-Cost-Estimate': mixed ? 'mixed' : (total / 1_000_000).toFixed(6),
+		// WHOSE NUMBER IT IS. `X-Cost-Estimate` reads like ours either way, and for most
+		// providers it is not: three of four report their real charge on the response and the
+		// adapter passes it through. A caller reconciling a bill needs to know which it got, and
+		// `estimated` is the one worth treating with suspicion — it is our model of their price,
+		// and our model has been wrong.
+		//
+		// `mixed` when a chain used both, which a failover across providers routinely does.
+		...(charged.length === 0 ? {} : { 'X-Cost-Source': costSource(charged) }),
 		...(unit === undefined ? {} : { 'X-Cost-Unit': unit }),
 		// Gateway time, provider time, and the total, split by subtraction. `operations.md`
 		// section 1 gates p95 on `gw;dur=` specifically, because end-to-end time measures the

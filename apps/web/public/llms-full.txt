@@ -376,6 +376,7 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Chain` | when a provider was tried | Every attempt as `provider:outcome`, in order |
 | `X-Cost-Estimate` | always | Cost across all attempts, in the unit below. `mixed` if the chain spent in two units |
 | `X-Cost-Unit` | when one unit | `provider-credits` or `usd-cents` |
+| `X-Cost-Source` | when anything was charged | `reported` if the providers gave us the figure, `estimated` if we worked it out, `mixed` |
 | `Server-Timing` | always | `gw` is Proxlane, `up` is the providers, `total` is both |
 | `X-Request-Id` | always | Quote this in a support thread |
 | `X-Provider-Used` | when one served | Omitted, never empty, if nothing served |
@@ -389,6 +390,12 @@ A request rejected before a provider was chosen — no `url`, a bad `premium`, a
 carries `X-Outcome-Class`, `X-Attempts: 0` and `X-Cost-Estimate: 0.000000`. It has no
 `X-Outcome`, because the taxonomy describes what happened to a scrape and that request never
 became one. This is the reason to branch on the class.
+
+**`X-Cost-Source` tells you whose number it is.** Three of the four providers report what they
+charged on the response itself, and the adapter passes that straight through. `estimated` means
+they said nothing and we applied our own table for that provider — a figure worth treating with
+more suspicion than a reported one, because it is our model of their pricing rather than their
+answer. `mixed` means a chain used both, which a failover across providers routinely does.
 
 **`X-Cost-Estimate` covers every attempt**, not just the one that worked. A failover that
 burned two charged hops reports both.
