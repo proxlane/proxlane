@@ -22,8 +22,8 @@ const costTable: CostTable = {
 	 * LinkedIn 30 — and adds 10 for bot-protected domains. Whether those replace this matrix or
 	 * stack on top of it is not published anywhere, and inventing the interaction would put a
 	 * confident wrong number where an absent one is honest. `sa-credit-cost` returns the real
-	 * figure per request and `parse()` reads it, so the ledger is exact regardless. Filed in
-	 * `state.md`. Source for the domain classes:
+	 * figure per request and `parse()` reads it, so the ledger is exact regardless. Recorded in
+	 * `integrations.md` section 4. Source for the domain classes:
 	 * https://docs.scraperapi.com/getting-started/quick-start/credits-and-requests-costs
 	 */
 	matrix: {

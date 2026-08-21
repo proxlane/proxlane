@@ -1500,7 +1500,22 @@ function matchesOwner(pattern: string, file: string): boolean {
 
 		// a. the generated providers table
 		if (readme.includes(PROVIDERS_BEGIN)) {
-			if (applyProviders(readme) !== readme) {
+			// CAUGHT, because the generator is allowed to refuse. It throws rather than writing a
+			// number it could not read — "0 regions" and "?×" both shipped that way — and an
+			// uncaught throw here killed the whole run with a stack trace, taking every other
+			// assertion's result with it. One unreadable capability file must cost one named
+			// failure, not the report.
+			let regenerated: string;
+			try {
+				regenerated = applyProviders(readme);
+			} catch (e) {
+				fail(
+					'29',
+					`the providers table cannot be generated: ${e instanceof Error ? e.message : String(e)}`,
+				);
+				regenerated = readme;
+			}
+			if (regenerated !== readme) {
 				fail(
 					'29',
 					'the README providers table is stale — run `node scripts/readme-providers.ts`. ' +
@@ -2164,6 +2179,131 @@ function matchesOwner(pattern: string, file: string): boolean {
 			fail('36', `${SRC} no longer surfaces the policy fields — this check stopped checking`);
 		}
 		ok('36', banned.length + 1, 'the detector page reads its policy rather than quoting it');
+	}
+}
+
+// ------------------ 37: every price has a source, and somebody read it this year
+//
+// THE HOLE THIS FILLS, and it is worth being exact about what it cannot do. On 2026-08-21 all
+// four cost tables were checked against the vendors' own pages and three were wrong — Scrapfly by
+// 4.17x, because `CostTable` modelled cost as a product and Scrapfly is additive. Not one test
+// could have caught it. Fixtures record what a provider RETURNS; conformance replays fixtures;
+// nothing anywhere had ever compared our numbers to the vendor's published numbers.
+//
+// NOTHING HERE VERIFIES A PRICE EITHER, and it must not try. Fetching four pricing pages in CI
+// would fail on a clean clone offline and make the build depend on a vendor's marketing site
+// staying up — `scraperapi.com` returned 403 to a plain curl twice during that research. It is
+// the same reason `k6` has no toolchain row and assertion 29 bans hostnames statically rather
+// than resolving DNS.
+//
+// So this checks the things that make a wrong price FINDABLE and SHORT-LIVED: every number says
+// where it came from, every table says when a human last read that page, and the age is printed
+// on every run so it is visible long before it fails. That is the same discipline the pinned
+// toolchain table already runs on — "Verified 2026-08-06. Do not invent versions" — applied to
+// the one table nobody was checking.
+{
+	const ADAPTER_SRC = 'packages/adapters/src';
+	const STALE_DAYS = 365;
+	const NAG_DAYS = 180;
+	let checked37 = 0;
+	let oldest = { id: '', days: -1 };
+	const seenUrls = new Map<string, string>();
+
+	const ids = existsSync(join(ROOT, ADAPTER_SRC))
+		? readdirSync(join(ROOT, ADAPTER_SRC), { withFileTypes: true })
+				.filter((e) => e.isDirectory() && !e.name.startsWith('_'))
+				.map((e) => e.name)
+				.filter((n) => has(`${ADAPTER_SRC}/${n}/capabilities.ts`))
+		: [];
+
+	if (ids.length === 0) {
+		fail(
+			'37',
+			`found no adapter capabilities under ${ADAPTER_SRC} — this check stopped checking`,
+		);
+	}
+
+	for (const id of ids) {
+		const path = `${ADAPTER_SRC}/${id}/capabilities.ts`;
+		const src = read(path);
+
+		// --- provenance
+		const url = /sourceUrl: '([^']*)'/.exec(src)?.[1];
+		if (url === undefined || !url.startsWith('https://') || /TODO/i.test(url)) {
+			fail('37', `${path}: sourceUrl is missing, not https, or still the scaffold's TODO.`);
+		} else {
+			// Copy-paste is how a table gets attributed to a page that never held it. Two
+			// providers cannot have read their prices off one URL.
+			const other = seenUrls.get(url);
+			if (other !== undefined) {
+				fail('37', `${path}: sourceUrl is the same page as ${other}. One of them is wrong.`);
+			}
+			seenUrls.set(url, id);
+		}
+
+		// --- freshness
+		const date = /effectiveDate: '(\d{4}-\d{2}-\d{2})'/.exec(src)?.[1];
+		if (date === undefined) {
+			fail('37', `${path}: no effectiveDate. A price with no read-date cannot be trusted.`);
+		} else {
+			const days = Math.floor((Date.now() - Date.parse(`${date}T00:00:00Z`)) / 86_400_000);
+			if (Number.isNaN(days)) {
+				fail('37', `${path}: effectiveDate ${date} is not a date.`);
+			} else if (days < 0) {
+				// A future date reads as fresher than anything and is always a typo.
+				fail('37', `${path}: effectiveDate ${date} is in the future.`);
+			} else if (days > STALE_DAYS) {
+				fail(
+					'37',
+					`${path}: nobody has read ${url ?? 'the source'} in ${days} days. Re-read it, ` +
+						'correct the matrix if it moved, and set effectiveDate to today.',
+				);
+			}
+			if (days > oldest.days) oldest = { id, days };
+		}
+
+		// --- the scaffold's placeholder cannot ship
+		const cells = [...src.matchAll(/(?:plain|rendered): (\d[\d_]*|null)/g)].map(
+			(m) => m[1] as string,
+		);
+		if (cells.length === 0) {
+			fail(
+				'37',
+				`${path}: no cost matrix cells found — this check stopped checking for ${id}.`,
+			);
+		} else if (cells.every((c) => c === '0' || c === 'null')) {
+			// `new-adapter` writes six zeroes and a TODO. Shipping them advertises a free provider.
+			fail(
+				'37',
+				`${path}: every matrix cell is still 0 or null. Read the provider's price page and ` +
+					'fill it in; the scaffold does not know what anything costs.',
+			);
+		}
+
+		// --- a country list `Set` would silently dedupe
+		const countries = /countryCodes: new Set\(\[([\s\S]*?)\]\)/.exec(src)?.[1];
+		if (countries !== undefined) {
+			const codes = [...countries.matchAll(/'([a-z]{2})'/g)].map((m) => m[1] as string);
+			const dupes = codes.filter((c, i) => codes.indexOf(c) !== i);
+			if (dupes.length > 0) {
+				// `new Set` swallows these at construction, so the runtime value is simply one
+				// short and no test can see it. Only the source can.
+				fail(
+					'37',
+					`${path}: country list repeats ${[...new Set(dupes)].join(', ')}. new Set() hides ` +
+						'this at runtime, so the list is quietly shorter than it looks.',
+				);
+			}
+		}
+
+		checked37 += 1;
+	}
+
+	if (checked37 > 0) {
+		// Printed every run, so the number creeps into view long before it fails the build.
+		const nag =
+			oldest.days > NAG_DAYS ? ` — oldest ${oldest.id} at ${oldest.days}d, re-read it` : '';
+		ok('37', checked37, `cost tables carry a source and a read-date${nag}`);
 	}
 }
 
