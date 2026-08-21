@@ -1,5 +1,24 @@
 # @proxlane/gateway
 
+## 0.8.0
+
+### Minor Changes
+
+- [#142](https://github.com/proxlane/proxlane/pull/142) [`d8f0661`](https://github.com/proxlane/proxlane/commit/d8f06614cc3c2279b06b222a85dc1f3524bfb048) Thanks [@scarsam](https://github.com/scarsam)! - The global deadline defaults to 120s, which `operations.md` decided some time ago and the
+  gateway never picked up. At 90s a three-hop chain gave the terminal provider 38s of its 70s cap,
+  because the budget reserves time for every hop still to come. The hop that exists to rescue a
+  failing request was the one being cut short.
+
+  Callers still ask for less via `timeout` and never for more. The operator's deadline is the
+  ceiling, because it bounds how long one request holds an in-flight slot.
+
+### Patch Changes
+
+- Updated dependencies [[`fd84d98`](https://github.com/proxlane/proxlane/commit/fd84d98b7830db868079f68309c5b533cbb6474b), [`935ab4e`](https://github.com/proxlane/proxlane/commit/935ab4e0f67e7c9ada38c541c4db4203fe6ebe1a), [`dc62320`](https://github.com/proxlane/proxlane/commit/dc623207db4dec332def4a37ef9e1097a80db9ec), [`2a9142d`](https://github.com/proxlane/proxlane/commit/2a9142d9fb41baca8914fc6146966ea16d32584e), [`30c894a`](https://github.com/proxlane/proxlane/commit/30c894aa8d4c86b10b6f7e7f6ec78b01dd85a7ac), [`ea6e393`](https://github.com/proxlane/proxlane/commit/ea6e39310d697ff52697f760fd27a4dd1428965b), [`b322019`](https://github.com/proxlane/proxlane/commit/b3220195158a2162cfce7c518a12a5600ac03b2b), [`a342613`](https://github.com/proxlane/proxlane/commit/a3426138432009ead7c2fe507d0ff3f94d011a19), [`2690ec7`](https://github.com/proxlane/proxlane/commit/2690ec70f27cde5529160829950ab5d3e7afda88), [`d8f0661`](https://github.com/proxlane/proxlane/commit/d8f06614cc3c2279b06b222a85dc1f3524bfb048), [`9127601`](https://github.com/proxlane/proxlane/commit/91276017d7146a72a6467236eb216108fdf9cdbb), [`d9525c0`](https://github.com/proxlane/proxlane/commit/d9525c0e3619f4619bd081d82362e6ae2f21d20a), [`40897dc`](https://github.com/proxlane/proxlane/commit/40897dc56281f657e49fb4a471d05795ded3beba), [`6b89f31`](https://github.com/proxlane/proxlane/commit/6b89f312b442b53d231141356124217438f14e53)]:
+  - @proxlane/detect@0.2.0
+  - @proxlane/adapters@0.6.0
+  - @proxlane/shared@0.7.0
+
 ## 0.7.1
 
 ### Patch Changes

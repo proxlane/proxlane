@@ -1,5 +1,22 @@
 # proxlane
 
+## 0.4.0
+
+### Minor Changes
+
+- [#152](https://github.com/proxlane/proxlane/pull/152) [`dc62320`](https://github.com/proxlane/proxlane/commit/dc623207db4dec332def4a37ef9e1097a80db9ec) Thanks [@scarsam](https://github.com/scarsam)! - `CostTable` stops being `base × multipliers` and becomes a matrix: one cost per proxy tier and
+  render state, exhaustive, `null` where the provider does not sell that combination. No provider
+  prices multiplicatively, so every adapter had been writing the closest product it could and
+  leaving a note about it. Scrapfly is additive and was estimated 4.17× too high on residential
+  plus rendering; ScrapingBee's premium tier is 25 credits with rendering, not 10. `proxlane
+providers --json` now emits the matrix and, for the first time, the cost `unit` alongside it.
+
+### Patch Changes
+
+- Updated dependencies [[`dc62320`](https://github.com/proxlane/proxlane/commit/dc623207db4dec332def4a37ef9e1097a80db9ec), [`2a9142d`](https://github.com/proxlane/proxlane/commit/2a9142d9fb41baca8914fc6146966ea16d32584e), [`ea6e393`](https://github.com/proxlane/proxlane/commit/ea6e39310d697ff52697f760fd27a4dd1428965b), [`d8f0661`](https://github.com/proxlane/proxlane/commit/d8f06614cc3c2279b06b222a85dc1f3524bfb048), [`40897dc`](https://github.com/proxlane/proxlane/commit/40897dc56281f657e49fb4a471d05795ded3beba), [`6b89f31`](https://github.com/proxlane/proxlane/commit/6b89f312b442b53d231141356124217438f14e53)]:
+  - @proxlane/adapters@0.6.0
+  - @proxlane/shared@0.7.0
+
 ## 0.3.3
 
 ### Patch Changes
