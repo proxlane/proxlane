@@ -14,7 +14,15 @@
 //      Sanitization happens before anything is written, and is asserted afterwards — CI
 //      cannot tell a recording from a fabrication, but it can tell whether a key leaked.
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Adapter, GatewayRequest } from '@proxlane/adapters';
@@ -472,6 +480,148 @@ export function sanitizeHeaders(
 	return out;
 }
 
+/**
+ * The SHAPE of a response, with every value thrown away.
+ *
+ * BYTE COMPARISON DOES NOT WORK HERE, and finding out cost one real recording. A fresh Scrapfly
+ * capture of the same URL differed from the committed one in 15 of 141 body fields — and every
+ * one was volatile by design: the request uuid, two timestamps, the duration, and a rotated
+ * browser and proxy fingerprint (`context.os`, `context.lang`, `context.proxy.country`, the
+ * matching `user-agent` and `accept-language`). That rotation is the product working. A detector
+ * that called it drift would fail every week, and a weekly false alarm is how a real one stops
+ * being read — the same reasoning the canary's dormancy gates are built on.
+ *
+ * So compare what an ADAPTER actually depends on: which fields exist and what type they hold.
+ * `result.content` disappearing, `context.proxy` losing a member, a string becoming an object —
+ * those break `parse()`. A rotated user-agent does not.
+ *
+ * Header NAMES for the same reason: `x-scrapfly-remaining-api-credit` counts down on every call
+ * and `x-scrapfly-response-time` is a duration, so their values are noise while their absence
+ * would be news.
+ */
+function shapeOf(fixture: Record<string, unknown>): string[] {
+	const r = (fixture.response ?? {}) as Record<string, unknown>;
+	const out: string[] = [`status:${String(r.status)}`];
+
+	const headers = (r.headers ?? {}) as Record<string, unknown>;
+	for (const h of Object.keys(headers).sort()) out.push(`header:${h}`);
+
+	// A non-JSON body is a page from a live target, and its content changes because the web
+	// changes. Nothing about it is a claim regarding the provider, so only the envelope is.
+	const b64 = typeof r.bodyBase64 === 'string' ? r.bodyBase64 : '';
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+	} catch {
+		out.push('body:opaque');
+		return out;
+	}
+
+	const walk = (v: unknown, path: string): void => {
+		if (Array.isArray(v)) {
+			// Collapsed by index. A list that grew by an element is not a shape change; a list
+			// whose elements changed type is.
+			out.push(`${path}:array`);
+			for (const el of v.slice(0, 1)) walk(el, `${path}[]`);
+		} else if (v !== null && typeof v === 'object') {
+			out.push(`${path}:object`);
+			for (const k of Object.keys(v as object).sort()) {
+				walk((v as Record<string, unknown>)[k], `${path}.${k}`);
+			}
+		} else {
+			out.push(`${path}:${v === null ? 'null' : typeof v}`);
+		}
+	};
+	walk(parsed, 'body');
+	return out;
+}
+
+export const RENEW_AFTER_DAYS = 30;
+
+/**
+ * Compare a fresh recording against the committed one, and renew what has not changed.
+ *
+ * `recordedAt` is the whole point of the exercise: a fixture whose shape re-records unchanged is
+ * not stale, it is CONFIRMED. Stamping its date forward turns a freshness rule from a quarterly
+ * re-record treadmill into something that only fires where re-recording is failing or has never
+ * run — which is exactly the population worth looking at. Gated on the old date being 30 days
+ * old, or a weekly job produces a weekly pull request of nothing but timestamps, which is how a
+ * reviewer learns to approve this job's diffs without reading them.
+ */
+export function reportDiff(adapterId: string, committedDir: string, freshDir: string): number {
+	if (!existsSync(committedDir)) {
+		process.stdout.write(`\n  ${adapterId}: no committed fixtures to diff against\n\n`);
+		return 0;
+	}
+
+	const changed: string[] = [];
+	let confirmed = 0;
+	let renewed = 0;
+
+	for (const name of readdirSync(freshDir).filter((f) => f.endsWith('.json'))) {
+		const committedPath = join(committedDir, name);
+		if (!existsSync(committedPath)) {
+			changed.push(`${name}: recorded now, absent from the corpus`);
+			continue;
+		}
+		const before = JSON.parse(readFileSync(committedPath, 'utf8')) as Record<string, unknown>;
+		const after = JSON.parse(readFileSync(join(freshDir, name), 'utf8')) as Record<
+			string,
+			unknown
+		>;
+
+		// The outcome the contract suite asserts. A response that still has the same shape but
+		// now parses to a different outcome is the most consequential drift there is.
+		if (before.expect !== after.expect) {
+			changed.push(`${name}: expected ${String(before.expect)}, now ${String(after.expect)}`);
+			continue;
+		}
+
+		const was = new Set(shapeOf(before));
+		const now = new Set(shapeOf(after));
+		const gone = [...was].filter((x) => !now.has(x));
+		const added = [...now].filter((x) => !was.has(x));
+		if (gone.length > 0 || added.length > 0) {
+			const detail = [
+				...gone.slice(0, 3).map((g) => `-${g}`),
+				...added.slice(0, 3).map((a) => `+${a}`),
+			].join(' ');
+			changed.push(`${name}: ${gone.length} gone, ${added.length} new  ${detail}`);
+			continue;
+		}
+
+		const at =
+			typeof before.recordedAt === 'string' ? Date.parse(before.recordedAt) : Number.NaN;
+		const fresh = after.recordedAt;
+		const ageDays = (Date.parse(String(fresh)) - at) / 86_400_000;
+		if (!Number.isFinite(ageDays) || ageDays >= RENEW_AFTER_DAYS) {
+			// A date stamp, never a content update. Copying the fresh FILE would overwrite the
+			// corpus with a differently-fingerprinted recording for no reason.
+			before.recordedAt = fresh;
+			writeFileSync(committedPath, `${JSON.stringify(before, null, '\t')}\n`);
+			renewed += 1;
+		} else {
+			confirmed += 1;
+		}
+	}
+
+	if (changed.length === 0) {
+		process.stdout.write(
+			`\n  ${adapterId}: ${confirmed + renewed} fixture(s) unchanged in shape` +
+				`${renewed > 0 ? `, ${renewed} date(s) renewed` : ''}\n\n`,
+		);
+		return 0;
+	}
+	process.stderr.write(
+		`\n  ${adapterId}: ${changed.length} fixture(s) changed shape\n\n` +
+			changed.map((c) => `    ${c}\n`).join('') +
+			`\n  ${confirmed + renewed} unchanged. Re-record with \`pnpm record --adapter=${adapterId}\`\n` +
+			'  and read the diff: a provider changing its response shape is what this job exists\n' +
+			'  to catch, and it is what breaks parse().\n\n',
+	);
+	return 1;
+}
+
 // ---------------------------------------------------------------- cli
 //
 // Guarded so a test can import sanitize()/TARGETS without the script executing, exiting
@@ -481,6 +631,13 @@ if (import.meta.filename === process.argv[1]) {
 	const args = process.argv.slice(2);
 	const adapterId = args.find((a) => a.startsWith('--adapter='))?.split('=')[1];
 	const dryRun = args.includes('--dry-run');
+	// RE-RECORD AND COMPARE, rather than overwrite. The weekly `record-diff` job has been running
+	// `pnpm record --diff` since the scheduled workflow was written, and this flag did not exist
+	// anywhere else in the repository — so the command exited 2 on the missing `--adapter`, the
+	// `|| echo` swallowed it, and a drift detector reported success every Wednesday without ever
+	// comparing anything. That is the exit-0 stub this whole repo is built against, wearing a
+	// cron schedule.
+	const diff = args.includes('--diff');
 	const only = args.find((a) => a.startsWith('--only='))?.split('=')[1];
 	// Without this there is no way to produce a deadline fixture at all: every launch
 	// provider's maxTimeoutMs exceeds any delay a public test target will hold open, so the
@@ -495,9 +652,10 @@ if (import.meta.filename === process.argv[1]) {
 	if (!adapterId) {
 		process.stderr.write(
 			[
-				'usage: pnpm record --adapter=<id> [--dry-run] [--only=<category>]',
+				'usage: pnpm record --adapter=<id> [--dry-run] [--only=<category>] [--diff]',
 				'',
 				'  --dry-run    print the plan and the credit cost. Spends nothing.',
+				'  --diff       re-record and compare SHAPE. Exits 1 on drift; renews a stale date.',
 				'  --only=<c>   record one category, for re-recording after drift.',
 				'  --timeout-ms=<n>  override the per-attempt budget, to force a deadline fixture.',
 				'',
@@ -619,7 +777,11 @@ if (import.meta.filename === process.argv[1]) {
 	const adapterDir = dev
 		? join('packages/adapters/src/_dev', adapterId)
 		: join('packages/adapters/src', adapterId);
-	const outDir = join(ROOT, adapterDir, 'fixtures');
+	const committedDir = join(ROOT, adapterDir, 'fixtures');
+	// A diff run must not touch the committed corpus until it has decided nothing changed.
+	const outDir = diff
+		? mkdtempSync(join(tmpdir(), `proxlane-diff-${adapterId}-`))
+		: committedDir;
 	mkdirSync(outDir, { recursive: true });
 
 	let failed = 0;
@@ -797,6 +959,10 @@ if (import.meta.filename === process.argv[1]) {
 		} finally {
 			clearTimeout(timer);
 		}
+	}
+
+	if (diff) {
+		process.exit(reportDiff(adapterId, committedDir, outDir));
 	}
 
 	process.stdout.write(
