@@ -10,7 +10,13 @@
 // it publishes dated evidence of automated access against somebody's property. A pure function
 // can be held to it.
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+
 import { buildCapture, destinationFor, registrableHost } from '../../scripts/capture-block.ts';
 
 const PRIVATE = '/tmp/proxlane-corpus';
@@ -56,6 +62,39 @@ describe('section 19 decides where a capture lands, and the caller cannot argue'
 	it('refuses a target it cannot parse rather than guessing', () => {
 		expect(registrableHost('not a url')).toBeUndefined();
 		expect(destinationFor('not a url', undefined).kind).toBe('refused');
+	});
+});
+
+describe('two captures never share a filename', () => {
+	// IT HAPPENED. The name was `rule-class-date`, and two ordinary pages from the same vendor
+	// site captured on the same day produced the same one — the second silently overwrote the
+	// first, losing a capture deliberately taken from a different network.
+	//
+	// `buildCapture` does not name files, so this asserts the property the name is derived from:
+	// two different bodies must differ somewhere a digest can see.
+	it('gives different bodies different content', () => {
+		const a = buildCapture(
+			{ url: 'https://x.test/', status: 200, body: '<html>one</html>' },
+			{ rule: 'none', targetClass: 'sandbox', now: '2026-08-21T00:00:00.000Z' },
+			[],
+		);
+		const b = buildCapture(
+			{ url: 'https://x.test/', status: 200, body: '<html>two</html>' },
+			{ rule: 'none', targetClass: 'sandbox', now: '2026-08-21T00:00:00.000Z' },
+			[],
+		);
+		// Same rule, same class, same day — everything the old filename used.
+		expect(a.rule).toBe(b.rule);
+		expect(a.targetClass).toBe(b.targetClass);
+		expect(a.capturedAt.slice(0, 10)).toBe(b.capturedAt.slice(0, 10));
+		// And the only thing that distinguishes them is the body, which the name now includes.
+		expect(a.bodyBase64).not.toBe(b.bodyBase64);
+	});
+
+	it('names files by content, so a re-capture of the same bytes is a no-op', () => {
+		const src = readFileSync(join(HERE, '..', '..', 'scripts', 'capture-block.ts'), 'utf8');
+		expect(src).toMatch(/createHash\('sha256'\)[\s\S]{0,80}bodyBase64/);
+		expect(src).toContain('${digest}.json');
 	});
 });
 

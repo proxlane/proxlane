@@ -98,30 +98,34 @@ export const RULES: readonly DetectRule[] = [
 	},
 	{
 		id: 'imperva-incapsula',
-		source: 'Imperva injects /_Incapsula_Resource on its block page',
+		source: 'Imperva block pages FRAME /_Incapsula_Resource; ordinary pages script it',
 		/**
-		 * KNOWN OVER-BROAD, and measured rather than suspected.
+		 * NARROWED, because the old signature fired on ordinary pages.
 		 *
-		 * Imperva's own site serves `<script src="/_Incapsula_Resource?SWJIYLWA=…">` on an
-		 * ordinary 200 marketing page. The token is not exclusive to a block page: it is how an
-		 * Incapsula-protected site loads Imperva's client script at all, so any such site whose
-		 * page carries that tag is one this rule calls a block.
+		 * It matched `_Incapsula_Resource` alone. That is not a block marker — it is how any
+		 * Incapsula-protected site loads Imperva's client script, so every page on such a site
+		 * was one this rule called blocked. Measured on Imperva's own 200 marketing page, twice:
+		 * fetched directly, and again through a provider from a different network.
 		 *
-		 * The cost of that is not theoretical. A false positive here becomes SOFT_BLOCK, which
-		 * fails over, spends a second provider's credits, and hands the caller 502 for a page
-		 * that was fine.
+		 * It had never fired in practice for a reason that was luck: on the page measured the tag
+		 * sat at byte 263,564 and `SCAN_BYTES` stops at 262,144. A shorter page fires.
 		 *
-		 * It has not fired in practice for a reason that is luck rather than design: on the page
-		 * measured, the tag sits at byte 263,564 and `SCAN_BYTES` stops at 262,144, so it is
-		 * 1,420 bytes past the window. The same page, shorter, fires. A no-fire capture of it is
-		 * in the private corpus.
+		 * THE DIFFERENCE IS STRUCTURAL, not a parameter. A block page FRAMES the resource —
+		 * `<iframe src="/_Incapsula_Resource?…">` — while an ordinary page SCRIPTS it. That holds
+		 * whatever the query string says, which matters because Imperva rotates the parameter
+		 * name: the block pages documented publicly use `CWUDNSAI`, this repo's own rule sample
+		 * used `SWUDNSAI`, and the live marketing page uses `SWJIYLWA`. Keying on any one of them
+		 * would be a rule with a shelf life.
 		 *
-		 * NOT NARROWED HERE, deliberately. A tighter signature needs a real Imperva BLOCK page to
-		 * check it against, and nobody has one — guessing at the query parameter that distinguishes
-		 * the two would be exactly the folklore `source` exists to keep out. `unverifiedRules()`
-		 * still lists this rule, which is the honest state.
+		 * `Incapsula incident ID` is deliberately NOT an alternative on its own. It is prose, and
+		 * an article explaining the error carries it — the generic-match trap the no-fire corpus
+		 * exists to catch.
+		 *
+		 * STILL UNVERIFIED, and the table says so. Both real captures are negative: they prove the
+		 * false positive is closed, not that the rule fires on a block. Imperva did not block
+		 * either request, so nobody has a positive capture yet.
 		 */
-		test: (h) => h.includes('_Incapsula_Resource'),
+		test: (h) => /<iframe[^>]*_Incapsula_Resource/i.test(h),
 	},
 	{
 		id: 'akamai-bot-manager',
