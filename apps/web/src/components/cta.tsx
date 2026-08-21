@@ -22,7 +22,10 @@ import type { ReactNode } from 'react';
 export type CtaTone = 'primary' | 'quiet';
 
 const BASE =
-	'group relative inline-flex items-center justify-center gap-2 rounded-full border px-5 font-medium transition-[color,border-color,box-shadow,transform] duration-200 ease-(--ease-lane) hover:-translate-y-px motion-reduce:transform-none motion-reduce:transition-none';
+	// `shrink-0 whitespace-nowrap`: in a flex row that runs short the CTA was the thing that gave,
+	// and "Get started" broke across two lines inside a pill. A button that reflows is not a button
+	// that fits. The row now only appears at `md` where it does fit; this is the belt to that brace.
+	'group relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-5 font-medium transition-[color,border-color,box-shadow,transform] duration-200 ease-(--ease-lane) hover:-translate-y-px motion-reduce:transform-none motion-reduce:transition-none';
 
 const TONE: Record<CtaTone, string> = {
 	primary: [
