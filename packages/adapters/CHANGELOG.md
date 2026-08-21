@@ -1,5 +1,49 @@
 # @proxlane/adapters
 
+## 0.7.0
+
+### Minor Changes
+
+- [#175](https://github.com/proxlane/proxlane/pull/175) [`7d5c835`](https://github.com/proxlane/proxlane/commit/7d5c83592cfcc40281fdb9d465f020f922083282) Thanks [@scarsam](https://github.com/scarsam)! - Bright Data now returns the target's body for every outcome the taxonomy says carries one. A
+  target 404 came back empty from Bright Data and full from the other three, so what a caller
+  received depended on which provider won the chain. An error code arriving without a message
+  header also fell through to OK — `reject_block` with no message was returned as a successful
+  scrape of a challenge page.
+
+  The conformance check that exists to catch exactly this only enforced the `OK` case.
+
+- [#170](https://github.com/proxlane/proxlane/pull/170) [`84e83ce`](https://github.com/proxlane/proxlane/commit/84e83cecd0218db1ffce4c75c7e22d7a6f8e3df4) Thanks [@scarsam](https://github.com/scarsam)! - Capabilities can now describe a combination a provider refuses even though it offers each part
+  alone. ScraperAPI's sessions and premium proxies are mutually exclusive by their own
+  documentation, and the router used to send requests asking for both. Declared as data rather than
+  a predicate, so `proxlane providers` prints it.
+
+- [#168](https://github.com/proxlane/proxlane/pull/168) [`1248872`](https://github.com/proxlane/proxlane/commit/12488726f08b9e2dc0c047a56d56a4d926ac9625) Thanks [@scarsam](https://github.com/scarsam)! - ScraperAPI, ScrapingBee and Scrapfly now forward a POST body to the target. All four providers
+  document POST support and only one adapter implemented it, so a POST request reached exactly one
+  provider and could not fail over at all. Recorded `post` fixtures for all three, echoed back by
+  the target to prove the body arrived.
+
+- [#181](https://github.com/proxlane/proxlane/pull/181) [`bb6348d`](https://github.com/proxlane/proxlane/commit/bb6348d23895edbf5efd2a21419d852980679205) Thanks [@scarsam](https://github.com/scarsam)! - A provider's own `Retry-After` now reaches the caller. `ParsedResult.retryAfterMs` had been in the
+  contract since it landed and the chain already armed cooldowns from it, but no adapter ever set
+  it — so a provider that capped us and said exactly how long to wait had that answer discarded, the
+  cooldown drew a 30s jittered guess, and the caller got a bare 429.
+
+  Two chain fixes: an answered request whose next candidate lost its probe claim kept only the
+  outcome name, dropping the provider, the body and the detect rule. And a throwing health store
+  could make the chain re-attempt — and re-pay for — a provider it had already tried.
+
+### Patch Changes
+
+- [#179](https://github.com/proxlane/proxlane/pull/179) [`8c05ff9`](https://github.com/proxlane/proxlane/commit/8c05ff918d74b70b6bff758469daaad906a08b80) Thanks [@scarsam](https://github.com/scarsam)! - Scrapfly's stealth tier is priced at the residential figures, which is what it costs: `translate()`
+  sends the residential proxy pool for every tier above `none`, so a stealth request is a residential
+  request. It was published at the datacenter base — 1x against a real 25x on the comparison page.
+
+  The router now reads the cost matrix as a capability claim. A null cell means the provider does not
+  sell that combination, and ScrapingBee's stealth-without-rendering is one — it was being routed
+  there and paid for.
+
+- Updated dependencies [[`292e67b`](https://github.com/proxlane/proxlane/commit/292e67b7fc1ec912a64910b88ae503e9b3180774), [`df7a4c0`](https://github.com/proxlane/proxlane/commit/df7a4c0ba816b444c970433ab0625147714ae81b)]:
+  - @proxlane/shared@0.7.1
+
 ## 0.6.0
 
 ### Minor Changes
