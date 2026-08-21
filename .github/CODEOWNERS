@@ -12,6 +12,7 @@ apps/web/**                        @scarsam   # design-engineer
 apps/web/content/**                @scarsam   # seo-content
 apps/web/content/docs/**           @scarsam   # docs-writer
 apps/web/src/generators/**         @scarsam   # growth-engineer
+apps/web/src/routes/outcomes/**    @scarsam   # growth-engineer
 apps/web/src/routes/docs/**        @scarsam   # docs-writer
 apps/web/src/routes/symptoms/**    @scarsam   # seo-content
 apps/worker/**                     @scarsam   # data-engineer

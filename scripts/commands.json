@@ -220,10 +220,8 @@
 		"brief": ".claude/agents/growth-engineer.md",
 		"spec": "docs/plan.md#6",
 		"subject": "scripts/pages-check.ts",
-		"blockedBy": ["apps/web/src/generators"],
-		"status": "not-implemented",
-		"gate": "No generators exist.",
-		"ci": "none"
+		"status": "implemented",
+		"ci": "pr"
 	},
 	"content:lint": {
 		"id": "content:lint",

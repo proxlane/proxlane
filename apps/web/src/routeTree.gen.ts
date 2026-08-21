@@ -21,6 +21,7 @@ import { Route as DocsHostingRouteImport } from './routes/docs/hosting'
 import { Route as DocsOutcomesRouteImport } from './routes/docs/outcomes'
 import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
 import { Route as DocsUseCasesRouteImport } from './routes/docs/use-cases'
+import { Route as OutcomesSlugRouteImport } from './routes/outcomes/$slug'
 import { Route as Symptoms200CaptchaBodyRouteImport } from './routes/symptoms/200-captcha-body'
 import { Route as Symptoms403WhileScrapingRouteImport } from './routes/symptoms/403-while-scraping'
 import { Route as SymptomsCloudflareChallengePlaywrightRouteImport } from './routes/symptoms/cloudflare-challenge-playwright'
@@ -86,6 +87,11 @@ const DocsUseCasesRoute = DocsUseCasesRouteImport.update({
   path: '/docs/use-cases',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OutcomesSlugRoute = OutcomesSlugRouteImport.update({
+  id: '/outcomes/$slug',
+  path: '/outcomes/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Symptoms200CaptchaBodyRoute = Symptoms200CaptchaBodyRouteImport.update({
   id: '/symptoms/200-captcha-body',
   path: '/symptoms/200-captcha-body',
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
+  '/outcomes/$slug': typeof OutcomesSlugRoute
   '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
   '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
   '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
+  '/outcomes/$slug': typeof OutcomesSlugRoute
   '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
   '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
   '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
@@ -159,6 +167,7 @@ export interface FileRoutesById {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
+  '/outcomes/$slug': typeof OutcomesSlugRoute
   '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
   '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
   '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/quickstart'
     | '/docs/use-cases'
+    | '/outcomes/$slug'
     | '/symptoms/200-captcha-body'
     | '/symptoms/403-while-scraping'
     | '/symptoms/cloudflare-challenge-playwright'
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/quickstart'
     | '/docs/use-cases'
+    | '/outcomes/$slug'
     | '/symptoms/200-captcha-body'
     | '/symptoms/403-while-scraping'
     | '/symptoms/cloudflare-challenge-playwright'
@@ -215,6 +226,7 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/quickstart'
     | '/docs/use-cases'
+    | '/outcomes/$slug'
     | '/symptoms/200-captcha-body'
     | '/symptoms/403-while-scraping'
     | '/symptoms/cloudflare-challenge-playwright'
@@ -234,6 +246,7 @@ export interface RootRouteChildren {
   DocsOutcomesRoute: typeof DocsOutcomesRoute
   DocsQuickstartRoute: typeof DocsQuickstartRoute
   DocsUseCasesRoute: typeof DocsUseCasesRoute
+  OutcomesSlugRoute: typeof OutcomesSlugRoute
   Symptoms200CaptchaBodyRoute: typeof Symptoms200CaptchaBodyRoute
   Symptoms403WhileScrapingRoute: typeof Symptoms403WhileScrapingRoute
   SymptomsCloudflareChallengePlaywrightRoute: typeof SymptomsCloudflareChallengePlaywrightRoute
@@ -327,6 +340,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsUseCasesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/outcomes/$slug': {
+      id: '/outcomes/$slug'
+      path: '/outcomes/$slug'
+      fullPath: '/outcomes/$slug'
+      preLoaderRoute: typeof OutcomesSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/symptoms/200-captcha-body': {
       id: '/symptoms/200-captcha-body'
       path: '/symptoms/200-captcha-body'
@@ -370,6 +390,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsOutcomesRoute: DocsOutcomesRoute,
   DocsQuickstartRoute: DocsQuickstartRoute,
   DocsUseCasesRoute: DocsUseCasesRoute,
+  OutcomesSlugRoute: OutcomesSlugRoute,
   Symptoms200CaptchaBodyRoute: Symptoms200CaptchaBodyRoute,
   Symptoms403WhileScrapingRoute: Symptoms403WhileScrapingRoute,
   SymptomsCloudflareChallengePlaywrightRoute:
