@@ -11,10 +11,18 @@ on:
     # A narrowing, not a description: anything the site's build reads has to be listed, or a
     # change lands on main and the deployed site quietly stays stale. That failure has already
     # happened on this project's sibling repos — three weeks stale in one case.
+    # DERIVED FROM apps/web's WORKSPACE DEPENDENCIES, and asserted by repo:check 46. This list
+    # named `ui` and `route-viz` and stopped there, while apps/web also depends on `adapters`,
+    # `detect` and `shared` — so correcting a cost table or a detect rule landed on main and the
+    # live site kept serving the old figure. The landing page's provider table is built from
+    # `CAPABILITIES`, which makes that gap load-bearing rather than theoretical.
     paths:
       - 'apps/web/**'
-      - 'packages/ui/**'
+      - 'packages/adapters/**'
+      - 'packages/detect/**'
       - 'packages/route-viz/**'
+      - 'packages/shared/**'
+      - 'packages/ui/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/deploy-web.yml'
   # So the first deploy, and any rollback, does not require an empty commit.
