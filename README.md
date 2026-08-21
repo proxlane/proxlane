@@ -1,12 +1,12 @@
 # Proxlane
 
 > **Pre-release, and self-host only.** Parts of this work and parts do not — the Status
-> section below says which, and it is kept honest rather than aspirational. No packages are
-> published yet, and **there is no hosted endpoint**: run it yourself, on your own provider
-> keys. Docs are live at [proxlane.dev/docs](https://proxlane.dev/docs).
+> section below says which, and it is kept honest rather than aspirational. The packages are
+> published and **there is no hosted endpoint**: run it yourself, on your own provider keys.
+> Docs are live at [proxlane.dev/docs](https://proxlane.dev/docs).
 > Follow the repo if you want to know when that changes.
 
-One lane to every scraping provider. Automatic failover, cost-aware routing, and
+One lane to every scraping provider. Automatic failover, per-request cost visibility, and
 honest success detection.
 
 Bring your own provider keys and it is free forever. Self-host it and it is free
@@ -235,7 +235,12 @@ That is the whole contribution bar. See [CONTRIBUTING.md](CONTRIBUTING.md).
 calibration assumes failures that do not clump the way real ones do — `PROXLANE_HEALTH=on`,
 and read `GET /health/providers`.
 
-**Does not exist yet**: any database, request log or dashboard; hosted credits.
+**Does not exist yet**: any database or dashboard; hosted credits.
+
+The gateway writes one NDJSON line per request to stdout, on by default. It carries the target's
+**host**, never the URL — a scrape URL's query string can hold session tokens, signed URLs and
+the gateway's own `api_key`, and logs get pasted into issues. `PROXLANE_LOG=off` silences it;
+`PROXLANE_LOG_URLS=on` opts into full URLs.
 
 `pnpm repo:check` reports which of the 27 commands are real. It is asserted against the
 filesystem, so it cannot drift the way a status section can — and it caught this one lying

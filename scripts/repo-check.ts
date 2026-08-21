@@ -1437,21 +1437,12 @@ function matchesOwner(pattern: string, file: string): boolean {
 		const reg = read(REG);
 		const ids = [...reg.matchAll(/^\t'?([a-z][a-z0-9-]*)'?:/gm)].map((m) => m[1] as string);
 		const page = read(PAGE);
-		const rows = (/const LAUNCH_LINES = \[([\s\S]*?)\n\] as const;/.exec(page)?.[1] ?? '')
-			.split('\n')
-			.filter((l) => /\bid:\s*'/.test(l)).length;
-		if (ids.length === 0 || rows === 0) {
-			fail(
-				'28',
-				`parsed ${ids.length} registry ids and ${rows} LAUNCH_LINES rows — one of the two ` +
-					'shapes changed and this check stopped checking',
-			);
-		} else if (rows !== ids.length) {
-			fail(
-				'28',
-				`${PAGE} lists ${rows} providers in LAUNCH_LINES; ${REG} ships ${ids.length} ` +
-					`(${ids.join(', ')}). Owner: design-engineer.`,
-			);
+		// THE ROW COUNT IS NO LONGER A CLAIM. `LAUNCH_LINES` is derived from `CAPABILITIES`
+		// (assertion 32 holds it that way), so it cannot list a different number of providers
+		// than ship. What could never be derived is a SENTENCE, and a sentence is what went
+		// stale the last time an adapter landed.
+		if (ids.length === 0) {
+			fail('28', `parsed 0 registry ids from ${REG} — this check stopped checking`);
 		} else {
 			const WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
 			const right = WORDS[ids.length - 1];
@@ -1759,27 +1750,26 @@ function matchesOwner(pattern: string, file: string): boolean {
 		const page = read(PAGE);
 		let checked32 = 0;
 
-		// 1. LAUNCH_LINES is in REGISTRY order. It is what the banner renders, so its order is
-		//    load-bearing rather than cosmetic, which it was not when only the count was checked.
-		const regIds = [...read(REG).matchAll(/^\t'?([a-z][a-z0-9-]*)'?:/gm)].map(
-			(m) => m[1] as string,
-		);
-		const lineIds = [
-			...(/const LAUNCH_LINES = \[([\s\S]*?)\n\] as const;/.exec(page)?.[1] ?? '').matchAll(
-				/\bid:\s*'([a-z0-9-]+)'/g,
-			),
-		].map((m) => m[1] as string);
-		if (regIds.length === 0 || lineIds.length === 0) {
-			fail('32', 'parsed no registry ids or no LAUNCH_LINES — this check stopped checking');
+		// 1. THE TABLE IS DERIVED, NOT RETYPED. This used to assert that a hand-written
+		//    `LAUNCH_LINES` matched the registry's order, on the stated grounds that "the
+		//    homepage banner renders this order as the routing order". It does not, and never
+		//    did — the gateway routes `DEFAULT_PROVIDER_ORDER`, which puts Scrapfly ahead of
+		//    ScrapingBee. So the check was pinned to a file that cannot be wrong about the thing
+		//    it was checking, and stayed green while the homepage advertised the wrong order.
+		//    Assertion 44 now compares the banner against the gateway's own constant.
+		//
+		//    What is left here is the property that makes the rest unnecessary: the table is
+		//    built from `CAPABILITIES` rather than typed out. Two of its cells were wrong before
+		//    it was — ScrapingBee's "7 regions" against 42 country codes, Scrapfly's 5x against
+		//    its own 1 + 5 = 6 — and a row-count check reads no cell.
+		if (!/const LAUNCH_LINES = \[\.\.\.CAPABILITIES\]/.test(page)) {
+			fail(
+				'32',
+				`${PAGE} no longer derives LAUNCH_LINES from CAPABILITIES. A hand-written table ` +
+					'drifts cell by cell, and nothing here reads a cell. Owner: design-engineer.',
+			);
 		} else {
-			if (lineIds.join(' > ') !== regIds.join(' > ')) {
-				fail(
-					'32',
-					`LAUNCH_LINES is ${lineIds.join(' > ')} but the registry is ${regIds.join(' > ')}. ` +
-						'The homepage banner renders this order as the routing order, so it must match.',
-				);
-			}
-			checked32 += lineIds.length;
+			checked32 += 1;
 		}
 
 		// 2. No header on the page that the gateway does not actually send. Same parse as
@@ -2803,6 +2793,112 @@ function matchesOwner(pattern: string, file: string): boolean {
 		}
 	}
 	ok('43', checked43, 'files checked for a retracted claim');
+}
+
+// ------------------ assertion 44: the homepage banner prints the order the gateway routes in
+//
+// THE HOMEPAGE ADVERTISED A ROUTING ORDER THE PRODUCT DOES NOT HAVE. Its boot-banner transcript
+// printed the provider table's order followed by the words "(in order)", while
+// `DEFAULT_PROVIDER_ORDER` in `apps/gateway/src/index.ts` puts Scrapfly ahead of ScrapingBee.
+// A visitor reading the banner as ground truth — which provider gets tried, and paid, first —
+// got the wrong answer, on the page the product leads with.
+//
+// The check that was supposed to keep the transcript honest compared it against the landing
+// page's own `LAUNCH_LINES`, which does not decide routing. So changing the real order left it
+// green: it was pinned to a file that cannot be wrong about the thing being checked.
+//
+// A LITERAL ON EACH SIDE, ASSERTED EQUAL, because `apps/web` and `apps/gateway` are separate
+// deployables and neither may import the other — the same shape as the compose-tags assertion
+// against `tooling/containers/images.ts`.
+{
+	const PAGE = 'apps/web/src/routes/index.tsx';
+	const GATEWAY = 'apps/gateway/src/index.ts';
+	if (!has(PAGE) || !has(GATEWAY)) {
+		fail('44', `${PAGE} or ${GATEWAY} is missing, so the banner cannot be checked`);
+	} else {
+		const list = (src: string, name: string): string[] => {
+			const body = new RegExp(`const ${name} = \\[([^\\]]*)\\]`).exec(src)?.[1] ?? '';
+			return [...body.matchAll(/'([a-z][a-z0-9-]*)'/g)].map((m) => m[1] as string);
+		};
+		const routed = list(read(GATEWAY), 'DEFAULT_PROVIDER_ORDER');
+		const shown = list(read(PAGE), 'ROUTING_ORDER');
+
+		// Non-zero denominators on both sides. A regex that stopped matching would otherwise
+		// compare two empty lists and report agreement.
+		if (routed.length === 0 || shown.length === 0) {
+			fail(
+				'44',
+				`parsed ${routed.length} routed and ${shown.length} shown providers — one of the ` +
+					'two shapes changed and this check stopped checking',
+			);
+		} else if (shown.slice(0, routed.length).join(',') !== routed.join(',')) {
+			// PREFIX, not equality. `providerOrder()` puts anything omitted from
+			// DEFAULT_PROVIDER_ORDER behind those named, keeping its registry position — so the
+			// page may name more providers than the constant does, but never in a different
+			// order for the ones it does name.
+			fail(
+				'44',
+				`${PAGE} shows "${shown.join(' > ')}" as the routing order; ${GATEWAY} routes ` +
+					`"${routed.join(' > ')}". Owner: design-engineer.`,
+			);
+		} else {
+			ok('44', shown.length, 'the homepage banner prints the gateway’s routing order');
+		}
+	}
+}
+
+// ---------------------- assertion 45: the README does not deny a release that has happened
+//
+// THE FRONT DOOR'S FIRST PARAGRAPH SAID "No packages are published yet" while `proxlane` was at
+// 0.4.0 across eleven versions and four scoped packages were on npm — and the same README
+// instructs the reader to run `npx proxlane`. Under-claiming rather than over-claiming, but it
+// tells every visitor that the CLI they are about to be told to run does not exist.
+//
+// DERIVED FROM THE CHANGELOGS, NOT FROM npm. A network call would fail `repo:check` from a
+// clean clone and make CI assert that a registry is up — the same reason `DEAD_HOSTS` is a
+// static list and `k6` has no toolchain row. A released version heading in a publishable
+// package's CHANGELOG is written by `changeset version` at release time, so it is the local
+// record of the thing being claimed.
+{
+	const README = 'README.md';
+	const DENIALS = [/no packages are published/i, /nothing is published (?:to )?(?:npm )?yet/i];
+
+	const changelogs = execFileSync('git', ['ls-files', 'packages/*/CHANGELOG.md'], {
+		cwd: ROOT,
+		encoding: 'utf8',
+	})
+		.split('\n')
+		.filter(Boolean);
+
+	// A `## 1.2.3` heading is what `changeset version` writes when a release is cut.
+	const released = changelogs.filter((f) =>
+		/^## \d+\.\d+\.\d+/m.test(readFileSync(join(ROOT, f), 'utf8')),
+	);
+
+	if (!has(README)) {
+		fail('45', 'README.md is missing');
+	} else if (changelogs.length === 0) {
+		// Non-zero denominator. No changelogs means the glob stopped matching, not that nothing
+		// has shipped — and reporting "nothing published" from that would be the same lie.
+		fail('45', 'found no package CHANGELOGs — this check stopped checking');
+	} else {
+		// BLOCKQUOTE MARKERS STRIPPED FIRST. The claim lives inside a `>` block, so collapsing
+		// whitespace alone leaves "No packages are > published yet" and the pattern misses it —
+		// which it did, silently, on the first run of this assertion.
+		const readme = read(README)
+			.replace(/^\s*>\s?/gm, '')
+			.replace(/\s+/g, ' ');
+		const denied = DENIALS.filter((re) => re.test(readme));
+		if (released.length > 0 && denied.length > 0) {
+			fail(
+				'45',
+				`${README} says nothing is published while ${released.length} package(s) have a ` +
+					`released version in their CHANGELOG (${released.slice(0, 3).join(', ')}). ` +
+					'Owner: oss-maintainer.',
+			);
+		}
+		ok('45', changelogs.length, 'the README does not deny a release that has happened');
+	}
 }
 
 // -------------------------------------------------------------------------- report

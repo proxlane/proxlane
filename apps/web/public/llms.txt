@@ -1,7 +1,7 @@
 # Proxlane
 
 > One endpoint in front of every scraping API. Routes requests across ScraperAPI, ScrapingBee
-> and Scrapfly with automatic failover, cost-aware routing and honest block detection. AGPL,
+> and Scrapfly with automatic failover, per-request cost visibility and honest block detection. AGPL,
 > self-hostable, bring your own provider keys.
 
 Proxlane is a gateway, not a scraper. It makes one request and returns one response, and the
