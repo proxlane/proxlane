@@ -57,14 +57,34 @@ export interface DetectRule {
  */
 export const RULES: readonly DetectRule[] = [
 	{
+		id: 'cloudflare-blocked',
+		source: 'Cloudflare block pages carry cf-error-details / cf-wrapper markup',
+		/**
+		 * BEFORE `cloudflare-challenge`, and the order is the fix.
+		 *
+		 * A real Cloudflare block page — "Sorry, you have been blocked", 403 — carries BOTH
+		 * `cf-error-details` and `/cdn-cgi/challenge-platform/`, because the block page loads the
+		 * same script. With the challenge rule first, every block was attributed to
+		 * `cloudflare-challenge` and this rule was unreachable: dead code that looked verified by
+		 * never being wrong.
+		 *
+		 * The outcome was right either way — both are SOFT_BLOCK — but `X-Detect-Rule` is what a
+		 * caller reads to find out WHY, and it said the wrong thing.
+		 *
+		 * Specific before general: a page that says it blocked you is more than a page that merely
+		 * loads the challenge script. Checked against three real captures — two challenge pages
+		 * carrying no `cf-error-details` still resolve to `cloudflare-challenge`.
+		 *
+		 * `__cf_chl_` is kept and is UNOBSERVED: it appears in none of the three captures. Unlike
+		 * Akamai's `AkamaiGHost`, which structurally cannot be in a body, this one could be — so
+		 * it stays, flagged, rather than being removed on three pages' worth of absence.
+		 */
+		test: (h) => h.includes('cf-error-details') || h.includes('__cf_chl_'),
+	},
+	{
 		id: 'cloudflare-challenge',
 		source: "Cloudflare's interstitial injects /cdn-cgi/challenge-platform/ scripts",
 		test: (h) => h.includes('/cdn-cgi/challenge-platform/'),
-	},
-	{
-		id: 'cloudflare-blocked',
-		source: 'Cloudflare 1020/error pages carry cf-error-details or cf-wrapper markup',
-		test: (h) => h.includes('cf-error-details') || h.includes('__cf_chl_'),
 	},
 	{
 		id: 'datadome',

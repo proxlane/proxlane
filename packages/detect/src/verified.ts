@@ -31,6 +31,12 @@ export const VERIFIED: Readonly<Record<string, VerifiedRule>> = {
 		lastVerified: '2026-08-21',
 		digests: ['05659c252ee5b2dc'],
 	},
+	'cloudflare-blocked': {
+		captures: 1,
+		classes: ['publishing'],
+		lastVerified: '2026-08-21',
+		digests: ['bbd2447ddb2faaf8'],
+	},
 	'cloudflare-challenge': {
 		captures: 2,
 		classes: ['bot-test-page', 'business-data'],
