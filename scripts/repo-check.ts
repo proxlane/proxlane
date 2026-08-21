@@ -2114,6 +2114,59 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------------ 36: the analyser reads the policy table rather than quoting it
+//
+// The page at /block-page-detector tells a visitor what the gateway would do with the response
+// they pasted: the status it returns, whether it fails over, whether it arms a cooldown. Its
+// entire value is that those are the gateway's real answers.
+//
+// A UNIT TEST CANNOT CATCH THE DRIFT, which is why this exists. `expect(a.httpStatus).toBe(
+// policyFor('SOFT_BLOCK').httpStatus)` passes just as happily when the analyser has `502` typed
+// into it — verified by mutation, both directions green. The test proves the two agree today;
+// only a ban on the literals stops one of them going stale while still agreeing with itself.
+//
+// So: the analyser may name the policy fields, and may not carry their values.
+{
+	const SRC = 'apps/web/src/lib/analyse.ts';
+	if (!has(SRC)) {
+		fail('36', `${SRC} is missing, and the detector page depends on it`);
+	} else {
+		const src = read(SRC);
+		if (!src.includes('policyFor')) {
+			fail(
+				'36',
+				`${SRC} no longer calls policyFor, so it is describing the gateway from memory. ` +
+					'Every consequence it shows must come out of FAILOVER.',
+			);
+		}
+		// One entry per field the page prints. The pattern is the field name followed by a
+		// literal rather than a lookup, which is exactly the shape a copy takes.
+		const banned: ReadonlyArray<readonly [string, RegExp]> = [
+			['httpStatus', /httpStatus:\s*(?:\d|'upstream')/],
+			['failover', /failover:\s*(?:true|false|'once')/],
+			['cooldown', /cooldown:\s*'/],
+			['chargeable', /chargeable:\s*(?:true|false|')/],
+			['class', /\bclass:\s*'/],
+			['meaning', /meaning:\s*'/],
+		];
+		for (const [field, re] of banned) {
+			if (re.test(src)) {
+				fail(
+					'36',
+					`${SRC} writes a literal ${field}. Read it from policyFor(outcome) instead — a ` +
+						'copied value keeps agreeing with the test long after it stops agreeing with ' +
+						'the gateway.',
+				);
+			}
+		}
+		// The vacuity guard. Without it, deleting the analyser's body passes every line above.
+		if (!/readonly httpStatus:/.test(src) || !/readonly failover:/.test(src)) {
+			fail('36', `${SRC} no longer surfaces the policy fields — this check stopped checking`);
+		}
+		ok('36', banned.length + 1, 'the detector page reads its policy rather than quoting it');
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;
