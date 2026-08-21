@@ -197,6 +197,30 @@ export async function renderDoc(file: string, slugName: string): Promise<Rendere
 		},
 	});
 
+	// ONE WINDOW FOR CODE, and this is the half that did not have one.
+	//
+	// A tab group has been a proper frame since it shipped: a bordered card, a bar of labels
+	// along the top, and the `<pre>` inside stripped of its own border so it is not a box in a
+	// box. A LONE fence got none of that — a plain bordered `<pre>` with a text-only copy button
+	// floating over the corner on hover, while the homepage's identical-looking code sits in a
+	// labelled `Panel` with the copy control in the bar. Three treatments for one thing.
+	//
+	// So a lone fence gets the same frame, with its language where the tab labels would be.
+	//
+	// `defaultFence` is captured and handed to `renderTabs`, which must NOT get the wrapper: its
+	// blocks already sit inside the tab card, and wrapping them would put a bar inside a bar.
+	const defaultFence = md.renderer.rules.fence as NonNullable<typeof md.renderer.rules.fence>;
+	md.renderer.rules.fence = (tokens, idx, options, env, slf) => {
+		const token = tokens[idx];
+		const html = defaultFence(tokens, idx, options, env, slf);
+		const label = tabLabel(token?.info ?? '') ?? (token?.info ?? '').trim().split(/\s+/)[0];
+		return (
+			'<div class="doc-panel">' +
+			`<div class="doc-panel-bar"><span class="doc-panel-label">${escapeHtml(label || 'code')}</span></div>` +
+			`${html}</div>`
+		);
+	};
+
 	// TAB GROUPS, as a core rule rather than a fence renderer.
 	//
 	// The grouping question is "are these fences adjacent", which a per-fence renderer cannot
@@ -225,7 +249,9 @@ export async function renderDoc(file: string, slugName: string): Promise<Rendere
 				label: tabLabel(t.info) as string,
 				// `renderToken` is not enough: the fence rule is what applies Shiki. Rendering the
 				// single token through the renderer gives the highlighted `<pre>` verbatim.
-				html: md.renderer.render([t], md.options, {}),
+				// The DEFAULT renderer, not `md.renderer.render`: the fence rule is overridden above
+				// to add a frame, and a tab panel is already inside one.
+				html: defaultFence([t], 0, md.options, {}, md.renderer),
 			}));
 
 			const token = new state.Token('html_block', '', 0);
