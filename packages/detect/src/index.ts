@@ -105,8 +105,25 @@ export const RULES: readonly DetectRule[] = [
 	},
 	{
 		id: 'akamai-bot-manager',
-		source: 'Akamai reference-id error pages include an errors.edgesuite.net asset',
-		test: (h) => h.includes('errors.edgesuite.net') || h.includes('AkamaiGHost'),
+		source:
+			'Akamai reference-id deny pages cite errors.edgesuite.net, with the dots HTML-encoded',
+		/**
+		 * ENTITY-TOLERANT, because Akamai encodes the dots and the literal never matched.
+		 *
+		 * A real deny page, captured: the body is 371 bytes and reads
+		 * `https&#58;&#47;&#47;errors&#46;edgesuite&#46;net&#47;18&#46;12171002&#46;…`. Every dot
+		 * is `&#46;`, so `includes('errors.edgesuite.net')` could not fire on the one page this
+		 * rule exists for. It had never been run against one.
+		 *
+		 * `AkamaiGHost` is dropped from the body test: it identifies the server in the `Server`
+		 * HEADER and appears nowhere in the body, and `detect()` only sees the body. A token that
+		 * cannot be present is not a signature.
+		 *
+		 * Not loosened to a bare `edgesuite`: that is an Akamai CDN host a normal page can load
+		 * assets from, which is exactly the over-broad shape that makes `imperva-incapsula`
+		 * unsafe. The full host, in either encoding, is the narrow form.
+		 */
+		test: (h) => /errors(?:&#46;|\.)edgesuite(?:&#46;|\.)net/i.test(h),
 	},
 ];
 

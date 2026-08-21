@@ -139,6 +139,46 @@ describe('what this detector CANNOT catch, pinned with a real capture', () => {
 	});
 });
 
+describe('akamai encodes its own signature, and the rule reads it either way', () => {
+	// A REAL DENY PAGE IS 371 BYTES AND ENTITY-ENCODED. Akamai writes the reference URL as
+	// `https&#58;&#47;&#47;errors&#46;edgesuite&#46;net&#47;18&#46;…`, so the literal
+	// `errors.edgesuite.net` this rule used to match could never appear. It had never been run
+	// against the one page it exists for.
+	const real =
+		'<HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>\n' +
+		'You don&#39;t have permission to access "http&#58;&#47;&#47;example&#46;test&#47;" on this server.<P>\n' +
+		'Reference&#32;&#35;18&#46;12171002&#46;1787315151&#46;14950f77\n' +
+		'<P>https&#58;&#47;&#47;errors&#46;edgesuite&#46;net&#47;18&#46;12171002&#46;1787315151&#46;14950f77</P>\n' +
+		'</BODY>\n</HTML>';
+
+	it('fires on the encoded form', () => {
+		const v = detect(new TextEncoder().encode(real), 'text/html', 'utf-8');
+		expect(v.blocked).toBe(true);
+		expect(v.ruleId).toBe('akamai-bot-manager');
+	});
+
+	it('still fires on the plain form', () => {
+		// Whichever way a future page spells it. Dropping either half is a rule that works on
+		// half its inputs.
+		const plain = '<html>see https://errors.edgesuite.net/18.12171002 for details</html>';
+		expect(detect(new TextEncoder().encode(plain), 'text/html', 'utf-8').ruleId).toBe(
+			'akamai-bot-manager',
+		);
+	});
+
+	it('does not fire on a page that merely loads an Akamai asset', () => {
+		// The over-broad trap `imperva-incapsula` fell into. `edgesuite.net` is a CDN host an
+		// ordinary page can pull assets from, so the signature is the FULL error host and not a
+		// bare `edgesuite`.
+		const ordinary =
+			'<html><body><img src="https://a248.e.akamai.net/x.png">' +
+			'<script src="https://cdn.edgesuite.net/lib.js"></script></body></html>';
+		expect(detect(new TextEncoder().encode(ordinary), 'text/html', 'utf-8').blocked).toBe(
+			false,
+		);
+	});
+});
+
 describe('a rule that fires on ordinary pages, pinned because it does', () => {
 	// FOUND BY LOOKING, not by reasoning. Imperva's own site serves
 	// `<script src="/_Incapsula_Resource?SWJIYLWA=…">` on a plain 200 marketing page, so the
