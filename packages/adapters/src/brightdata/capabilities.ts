@@ -26,7 +26,8 @@ const costTable: CostTable = {
 	 * NOT MODELLED, and both are real: "Premium Domains" is a higher per-domain rate whose price
 	 * is only visible inside a logged-in account, and enabling custom headers flips them from
 	 * charging for successes to charging for "100% of the requests (both successful and failed)",
-	 * which makes the effective cost $1.50 divided by the success rate. Filed in `state.md`.
+	 * which makes the effective cost $1.50 divided by the success rate. Both are recorded in
+	 * `integrations.md` section 4.
 	 */
 	matrix: {
 		none: { plain: 1_500, rendered: 1_500 },

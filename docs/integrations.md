@@ -672,9 +672,22 @@ us, not on inference.
 
 ## 4. Cost accounting
 
-- `CostTable` per provider, versioned in code with an effective date, expressed in
-  microcredits (1 credit = 1_000_000). Base cost + multipliers (renderJs,
-  premium tier, per-domain overrides).
+- `CostTable` per provider, versioned in code with the date somebody last read the source,
+  expressed in microcredits (1 credit = 1_000_000). It is a **matrix**, not a formula: one cost
+  per `(premiumTier, renderJs)` pair, exhaustive, `null` where the provider does not sell that
+  combination.
+- **It used to be `base` times a set of multipliers, and no provider prices that way.** Checked
+  against all four vendors' published rates on 2026-08-21: ScraperAPI's combinations are named
+  values (`premium` 10, `render` 10, both **25**), Scrapfly is additive (residential 25, rendering
+  +5, together **30** — the product said 125), ScrapingBee is a two-dimensional lookup whose
+  `render_js` defaults to true, and Bright Data is flat. Three of the four were wrong, and the
+  shape was why: every adapter wrote the closest product it could and left a comment saying so.
+- **Somebody has to re-read the page.** No test can verify a price — fetching four pricing pages
+  in CI would fail on a clean clone offline and make the build depend on a vendor's marketing site
+  (`scraperapi.com` 403s a plain curl). So `repo:check` assertion 37 enforces the next best thing:
+  every table carries a `sourceUrl` and an `effectiveDate`, no two providers cite the same page,
+  the scaffold's placeholder zeroes cannot ship, and a table nobody has re-read in a year fails
+  the build. The age is printed on every run from 180 days, so it creeps into view first.
 - When the provider reports actual cost (Scrapfly headers/envelope), we store
   `reported` and diff against our estimate. Sustained drift > 10% on any
   (provider, feature) pair opens an alert: our table is stale.
@@ -868,10 +881,21 @@ unit header. `mixed` is deliberately not parseable as a number — a caller read
 gets `NaN` rather than a plausible wrong figure, and the per-attempt costs in the body each carry
 their own unit.
 
-Also measured, and still uncorrected: ScraperAPI prices some domains differently. A plain fetch of
-`example.com` is 1 credit and of a protected domain was 10 — against a table that says base 1 for
-everything. `multipliers.domain` exists for this; the numbers need observation rather than
-invention, which is what the reported-vs-estimated split is for.
+**Known and deliberately not modelled**, listed here so the next reader knows they were seen
+rather than missed. None is guessable, and each has a reported figure that corrects it per request.
+
+- **ScraperAPI prices by target domain.** Amazon 5 credits, Google and Bing 25, LinkedIn 30, plus
+  10 for a bot-protected domain — against a matrix whose `none.plain` is 1. Whether those replace
+  the matrix or stack on it is published nowhere. `sa-credit-cost` returns the truth per request.
+- **Bright Data has a "Premium Domains" tier** at a higher per-domain rate, visible only inside a
+  logged-in account.
+- **Bright Data's billing inverts with custom headers.** Normally they charge for successes only;
+  with custom headers or cookies enabled they bill "100% of the requests (both successful and
+  failed)", making the effective cost the list price divided by the success rate.
+- **Scrapfly bills bandwidth** above 1 MB, and its ASP tier can escalate the proxy pool mid-request.
+
+The rule is the same in each case: record what the vendor publishes, refuse to invent the
+interaction they do not, and let the reported-vs-estimated split carry the difference.
 
 ### The logged grain is the attempt, not the request
 
