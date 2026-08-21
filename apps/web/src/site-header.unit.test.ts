@@ -12,12 +12,18 @@
  * header's own contract is the markup it emits, so the links are read out of the SOURCE and
  * checked against the routes on disk. That is the assertion that actually rots.
  */
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ctaClass } from './components/cta.js';
-import { barClass, pillClass, STUCK_AT_FIRST_PAINT } from './components/site-header.js';
+import {
+	barClass,
+	overlayClass,
+	pillClass,
+	STUCK_AT_FIRST_PAINT,
+	sheetClass,
+} from './components/site-header.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROUTES = resolve(HERE, 'routes');
@@ -124,6 +130,57 @@ describe('one call to action, not three', () => {
 		// shadow is exactly the kind of value that gets typed by hand.
 		expect(/#[0-9a-f]{3,8}\b/i.test(ctaClass('primary'))).toBe(false);
 		expect(ctaClass('primary')).toContain('color-mix');
+	});
+});
+
+describe('the mobile menu overlays the page instead of pushing it', () => {
+	// THE DEFECT THIS REPLACED. The sheet animated `grid-template-rows` in the normal flow, so
+	// opening it shoved the whole document down and closing it yanked it back. Measured after the
+	// fix: an h1 sat at 386px both before and after opening.
+	it('is positioned out of flow', () => {
+		for (const open of [true, false]) {
+			expect(sheetClass(open)).toContain('absolute');
+			// The tell for the old approach coming back. A row-template animation only works in
+			// flow, so its presence and `absolute` are mutually exclusive by construction.
+			expect(sheetClass(open)).not.toContain('grid-rows');
+			expect(sheetClass(open)).not.toContain('grid-template-rows');
+		}
+	});
+
+	it('lets clicks through when it is closed', () => {
+		// Both layers cover real estate. Without this the scrim eats every tap on the page and the
+		// sheet eats every tap just under the header, invisibly.
+		expect(sheetClass(false)).toContain('pointer-events-none');
+		expect(overlayClass(false)).toContain('pointer-events-none');
+		expect(sheetClass(true)).not.toContain('pointer-events-none');
+		expect(overlayClass(true)).not.toContain('pointer-events-none');
+	});
+
+	it('sits under the pill in the stack, never over it', () => {
+		// The pill holds the control that CLOSES the menu. A scrim painted over it left the
+		// wordmark, the theme control and the close button all blurred behind their own menu.
+		const z = (cls: string): number => Number(/\bz-(\d+)\b/.exec(cls)?.[1] ?? '0');
+		expect(z(overlayClass(true))).toBeLessThan(z(pillClass(true)));
+		expect(z(pillClass(true))).toBeGreaterThan(0);
+	});
+
+	it('moves on the named curves', () => {
+		for (const cls of [sheetClass(true), overlayClass(true)]) {
+			expect(cls).toContain('ease-(--ease-');
+			expect(cls).not.toMatch(/\bease-(out|in|in-out|linear)\b/);
+		}
+	});
+
+	it('never paints a nav item in a provider colour', () => {
+		// `design.md`: a line colour identifies a PROVIDER everywhere it appears. Painting the
+		// menu's stations with them would say the docs page is ScraperAPI. The same mistake was
+		// already made once, with focus and selection drawn in `--color-line-1`.
+		const src = readFileSync(join(HERE, 'components', 'site-header.tsx'), 'utf8');
+		expect(src).toContain('data-[status=active]');
+		// The PAINT form, not the word. A blanket ban on the token failed on the comment two lines
+		// above that explains the rule, and `Mark` legitimately draws the tri-line station in those
+		// colours from its own file. What must never appear here is a nav item wearing one.
+		expect(src).not.toMatch(/\[color:var\(--color-line-\d/);
 	});
 });
 
