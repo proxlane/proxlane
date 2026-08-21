@@ -184,6 +184,56 @@ describe('the mobile menu overlays the page instead of pushing it', () => {
 	});
 });
 
+describe('the menu is a diagram, and the diagram lines up', () => {
+	const src = readFileSync(join(HERE, 'components', 'site-header.tsx'), 'utf8');
+
+	it('draws the track through the centre of the stations', () => {
+		// Measured wrong before it was measured right: the rule sat at `left-[9px]` while the
+		// station centres were at 5.5px, so the line ran four pixels to the right of every dot it
+		// was supposed to join. Obvious on a phone, invisible in a class list.
+		//
+		// The node is `size-[N]` positioned at `-left-6` inside a `pl-6` group, so its centre is
+		// N/2 from the group's left edge. A 1px rule centred there starts at (N/2 - 0.5).
+		// Anchored on the node's own position classes, not on any `size-[Npx]` in the file: the
+		// first version matched the WORDMARK's 18px mark and asserted the track should be at 9.
+		const size = Number(/-left-6 absolute top-1\/2 size-\[(\d+)px\]/.exec(src)?.[1]);
+		const lineLeft = Number(
+			/absolute top-\[\d+px\] bottom-\[\d+px\] left-\[(\d+)px\] w-px/.exec(src)?.[1],
+		);
+		expect(Number.isFinite(size), 'no station node size in the source').toBe(true);
+		expect(Number.isFinite(lineLeft), 'no track offset in the source').toBe(true);
+		expect(lineLeft + 0.5).toBe(size / 2);
+	});
+
+	it('switches the row and the sheet at the same width', () => {
+		// TWO HALVES OF ONE CONTROL. The row is hidden below a breakpoint and the sheet above it,
+		// so if the two ever name different breakpoints there is a band of widths showing both or
+		// neither. Everything was `sm` and the row did not actually fit until 740px, which is how
+		// "Get started" ended up wrapping to two lines inside its own pill at 700.
+		const prefixes = new Set([
+			...[...src.matchAll(/hidden (\w+):contents/g)].map((m) => m[1]),
+			...[...src.matchAll(/(\w+):hidden/g)].map((m) => m[1]),
+		]);
+		expect(prefixes.size, `nav is gated at more than one breakpoint: ${[...prefixes]}`).toBe(1);
+		// And it is the one the row measured as fitting at, not the one that merely looked tidy.
+		expect([...prefixes][0]).toBe('md');
+	});
+
+	it('never lets the call to action reflow', () => {
+		// It was the flex child that gave when the row ran short, so the label broke in half. A
+		// button that reflows is not a smaller button.
+		expect(ctaClass('primary')).toContain('whitespace-nowrap');
+		expect(ctaClass('primary')).toContain('shrink-0');
+	});
+
+	it('marks the page you are on', () => {
+		// The row had no current-page state at all while the sheet had one from the day it
+		// shipped. Reuses the hover underline rather than inventing a second mark.
+		expect(src).toContain('activeProps');
+		expect(src).toMatch(/activeProps=\{\{[\s\S]*?after:scale-x-100/);
+	});
+});
+
 describe('every nav destination is a route that exists', () => {
 	// A nav link to a deleted page is a 404 on every page of the site at once, which is the worst
 	// possible blast radius for a rename. `content:lint` makes the same check for symptom pages.
