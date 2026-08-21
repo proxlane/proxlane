@@ -3013,6 +3013,56 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// ------------------- assertion 47: a third-party action is pinned to a commit, not a tag
+//
+// `release.yml` runs with `contents: write`, `packages: write` and `id-token: write`, and mints
+// npm provenance. A tag is mutable, so a compromised `changesets/action@v1` or
+// `pnpm/action-setup@v6` executes inside the job that signs our releases — and every third-party
+// action in this repo was on one.
+//
+// The inconsistency is what makes it a finding rather than a preference: `ci.yml` pins the one
+// gitleaks tarball it downloads by version AND sha256, with the comment "piping an unverified
+// download straight into a shell is a poor look in the job whose entire purpose is supply-chain
+// hygiene". Exactly right, and the code surrounding the publish was held to a weaker standard.
+//
+// `actions/*` IS EXEMPT, deliberately and narrowly. Those are GitHub's own, published from the
+// same platform that runs them and holds the token — pinning them defends against a compromise
+// that already owns the runner. Nothing else is exempt.
+{
+	const files = execFileSync(
+		'git',
+		['ls-files', '.github/workflows/*.yml', '.github/actions/*/action.yml'],
+		{ cwd: ROOT, encoding: 'utf8' },
+	)
+		.split('\n')
+		.filter(Boolean);
+
+	let checked47 = 0;
+	for (const f of files) {
+		for (const m of readFileSync(join(ROOT, f), 'utf8').matchAll(
+			/uses:\s+([A-Za-z0-9._-]+)\/([A-Za-z0-9._/-]+)@(\S+)/g,
+		)) {
+			const [, owner, name, ref] = m;
+			// A local action (`./.github/actions/setup`) never matches this shape.
+			if (owner === 'actions') continue;
+			checked47 += 1;
+			if (!/^[0-9a-f]{40}$/.test(ref ?? '')) {
+				fail(
+					'47',
+					`${f} uses ${owner}/${name}@${ref}, a mutable tag. Pin it to a 40-character ` +
+						'commit SHA — release.yml runs with id-token: write. Owner: devex-engineer.',
+				);
+			}
+		}
+	}
+	// Non-zero denominator. Five third-party actions are in use; a run finding none has stopped
+	// reading the workflows rather than found them clean.
+	if (checked47 === 0) {
+		fail('47', 'found no third-party action references — this check stopped checking');
+	}
+	ok('47', checked47, 'third-party actions are pinned to a commit');
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

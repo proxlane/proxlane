@@ -104,6 +104,54 @@ function parseIpv6(host: string): number[] | undefined {
 	return out;
 }
 
+/**
+ * Every IPv4 address an RFC 6052 NAT64 address could be carrying.
+ *
+ * The v4 address does not sit in one place. RFC 6052 §2.2 defines six embedding positions, one
+ * per allowed prefix length (32, 40, 48, 56, 64, 96), and the two middle ones SKIP bits 64–71 —
+ * the reserved `u` octet, which must be zero and is not part of the address. Reading only the
+ * /96 position, as this guard did, leaves five ways to write the same loopback address.
+ *
+ * All six are checked and any hit blocks. A false positive here refuses a target that could have
+ * been fetched; a false negative reaches the metadata endpoint. Only one of those is recoverable.
+ */
+function nat64Candidates(groups: number[]): number[] {
+	const bytes: number[] = [];
+	for (const g of groups) {
+		bytes.push((g >> 8) & 0xff, g & 0xff);
+	}
+	// Explicit parameters, not a rest array: `noUncheckedIndexedAccess` types `idx[0]` as
+	// possibly undefined, and silencing that with a cast would defeat the flag on the one
+	// function in this file where an off-by-one is a security bug rather than a wrong number.
+	const at = (a: number, b: number, c: number, d: number): number =>
+		((((bytes[a] ?? 0) << 24) >>> 0) +
+			((bytes[b] ?? 0) << 16) +
+			((bytes[c] ?? 0) << 8) +
+			(bytes[d] ?? 0)) >>>
+		0;
+	// THE WELL-KNOWN PREFIX'S POSITION IS ALWAYS READ, including a zero result: `64:ff9b::` with
+	// nothing embedded is 0.0.0.0, which `BLOCKED_V4` covers as this-network and should.
+	const wellKnown = at(12, 13, 14, 15); // /96
+	// THE OTHER FIVE DROP ANYTHING IN 0.0.0.0/8, and that is not laziness — it is what stops the
+	// fix over-blocking. An address only ever uses ONE embedding position; the bytes read at the
+	// other five are mostly the prefix's own padding, so they come back as 0.0.0.0 or, where a
+	// window straddles the real address, something like 0.0.0.8. Both land in `this-network`.
+	// Left in, `64:ff9b::8.8.8.8` — an ordinary NAT64 address for a public host — was refused.
+	//
+	// Nothing reachable is lost. Every blocked v4 range except `0.0.0.0/8` has a NON-ZERO first
+	// octet (10/8, 127/8, 169.254/16, 172.16/12, 192.168/16 …), so an attacker aiming at one
+	// still has to embed it, and all six positions are still read. A genuine 0.0.0.0 is caught
+	// by the well-known position above, which is not filtered.
+	const others = [
+		at(4, 5, 6, 7), // /32
+		at(5, 6, 7, 9), // /40 — skips byte 8, the reserved u octet
+		at(6, 7, 9, 10), // /48
+		at(7, 9, 10, 11), // /56
+		at(9, 10, 11, 12), // /64
+	].filter((v) => v >>> 24 !== 0);
+	return [wellKnown, ...others];
+}
+
 function blockedIpv6(groups: number[]): string | undefined {
 	const [g0, g1, g2, g3, g4, g5, g6, g7] = groups as [
 		number,
@@ -125,6 +173,15 @@ function blockedIpv6(groups: number[]): string | undefined {
 			if (hit) return `ipv4-mapped ${hit[0]}`;
 		}
 	}
+	// ::ffff:0:0/96, RFC 2765's IPv4-TRANSLATED form. One group along from the mapped form
+	// above, and it went straight through: `http://[::ffff:0:169.254.169.254]/` reached the
+	// cloud metadata endpoint this file's own comments cite as the thing being defended against.
+	// The check above requires g4 === 0, and here g4 is 0xffff.
+	if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0xffff && g5 === 0) {
+		const embedded = ((g6 << 16) >>> 0) + g7;
+		const hit = BLOCKED_V4.find(([, lo, hi]) => embedded >= lo && embedded <= hi);
+		if (hit) return `ipv4-translated ${hit[0]}`;
+	}
 	if (groups.every((g) => g === 0)) return 'unspecified-::';
 	if (
 		g0 === 0 &&
@@ -143,11 +200,23 @@ function blockedIpv6(groups: number[]): string | undefined {
 	if ((g0 & 0xffc0) === 0xfe80) return 'link-local-fe80::/10';
 	// ff00::/8 multicast
 	if ((g0 & 0xff00) === 0xff00) return 'multicast-ff00::/8';
-	// 64:ff9b::/96 NAT64 — an IPv4 address wearing an IPv6 costume.
-	if (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
-		const embedded = ((g6 << 16) >>> 0) + g7;
-		const hit = BLOCKED_V4.find(([, lo, hi]) => embedded >= lo && embedded <= hi);
-		return hit ? `nat64 ${hit[0]}` : undefined;
+	// NAT64 — an IPv4 address wearing an IPv6 costume, in every prefix and position RFC 6052
+	// defines rather than only the well-known /96.
+	//
+	// THREE THINGS WERE MISSING AND ONE OF THEM WAS REACHABLE. The old check demanded
+	// `g2 === 0`, which is only true of the well-known `64:ff9b::/96` — so RFC 8215's local-use
+	// `64:ff9b:1::/48`, the prefix a network running its OWN translator uses, was not covered:
+	// `http://[64:ff9b:1::7f00:1]/` reached loopback. And RFC 6052 embeds the v4 address at six
+	// different offsets depending on prefix length, of which only the last was read.
+	//
+	// The guard already blocks `192.88.99.0/24` on the v4 side because it is the 6to4 relay
+	// range — the author was thinking about translation in one direction and not the other.
+	if (g0 === 0x64 && g1 === 0xff9b) {
+		for (const embedded of nat64Candidates(groups)) {
+			const hit = BLOCKED_V4.find(([, lo, hi]) => embedded >= lo && embedded <= hi);
+			if (hit) return `nat64 ${hit[0]}`;
+		}
+		return undefined;
 	}
 	// 2001:db8::/32 documentation
 	if (g0 === 0x2001 && g1 === 0x0db8) return 'documentation-2001:db8::/32';

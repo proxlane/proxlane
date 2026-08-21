@@ -4,15 +4,26 @@
 	"schedule": ["before 6am on monday"],
 	"//": [
 		"THIS FILE ONLY WORKS IF THE RENOVATE GITHUB APP IS INSTALLED ON THE ORG. It is not a",
-		"workflow and nothing in CI runs it. As of 2026-08-13 the App had never run here — no",
-		"pull request, no dependency dashboard issue, no branch — which is why the GitHub Actions",
+		"workflow and nothing in CI runs it. As of 2026-08-13 the App had never run here \u2014 no",
+		"pull request, no dependency dashboard issue, no branch \u2014 which is why the GitHub Actions",
 		"below sat two majors behind until they were bumped by hand, and why the Node 20",
 		"deprecation warning appeared on every run.",
 		"",
 		"If you are reading this because dependencies look stale, check the App before the config."
 	],
 	"packageRules": [
-		{ "matchUpdateTypes": ["patch"], "automerge": true },
+		{
+			"description": "Patch updates automerge, EXCEPT GitHub Actions \u2014 see the rule below.",
+			"matchUpdateTypes": ["patch"],
+			"excludeManagers": ["github-actions"],
+			"automerge": true
+		},
+		{
+			"description": "GitHub Actions are never automerged, and are pinned to a commit SHA. release.yml runs with contents:write, packages:write and id-token:write and mints npm provenance, so a compromised third-party action executes inside the job that signs our releases. The repo already checksums the one gitleaks tarball it downloads, with the comment that piping an unverified download into a shell is a poor look in the job whose purpose is supply-chain hygiene \u2014 the same standard now applies to the code around the publish. repo:check assertion 47 holds it.",
+			"matchManagers": ["github-actions"],
+			"automerge": false,
+			"pinDigests": true
+		},
 		{
 			"description": "typescript 7.x is the Go rewrite, not a 5.x successor. See the Why column in CLAUDE.md.",
 			"matchPackageNames": ["typescript"],

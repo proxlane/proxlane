@@ -204,3 +204,60 @@ describe('what this guard does NOT do, stated so nobody assumes it does', () => 
 		allowed('https://localtest.me/'); // resolves to 127.0.0.1 in the real world
 	});
 });
+
+describe('IPv6 forms that carry an IPv4 address, beyond the two that were folded', () => {
+	// THREE FAMILIES REACHED THE HOST. `pnpm test:ssrf` passed 53/53 and SECURITY.md offers this
+	// suite as "the bar to beat", so the gap read as covered. Verified against the shipped guard
+	// before the fix:
+	//
+	//   ALLOWED  http://[::ffff:0:127.0.0.1]/         -> loopback
+	//   ALLOWED  http://[::ffff:0:169.254.169.254]/   -> the cloud metadata endpoint
+	//   ALLOWED  http://[64:ff9b:1::7f00:1]/          -> loopback via RFC 8215 NAT64
+	//
+	// The guard already blocks `192.88.99.0/24` on the v4 side because it is the 6to4 relay
+	// range — translation was considered in one direction and not the other.
+	const mustBlock = [
+		// RFC 2765 IPv4-translated, ::ffff:0:0/96. One group along from the mapped form, and the
+		// mapped check requires g4 === 0 where this has 0xffff.
+		'http://[::ffff:0:127.0.0.1]/',
+		'http://[::ffff:0:169.254.169.254]/',
+		'http://[::ffff:0:10.0.0.1]/',
+		// RFC 8215 local-use NAT64, 64:ff9b:1::/48 — the prefix a network running its own
+		// translator uses. The old check demanded g2 === 0, true only of the well-known /96.
+		'http://[64:ff9b:1::7f00:1]/',
+		'http://[64:ff9b:1::a9fe:a9fe]/',
+		// RFC 6052 embeds the address at six offsets by prefix length; only the last was read.
+		'http://[64:ff9b:1:a9fe:a9fe::]/',
+		'http://[64:ff9b:7f00:1::]/',
+		// And the well-known prefix, which did work and must keep working.
+		'http://[64:ff9b::169.254.169.254]/',
+	];
+
+	it.each(mustBlock)('refuses %s', (url) => {
+		const r = guardTargetUrl(url);
+		expect(r.allowed, `${url} reached the host`).toBe(false);
+	});
+
+	// THE OTHER DIRECTION, and it caught a real over-block twice while this was written. An
+	// address uses ONE embedding position; the bytes at the other five are the prefix's padding
+	// and read as 0.0.0.0 — or, where a window straddles the real address, 0.0.0.8. Both land in
+	// `this-network`, so a first pass refused `64:ff9b::8.8.8.8`, an ordinary NAT64 address for
+	// a public host.
+	const mustAllow = [
+		'http://[64:ff9b::8.8.8.8]/',
+		'http://[64:ff9b::1.1.1.1]/',
+		'http://[64:ff9b:1::8.8.8.8]/',
+		'http://[2606:4700:4700::1111]/',
+	];
+
+	it.each(mustAllow)('still allows %s', (url) => {
+		const r = guardTargetUrl(url);
+		expect(r.allowed, `${url} was refused; the fix over-blocks`).toBe(true);
+	});
+
+	it('has cases on both sides, so neither half is vacuous', () => {
+		// A guard that blocked everything would satisfy the first block alone.
+		expect(mustBlock.length).toBeGreaterThan(0);
+		expect(mustAllow.length).toBeGreaterThan(0);
+	});
+});
