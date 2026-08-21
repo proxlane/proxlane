@@ -29,7 +29,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sanitize, sanitizeHeaders } from './record.ts';
+import { IDENTIFYING_FIELDS, REDACTED, sanitizeBody, sanitizeHeaders } from './record.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC_CORPUS = join(ROOT, 'packages/detect/corpus');
@@ -128,8 +128,19 @@ export function buildCapture(
 	secrets: readonly string[],
 ): Capture {
 	const headers = sanitizeHeaders(ex.headers ?? {}, secrets);
-	const bodyBase64 =
-		ex.bodyBase64 ?? Buffer.from(sanitize(ex.body ?? '', secrets), 'utf8').toString('base64');
+	// BOTH PATHS THROUGH ONE SANITISER. `bodyBase64` is the documented preferred input — bytes
+	// survive a charset the text form loses — and it used to bypass sanitisation entirely, so
+	// the default path stored the body exactly as given. Neither path ever called
+	// `sanitizeBody`, the function that redacts `client_ip`, `project_uuid`, `user_uuid` and
+	// `account_id`: the same fields whose leak into six committed Scrapfly fixtures is why that
+	// function exists. A capture is a real response from real traffic, so it is MORE likely to
+	// carry an egress address than a recording against a fixed test target, and this one had no
+	// redaction at all.
+	const raw =
+		ex.bodyBase64 !== undefined
+			? new Uint8Array(Buffer.from(ex.bodyBase64, 'base64'))
+			: new TextEncoder().encode(ex.body ?? '');
+	const bodyBase64 = Buffer.from(sanitizeBody(raw, secrets)).toString('base64');
 	return {
 		kind: 'block-capture',
 		capturedAt: opts.now,
@@ -217,6 +228,28 @@ if (import.meta.filename === process.argv[1]) {
 		{ rule, targetClass, now: new Date().toISOString() },
 		secrets,
 	);
+
+	// ASSERT THE SANITISER WORKED RATHER THAN TRUSTING IT, the same guard `record.ts` carries.
+	// A leaked key or egress address in a committed capture is unrecoverable once pushed, and
+	// this script writes into a corpus whose whole purpose is to be shared.
+	//
+	// SCANNED OVER THE DECODED BODY, not the serialized capture. The body is stored base64, so
+	// a scan of the JSON is blind to everything in it — which is exactly how `record.ts`'s
+	// first version of this check missed the one place nothing else was looking.
+	const scannable = `${JSON.stringify(capture)}\n${new TextDecoder('utf-8', { fatal: false }).decode(Buffer.from(capture.bodyBase64, 'base64'))}`;
+	const leaked = IDENTIFYING_FIELDS.filter((field) =>
+		new RegExp(`"${field}"\\s*:\\s*"(?!${REDACTED})`).test(scannable),
+	);
+	for (const secret of secrets) {
+		if (secret.length >= 8 && scannable.includes(secret)) leaked.push('a provider key');
+	}
+	if (leaked.length > 0) {
+		process.stderr.write(
+			`\n  REFUSING TO WRITE: ${leaked.join(', ')} survived redaction.\n` +
+				'  This is a bug in sanitizeBody(); fix it before capturing again.\n\n',
+		);
+		process.exit(1);
+	}
 
 	mkdirSync(dest.dir, { recursive: true });
 	// A CONTENT DIGEST IN THE NAME, because rule + class + date is not unique. Two ordinary pages

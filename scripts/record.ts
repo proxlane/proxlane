@@ -281,7 +281,7 @@ export function classifyTransportError(signal: AbortSignal): 'deadline' | 'failu
 	return signal.aborted ? 'deadline' : 'failure';
 }
 
-const REDACTED = 'REDACTED';
+export const REDACTED = 'REDACTED';
 
 /**
  * Ceiling on a recorded body.
@@ -407,7 +407,7 @@ const NOT_SECRET = new Set(['x-usage-tokens', 'x-token-count']);
  * through ScrapingBee), and refusing those would block honest recordings while teaching
  * people to bypass the check.
  */
-const IDENTIFYING_FIELDS = [
+export const IDENTIFYING_FIELDS = [
 	'client_ip',
 	'project_uuid',
 	'user_uuid',
@@ -926,13 +926,22 @@ if (import.meta.filename === process.argv[1]) {
 			// fixture, where the body is base64 — so it could never see a secret in a body, in
 			// the one place nothing else was looking either.
 			const scannable = `${serialized}\n${new TextDecoder('utf-8', { fatal: false }).decode(bytes)}`;
-			for (const field of IDENTIFYING_FIELDS) {
-				if (new RegExp(`"${field}"\\s*:\\s*"(?!${REDACTED})`).test(scannable)) {
-					process.stderr.write(
-						`\n  REFUSING TO WRITE ${target.category}: "${field}" survived redaction.\n`,
-					);
-					failed++;
-				}
+			// COLLECTED, THEN ACTED ON. This used to `failed++` inside the loop and fall straight
+			// through to `writeFileSync` — so a fixture whose `client_ip` survived redaction (the
+			// maintainer's egress address, which CLAUDE.md bans from this repo outright) was
+			// written into the tracked fixture directory while the operator was told it had been
+			// refused. One `git add -A` and it is in public history. `continue` inside the loop
+			// would only have advanced the FIELD, which is presumably how it was missed.
+			const leaked = IDENTIFYING_FIELDS.filter((field) =>
+				new RegExp(`"${field}"\\s*:\\s*"(?!${REDACTED})`).test(scannable),
+			);
+			if (leaked.length > 0) {
+				process.stderr.write(
+					`\n  REFUSING TO WRITE ${target.category}: ${leaked.map((f) => `"${f}"`).join(', ')} survived redaction.\n` +
+						'  This is a bug in sanitizeBody(); fix it before recording again.\n',
+				);
+				failed++;
+				continue;
 			}
 			if (providerKey !== '' && scannable.includes(providerKey)) {
 				process.stderr.write(
