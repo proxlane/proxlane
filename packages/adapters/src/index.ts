@@ -1,3 +1,4 @@
+export { CAPABILITIES, capabilitiesFor } from './capabilities.js';
 export * from './contract.js';
 export { REGISTRY } from './registry.js';
 

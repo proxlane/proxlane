@@ -24,10 +24,10 @@ block page**; a test asserts the count.
 ## Blocked on
 
 Owner decisions and external answers. None is unblocked by writing code.
-- **A country nobody can serve** — `country_code=zz` buys a paid attempt at every provider, each
-  answering `PROVIDER_ERROR`, so a caller's typo degrades shared provider health. No outcome fits:
-  failover true, cooldown none, health excluded. `countryCodes: 'all'` is why capability filtering
-  misses it. A taxonomy member, or real country lists. *platform-engineer's; adapters must not.*
+- **Countries: no flat set is right** — targeting is tier-gated (ScraperAPI `us`/`eu` on Hobby vs
+  79 on Business; ScrapingBee 42 classic vs 243 premium) and BYOK means the plan is the caller's,
+  so `all` over-claims and any finite set breaks someone. `zz` still buys a paid attempt at every
+  provider. Needs a tier-keyed set or a probe. Do bad codes error, or serve elsewhere? *platform's.*
 - **Secret scanning depth** — core scanning and push protection are on. Non-provider patterns
   and validity checks need paid Secret Protection: buy it, or accept a bespoke key shape unscanned.
 - **Where `k6:soak` runs** — harness green, venue undecided. Gateway-internal time excludes

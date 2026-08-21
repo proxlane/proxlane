@@ -67,24 +67,60 @@ function registryIds(): string[] {
 	return [...body.matchAll(/^\t([a-z][a-z0-9-]*):/gm)].map((m) => m[1] as string);
 }
 
+/**
+ * One top-level field's value, however many lines it spans.
+ *
+ * A REGEX CANNOT DO THIS and the one that used to be here proved it. `^\tname: (.+?),$` reads a
+ * value only when it fits on one line, so reformatting a long country set across five lines made
+ * the field vanish silently. This scans from the field to the comma that closes it, tracking
+ * bracket depth so a comma inside the value does not end it early.
+ *
+ * Anchored at one tab: these fields sit at the top level of the capabilities object, while
+ * `renderJs` also appears nested under the cost table at two tabs. Matching loosely read the
+ * cost multiplier as the capability flag.
+ */
+function field(src: string, id: string, name: string): string {
+	const start = new RegExp(`^\\t${name}: `, 'm').exec(src);
+	if (start === null) throw new Error(`${id}: no top-level \`${name}\` in capabilities.ts`);
+	let i = (start.index ?? 0) + start[0].length;
+	let depth = 0;
+	const from = i;
+	for (; i < src.length; i++) {
+		const ch = src[i];
+		if (ch === '(' || ch === '[' || ch === '{') depth++;
+		else if (ch === ')' || ch === ']' || ch === '}') depth--;
+		else if (ch === ',' && depth === 0) break;
+	}
+	if (i >= src.length) throw new Error(`${id}: \`${name}\` never closes`);
+	// Whitespace and newlines inside a multi-line value carry no meaning here.
+	return src.slice(from, i).replace(/\s+/g, ' ').trim();
+}
+
 function rowFor(id: string): Row {
 	const src = readFileSync(join(SRC, id, 'capabilities.ts'), 'utf8');
 	// Anchored to the start of a line with one tab: these fields sit at the top level of the
 	// capabilities object, while `renderJs` also appears nested under `multipliers` at two tabs.
 	// Matching loosely read the cost multiplier as the capability flag.
-	const field = (n: string): string =>
-		new RegExp(`^\\t${n}: (.+?),$`, 'm').exec(src)?.[1] ?? '';
-	const countries = field('countryCodes');
+	const countries = field(src, id, 'countryCodes');
+	const codes = (countries.match(/'[a-z]{2}'/g) ?? []).length;
+	// A FINITE SET OF ZERO IS NOT A FACT ABOUT A PROVIDER, it is a parser that failed. This
+	// printed "0 regions" into the README the first time a country list was reformatted across
+	// several lines: the old single-line regex missed it, returned '', and counting quoted pairs
+	// in an empty string gave a confident zero. Exactly the shape assertion 29 exists to stop,
+	// reintroduced by the generator that assertion 29 checks.
+	if (countries !== "'all'" && codes === 0) {
+		throw new Error(
+			`${id}: countryCodes is neither 'all' nor a set this parser can read. Refusing to ` +
+				'write "0 regions" into the README.',
+		);
+	}
 	return {
 		id,
 		name: NAMES[id] ?? id,
-		renderJs: field('renderJs') === 'true',
-		geo:
-			countries === "'all'"
-				? 'all'
-				: `${(countries.match(/'[a-z]{2}'/g) ?? []).length} regions`,
-		sessions: field('sessions') === 'true',
-		post: field('post') === 'true',
+		renderJs: field(src, id, 'renderJs') === 'true',
+		geo: countries === "'all'" ? 'all' : `${codes} regions`,
+		sessions: field(src, id, 'sessions') === 'true',
+		post: field(src, id, 'post') === 'true',
 		// From the nested multipliers block, which is the number that actually differs between
 		// providers and the one a reader is choosing on.
 		renderMultiplier: (/^\t\trenderJs: ([0-9.]+),$/m.exec(src)?.[1] ?? '?') as string,
