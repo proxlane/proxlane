@@ -14,7 +14,7 @@ import appCss from '../styles/app.css?url';
  */
 const SITE = 'https://proxlane.dev';
 const DESCRIPTION =
-	'Route scraping requests across ScraperAPI, ScrapingBee and Scrapfly with automatic ' +
+	'Route scraping requests across ScraperAPI, ScrapingBee, Scrapfly and Bright Data with automatic ' +
 	'failover, cost-aware routing and honest success detection. Change one hostname. ' +
 	'AGPL, self-hostable.';
 const TITLE = 'Proxlane: one endpoint in front of every scraping API';

@@ -1563,9 +1563,12 @@ function matchesOwner(pattern: string, file: string): boolean {
 			fail('29', `README.md says "${claimed[1]} adapters" and the registry ships ${adapters}`);
 		} else checkedHere += 1;
 
+		// `$comment` IS NOT A COMMAND. Counting `Object.keys` made this assertion agree with a
+		// README that advertised 28 commands where 27 exist — the check and the claim were both
+		// derived from the same wrong denominator, so they matched each other and not reality.
 		const cmds = Object.keys(
 			JSON.parse(read('scripts/commands.json')) as Record<string, unknown>,
-		).length;
+		).filter((k) => !k.startsWith('$')).length;
 		const cmdClaim = /(\d+) commands are real/.exec(readme);
 		if (cmdClaim === null) {
 			fail('29', 'README.md no longer states "<n> commands are real"');
@@ -2602,6 +2605,145 @@ function matchesOwner(pattern: string, file: string): boolean {
 		}
 	}
 	ok('40', refs.length, `label references resolve to a declared label`);
+}
+
+// ------------------ assertion 41: every adapter's key reaches every place that must pass it
+//
+// THE FOURTH ADAPTER WAS ADDED TO `REGISTRY` AND NOTHING DERIVED FROM `REGISTRY`. The gateway
+// builds each provider's variable at `apps/gateway/src/index.ts` by uppercasing the registry
+// id — so Bright Data has always read `BRIGHTDATA_KEY` — while `docker/compose.yml` and
+// `.env.example` were hand-maintained lists that stopped at three. A self-hoster read the env
+// table, set the variable, ran the documented compose command, and Bright Data was silently
+// absent from the chain with no error anywhere: compose does not forward an unlisted variable,
+// and the gateway's own "no key, not in the chain" behaviour is indistinguishable from it.
+//
+// The same omission ran through CI: the weekly canary passed three keys, so it generated zero
+// tests for the fourth adapter and went green anyway.
+//
+// This is the derivation, so adapter five costs one edit rather than five.
+{
+	const REG = 'packages/adapters/src/registry.ts';
+	const src = existsSync(join(ROOT, REG)) ? readFileSync(join(ROOT, REG), 'utf8') : '';
+	// The object literal's keys, which is exactly what the gateway iterates.
+	const body = /export const REGISTRY[\s\S]*?=\s*\{\n([\s\S]*?)\n\};/.exec(src)?.[1] ?? '';
+	const ids = [...body.matchAll(/^\t([a-z][a-z0-9_]*)\s*:/gm)].map((m) => m[1] as string);
+
+	// Non-zero denominator, and a floor that matches the launch set. A regex that silently
+	// stopped matching would otherwise make this assertion pass over an empty list.
+	if (ids.length < 3) {
+		fail(
+			'41',
+			`parsed ${ids.length} adapter ids from ${REG}; expected at least the 3 launch adapters`,
+		);
+	}
+
+	const envVar = (id: string) => `${id.toUpperCase().replace(/-/g, '_')}_KEY`;
+	// Each consumer, and what it would cost the reader to have it missing.
+	const consumers: { file: string; why: string }[] = [
+		{ file: 'docker/compose.yml', why: 'compose does not forward a variable it does not list' },
+		{ file: '.env.example', why: 'this is where a self-hoster reads which variable to set' },
+		{
+			file: '.github/workflows/scheduled.yml',
+			why: 'the canary and record-diff generate no coverage for a key they never pass',
+		},
+	];
+
+	let checked41 = 0;
+	for (const c of consumers) {
+		if (!existsSync(join(ROOT, c.file))) {
+			fail('41', `${c.file} does not exist, so nothing holds it to the registry`);
+			continue;
+		}
+		const text = readFileSync(join(ROOT, c.file), 'utf8');
+		for (const id of ids) {
+			checked41 += 1;
+			if (!text.includes(envVar(id))) {
+				fail('41', `${c.file} never names ${envVar(id)} — ${c.why}`);
+			}
+		}
+	}
+	ok('41', checked41, 'adapter keys reach compose, .env.example and the scheduled jobs');
+}
+
+// ------------------------- assertion 42: a surface that names providers names all of them
+//
+// FOUR PUBLIC SURFACES SAID "ScraperAPI, ScrapingBee and Scrapfly" for as long as the fourth
+// adapter had been shipping: the OpenAPI summary a client generator reads, the docs quickstart,
+// the site's own meta description, and the docs index. Each was a sentence somebody typed once,
+// and nothing derived it — the same root cause as assertion 41, in prose instead of plumbing.
+//
+// Scoped to files that describe WHAT THE GATEWAY ROUTES ACROSS, deliberately. `CLAUDE.md`'s
+// "Launch adapters: ScraperAPI, ScrapingBee, Scrapfly" is a historical decision and is still
+// true; a blanket ban on naming a subset anywhere would fail on it and on every changelog entry.
+{
+	const NAMED_SURFACES = [
+		'scripts/openapi.ts',
+		'apps/web/content/docs/quickstart.md',
+		'apps/web/src/routes/__root.tsx',
+		'apps/web/src/routes/docs/index.tsx',
+	];
+	// The display names the README table already generates from, so there is one list.
+	const namesSrc = read('scripts/readme-providers.ts');
+	const mapOf = (which: string): Record<string, string> => {
+		const b = new RegExp(
+			`export const ${which}: Record<string, string> = \\{([\\s\\S]*?)\\n\\};`,
+		).exec(namesSrc)?.[1];
+		return Object.fromEntries(
+			[...(b ?? '').matchAll(/^\t([a-z0-9_]+): '([^']+)'/gm)].map((m) => [
+				m[1] as string,
+				m[2] as string,
+			]),
+		);
+	};
+	const products = mapOf('NAMES');
+	const prose = mapOf('PROSE');
+	const names = Object.values(prose);
+
+	if (names.length < 3) {
+		fail(
+			'42',
+			`parsed ${names.length} prose names from readme-providers.ts; expected at least 3`,
+		);
+	}
+	// The two maps cannot drift: same ids, and the prose form must be a prefix of the product
+	// form, so "Bright Data" and "Bright Data Web Unlocker" stay the same provider.
+	for (const id of new Set([...Object.keys(products), ...Object.keys(prose)])) {
+		const pr = products[id];
+		const ps = prose[id];
+		if (pr === undefined) fail('42', `PROSE names "${id}" and NAMES does not`);
+		else if (ps === undefined) fail('42', `NAMES names "${id}" and PROSE does not`);
+		else if (!pr.startsWith(ps))
+			fail('42', `PROSE "${ps}" is not a prefix of NAMES "${pr}" for ${id}`);
+	}
+	let checked42 = 0;
+	for (const f of NAMED_SURFACES) {
+		if (!has(f)) {
+			fail('42', `${f} is gone — reword this assertion rather than letting it pass`);
+			continue;
+		}
+		// WHITESPACE COLLAPSED, because prose wraps. Prettier reflowed the docs index so that
+		// "Bright Data" spanned a line break as `Bright\n\t\t\t\t\tData`, and a literal
+		// substring test called a correct sentence a violation. A name split by a newline is
+		// still the name to every reader of the rendered page.
+		const text = read(f).replace(/\s+/g, ' ');
+		// Only a surface that already names SOME provider is held to naming them all. A file
+		// that stops describing the chain entirely is a different change, and this should not
+		// be the thing that blocks it.
+		const mentions = names.filter((n) => text.includes(n));
+		if (mentions.length === 0) continue;
+		checked42 += 1;
+		const missing = names.filter((n) => !text.includes(n));
+		if (missing.length > 0) {
+			fail(
+				'42',
+				`${f} names ${mentions.length} of ${names.length} providers, omitting ${missing.join(', ')}`,
+			);
+		}
+	}
+	if (checked42 === 0) {
+		fail('42', 'no surface names any provider — this check stopped checking');
+	}
+	ok('42', checked42, 'surfaces describing the chain name every shipped provider');
 }
 
 // -------------------------------------------------------------------------- report

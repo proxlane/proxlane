@@ -17,7 +17,7 @@ included here. Read it at https://proxlane.dev/docs/outcomes or run `npx proxlan
 
 Source: https://proxlane.dev/docs/quickstart
 
-Proxlane is one endpoint in front of ScraperAPI, ScrapingBee and Scrapfly. If a provider
+Proxlane is one endpoint in front of ScraperAPI, ScrapingBee, Scrapfly and Bright Data. If a provider
 blocks, errors or times out, Proxlane tries the next one. The response tells you what
 happened at every step.
 

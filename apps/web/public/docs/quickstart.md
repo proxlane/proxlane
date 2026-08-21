@@ -4,7 +4,7 @@ title: Quickstart
 summary: Make your first request in about a minute.
 ---
 
-Proxlane is one endpoint in front of ScraperAPI, ScrapingBee and Scrapfly. If a provider
+Proxlane is one endpoint in front of ScraperAPI, ScrapingBee, Scrapfly and Bright Data. If a provider
 blocks, errors or times out, Proxlane tries the next one. The response tells you what
 happened at every step.
 
