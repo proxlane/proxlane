@@ -18,7 +18,12 @@
  * while looking entirely correct.
  */
 
-import { OUTCOMES, type Outcome, policyFor } from '@proxlane/shared';
+// THE SUBPATH, NEVER THE BARREL. `@proxlane/shared` re-exports `id.ts`, which imports
+// `node:crypto`. Pulling the barrel into anything the browser loads drags a Node builtin
+// with it: in dev Vite externalises it and the page throws on load, which kills hydration
+// for the WHOLE site, not just this route. The header silently stopped reacting to scroll
+// and the cause was three files away.
+import { OUTCOMES, type Outcome, policyFor } from '@proxlane/shared/outcome';
 
 export interface GeneratedPage {
 	/** Site-absolute path, no origin. */

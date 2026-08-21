@@ -1,4 +1,4 @@
-import { policyFor } from '@proxlane/shared';
+import { policyFor } from '@proxlane/shared/outcome';
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { outcomeFromSlug, outcomePages } from '../../generators/site.js';
 import { docHead } from '../../lib/doc-head.js';
@@ -45,7 +45,7 @@ function OutcomePage() {
 		['cooldown', policy.cooldown === 'none' ? 'none' : policy.cooldown],
 	];
 	return (
-		<article className="mx-auto w-full max-w-[46rem] px-5 py-14 sm:px-8 sm:py-20">
+		<article className="mx-auto w-full max-w-[46rem] py-12 sm:py-20">
 			<p className="mb-3 font-mono text-[color:var(--color-slate)] text-xs">X-Outcome</p>
 			<h1 className="font-mono font-semibold text-[color:var(--color-ink)] text-[1.75rem] tracking-[-0.01em] sm:text-[2.25rem]">
 				{outcome}
