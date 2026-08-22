@@ -63,13 +63,22 @@ publishing anyway.
 
 ## Quickstart
 
-Two commands, and the first one is the gateway. There is no hosted endpoint to curl — the
+Three commands, and the first one invents a key. There is no hosted endpoint to curl — the
 `localhost` below is not standing in for one, it is where Proxlane runs.
+
+`PROXLANE_API_KEY` is the key **you** will present to your own gateway. Make one up; nothing
+registers it anywhere. The gateway refuses to boot without it, because a gateway started open is
+a proxy funded by whoever deployed it.
+
+```bash
+export PROXLANE_API_KEY=$(openssl rand -hex 16)
+export SCRAPERAPI_KEY=…            # or SCRAPINGBEE_KEY / SCRAPFLY_KEY / BRIGHTDATA_KEY
+```
 
 ```bash
 docker run -p 8787:8787 \
-  -e PROXLANE_API_KEY=$PROXLANE_API_KEY \
-  -e SCRAPERAPI_KEY=$SCRAPERAPI_KEY \
+  -e PROXLANE_API_KEY \
+  -e SCRAPERAPI_KEY \
   ghcr.io/proxlane/gateway
 ```
 
