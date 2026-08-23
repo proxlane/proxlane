@@ -1063,3 +1063,159 @@ describe('a claimed success that returned nothing is not a success', () => {
 		expect(r.detectRuleId).toBe('empty-response');
 	});
 });
+
+describe('a cooldown degrades the chain, it does not truncate it', () => {
+	// THE BUG THAT COST A REAL CALLER A WORKING SOURCE. Their chain was
+	// [scrapfly, scrapingbee, brightdata] because ScraperAPI happened to be cooling. All three
+	// refused, the walk ended, and the request returned TARGET_ERROR — having never tried the one
+	// provider that could serve it. They concluded the site was blocked at every tier. It was
+	// blocked at every tier the gateway was willing to try, and a later request with the cooldown
+	// expired succeeded on ScraperAPI at the cheapest rate.
+	//
+	// The floor already existed for "every capable provider is cooling", with the stated reason
+	// that it only fires "where the alternative was serving nothing". That is equally true here;
+	// the trigger was narrower than the reasoning.
+	it('tries a cooled provider when every provider it walked failed', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		// `a` is cooling. `b` is not, and fails.
+		cd.arm(blk('a'), Date.now());
+
+		const r = await chain(
+			[
+				['a', 'OK'],
+				['b', 'PROVIDER_ERROR'],
+			],
+			{ cooldowns: cd },
+		);
+
+		expect(r.outcome, 'gave up with a cooled provider untried').toBe('OK');
+		expect(r.provider).toBe('a');
+		expect(r.providerHealth, 'the forced attempt is not labelled as such').toBe(
+			'cooling-forced',
+		);
+		// `['b', 'b', 'a']` — b, b's terminal retry, then the forced a. Asserted as properties
+		// rather than a literal sequence: the retry count is configurable
+		// (PROXLANE_TERMINAL_RETRIES, default 1), and pinning the list makes this a test of that
+		// setting instead of of the forced attempt.
+		const tried = r.attempts.map((x) => x.provider);
+		expect(tried[tried.length - 1], 'the forced provider was not tried last').toBe('a');
+		expect(tried.filter((x) => x === 'a').length, 'forced more than once').toBe(1);
+	});
+
+	it('forces at most one, however many are cooling', async () => {
+		// The herd guard. The forced slot is per DOMAIN and claimed once, so a chain that fails
+		// everywhere does not walk every cooled provider at full price.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		cd.arm(blk('a'), Date.now());
+		cd.arm(blk('b'), Date.now());
+
+		const r = await chain(
+			[
+				['a', 'PROVIDER_ERROR'],
+				['b', 'PROVIDER_ERROR'],
+				['c', 'PROVIDER_ERROR'],
+			],
+			{ cooldowns: cd },
+		);
+		// `c` is the only non-cooling one; then exactly ONE cooled provider is forced, never
+		// both. Counted as distinct cooled providers rather than total attempts, which also
+		// carry c's terminal retry.
+		const cooledTried = new Set(
+			r.attempts.map((x) => x.provider).filter((id) => id === 'a' || id === 'b'),
+		);
+		expect(cooledTried.size, 'more than one cooled provider was forced').toBe(1);
+	});
+
+	it('does not force when the walk succeeded', async () => {
+		// The obvious direction, and the one that keeps this from costing money on every request.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		cd.arm(blk('a'), Date.now());
+		const r = await chain(
+			[
+				['a', 'OK'],
+				['b', 'OK'],
+			],
+			{ cooldowns: cd },
+		);
+		expect(r.outcome).toBe('OK');
+		expect(r.provider).toBe('b');
+		expect(r.attempts.length).toBe(1);
+	});
+
+	it('does not force when nothing was ever attempted', async () => {
+		// That case belongs to the pre-walk floor, which claims the same slot. Forcing here too
+		// would take the slot twice for one request.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		cd.arm(blk('a'), Date.now());
+		forcedSlotTaken(cd);
+		const r = await chain([['a', 'OK']], { cooldowns: cd });
+		expect(r.attempts.length).toBe(0);
+		expect(r.outcome).toBe('NO_PROVIDER_AVAILABLE');
+	});
+});
+
+describe('the last-resort attempt is bounded by more than the claim', () => {
+	// WITH A STORE THAT ALWAYS GRANTS THE CLAIM. Both guards below are masked in normal use,
+	// because arming the forced key makes the second claim fail on its own — so a mutation that
+	// removed either survived every test until this one. A store that never refuses separates the
+	// claim from the logic it is protecting.
+	function alwaysClaims(inner: InMemoryCooldownStore): CooldownStore {
+		return {
+			check: (keys, now) => inner.check(keys, now),
+			claim: () => Promise.resolve(true),
+			arm: (key, now, retryAfterMs) => inner.arm(key, now, retryAfterMs),
+			clear: (key) => inner.clear(key),
+			release: (key) => inner.release(key),
+			list: (now) => inner.list(now),
+		};
+	}
+
+	it('never re-forces a provider it has already attempted', async () => {
+		// The pre-walk floor forces one cooled provider in when everything is cooling. If it fails,
+		// the exhaustion path must not pick the same one again — `unusable` is what prevents that,
+		// and without the filter the chain pays twice for one provider's refusal.
+		const inner = new InMemoryCooldownStore(() => 0.9);
+		inner.arm(blk('a'), Date.now());
+		inner.arm(blk('b'), Date.now());
+
+		const r = await chain(
+			[
+				['a', 'PROVIDER_ERROR'],
+				['b', 'PROVIDER_ERROR'],
+			],
+			{ cooldowns: alwaysClaims(inner) },
+		);
+
+		const tried = r.attempts.map((x) => x.provider);
+		const distinct = new Set(tried);
+		expect(distinct.size, 'a provider was forced twice').toBe(
+			tried.length - countRetries(tried),
+		);
+	});
+
+	it('forces at most once per request even when the claim always succeeds', async () => {
+		// `exhaustionForced` is the guard. Without it the walk would force every cooled provider
+		// in turn, which is the herd the single slot exists to prevent, reintroduced inside one
+		// request instead of across many.
+		const inner = new InMemoryCooldownStore(() => 0.9);
+		for (const id of ['a', 'b', 'c']) inner.arm(blk(id), Date.now());
+
+		const r = await chain(
+			[
+				['a', 'PROVIDER_ERROR'],
+				['b', 'PROVIDER_ERROR'],
+				['c', 'PROVIDER_ERROR'],
+			],
+			{ cooldowns: alwaysClaims(inner) },
+		);
+
+		// One from the pre-walk floor, one from exhaustion. Never all three.
+		const distinct = new Set(r.attempts.map((x) => x.provider));
+		expect(distinct.size, 'every cooled provider was forced').toBeLessThanOrEqual(2);
+	});
+});
+
+/** How many entries are a terminal retry of the entry before them. */
+function countRetries(tried: readonly string[]): number {
+	return tried.filter((id, i) => i > 0 && tried[i - 1] === id).length;
+}

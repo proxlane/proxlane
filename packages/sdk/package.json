@@ -1,7 +1,7 @@
 {
 	"name": "@proxlane/sdk",
-	"version": "0.0.1",
-	"description": "Placeholder. Proxlane has no SDK yet \u2014 call the HTTP endpoint directly, it is one GET.",
+	"version": "0.0.2",
+	"description": "Placeholder. Proxlane has no SDK yet — call the HTTP endpoint directly, it is one GET.",
 	"keywords": [
 		"web-scraping",
 		"scraping-api",
