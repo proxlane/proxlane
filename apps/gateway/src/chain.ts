@@ -396,6 +396,40 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	//
 	// The provider picked is the one closest to opening on its own, so the forced attempt is
 	// also the one most likely to work, and its failure re-arms it and grows the backoff.
+	/**
+	 * Take the single forced slot for this domain and return the cooled provider nearest to open.
+	 *
+	 * NEEDED TWICE, and the second time is the one that cost a real caller a working source. The
+	 * floor below fires when every capable provider is cooling BEFORE the walk. It did not fire
+	 * when the walk ran and every provider IN it failed — so a chain of three that all refused
+	 * returned a provider fault while a fourth sat cooling, untried, and the caller concluded the
+	 * site was blocked everywhere. It was blocked everywhere we were willing to look.
+	 *
+	 * The floor's own argument covers both: it fires "where the alternative was serving nothing".
+	 * Its trigger was narrower than its reasoning. A cooldown should degrade the chain, not
+	 * truncate it.
+	 */
+	const claimForcedAttempt = async (
+		from: readonly { readonly provider: string; readonly untilMs: number }[],
+	): Promise<(typeof capable)[number] | undefined> => {
+		if (deps.cooldowns === undefined || from.length === 0) return undefined;
+		const nearest = [...from].sort((a, b) => a.untilMs - b.untilMs)[0];
+		if (nearest === undefined) return undefined;
+		let claimed = false;
+		try {
+			claimed = await deps.cooldowns.claim(forcedProbeKey(domain), now());
+		} catch {
+			// Fails CLOSED. Losing this claim costs a wasted attempt PER CONCURRENT REQUEST.
+			claimed = false;
+		}
+		if (!claimed) return undefined;
+		// An EXPLICIT duration, so the slot is a flat window and never an exponential one.
+		deps.cooldowns.arm(forcedProbeKey(domain), now(), COOLDOWN.CAP_MS);
+		return capable.find((c) => c.adapter.capabilities.id === nearest.provider);
+	};
+
+	/** One last-resort attempt per request, however many providers are cooling. */
+	let exhaustionForced = false;
 	let forcedByCooldown: (typeof capable)[number] | undefined;
 	/** How long until a forced probe is available again, when this request lost the claim. */
 	let forcedProbeAvailableInMs: number | undefined;
@@ -862,6 +896,45 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					// project exists not to print.
 					i -= 1;
 					continue;
+				}
+				// EVERY PROVIDER WE WERE WILLING TO TRY HAS FAILED, and the walk does not fall out
+				// of the loop when that happens — it returns from right here. So a chain of
+				// [scrapfly, scrapingbee, brightdata], with ScraperAPI cooling, returned a provider
+				// fault from this line while the one provider that could serve the request sat
+				// untried. A real caller read that as "blocked at every tier", wrote the source
+				// off, and a later request with the cooldown expired succeeded on ScraperAPI at
+				// the cheapest rate available.
+				//
+				// NOT in the `failover === false` branch above, which a first attempt targeted by
+				// matching the return's shape: three branches share it, and hooking the wrong one
+				// forced a cooled provider after a SUCCESS. This is the only exit where the chain
+				// gave up having failed.
+				//
+				// Same single per-domain claim as the pre-walk floor, so it cannot herd, and once
+				// per request.
+				if (!exhaustionForced) {
+					exhaustionForced = true;
+					// `unusable` holds everything already attempted, including whatever the pre-walk
+					// floor forced. Filtering it is belt-and-braces: the floor's claim is already
+					// taken by then, so this path returns undefined anyway. Kept because the
+					// invariant should not depend on the store refusing a second claim, and said
+					// out loud because a mutation removing this filter survives the suite — the
+					// claim masks it, and no test here separates the two.
+					const lastResort = await claimForcedAttempt(
+						cooled.filter((c) => !unusable.has(c.provider)),
+					);
+					if (lastResort !== undefined) {
+						forcedByCooldown = lastResort;
+						attemptable = [
+							{
+								id: lastResort.adapter.capabilities.id,
+								state: states.get(lastResort.adapter.capabilities.id)?.state ?? 'healthy',
+								candidate: lastResort,
+							},
+						];
+						i = -1;
+						continue;
+					}
 				}
 				return {
 					outcome,
