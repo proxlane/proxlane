@@ -202,7 +202,7 @@ defined per outcome, centrally, never inside adapters.
 | Outcome | Class | Meaning | HTTP we return | Charge user? | Failover? | Cooldown | Page us? |
 |---|---|---|---|---|---|---|---|
 | `OK` | `ok` | Real content, passed validation | upstream status | yes (hosted) | no | no | no |
-| `SOFT_BLOCK` | `blocked` | 200 but our detector fired (rule ID attached) | 502 | no | yes | `blk` | no |
+| `SOFT_BLOCK` | `blocked` | our detector fired on the body (rule ID attached) | 502 | no | yes | `blk` | no |
 | `HARD_BLOCK` | `blocked` | Provider says blocked/banned | 502 | no | yes | `blk` | no |
 | `TARGET_NOT_FOUND` | `target` | Genuine 404 (unless retry_404 semantics) | 404 | provider-dependent | **no** | no | no |
 | `TARGET_ERROR` | `target` | Target site 5xx / DNS dead | 502 | no | yes, once | no | no |

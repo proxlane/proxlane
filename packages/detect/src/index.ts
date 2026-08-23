@@ -60,6 +60,35 @@ export interface DetectRule {
  * Vendor signatures. Each is a token the vendor's own challenge markup emits, chosen because
  * it does not plausibly occur in ordinary page content.
  */
+/**
+ * A response with nothing in it — and WHY THIS IS NOT A `detect()` RULE.
+ *
+ * It was one, briefly, and the no-fire corpus refused it within a minute: a real recorded
+ * ScrapingBee 404 has an empty body, and `detect()` is called over every stored capture
+ * regardless of outcome, so the rule called a genuine target 404 a block.
+ *
+ * That is the lesson, not an inconvenience. Whether an empty body is a failure DEPENDS ON WHAT
+ * THE PROVIDER CLAIMED. On a 404 it is ordinary — the target said not-found and there was nothing
+ * to pass on. On a claimed success it is a scrape that returned nothing, and `OK` is
+ * `chargeable: true`, so the caller is billed for zero bytes and told it worked. `detect()` has
+ * no access to the outcome and must not guess at it; the chain has both.
+ *
+ * Observed, not imagined: a real caller's Cloudflare-defended target answered 200 with zero bytes
+ * from one provider after 37 seconds. `plan.md` section 2 has listed "near-empty content" as a v1
+ * heuristic since before the detector existed.
+ *
+ * CONSERVATIVE ON PURPOSE — no non-whitespace byte at all. A thin page is not covered and must not
+ * be: an app shell with an empty root element is the legitimate answer for that URL, and calling
+ * it blocked would fail over three more times to fetch the same correct thing. Length-versus-median,
+ * the other half of plan.md's list, needs per-domain history and belongs with the scoreboard.
+ */
+export const EMPTY_RESPONSE = 'empty-response';
+
+export function isContentFree(body: Uint8Array): boolean {
+	if (body.byteLength === 0) return true;
+	return !/\S/.test(new TextDecoder('utf-8', { fatal: false }).decode(body.subarray(0, 512)));
+}
+
 export const RULES: readonly DetectRule[] = [
 	{
 		id: 'cloudflare-blocked',

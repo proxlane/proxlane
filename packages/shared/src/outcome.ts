@@ -266,7 +266,7 @@ export const FAILOVER = {
 		failover: true,
 		cooldown: 'blk',
 		pages: false,
-		meaning: '200 but our detector fired; a rule ID is attached',
+		meaning: 'our detector fired on the body; a rule ID is attached',
 	},
 	HARD_BLOCK: {
 		class: 'blocked',
