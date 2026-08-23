@@ -1,5 +1,32 @@
 # @proxlane/web
 
+## 0.7.1
+
+### Patch Changes
+
+- [#171](https://github.com/proxlane/proxlane/pull/171) [`b0bf5b4`](https://github.com/proxlane/proxlane/commit/b0bf5b41800ba5a7196e8966e21f5a34d74eab3c) Thanks [@scarsam](https://github.com/scarsam)! - Every attempt now records the provider's reported cost, our own table's prediction for the same
+  request shape, and which of the two the figure came from. Responses carry `X-Cost-Source`:
+  `reported` when the provider told us, `estimated` when we worked it out. This is what makes a
+  wrong cost table findable from live traffic instead of by re-reading a vendor's pricing page.
+
+- [#178](https://github.com/proxlane/proxlane/pull/178) [`7c8fcbb`](https://github.com/proxlane/proxlane/commit/7c8fcbb6b52b88320486a0299c60f82a67900720) Thanks [@scarsam](https://github.com/scarsam)! - The homepage boot banner printed the provider table's order and called it the routing order. The
+  gateway routes Scrapfly ahead of ScrapingBee, so the page named the wrong provider as first to be
+  tried and paid. The provider table is now derived from the capability registry rather than typed
+  out — two of its cells were wrong, ScrapingBee's geography and Scrapfly's rendering multiplier.
+
+- [#185](https://github.com/proxlane/proxlane/pull/185) [`567c675`](https://github.com/proxlane/proxlane/commit/567c67596c61fecde0bb563f96337211f5c3b53e) Thanks [@scarsam](https://github.com/scarsam)! - The homepage's one copyable command pointed at a hostname that returns 401 to a service nobody can
+  sign up for. It now shows `localhost:8787`, which is what the README has always said. The detection
+  section no longer claims every competitor reports a block page as a success — that is false of a
+  provider we ship an adapter for, and `plan.md` had already retracted it once.
+
+- [#174](https://github.com/proxlane/proxlane/pull/174) [`37783d3`](https://github.com/proxlane/proxlane/commit/37783d37d07870d226a04b2fba4d64c21c31499d) Thanks [@scarsam](https://github.com/scarsam)! - Name Bright Data everywhere the site describes what the gateway routes across. Four surfaces
+  still said three providers: the OpenAPI summary, the docs quickstart, the meta description and
+  the docs index.
+- Updated dependencies [[`7d5c835`](https://github.com/proxlane/proxlane/commit/7d5c83592cfcc40281fdb9d465f020f922083282), [`7e77a6d`](https://github.com/proxlane/proxlane/commit/7e77a6d09b470c77cdec25ff205d64f4bf930fb5), [`84e83ce`](https://github.com/proxlane/proxlane/commit/84e83cecd0218db1ffce4c75c7e22d7a6f8e3df4), [`8c05ff9`](https://github.com/proxlane/proxlane/commit/8c05ff918d74b70b6bff758469daaad906a08b80), [`4468690`](https://github.com/proxlane/proxlane/commit/4468690161f5e5c2b1f87d3839854d0f2849b07c), [`1248872`](https://github.com/proxlane/proxlane/commit/12488726f08b9e2dc0c047a56d56a4d926ac9625), [`292e67b`](https://github.com/proxlane/proxlane/commit/292e67b7fc1ec912a64910b88ae503e9b3180774), [`bb6348d`](https://github.com/proxlane/proxlane/commit/bb6348d23895edbf5efd2a21419d852980679205), [`df7a4c0`](https://github.com/proxlane/proxlane/commit/df7a4c0ba816b444c970433ab0625147714ae81b)]:
+  - @proxlane/adapters@0.7.0
+  - @proxlane/detect@0.3.0
+  - @proxlane/shared@0.7.1
+
 ## 0.7.0
 
 ### Minor Changes

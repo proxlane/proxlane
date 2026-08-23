@@ -1,7 +1,7 @@
 {
 	"name": "proxlane",
-	"version": "0.4.0",
-	"description": "Proxlane CLI \u2014 doctor, the self-host support surface",
+	"version": "0.4.1",
+	"description": "Proxlane CLI — doctor, the self-host support surface",
 	"keywords": [
 		"web-scraping",
 		"scraping-api",
