@@ -7,7 +7,14 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { detect, RULES, unverifiedRules, verificationFor } from './index.js';
+import {
+	detect,
+	EMPTY_RESPONSE,
+	isContentFree,
+	RULES,
+	unverifiedRules,
+	verificationFor,
+} from './index.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const enc = (s: string) => new TextEncoder().encode(s);
@@ -330,5 +337,39 @@ describe("decoding is this layer's job, not the adapter's", () => {
 	it('survives an unknown charset label instead of throwing', () => {
 		const v = detect(enc('<html>hello</html>'), 'text/html', 'not-a-charset');
 		expect(v.blocked).toBe(false);
+	});
+});
+
+describe('isContentFree, and why it is not a detect() rule', () => {
+	// IT WAS A RULE FOR ABOUT A MINUTE. The no-fire corpus refused it immediately: a real recorded
+	// ScrapingBee 404 carries an empty body, `detect()` runs over every stored capture regardless
+	// of outcome, and the rule called a genuine target 404 a block.
+	//
+	// Whether an empty body is a failure depends on what the provider CLAIMED, which `detect()`
+	// cannot see. The chain applies this to a claimed success only.
+	it('is true for a body with nothing in it', () => {
+		expect(isContentFree(new Uint8Array(0))).toBe(true);
+		expect(isContentFree(new TextEncoder().encode('   \n\t  '))).toBe(true);
+	});
+
+	it('is false for anything with content, including a thin app shell', () => {
+		// THE CASE IT MUST NOT CATCH. An app shell with an empty root element is the legitimate
+		// answer for that URL — a real caller confirmed their target serves an identical 9,570-byte
+		// shell on three different paths, with the data behind a separate API. Calling that blocked
+		// would fail over three more times to fetch the same correct thing.
+		const shell =
+			'<!doctype html><html><head><title>x</title></head><body><div id="root"></div></body></html>';
+		expect(isContentFree(new TextEncoder().encode(shell))).toBe(false);
+		expect(isContentFree(new TextEncoder().encode('{"items":[]}'))).toBe(false);
+		expect(isContentFree(new TextEncoder().encode('x'))).toBe(false);
+	});
+
+	it('does not make detect() fire on an empty body', () => {
+		// The separation, asserted. If this ever returns blocked, the no-fire corpus breaks again.
+		expect(detect(new Uint8Array(0), 'text/html', 'utf-8').blocked).toBe(false);
+	});
+
+	it('has a stable id the response header can carry', () => {
+		expect(EMPTY_RESPONSE).toBe('empty-response');
 	});
 });

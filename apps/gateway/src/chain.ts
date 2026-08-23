@@ -16,7 +16,7 @@ import {
 	type ProviderCapabilities,
 	policyFor,
 } from '@proxlane/adapters';
-import { detect } from '@proxlane/detect';
+import { detect, EMPTY_RESPONSE, isContentFree } from '@proxlane/detect';
 import {
 	COOLDOWN,
 	type CooldownDecision,
@@ -627,10 +627,53 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					// succeeded. Only OK is re-examined — a 404 that happens to contain a vendor
 					// token is still a 404, and re-labelling it would make it fail over.
 					if (outcome === 'OK' && parsed.body !== undefined) {
-						const verdict = detect(parsed.body, parsed.contentType, parsed.charset);
-						if (verdict.blocked) {
+						// A CLAIMED SUCCESS THAT RETURNED NOTHING is not a success, and `OK` is
+						// `chargeable: true` — so without this the caller is billed for zero bytes
+						// and told it worked, on the product whose headline is that a 200 is not a
+						// success. Checked here rather than inside `detect()` because whether an
+						// empty body is a failure depends on what the provider CLAIMED: on a 404 it
+						// is ordinary, and a real recorded 404 has one.
+						if (isContentFree(parsed.body)) {
 							outcome = 'SOFT_BLOCK';
-							detectRuleId = verdict.ruleId;
+							detectRuleId = EMPTY_RESPONSE;
+						} else {
+							const verdict = detect(parsed.body, parsed.contentType, parsed.charset);
+							if (verdict.blocked) {
+								outcome = 'SOFT_BLOCK';
+								detectRuleId = verdict.ruleId;
+							}
+						}
+					}
+					// AND A TARGET 5xx, WHICH THE DETECTOR NEVER SAW. Only `OK` was ever re-examined,
+					// so a challenge page served with a 5xx status went out as `TARGET_ERROR` — "the
+					// site is broken" — when the truth was that the site's defences refused us.
+					// Cloudflare's under-attack mode answers 503, so this is the ordinary shape of
+					// the thing this product exists to name, not an edge case. Reported by a real
+					// caller: four providers exhausted, ~27s, and the verdict blamed the target.
+					//
+					// It costs more than a wrong label. `TARGET_ERROR` is `cooldown: 'none'` and
+					// `failover: 'once'`, so nothing is remembered — every later request re-buys the
+					// same four failures. `SOFT_BLOCK` arms the `blk` cooldown, which is what stops
+					// a defended domain being paid for on a loop.
+					//
+					// READ FROM THE RAW RESPONSE, because `carriesBody('TARGET_ERROR')` is false and
+					// `parse()` has already dropped the bytes. The chain still holds them.
+					//
+					// NOT `TARGET_NOT_FOUND`: a 404 is the target's real answer, and re-labelling one
+					// because the 404 page happens to carry a vendor token would make it fail over to
+					// fetch the same 404 three more times.
+					else if (outcome === 'TARGET_ERROR' && res.kind === 'response') {
+						const raw = res.response.body;
+						if (raw !== undefined && raw.byteLength > 0) {
+							const verdict = detect(
+								raw,
+								res.response.headers['content-type'],
+								parsed?.charset,
+							);
+							if (verdict.blocked) {
+								outcome = 'SOFT_BLOCK';
+								detectRuleId = verdict.ruleId;
+							}
 						}
 					}
 					break;

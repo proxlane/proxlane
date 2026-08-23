@@ -945,3 +945,121 @@ describe('a throwing health store cannot make the chain retry a provider', () =>
 		).toBe(1);
 	});
 });
+
+describe('a challenge page is a block whatever status it arrived with', () => {
+	// REPORTED BY A REAL CALLER, which is why it is here rather than in a design note. Their
+	// Cloudflare-defended target answered a 5xx to all four providers; proxlane returned
+	// TARGET_ERROR — "the site is broken" — when the truth was that the site's defences refused
+	// every provider. Cloudflare's under-attack mode answers 503, so this is the ordinary shape of
+	// the thing this product exists to name.
+	//
+	// It costs more than a wrong label: TARGET_ERROR is `cooldown: 'none'`, so nothing is
+	// remembered and every later request re-buys the same four failures.
+	// THIS ASSERTS THE WIRING, NOT THE FINGERPRINT, and the distinction matters here.
+	//
+	// A first version hand-wrote plausible-looking Cloudflare markup and the rule correctly did
+	// not fire — the house rule ("never hand-write a fixture") catching a hand-written fixture.
+	// Whether the signature is real is settled elsewhere, against captures in the private corpus,
+	// and `verified.ts` records which rules a stored capture has confirmed.
+	//
+	// What is asserted here is that the CHAIN consults the detector for a target 5xx at all, which
+	// it did not. So the body carries the exact token `cloudflare-challenge` matches, read off the
+	// rule rather than invented, and the test says plainly that it is testing plumbing.
+	const CHALLENGE =
+		'<html><head><title>Just a moment...</title></head><body>' +
+		'<script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></script>' +
+		'</body></html>';
+
+	function transportReturning(status: number, body: string, ct = 'text/html'): HttpTransport {
+		return {
+			execute: () =>
+				Promise.resolve({
+					kind: 'response' as const,
+					latencyMs: 5,
+					response: {
+						status,
+						headers: { 'content-type': ct },
+						body: new TextEncoder().encode(body),
+					},
+				}),
+		};
+	}
+
+	it('re-labels a TARGET_ERROR whose body is a challenge page', async () => {
+		const r = await chain([['a', 'TARGET_ERROR']], {}, transportReturning(503, CHALLENGE));
+		expect(r.outcome, 'a challenge behind a 5xx still read as a target fault').toBe(
+			'SOFT_BLOCK',
+		);
+		expect(r.detectRuleId, 'no rule id, so the caller cannot see why').toBeDefined();
+	});
+
+	it('arms a cooldown for it, which TARGET_ERROR does not', async () => {
+		// The half that costs money. Without this the same four providers are paid again on every
+		// request, forever, against a domain we already know is defended.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		await chain([['a', 'TARGET_ERROR']], { cooldowns: cd }, transportReturning(503, CHALLENGE));
+		expect(cd.peek(blk('a')), 'a defended domain was not remembered').toBeDefined();
+	});
+
+	it('leaves an ordinary target 5xx alone', async () => {
+		// The other direction, and the one that keeps this honest. A genuinely broken origin is a
+		// target fault and must not be called a block.
+		const r = await chain(
+			[['a', 'TARGET_ERROR']],
+			{},
+			transportReturning(503, '<html><body>Service Unavailable</body></html>'),
+		);
+		expect(r.outcome).toBe('TARGET_ERROR');
+		expect(r.detectRuleId).toBeUndefined();
+	});
+
+	it('leaves a 404 alone even when its body carries a vendor token', async () => {
+		// Deliberately excluded. A 404 is the target's real answer; re-labelling one because the
+		// not-found page happens to carry a token would fail over to fetch the same 404 again.
+		const r = await chain([['a', 'TARGET_NOT_FOUND']], {}, transportReturning(404, CHALLENGE));
+		expect(r.outcome).toBe('TARGET_NOT_FOUND');
+	});
+});
+
+describe('a claimed success that returned nothing is not a success', () => {
+	// A real caller's provider answered 200 with zero bytes after 37 seconds. `OK` is
+	// `chargeable: true`, so that was billed and reported as a successful scrape.
+	it('calls an empty body a block, with the rule id attached', async () => {
+		const empty: HttpTransport = {
+			execute: () =>
+				Promise.resolve({
+					kind: 'response' as const,
+					latencyMs: 5,
+					response: {
+						status: 200,
+						headers: { 'content-type': 'text/html' },
+						body: new Uint8Array(),
+					},
+				}),
+		};
+		// The stub adapter reports OK and hands back the bytes it was given.
+		const okEmpty = {
+			capabilities: adapterFor('a', 'OK').capabilities,
+			translate: () => ({
+				url: 'https://a.test/',
+				method: 'GET' as const,
+				headers: {},
+				timeoutMs: 1000,
+			}),
+			parse: (res: { body: Uint8Array }) => ({
+				outcome: 'OK' as const,
+				body: res.body,
+				contentType: 'text/html',
+				cost: { microcredits: 0, source: 'estimated' as const },
+			}),
+		} as unknown as Adapter;
+
+		const r = await runChain(REQ, {
+			transport: empty,
+			candidates: [{ adapter: okEmpty, key: 'k' }],
+			maxBodyBytes: 1024 * 1024,
+		});
+		expect(r.outcome, 'zero bytes was billed as a successful scrape').toBe('SOFT_BLOCK');
+		expect(r.detectRuleId).toBe('empty-response');
+	});
+});
