@@ -171,7 +171,18 @@ jobs:
         with:
           # `version` writes the bumps and changelogs; `publish` runs when there is nothing
           # left to version, i.e. on the merge of the release PR. One job, both halves.
-          version: pnpm exec changeset version
+          #
+          # THE COMPOSE PIN IS PART OF VERSIONING, and this is the only place it can be. It
+          # has to move in the same commit as the bump, because repo:check assertion 30 wants
+          # the self-host pin to be the newest release — a rule added after the pin sat five
+          # minors behind and a reader following the guide got a gateway predating most of the
+          # headers the API reference describes.
+          #
+          # NOT a `version` script in package.json, which is what a first attempt used: that is
+          # npm's lifecycle hook for `npm version`, and `changeset version` never fires it. The
+          # release PR regenerated, the pin stayed put, and the assertion failed exactly as
+          # before — a hook wired to a command nobody runs.
+          version: pnpm exec changeset version && node scripts/sync-compose-pin.ts
           publish: pnpm exec changeset publish
           commit: 'chore(release): version packages'
           title: 'chore(release): version packages'
