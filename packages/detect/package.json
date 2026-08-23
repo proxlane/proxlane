@@ -1,13 +1,27 @@
 {
 	"name": "@proxlane/detect",
 	"version": "0.2.0",
-	"type": "module",
-	"license": "Apache-2.0",
+	"description": "Soft-block detection for scraped responses: the HTTP 200 that is really a captcha or a challenge page.",
+	"keywords": [
+		"web-scraping",
+		"bot-detection",
+		"captcha",
+		"cloudflare",
+		"datadome",
+		"block-page",
+		"scraping-api"
+	],
+	"homepage": "https://proxlane.dev",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/proxlane/proxlane.git",
 		"directory": "packages/detect"
 	},
+	"bugs": {
+		"url": "https://github.com/proxlane/proxlane/issues"
+	},
+	"type": "module",
+	"license": "Apache-2.0",
 	"exports": {
 		".": {
 			"types": "./dist/index.d.mts",

@@ -3088,6 +3088,60 @@ function matchesOwner(pattern: string, file: string): boolean {
 	ok('47', checked47, 'third-party actions are pinned to a commit');
 }
 
+// ------------------------- assertion 48: a published package has a front door
+//
+// FOUR OF THE FIVE PUBLISHED PACKAGES RENDERED "ERROR: No README data found!" on npmjs.com, with
+// no description and no keywords — including `@proxlane/adapters`, the Apache-2.0 package this
+// project most wants strangers to contribute to, and `@proxlane/detect`, which is the clearest
+// standalone thing it has to offer.
+//
+// A registry page is not a build output. It is where a search lands, what an LLM quotes when
+// asked to compare libraries, and what an awesome-list curator filters on. The repo has an
+// elaborate apparatus for holding its own prose to reality and had nothing pointed at the pages
+// it publishes to somebody else's site.
+{
+	const manifests = execFileSync('git', ['ls-files', 'packages/*/package.json'], {
+		cwd: ROOT,
+		encoding: 'utf8',
+	})
+		.split('\n')
+		.filter(Boolean);
+
+	let checked48 = 0;
+	for (const m of manifests) {
+		const pkg = JSON.parse(readFileSync(join(ROOT, m), 'utf8')) as {
+			name?: string;
+			private?: boolean;
+			description?: string;
+			keywords?: string[];
+			homepage?: string;
+		};
+		// Private packages are never published, so they have no registry page to get wrong.
+		if (pkg.private === true) continue;
+		checked48 += 1;
+		const dir = m.replace(/\/package\.json$/, '');
+		const name = pkg.name ?? dir;
+		if ((pkg.description ?? '').trim() === '') {
+			fail('48', `${name} has no description — npm renders the package page from it`);
+		}
+		if ((pkg.keywords ?? []).length === 0) {
+			fail('48', `${name} has no keywords — npm search has nothing to match`);
+		}
+		if ((pkg.homepage ?? '').trim() === '') {
+			fail('48', `${name} has no homepage — the registry page links nowhere`);
+		}
+		if (!has(`${dir}/README.md`)) {
+			fail('48', `${dir}/README.md is missing — npmjs.com prints "No README data found"`);
+		}
+	}
+	// Non-zero denominator. Five packages publish; a run finding none has stopped reading the
+	// manifests rather than found them clean.
+	if (checked48 === 0) {
+		fail('48', 'found no publishable packages — this check stopped checking');
+	}
+	ok('48', checked48, 'published packages have a description, keywords and a README');
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

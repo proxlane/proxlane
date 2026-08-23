@@ -1,13 +1,26 @@
 {
 	"name": "@proxlane/shared",
 	"version": "0.7.0",
-	"type": "module",
-	"license": "Apache-2.0",
+	"description": "The Proxlane outcome taxonomy, request shape and SSRF edge guard, shared by the gateway and every adapter.",
+	"keywords": [
+		"web-scraping",
+		"scraping-api",
+		"ssrf",
+		"outcome",
+		"taxonomy",
+		"proxy"
+	],
+	"homepage": "https://proxlane.dev",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/proxlane/proxlane.git",
 		"directory": "packages/shared"
 	},
+	"bugs": {
+		"url": "https://github.com/proxlane/proxlane/issues"
+	},
+	"type": "module",
+	"license": "Apache-2.0",
 	"exports": {
 		".": {
 			"types": "./dist/index.d.mts",
