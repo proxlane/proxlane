@@ -1,5 +1,28 @@
 # @proxlane/gateway
 
+## 0.10.0
+
+### Minor Changes
+
+- [#194](https://github.com/proxlane/proxlane/pull/194) [`3302c1c`](https://github.com/proxlane/proxlane/commit/3302c1c4ce77e02926a5f50404db44f1c00a0421) Thanks [@scarsam](https://github.com/scarsam)! - A block no longer cools every premium tier. `cd:blk` now carries the tier the request asked for, so
+  a plain request that gets blocked stops suppressing the stealth retry — the escalation most likely
+  to work, and the reason the tier exists. The implication still runs downward: a block at stealth
+  cools residential and plain too, because they are strictly weaker against the same defence.
+
+  `/health/cooldowns` reports the tier. Existing armed keys are in the old format and are ignored
+  rather than migrated; they expire on their own within the cap.
+
+- [#193](https://github.com/proxlane/proxlane/pull/193) [`bd8942b`](https://github.com/proxlane/proxlane/commit/bd8942b80692392b42515c0ae3727df83dc1f134) Thanks [@scarsam](https://github.com/scarsam)! - A cooldown no longer truncates the chain. When every provider the walk tried has failed, one
+  cooled provider is attempted before giving up — the same single per-domain slot the existing floor
+  uses. Previously a chain whose best provider happened to be cooling could fail on all the others
+  and return a provider fault having never tried the one that would have worked.
+
+### Patch Changes
+
+- Updated dependencies [[`3302c1c`](https://github.com/proxlane/proxlane/commit/3302c1c4ce77e02926a5f50404db44f1c00a0421)]:
+  - @proxlane/shared@0.8.0
+  - @proxlane/adapters@0.7.1
+
 ## 0.9.0
 
 ### Minor Changes
