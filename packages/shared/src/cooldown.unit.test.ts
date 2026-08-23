@@ -119,12 +119,14 @@ describe('arming', () => {
 });
 
 describe('the two namespaces', () => {
-	const parts = { provider: 'scraperapi', domain: 'example.com', org: 'acme' };
+	const parts = { provider: 'scraperapi', domain: 'example.com', org: 'acme', premium: 'none' };
 
 	it('keys a block by domain and shares it across orgs', () => {
 		// A block is a property of the domain — that is the moat. The org must not appear.
 		const key = cooldownKey('blk', parts) as string;
-		expect(key).toBe('cd:blk:scraperapi:example.com');
+		// THE TIER IS PART OF THE KEY, and it is last so `/health/cooldowns` still parses the
+		// provider and the domain by index. A block at one tier must not cool a stronger one.
+		expect(key).toBe('cd:blk:scraperapi:example.com:none');
 		expect(key).not.toContain('acme');
 	});
 

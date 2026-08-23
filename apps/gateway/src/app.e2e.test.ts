@@ -563,12 +563,12 @@ describe('cooldowns, over real HTTP', () => {
 		// fail — the forced slot stays held for fifteen minutes, so every later request to this
 		// host saw an all-cooling domain with no forced probe left and got a 503.
 		try {
-			for (const id of IDS) cooldowns.arm(`cd:blk:${id}:${host}`, Date.now());
+			for (const id of IDS) cooldowns.arm(`cd:blk:${id}:${host}:none`, Date.now());
 			const r = await get(`api_key=${API_KEY}&url=${encodeURIComponent(url)}`);
 			expect(r.status).toBe(200);
 			expect(r.headers.get('x-provider-health')).toBe('cooling-forced');
 		} finally {
-			for (const id of IDS) cooldowns.clear(`cd:blk:${id}:${host}`);
+			for (const id of IDS) cooldowns.clear(`cd:blk:${id}:${host}:none`);
 			cooldowns.clear(forcedProbeKey(host));
 		}
 		// The per-domain rate limit is asserted in cooldown-routing.unit.test.ts, where the
@@ -581,7 +581,7 @@ describe('cooldowns, over real HTTP', () => {
 		// direction that re-arms the cooldown they are waiting out.
 		const target = 'https://cooled.example/page';
 		for (const id of IDS) {
-			cooldowns.arm(`cd:blk:${id}:cooled.example`, Date.now());
+			cooldowns.arm(`cd:blk:${id}:cooled.example:none`, Date.now());
 		}
 		// The forced slot must already be taken, or the floor serves this request instead of
 		// refusing it. That is the real precondition for a refusal now, not a workaround.
@@ -615,7 +615,7 @@ describe('/health/cooldowns', () => {
 	it('separates a domain block from an account cooldown', async () => {
 		// The first thing an operator needs: an account cooldown is a rate limit or an auth
 		// failure and has nothing to do with the domain they are debugging.
-		cooldowns.arm('cd:blk:scraperapi:blocked.example', Date.now());
+		cooldowns.arm('cd:blk:scraperapi:blocked.example:none', Date.now());
 		cooldowns.arm('cd:acct:self:scrapfly', Date.now());
 		const r = await fetch(`${base}/health/cooldowns?api_key=${API_KEY}`);
 		expect(r.status).toBe(200);
@@ -635,7 +635,7 @@ describe('/health/cooldowns', () => {
 	});
 
 	it('reports how long is left, not the raw timestamp', async () => {
-		cooldowns.arm('cd:blk:scraperapi:soon.example', Date.now());
+		cooldowns.arm('cd:blk:scraperapi:soon.example:none', Date.now());
 		const body = (await (
 			await fetch(`${base}/health/cooldowns?api_key=${API_KEY}`)
 		).json()) as { cooling: { domain?: string; expiresInMs: number }[] };
@@ -647,7 +647,7 @@ describe('/health/cooldowns', () => {
 	it('separates expired-but-recorded entries, which explain the next backoff', async () => {
 		// Not noise: `consecutive` is what makes the backoff exponential, so an expired record
 		// is the reason the NEXT cooldown on that key will be longer.
-		cooldowns.arm('cd:blk:scraperapi:old.example', Date.now() - 60 * 60 * 1000);
+		cooldowns.arm('cd:blk:scraperapi:old.example:none', Date.now() - 60 * 60 * 1000);
 		const body = (await (
 			await fetch(`${base}/health/cooldowns?api_key=${API_KEY}`)
 		).json()) as {

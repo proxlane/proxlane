@@ -75,9 +75,9 @@ const REQ = {
 };
 
 const blk = (p: string) =>
-	cooldownKey('blk', { provider: p, domain: DOMAIN, org: 'self' }) as string;
+	cooldownKey('blk', { provider: p, domain: DOMAIN, org: 'self', premium: 'none' }) as string;
 const acct = (p: string) =>
-	cooldownKey('acct', { provider: p, domain: DOMAIN, org: 'self' }) as string;
+	cooldownKey('acct', { provider: p, domain: DOMAIN, org: 'self', premium: 'none' }) as string;
 
 /** A health store reporting fixed states, so a test names a situation instead of simulating it. */
 function healthOf(states: Record<string, 'healthy' | 'degraded' | 'demoted'>): HealthStore {
@@ -1219,3 +1219,70 @@ describe('the last-resort attempt is bounded by more than the claim', () => {
 function countRetries(tried: readonly string[]): number {
 	return tried.filter((id, i) => i > 0 && tried[i - 1] === id).length;
 }
+
+describe('a block at one tier is not a block at all of them', () => {
+	// THE CHEAP PATH POISONED THE EXPENSIVE ONE. `cd:blk` was keyed {provider}:{domain} with no
+	// tier, so a plain request that got blocked cooled that provider for that domain across every
+	// tier — suppressing the stealth retry, which is the escalation most likely to work and the
+	// whole reason the tier exists.
+	//
+	// Measured against a real host: plain probes blocked, and a `premium=stealth` follow-up was
+	// SKIPPED rather than tried. It read as "stealth does not work here" when stealth had never
+	// been sent.
+	const req = (premium: 'none' | 'residential' | 'stealth') => ({ ...REQ, premium });
+
+	function chainAt(
+		premium: 'none' | 'residential' | 'stealth',
+		specs: [string, Outcome][],
+		cooldowns: CooldownStore,
+	) {
+		return runChain(req(premium), {
+			transport: okTransport,
+			candidates: specs.map(([id, o]) => ({ adapter: adapterFor(id, o), key: 'k' })),
+			maxBodyBytes: 1024 * 1024,
+			cooldowns,
+		});
+	}
+
+	it('does not let a plain block suppress a stealth attempt', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		// A plain request blocks `a`.
+		await chainAt('none', [['a', 'HARD_BLOCK']], cd);
+		expect(cd.peek(blk('a')), 'the plain block was not recorded').toBeDefined();
+
+		// The escalation must still be tried, not skipped.
+		const r = await chainAt('stealth', [['a', 'OK']], cd);
+		expect(r.outcome, 'stealth was suppressed by a plain block').toBe('OK');
+		expect(r.provider).toBe('a');
+	});
+
+	it('lets a stealth block cool the weaker tiers too', async () => {
+		// The other direction, and it must hold: if the strongest setting could not get through,
+		// paying for the cheaper ones is paying to rediscover a known answer.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		await chainAt('stealth', [['a', 'HARD_BLOCK']], cd);
+
+		for (const tier of ['none', 'residential', 'stealth'] as const) {
+			const key = cooldownKey('blk', {
+				provider: 'a',
+				domain: DOMAIN,
+				org: 'self',
+				premium: tier,
+			}) as string;
+			expect(cd.peek(key), `${tier} was not cooled by a stealth block`).toBeDefined();
+		}
+	});
+
+	it('leaves the stronger tiers alone when the weak one blocks', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		await chainAt('none', [['a', 'HARD_BLOCK']], cd);
+
+		const stealthKey = cooldownKey('blk', {
+			provider: 'a',
+			domain: DOMAIN,
+			org: 'self',
+			premium: 'stealth',
+		}) as string;
+		expect(cd.peek(stealthKey), 'a plain block cooled the stealth tier').toBeUndefined();
+	});
+});

@@ -493,15 +493,22 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			});
 		}
 		const shape = (e: (typeof entries)[number]) => {
-			// `cd:blk:{provider}:{domain}` and `cd:acct:{org}:{provider}`. Parsed rather than
-			// echoed, because "which namespace" is the answer an operator needs first: an
+			// `cd:blk:{provider}:{domain}:{tier}` and `cd:acct:{org}:{provider}`. Parsed rather
+			// than echoed, because "which namespace" is the answer an operator needs first: an
 			// account cooldown has nothing to do with the domain they are debugging.
+			//
+			// THE TIER IS THE LAST SEGMENT and the domain is everything between, because a domain
+			// can contain colons and a tier cannot. Reported, not dropped: "why was my stealth
+			// request skipped" is answerable only if the operator can see which tier is cooling,
+			// and a block at one tier no longer implies the others.
 			const parts = e.key.split(':');
 			const isBlk = parts[1] === 'blk';
 			return {
 				scope: isBlk ? ('domain' as const) : ('account' as const),
 				provider: isBlk ? parts[2] : parts[3],
-				...(isBlk ? { domain: parts.slice(3).join(':') } : { org: parts[2] }),
+				...(isBlk
+					? { domain: parts.slice(3, -1).join(':'), premium: parts[parts.length - 1] }
+					: { org: parts[2] }),
 				expiresInMs: Math.max(0, e.untilMs - now),
 				consecutive: e.consecutive,
 				// True means the single post-expiry probe is out with a request right now.
