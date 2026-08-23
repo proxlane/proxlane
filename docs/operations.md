@@ -544,19 +544,41 @@ agent asked "are we ready" got four answers.
 
 Nothing ships until all of these are true.
 
+**Re-scoped 2026-08-23, and the reason is the point.** This list was written before the product
+existed and gated on services that were then deliberately not built: a backup-restore drill for a
+gateway with no database, and a status page for a thing with no hosted endpoint. `docker/compose.yml`
+runs one service. Two items could therefore never go green, which meant there was no launch date
+and could not be one — and every week the distribution work had a legitimate-looking reason to
+slip. A gate that cannot close is not a standard, it is a permanent excuse.
+
+What is struck is struck because the thing it tests was a *decision not to build*, not an
+omission. Both return with the hosted tier, in phase 3, where they belong.
+
 - [ ] `pnpm k6:soak` green against the thresholds in section 1 — 50 VUs for 30 minutes,
       gateway-internal p95 under 50 ms measured from `Server-Timing`, RSS slope under
-      1 MB/min from minute 10, clean 429s at `maxInflight`
+      1 MB/min from minute 10, clean 429s at `maxInflight`. **Venue still undecided**
+      (`state.md`): the shared box measures the neighbours, so this needs an ephemeral host
 - [ ] `pnpm test:ssrf` green: scheme allowlist, private-range and metadata rejection at
       the edge, all returning `TARGET_FORBIDDEN`. IP pinning and DNS-rebinding cases are
       **out of scope for v1** and defer with the direct-fetch mode that would need them
       (section 5)
-- [ ] Backup restore drill completed from a clean machine
-- [ ] Conformance green on three adapters, live canary green three consecutive scheduled
-      runs (cadence per `operating.md` B6 — weekly at launch, so this is three weeks)
+- [ ] Conformance green on **every shipped adapter** — four today, and the count is
+      `REGISTRY`'s, not a number typed here — plus the live canary green three consecutive
+      scheduled runs (cadence per `operating.md` B6 — weekly at launch, so three weeks)
 - [ ] `docker compose up` works on a fresh VM with only a provider key
 - [ ] `proxlane doctor` diagnoses the five most likely misconfigurations
-- [ ] Status page live, alerting to a phone you will actually hear
 - [ ] SECURITY.md, CONTRIBUTING.md, LICENSE, CoC in place
-- [ ] Twelve SEO pages live (indexing is not ours to gate on)
-- [ ] Twenty minutes of someone else's time spent trying to break it
+- [ ] **One stranger runs it.** Not twenty minutes of someone trying to break it — one person
+      who is not the maintainer, on their own provider key, reporting what happened. This is the
+      only item on the list that would have caught any of the 41 findings the copy panel raised,
+      and it is the input every open question in `state.md` is actually waiting on
+
+**Struck, with the reason, so nobody re-adds them:**
+
+- ~~Backup restore drill from a clean machine~~ — there is nothing to restore. No Postgres, no
+  Valkey persistence (`save ""` by design), no ledger. Returns with the hosted tier.
+- ~~Status page live, alerting to a phone~~ — a status page reports on a hosted service. Self-hosters
+  have their own. Returns with the hosted tier.
+- ~~Twelve SEO pages live~~ — 36 URLs are live and this gate never noticed, because a page count is
+  not a launch condition. What matters is whether the pages target queries anyone searches, which
+  `plan.md` section 6 ranks and which no checkbox can settle.

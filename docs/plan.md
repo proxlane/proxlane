@@ -458,11 +458,43 @@ deals **and before any keyless path ships**.
 
 ---
 
-## 10. Naming (decided)
+## 10. Naming (decided, then re-opened once, then decided again)
 
-Moved to `docs/archive/strategy.md` — decided. Proxlane, `proxlane.dev`, GitHub and npm
-orgs registered. Package naming (`proxlane` unscoped for the SDK, `@proxlane/*` for the
-rest, images to `ghcr.io/proxlane/*`) is in `CLAUDE.md`.
+Proxlane, `proxlane.dev`, GitHub and npm orgs registered. Package naming (`proxlane` unscoped for
+the CLI, `@proxlane/*` for the rest, images to `ghcr.io/proxlane/*`) is in `CLAUDE.md`.
+
+**`proxlane.com` is a live commercial product and this section did not know it.** It is a
+developer tunnel service — "Expose localhost without port forwarding", paid monthly tiers — and it
+outranks `proxlane.dev` for the bare word. Both are developer infrastructure with "prox" in the
+name, so this is not distant confusion: someone told "check out proxlane" and left to search will
+land on a different company's product.
+
+The original decision was marked done and its reasoning moved to `docs/archive/`, which is exactly
+where a decision goes to stop being re-checked. It was never re-checked, and the collision was
+found by a review panel twelve weeks later.
+
+**The decision is: keep the name, and stop using it bare.**
+
+Written and spoken as **proxlane.dev**, always, including in the launch post, in comment replies,
+in the README's first line and in conversation. The bare word is ceded. We will not own the brand
+SERP and are not going to spend on trying.
+
+Why this rather than renaming, stated so it can be argued with rather than assumed:
+
+- A rename costs a weekend now and is *free of audience cost* at 0 stars and 5 visitors — that is
+  the honest counter-argument and it is a good one. What it also costs is the npm org, five
+  published package names, the GHCR path, the domain, and every internal reference. The name is
+  load-bearing in a way the audience is not.
+- The confusion is asymmetric and mostly harmless in our direction. Someone searching for a tunnel
+  service does not want a scraping gateway and bounces; someone who has seen `proxlane.dev`
+  written has the disambiguator in hand.
+- The window closes the moment the launch post ships, because that is where the name is typed at
+  scale and where the first backlinks form. Deciding now is the point; deciding *this* way is the
+  cheaper half of a genuinely close call.
+
+**What would reverse it:** the other product moving into scraping or proxy aggregation, or a
+trademark claim. Neither is true today. If either becomes true, the rename is still a weekend, and
+it is a weekend better spent then than now.
 
 ---
 
