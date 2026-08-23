@@ -27,6 +27,7 @@ import {
 	guardTargetUrl,
 	type HealthState,
 	eligible as rankByHealth,
+	tiersAtOrBelow,
 } from '@proxlane/shared';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
 import type { CooldownStore } from './cooldown-store.js';
@@ -317,9 +318,12 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	// instead would cost the request.
 	const org = deps.orgId ?? 'self';
 	const domain = cooldownDomain(guarded.url);
+	// THE TIER THE REQUEST ASKED FOR, so a block on the cheap path does not suppress the escalation
+	// that would have worked. See `tiersAtOrBelow`.
+	const premium = guarded.premium;
 	const keysFor = (providerId: string) => ({
-		blk: cooldownKey('blk', { provider: providerId, domain, org }) as string,
-		acct: cooldownKey('acct', { provider: providerId, domain, org }) as string,
+		blk: cooldownKey('blk', { provider: providerId, domain, org, premium }) as string,
+		acct: cooldownKey('acct', { provider: providerId, domain, org, premium }) as string,
 	});
 
 	let cooldowns: ReadonlyMap<string, CooldownDecision> = new Map();
@@ -758,7 +762,12 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			// this file — it has to declare a scope to compile at all.
 			try {
 				const scope = cooldownScope(outcome);
-				const cdKey = cooldownKey(scope, { provider: adapter.capabilities.id, domain, org });
+				const cdKey = cooldownKey(scope, {
+					provider: adapter.capabilities.id,
+					domain,
+					org,
+					premium,
+				});
 				// WHICH key this attempt wrote. Settlement is then decided by comparing it to the
 				// key that was CLAIMED, not by the fact that a write happened.
 				//
@@ -776,6 +785,27 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					// for 120 would be hit eight times too early.
 					deps.cooldowns?.arm(cdKey, now(), parsed?.retryAfterMs);
 					wroteKey = cdKey;
+					// AND EVERY WEAKER TIER, for a block. The implication runs one way: if stealth
+					// could not get through, residential and plain certainly cannot — they are
+					// strictly weaker against the same defence, so paying to rediscover that is
+					// money spent on a known answer. The reverse is false, which is why the key
+					// carries the tier at all: a plain block says nothing about stealth, and
+					// suppressing the escalation was the bug this replaced.
+					//
+					// `wroteKey` stays the REQUEST's key. Settlement compares it against the key
+					// that was claimed, and the claim was made on the tier the request asked for.
+					if (scope === 'blk') {
+						for (const weaker of tiersAtOrBelow(premium)) {
+							if (weaker === premium) continue;
+							const k = cooldownKey('blk', {
+								provider: adapter.capabilities.id,
+								domain,
+								org,
+								premium: weaker,
+							});
+							if (k !== null) deps.cooldowns?.arm(k, now(), parsed?.retryAfterMs);
+						}
+					}
 				} else if (outcome === 'OK' || outcome === 'TARGET_NOT_FOUND') {
 					// The provider REACHED the target. A 200 or a genuine 404 both mean the block, if
 					// there ever was one, is over — which is what makes a successful probe end a

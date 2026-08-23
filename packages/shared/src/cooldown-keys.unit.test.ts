@@ -27,6 +27,7 @@ describe('the domain component is bounded', () => {
 			provider: 'scraperapi',
 			domain: cooldownDomain(`https://${'x'.repeat(9999)}.test/`),
 			org: 'self',
+			premium: 'none',
 		}) as string;
 		expect(key.length).toBeLessThan(300);
 	});
@@ -54,16 +55,21 @@ describe('namespaces cannot be forged from a URL', () => {
 		// of cd:blk:{provider}:{domain}, so extra colons cannot shift a later field, and
 		// `provider` comes from a fixed registry rather than from input.
 		const d = cooldownDomain('http://[2001:4860:4860::8888]/');
-		const key = cooldownKey('blk', { provider: 'p', domain: d, org: 'self' }) as string;
+		const key = cooldownKey('blk', {
+			provider: 'p',
+			domain: d,
+			org: 'self',
+			premium: 'none',
+		}) as string;
 		expect(key.startsWith('cd:blk:p:')).toBe(true);
 		expect(key).not.toContain('cd:acct');
 	});
 
 	it('cannot reach the acct namespace from a blk key', () => {
 		const d = cooldownDomain('https://evil.example/');
-		expect(cooldownKey('blk', { provider: 'p', domain: d, org: 'self' })).not.toContain(
-			'cd:acct:',
-		);
+		expect(
+			cooldownKey('blk', { provider: 'p', domain: d, org: 'self', premium: 'none' }),
+		).not.toContain('cd:acct:');
 	});
 
 	it('normalises away control characters before they reach a key', () => {

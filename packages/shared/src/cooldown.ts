@@ -203,11 +203,54 @@ export function forcedProbeKey(domain: string): string {
 	return `cd:forced:${domain}`;
 }
 
+/**
+ * Premium tiers, weakest first. The order is the whole point of `tiersAtOrBelow`.
+ *
+ * Not derived from the `PremiumTier` union, because a union is a set and this is a LADDER: the
+ * claim being made is that stealth strictly dominates residential, which dominates none. Adding a
+ * tier means deciding where on the ladder it sits, and a list forces that decision.
+ */
+export const TIER_LADDER = ['none', 'residential', 'stealth'] as const;
+
+/**
+ * The tier that was blocked, and every weaker one.
+ *
+ * A BLOCK AT ONE TIER IS NOT A BLOCK AT ALL OF THEM, and the old key made it one. `cd:blk` was
+ * keyed `{provider}:{domain}` with no tier, so a plain request that got blocked cooled that
+ * provider for that domain across every tier — suppressing the stealth retry, which is the
+ * ESCALATION most likely to work and the entire reason the tier exists.
+ *
+ * Measured: a caller's plain probes blocked, and their `premium=stealth` follow-up was skipped
+ * rather than tried. It read as "stealth does not work on this host" when stealth had never been
+ * sent.
+ *
+ * The implication runs one way only. If stealth failed, residential and none will too — they are
+ * strictly weaker against the same defence. If none failed, stealth may still get through. So a
+ * block cools its own tier and everything below it, and never anything above.
+ */
+export function tiersAtOrBelow(tier: string): readonly string[] {
+	const i = TIER_LADDER.indexOf(tier as (typeof TIER_LADDER)[number]);
+	// An unknown tier cools only itself: guessing where it sits on the ladder would either
+	// over-cool a stronger option or under-cool a weaker one, and both are worse than exact.
+	return i === -1 ? [tier] : TIER_LADDER.slice(0, i + 1);
+}
+
 export function cooldownKey(
 	scope: 'blk' | 'acct' | 'none',
-	parts: { readonly provider: string; readonly domain: string; readonly org: string },
+	parts: {
+		readonly provider: string;
+		readonly domain: string;
+		readonly org: string;
+		/** Which premium tier the request asked for. Part of the `blk` key; ignored by `acct`. */
+		readonly premium: string;
+	},
 ): string | null {
-	if (scope === 'blk') return `cd:blk:${parts.provider}:${parts.domain}`;
+	// THE TIER IS LAST, so `cd:blk:{provider}:{domain}` still parses by index for the provider
+	// and the domain — `/health/cooldowns` splits on ':' and would otherwise start reporting the
+	// tier as the domain.
+	if (scope === 'blk') return `cd:blk:${parts.provider}:${parts.domain}:${parts.premium}`;
+	// An account fact has nothing to do with what the request asked for: a lapsed key refuses
+	// every tier equally.
 	if (scope === 'acct') return `cd:acct:${parts.org}:${parts.provider}`;
 	return null;
 }

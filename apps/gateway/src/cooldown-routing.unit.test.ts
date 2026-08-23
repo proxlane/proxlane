@@ -75,8 +75,8 @@ const REQ = {
 	deadlineMs: 90_000,
 };
 
-const blkKey = (provider: string, domain = DOMAIN) =>
-	cooldownKey('blk', { provider, domain, org: 'self' }) as string;
+const blkKey = (provider: string, domain = DOMAIN, premium = 'none') =>
+	cooldownKey('blk', { provider, domain, org: 'self', premium }) as string;
 
 function chain(
 	cooldowns: CooldownStore | undefined,
@@ -275,7 +275,14 @@ describe('outcomes arm the right namespace', () => {
 		await chain(cd, [['a', 'RATE_LIMITED']]);
 		expect(cd.peek(blkKey('a'))).toBeUndefined();
 		expect(
-			cd.peek(cooldownKey('acct', { provider: 'a', domain: DOMAIN, org: 'self' }) as string),
+			cd.peek(
+				cooldownKey('acct', {
+					provider: 'a',
+					domain: DOMAIN,
+					org: 'self',
+					premium: 'none',
+				}) as string,
+			),
 		).toBeDefined();
 	});
 

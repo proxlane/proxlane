@@ -74,6 +74,13 @@ const EXCLUSIONS: ReadonlyArray<readonly [reason: string, names: readonly string
 			'COOLDOWN',
 			'CooldownDecision',
 			'CooldownEntry',
+			// The premium ladder and the tier-cooling rule. Router state by the same argument as
+			// the rest of this group: an adapter declares WHICH tiers it sells, and the chain
+			// decides what a block at one of them implies for the others. An adapter that could
+			// read the ladder would be tempted to reason about a sibling tier's cooldown, which is
+			// the chain's job and the chain's alone.
+			'TIER_LADDER',
+			'tiersAtOrBelow',
 			'HEALTH',
 			'HEALTH_FAILURE',
 			'HEALTH_SUCCESS',
