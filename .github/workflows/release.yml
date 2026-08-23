@@ -178,11 +178,16 @@ jobs:
           # minors behind and a reader following the guide got a gateway predating most of the
           # headers the API reference describes.
           #
-          # NOT a `version` script in package.json, which is what a first attempt used: that is
-          # npm's lifecycle hook for `npm version`, and `changeset version` never fires it. The
-          # release PR regenerated, the pin stayed put, and the assertion failed exactly as
-          # before — a hook wired to a command nobody runs.
-          version: pnpm exec changeset version && node scripts/sync-compose-pin.ts
+          # ONE COMMAND, NOT A SHELL LINE. This action does not run the input through a shell —
+          # it splits it and execs it — so `changeset version && node …` handed `&& node …` to
+          # changesets as arguments and it exited with "Too many arguments". The action then saw
+          # nothing to version, closed the release PR, and reported success. Two wiring attempts
+          # failed the same way in different clothes: first a `version` script in package.json,
+          # which is npm's hook for `npm version` and which `changeset version` never fires.
+          #
+          # `pnpm run` gives the script body a shell, which is where the `&&` belongs.
+          # repo:check assertion 49 refuses a shell operator in this input.
+          version: pnpm run release:version
           publish: pnpm exec changeset publish
           commit: 'chore(release): version packages'
           title: 'chore(release): version packages'

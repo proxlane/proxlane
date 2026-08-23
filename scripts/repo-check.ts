@@ -3142,6 +3142,56 @@ function matchesOwner(pattern: string, file: string): boolean {
 	ok('48', checked48, 'published packages have a description, keywords and a README');
 }
 
+// -------------- assertion 49: the changesets action's commands are commands, not shell lines
+//
+// `changesets/action` DOES NOT RUN ITS INPUTS THROUGH A SHELL. It splits the string and execs it,
+// so `pnpm exec changeset version && node scripts/sync-compose-pin.ts` handed `&& node …` to
+// changesets as arguments and it exited with "Too many arguments passed to changesets". The action
+// then saw nothing to version, CLOSED the release pull request, and the job reported success.
+//
+// That is the expensive shape: not a red build, but a release that silently did not happen. The
+// gateway sat undeployed at 0.8.0 with fourteen changesets queued behind it, and a real caller's
+// request was routed by code four merges old.
+//
+// Two attempts failed here in different clothes — first a `version` script in `package.json`,
+// which is npm's lifecycle hook for `npm version` and which `changeset version` never fires. Both
+// were hooks wired to something nobody runs. A shell operator belongs inside a `pnpm run` script
+// body, where there is a shell.
+{
+	const WF = '.github/workflows/release.yml';
+	// `&&`, `||`, `;` and `|` all mean "you assumed a shell". A bare `>` or `<` would too, but they
+	// appear inside YAML block scalars all over this file, so they are deliberately not matched.
+	const SHELLISH = /&&|\|\||;|(?<![|])\|(?![|])/;
+	if (!has(WF)) {
+		fail('49', `${WF} is missing`);
+	} else {
+		const src = read(WF);
+		// The two inputs the action execs. Read from the file rather than assumed, so a rename
+		// makes this fail loudly instead of passing over nothing.
+		const inputs = [...src.matchAll(/^\s+(version|publish):\s+(.+)$/gm)].map((m) => ({
+			key: m[1] as string,
+			cmd: (m[2] as string).trim(),
+		}));
+		if (inputs.length === 0) {
+			fail(
+				'49',
+				`${WF} declares neither a version nor a publish command — this stopped checking`,
+			);
+		}
+		for (const i of inputs) {
+			if (SHELLISH.test(i.cmd)) {
+				fail(
+					'49',
+					`${WF}'s \`${i.key}\` input is a shell line: ${i.cmd}. The action execs it without ` +
+						'a shell, so the operator becomes an argument and the step silently does nothing. ' +
+						'Put it in a pnpm script. Owner: release-manager.',
+				);
+			}
+		}
+		ok('49', inputs.length, 'the changesets action is given commands, not shell lines');
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

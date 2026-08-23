@@ -25,6 +25,7 @@
 		"pages:check": "node scripts/pages-check.ts",
 		"record": "node scripts/record.ts",
 		"release:dry": "node scripts/release-dry.ts",
+		"release:version": "changeset version && node scripts/sync-compose-pin.ts",
 		"repo:check": "node scripts/repo-check.ts",
 		"selfhost:smoke": "node scripts/selfhost-smoke.ts",
 		"test:contract": "vitest run --project contract",
