@@ -1,5 +1,31 @@
 # @proxlane/shared
 
+## 0.7.1
+
+### Patch Changes
+
+- [#188](https://github.com/proxlane/proxlane/pull/188) [`7e77a6d`](https://github.com/proxlane/proxlane/commit/7e77a6d09b470c77cdec25ff205d64f4bf930fb5) Thanks [@scarsam](https://github.com/scarsam)! - A challenge page served with a target 5xx is now recognised as a block instead of being reported as
+  `TARGET_ERROR`. The detector only ever examined `OK` responses, so Cloudflare's under-attack mode —
+  which answers 503 — came back as "the site is broken" when the truth was that the site's defences
+  refused every provider. It also armed no cooldown, so every later request re-bought the same
+  failures.
+
+  A claimed success that returned zero bytes is no longer billed as a successful scrape.
+
+- [#186](https://github.com/proxlane/proxlane/pull/186) [`4468690`](https://github.com/proxlane/proxlane/commit/4468690161f5e5c2b1f87d3839854d0f2849b07c) Thanks [@scarsam](https://github.com/scarsam)! - Every published package now has a description, keywords, a homepage and a README. Four of the five
+  rendered "ERROR: No README data found!" on npmjs.com — including `@proxlane/adapters`, the
+  Apache-2.0 package this project most wants strangers to contribute to.
+
+- [#176](https://github.com/proxlane/proxlane/pull/176) [`292e67b`](https://github.com/proxlane/proxlane/commit/292e67b7fc1ec912a64910b88ae503e9b3180774) Thanks [@scarsam](https://github.com/scarsam)! - `orderChain`'s docstring described chain order backwards. Ranking best-first puts the least
+  healthy provider last, and the docs already recorded that; the source comment and the test named
+  after it still claimed the reverse, and that test asserted the opposite of its own title while
+  passing. Behaviour is unchanged — the comment was wrong, not the code.
+
+- [#183](https://github.com/proxlane/proxlane/pull/183) [`df7a4c0`](https://github.com/proxlane/proxlane/commit/df7a4c0ba816b444c970433ab0625147714ae81b) Thanks [@scarsam](https://github.com/scarsam)! - The edge guard now refuses three IPv6 forms that carried an IPv4 address past it: RFC 2765's
+  IPv4-translated `::ffff:0:0/96`, RFC 8215's local-use NAT64 prefix `64:ff9b:1::/48`, and the five
+  RFC 6052 embedding positions other than the well-known one. `http://[::ffff:0:169.254.169.254]/`
+  reached the cloud metadata endpoint.
+
 ## 0.7.0
 
 ### Minor Changes

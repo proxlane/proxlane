@@ -1,5 +1,23 @@
 # @proxlane/detect
 
+## 0.3.0
+
+### Minor Changes
+
+- [#188](https://github.com/proxlane/proxlane/pull/188) [`7e77a6d`](https://github.com/proxlane/proxlane/commit/7e77a6d09b470c77cdec25ff205d64f4bf930fb5) Thanks [@scarsam](https://github.com/scarsam)! - A challenge page served with a target 5xx is now recognised as a block instead of being reported as
+  `TARGET_ERROR`. The detector only ever examined `OK` responses, so Cloudflare's under-attack mode —
+  which answers 503 — came back as "the site is broken" when the truth was that the site's defences
+  refused every provider. It also armed no cooldown, so every later request re-bought the same
+  failures.
+
+  A claimed success that returned zero bytes is no longer billed as a successful scrape.
+
+### Patch Changes
+
+- [#186](https://github.com/proxlane/proxlane/pull/186) [`4468690`](https://github.com/proxlane/proxlane/commit/4468690161f5e5c2b1f87d3839854d0f2849b07c) Thanks [@scarsam](https://github.com/scarsam)! - Every published package now has a description, keywords, a homepage and a README. Four of the five
+  rendered "ERROR: No README data found!" on npmjs.com — including `@proxlane/adapters`, the
+  Apache-2.0 package this project most wants strangers to contribute to.
+
 ## 0.2.0
 
 ### Minor Changes
