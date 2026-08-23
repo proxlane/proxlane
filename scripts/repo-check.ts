@@ -1533,22 +1533,38 @@ function matchesOwner(pattern: string, file: string): boolean {
 		}
 
 		// b. no dead hostnames, anywhere a reader can reach
-		// EVERY SURFACE A READER REACHES, not three markdown files. The scan covered the README,
-		// the self-hosting guide and CONTRIBUTING — and not the landing page, the docs site or
-		// the agent-facing summaries, which is where a hostname is most likely to be typed and
-		// most likely to be read.
+		// EVERY SURFACE A READER REACHES, and "markdown" is not the boundary — WIDENED TWICE, and
+		// the second attempt had the same shape of bug as the first.
+		//
+		// It began as three markdown files and missed the docs site. Widening it to
+		// `apps/web/content/**/*.md` still missed the one that mattered: the LANDING PAGE is a
+		// `.tsx` file. `index.tsx` carried `curl "https://api.proxlane.dev/v1?…"` — the literal
+		// string in this assertion's own ban list — as the single copyable command on the site,
+		// behind a one-click copy button. The comment sitting right here said the landing page
+		// is where a hostname is "most likely to be typed and most likely to be read", and the
+		// glob under it did not include one.
+		//
+		// THEN `apps/web/src/routes/**/*.tsx` MISSED IT TOO. In a git pathspec `**/` wants an
+		// intervening directory, so that pattern matches the 17 files in subdirectories and not
+		// `routes/index.tsx` — the landing page, again, the third time. Directory pathspecs and
+		// an extension filter in code: `ls-files <dir>` has no such subtlety and is checkable by
+		// reading it.
+		const READER_DIRS = [
+			'apps/web/content/',
+			'apps/web/public/',
+			'apps/web/src/routes/',
+			'packages/',
+		];
+		const READER_EXT = /\.(md|txt|tsx)$/;
 		const docs = [
 			...['README.md', 'docs/self-hosting.md', 'CONTRIBUTING.md'],
-			...execFileSync(
-				'git',
-				['ls-files', 'apps/web/content/**/*.md', 'apps/web/public/llms*.txt'],
-				{
-					cwd: ROOT,
-					encoding: 'utf8',
-				},
-			)
+			...execFileSync('git', ['ls-files', ...READER_DIRS], { cwd: ROOT, encoding: 'utf8' })
 				.split('\n')
-				.filter(Boolean),
+				.filter(Boolean)
+				// Package sources are not reader-facing; their READMEs are the npm landing page.
+				.filter(
+					(f) => READER_EXT.test(f) && (!f.startsWith('packages/') || f.endsWith('README.md')),
+				),
 		].filter(has);
 		if (docs.length < 3) {
 			fail(
@@ -1557,7 +1573,16 @@ function matchesOwner(pattern: string, file: string): boolean {
 			);
 		}
 		for (const file of docs) {
-			const body = read(file);
+			// COMMENTS STRIPPED FROM SOURCE FILES, because the ban is on what a READER sees and a
+			// developer note is not shipped. Without this the comment explaining why the hostname
+			// was removed trips the assertion that removed it — which it did, immediately, and
+			// which is the fifth time a ban in this repo has caught the text explaining the ban.
+			// Reworded prose would have worked; stripping is the version that stays true when the
+			// next person writes the next comment.
+			const raw = read(file);
+			const body = /\.tsx?$/.test(file)
+				? raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+				: raw;
 			for (const host of DEAD_HOSTS) {
 				if (body.includes(host)) {
 					fail(

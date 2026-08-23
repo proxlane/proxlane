@@ -57,9 +57,16 @@ function Home() {
 				<Station
 					label="detection"
 					title="A 200 is not a success"
+					// NOT "every competitor reports a block page as a success". `plan.md` §6 records that
+					// this exact sentence was written once and retracted: ScrapeOps ships response
+					// validation on every premium plan, and Scrapfly publishes ASP error codes so a
+					// challenge does not come back as a success — from a provider this page ships an
+					// adapter for. A reader could falsify it in thirty seconds, on the page whose whole
+					// argument is that we say the true thing when it costs us. The retraction never
+					// reached the homepage. What is actually ours is that the detection is inspectable.
 					lead={[
-						'Every competitor reports a block page as a success,',
-						'because saying otherwise costs them a number. Three behaviours instead of the adjective.',
+						'Detection is table stakes. Showing you the rule that fired is not.',
+						'Three behaviours instead of the adjective.',
 					]}
 				>
 					<Honesty />
@@ -425,7 +432,13 @@ const EXIT_CODES = [
 ] as const;
 
 const CURL_BEFORE = 'curl "https://api.scraperapi.com?api_key=KEY&url=..."';
-const CURL_AFTER = 'curl "https://api.proxlane.dev/v1?api_key=KEY&url=..."';
+// LOCALHOST, BECAUSE THERE IS NO HOSTED ENDPOINT. This is the one line on the page a reader is
+// meant to copy, and it pointed at `api.proxlane.dev` — which answers, with a 401, to a service
+// nobody can sign up for. `repo-check.ts` predicted exactly this failure in the comment above
+// its DEAD_HOSTS list: a 401 reads as "I set it up wrong", where NXDOMAIN reads as "this does
+// not exist yet", which is the truth. The README has said so since it was written; the homepage
+// contradicted it two stations from its own quickstart, which prints localhost three times.
+const CURL_AFTER = 'curl "http://localhost:8787/v1?api_key=KEY&url=..."';
 
 function Hero({
 	scenario,
