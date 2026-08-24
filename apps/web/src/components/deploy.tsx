@@ -15,8 +15,6 @@
  * accent, and it applies with more force to somebody else's.
  */
 
-import type { ReactNode } from 'react';
-
 /**
  * Render's mark, from `render.com/icon.svg`.
  *
@@ -74,7 +72,7 @@ const HOSTS = {
 		border: 'border-[color:var(--color-brand-render)]',
 		text: 'text-[color:var(--color-brand-render)]',
 		glow: 'hover:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-brand-render)_18%,transparent),0_8px_28px_-8px_color-mix(in_oklab,var(--color-brand-render)_55%,transparent)]',
-		note: 'Free · sleeps after 15 min idle',
+		price: 'free',
 	},
 	digitalocean: {
 		name: 'DigitalOcean',
@@ -83,7 +81,7 @@ const HOSTS = {
 		border: 'border-[color:var(--color-brand-digitalocean)]',
 		text: 'text-[color:var(--color-brand-digitalocean)]',
 		glow: 'hover:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-brand-digitalocean)_18%,transparent),0_8px_28px_-8px_color-mix(in_oklab,var(--color-brand-digitalocean)_55%,transparent)]',
-		note: '$5/mo · always awake',
+		price: '$5/mo',
 	},
 } as const;
 
@@ -95,43 +93,50 @@ export const DEPLOY_HOSTS: readonly DeployHost[] = ['render', 'digitalocean'];
 /**
  * One deploy button.
  *
- * The cost note sits *under* the label rather than inside it. Inside, the button becomes two
- * sentences and stops being scannable; under, the reader sees two logos, picks the one they
- * recognise, and reads the price only if it matters to them. It is never omitted: a button
- * labelled "deploy" that lands on a checkout is the thing this whole page argues against.
+ * THE PRICE IS INSIDE THE PILL, not captioned under it. It was a caption first, and in a row
+ * that also held two navigation buttons only half the row had one, so the bottom edge was
+ * ragged and each caption centred itself under its own pill, lining up with nothing. Inline it
+ * sits where the decision is made and the row keeps one baseline.
+ *
+ * It is never omitted: a button labelled "deploy" that lands on a checkout is the thing this
+ * page argues against. The nuance behind each price — Render sleeps, DigitalOcean does not —
+ * is a sentence, so it lives in the prose underneath rather than in a button.
  */
 export function DeployButton({ host }: { readonly host: DeployHost }) {
 	const h = HOSTS[host];
 	const { Mark } = h;
 	return (
-		<span className="inline-flex flex-col gap-1.5">
-			<a
-				href={h.href}
-				className={[
-					'group inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 whitespace-nowrap rounded-full border px-5 font-medium text-base',
-					'transition-[color,border-color,box-shadow,transform] duration-200 ease-(--ease-lane)',
-					'hover:-translate-y-px motion-reduce:transform-none motion-reduce:transition-none',
-					h.border,
-					h.text,
-					h.glow,
-				].join(' ')}
-			>
-				<Mark />
-				Deploy on {h.name}
-			</a>
-			<span className="text-center text-[color:var(--color-slate)] text-xs">{h.note}</span>
-		</span>
+		<a
+			href={h.href}
+			className={[
+				'group inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 whitespace-nowrap rounded-full border px-5 font-medium text-base',
+				'transition-[color,border-color,box-shadow,transform] duration-200 ease-(--ease-lane)',
+				'hover:-translate-y-px motion-reduce:transform-none motion-reduce:transition-none',
+				h.border,
+				h.text,
+				h.glow,
+			].join(' ')}
+		>
+			<Mark />
+			Deploy on {h.name}
+			{/* Mixed from `currentColor` rather than given a token: the pill already sets the text
+			    to the host's colour, so the price recedes within that colour instead of
+			    introducing a second one. A slate price on a purple pill reads as a different
+			    element that happens to be adjacent. */}
+			<span className="text-[color:color-mix(in_oklab,currentColor_60%,transparent)]">
+				{h.price}
+			</span>
+		</a>
 	);
 }
 
-/** Both buttons, one row. */
-export function DeployRow({ children }: { readonly children?: ReactNode }) {
+/** Both buttons, one row, one baseline. */
+export function DeployRow() {
 	return (
-		<div className="flex flex-wrap items-start gap-3">
+		<div className="flex flex-wrap items-center gap-3">
 			{DEPLOY_HOSTS.map((host) => (
 				<DeployButton key={host} host={host} />
 			))}
-			{children}
 		</div>
 	);
 }

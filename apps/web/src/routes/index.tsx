@@ -1,9 +1,8 @@
 import { CAPABILITIES, costOf } from '@proxlane/adapters';
 import { describeRoute, type RouteAttempt, RouteDiagram } from '@proxlane/route-viz';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { type Block, Panel, Transcript } from '../components/artifacts.js';
-import { Cta } from '../components/cta.js';
 import { DeployRow } from '../components/deploy.js';
 
 export const Route = createFileRoute('/')({
@@ -568,21 +567,19 @@ function Hero({
 			    to sign up to. */}
 			{/* TWO HOSTS, EACH IN ITS OWN COLOUR, because "deploy" is a decision about where and
 			    the reader has already made it. One free button is an offer; two named ones with
-			    their prices under them is a choice, and the second is what someone who already
-			    pays for a scraping provider is actually making. */}
+			    their prices on them is a choice.
+
+			    THE OTHER TWO ARE LINKS NOW, not pills. Four identical pills gave "Read the
+			    source" the same weight as the primary action, and the two carrying prices hung
+			    a caption below the row while the other two did not, so the row had a ragged
+			    bottom edge. Deploying is the action; docs and source are where you go instead. */}
 			<div className="mt-8">
-				<DeployRow>
-					<Cta to="/docs" tone="quiet">
-						Bring your own keys
-					</Cta>
-					<Cta href="https://github.com/proxlane/proxlane" tone="quiet">
-						Read the source
-					</Cta>
-				</DeployRow>
+				<DeployRow />
 			</div>
-			<p className="mt-4 text-[color:var(--color-slate)] text-sm">
-				Runs on your account, not ours. Each one deploys a blueprint that lives in the repo, so
-				you can{' '}
+			<p className="mt-5 max-w-[62ch] text-[color:var(--color-slate)] text-sm leading-relaxed">
+				Runs on your account, not ours. Render&rsquo;s free plan sleeps after fifteen minutes
+				idle and takes about a minute to wake; DigitalOcean stays up. Each deploys a blueprint
+				that lives in the repo, so you can{' '}
 				<a
 					className="underline decoration-[color:var(--color-rule)] underline-offset-4 hover:decoration-[color:var(--color-accent)]"
 					href="https://github.com/proxlane/proxlane/blob/main/render.yaml"
@@ -590,6 +587,23 @@ function Hero({
 					read it first
 				</a>
 				: a pinned image, a health check, and one provider key you already pay for.
+			</p>
+			<p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+				<Link
+					className="text-[color:var(--color-ink)] underline decoration-[color:var(--color-rule)] underline-offset-4 transition-colors duration-200 ease-(--ease-lane) hover:decoration-[color:var(--color-accent)]"
+					to="/docs"
+				>
+					Bring your own keys
+				</Link>
+				<span aria-hidden="true" className="text-[color:var(--color-rule)]">
+					&middot;
+				</span>
+				<a
+					className="text-[color:var(--color-ink)] underline decoration-[color:var(--color-rule)] underline-offset-4 transition-colors duration-200 ease-(--ease-lane) hover:decoration-[color:var(--color-accent)]"
+					href="https://github.com/proxlane/proxlane"
+				>
+					Read the source
+				</a>
 			</p>
 		</section>
 	);
