@@ -74,6 +74,22 @@
 	 * on white. */
 	--color-surface: #ffffff;
 
+	/* ---- host brands ------------------------------------------------------------------
+	 * The ONLY colours here that are not ours, and the only place a foreign brand is allowed
+	 * to set a colour. The deploy buttons carry a host's own logo mark, and a mark drawn in
+	 * our raspberry reads as a proxlane button rather than a Render one — recognition is the
+	 * whole job of a deploy button, and the reader is scanning for a logo they know.
+	 *
+	 * Values are read from each host's own published art, never matched by eye:
+	 * `render.com/images/deploy-to-render-button.svg` and `deploytodo.com/do-btn-blue.svg`.
+	 *
+	 * They are used as a hairline, a mark and a glow — never a fill. A block of someone
+	 * else's brand colour on this page would be the loudest thing on it, which is the same
+	 * argument `components/cta.tsx` makes about our own accent.
+	 */
+	--color-brand-render: #8a05ff;
+	--color-brand-digitalocean: #0069ff;
+
 	/* ---- type -------------------------------------------------------------------------
 	 * One humanist sans for everything, hierarchy from weight alone, which is how transit
 	 * systems do it (Johnston, Frutiger, Transport). No display face: the diagram is the
@@ -186,6 +202,10 @@
 	--color-accent: #f06595;
 	/* Lifted OFF the ground rather than dropped below it: a dark UI reads depth as light. */
 	--color-surface: #1a1e23;
+	/* Lifted for the ink ground: #8a05ff is 3.0:1 there and #0069ff 3.8:1, both under the 4.5
+	 * a button label needs. Same hue, same recognition, legible. */
+	--color-brand-render: #b366ff;
+	--color-brand-digitalocean: #5aa0ff;
 	/* Deeper on dark. The same 45% over an already-dark page barely separates the dialog. */
 	--color-scrim: rgb(4 6 8 / 0.66);
 }
@@ -239,6 +259,8 @@
 		--color-line-4: #51cf66;
 		--color-accent: #f06595;
 		--color-surface: #1a1e23;
+		--color-brand-render: #b366ff;
+		--color-brand-digitalocean: #5aa0ff;
 		--color-scrim: rgb(4 6 8 / 0.66);
 		--glow-line: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
 	}

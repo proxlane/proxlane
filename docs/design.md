@@ -69,6 +69,19 @@ then rendered as one unbroken colour, which is precisely the event the diagram e
 make visible. Adding a provider means adding a slot, a token in both variants, and a row
 here.
 
+**Two colours here are not ours, and they are the only ones.** The deploy buttons carry
+Render's and DigitalOcean's own logo marks, and a mark drawn in our raspberry reads as a
+proxlane button rather than a Render one — recognition is the entire job of a deploy button.
+So `--color-brand-render` and `--color-brand-digitalocean` exist as tokens, read from each
+host's own published button art rather than matched by eye, and lifted on the ink ground where
+the published values fall under 4.5:1.
+
+They are deliberately outside the `--map-` palette above and outside `tokens:check`'s
+`SPEC_TO_TOKEN`, because they are not roles in this system — they belong to somebody else's.
+Used as a hairline, a mark and a glow, never a fill: a block of another brand's colour would
+be the loudest thing on the page, which is the same argument `components/cta.tsx` makes about
+our own accent. No third one without a button behind it.
+
 **Type.** One humanist sans across the entire site, hierarchy from weight only,
 which is how transit systems work (Johnston, Frutiger, Transport). Hanken Grotesk or
 Public Sans at 400/500/700. IBM Plex Mono for code and readouts — humanist like the sans

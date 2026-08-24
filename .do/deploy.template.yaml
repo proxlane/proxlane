@@ -1,0 +1,61 @@
+# One-click deploy on DigitalOcean App Platform, as a spec in the repo rather than a template
+# on someone's dashboard — the same reason `render.yaml` is here.
+#
+# WHY A SECOND ONE, when Render's is free and this is not. Render's free plan spins a service
+# down after 15 minutes with no inbound traffic and takes about a minute to come back. For a
+# marketing site that is invisible; for a scraping gateway it means the first request of every
+# batch eats a cold start, or times out. This is the button for people who want the gateway
+# awake. It costs money and says so.
+#
+# The image is the same published, pinned artifact — `scripts/sync-compose-pin.ts` writes the
+# tag at release time and `repo:check` assertion 30 holds it to the newest release, alongside
+# `docker/compose.yml` and `render.yaml`.
+spec:
+  name: proxlane-gateway
+  # Editable in the create flow. Frankfurt because provider egress and most scraped targets in
+  # the launch set are closer to it than to a US region; move it if yours are not.
+  region: fra
+  services:
+    - name: gateway
+      # PUBLIC IMAGE, NO CREDENTIALS. For `registry_type: GHCR`, `registry` is the *org* and
+      # `repository` is the image name — not the hostname and path, which is the shape the
+      # spec reference implies and the how-to corrects.
+      image:
+        registry_type: GHCR
+        registry: proxlane
+        repository: gateway
+        tag: 0.10.0
+      instance_count: 1
+      # 512 MB, the entry size. See PROXLANE_MAX_INFLIGHT below — this number and that one are
+      # a pair, and changing one without the other either wastes memory or refuses to boot.
+      instance_size_slug: apps-s-1vcpu-0.5gb
+      http_port: 8787
+      health_check:
+        http_path: /health
+      envs:
+        # 16 x 10 MB x 2.5 = 400 MB, against the 512 MB this instance size gives. The default
+        # is 32, which sizes at 800 MB, and the gateway `exit(2)`s rather than being
+        # OOM-killed under load. Reproduced in a `--memory=512m` container before this line.
+        - key: PROXLANE_MAX_INFLIGHT
+          scope: RUN_TIME
+          value: '16'
+        # UNLIKE RENDER, THIS ONE YOU INVENT. App Platform has no `generateValue`, so the
+        # create flow asks you for it. Any random string: `openssl rand -hex 16`. It is the key
+        # you present to your own gateway and it registers nowhere.
+        - key: PROXLANE_API_KEY
+          scope: RUN_TIME
+          type: SECRET
+        # BYOK. Fill in the providers you already pay for and leave the rest blank — a provider
+        # with no key is simply not in the failover chain.
+        - key: SCRAPERAPI_KEY
+          scope: RUN_TIME
+          type: SECRET
+        - key: SCRAPINGBEE_KEY
+          scope: RUN_TIME
+          type: SECRET
+        - key: SCRAPFLY_KEY
+          scope: RUN_TIME
+          type: SECRET
+        - key: BRIGHTDATA_KEY
+          scope: RUN_TIME
+          type: SECRET

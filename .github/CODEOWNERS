@@ -29,6 +29,7 @@ docker/**                          @scarsam   # devex-engineer
 /Dockerfile                        @scarsam   # devex-engineer
 /.dockerignore                     @scarsam   # devex-engineer
 /render.yaml                       @scarsam   # devex-engineer
+.do/**                             @scarsam   # devex-engineer
 .githooks/**                       @scarsam   # devex-engineer
 scripts/**                         @scarsam   # devex-engineer
 tooling/**                         @scarsam   # devex-engineer

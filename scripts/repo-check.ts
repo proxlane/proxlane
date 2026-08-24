@@ -1642,23 +1642,43 @@ function matchesOwner(pattern: string, file: string): boolean {
 // somebody has run, and bumping it should mean reading a changelog first. So this asserts two
 // things only — that it is a concrete version, and that the version was actually released.
 {
-	// BOTH FILES THAT NAME THE IMAGE. `render.yaml` is the one-click deploy blueprint, and a
+	// EVERY FILE THAT NAMES THE IMAGE. The two deploy blueprints are one-click surfaces, and a
 	// stale pin there gives a stranger an old gateway on first contact — the same failure the
 	// compose pin had, on the surface with the least forgiving readers.
+	//
+	// PER-FILE, WITH A FLOOR ON EACH. Flattening every pin into one list made the check
+	// unfalsifiable per file: `.do/deploy.template.yaml` splits the image across
+	// `registry`/`repository`/`tag` and matches neither `image:` nor `url:`, so it contributed
+	// nothing and the assertion still passed on the other two. A file that names no pin is now
+	// its own failure, and the message names the file rather than always saying `compose.yml`.
+	const PINNED: ReadonlyArray<readonly [string, RegExp]> = [
+		['docker/compose.yml', /image:\s*ghcr\.io\/proxlane\/gateway:(\S+)/g],
+		['render.yaml', /url:\s*ghcr\.io\/proxlane\/gateway:(\S+)/g],
+		['.do/deploy.template.yaml', /registry_type:\s*GHCR[\s\S]*?\n\s*tag:\s*(\S+)/g],
+	];
 	const COMPOSE = 'docker/compose.yml';
 	const CHANGELOG = 'apps/gateway/CHANGELOG.md';
 	if (!has(COMPOSE) || !has(CHANGELOG)) {
 		fail('30', `${COMPOSE} or ${CHANGELOG} is missing`);
 	} else {
-		const pins = ['docker/compose.yml', 'render.yaml']
-			.filter(has)
-			.flatMap((f) =>
-				[...read(f).matchAll(/(?:image:\s*|url:\s*)ghcr\.io\/proxlane\/gateway:(\S+)/g)].map(
-					(m) => m[1] as string,
-				),
-			);
-		if (pins.length === 0) {
-			fail('30', `${COMPOSE} no longer names a gateway image — this check stopped checking`);
+		const pins: Array<{ file: string; pin: string }> = [];
+		let missingPattern = false;
+		for (const [file, pattern] of PINNED) {
+			if (!has(file)) {
+				fail('30', `${file} is missing — it is one of the files that pins the gateway image`);
+				missingPattern = true;
+				continue;
+			}
+			const found = [...read(file).matchAll(pattern)].map((m) => m[1] as string);
+			if (found.length === 0) {
+				fail('30', `${file} no longer names a gateway image — this check stopped checking it`);
+				missingPattern = true;
+				continue;
+			}
+			for (const pin of found) pins.push({ file, pin });
+		}
+		if (pins.length === 0 || missingPattern) {
+			if (pins.length === 0) fail('30', 'no file names a gateway image at all');
 		} else {
 			// Every released version, parsed from the changelog changesets generates. Reading the
 			// registry instead would need the network, which would fail a clean clone offline.
@@ -1678,33 +1698,33 @@ function matchesOwner(pattern: string, file: string): boolean {
 				if (latest === undefined) {
 					fail('30', `could not read the newest release from ${CHANGELOG}`);
 				} else {
-					for (const pin of pins) {
+					for (const { file, pin } of pins) {
 						if (pin !== 'latest' && pin !== latest) {
 							fail(
 								'30',
-								`${COMPOSE} pins gateway:${pin}; the newest release is ${latest}. A ` +
+								`${file} pins gateway:${pin}; the newest release is ${latest}. A ` +
 									'self-hoster following the guide gets that version and the docs describe ' +
 									'this one. Owner: release-manager.',
 							);
 						}
 					}
 				}
-				for (const pin of pins) {
+				for (const { file, pin } of pins) {
 					if (!/^\d+\.\d+\.\d+$/.test(pin)) {
 						fail(
 							'30',
-							`${COMPOSE} pins \`${pin}\`. operating.md B8 says this file pins a version; ` +
+							`${file} pins \`${pin}\`. operating.md B8 says this file pins a version; ` +
 								"a moving tag can change a self-hoster's gateway without them choosing to.",
 						);
 					} else if (!released.has(pin)) {
 						fail(
 							'30',
-							`${COMPOSE} pins ${pin}, which has no entry in ${CHANGELOG} — it was never ` +
+							`${file} pins ${pin}, which has no entry in ${CHANGELOG} — it was never ` +
 								'released, so there may be no such image.',
 						);
 					}
 				}
-				ok('30', pins.length, 'the compose file pins a released gateway version');
+				ok('30', pins.length, 'every file that pins the gateway pins the newest release');
 			}
 		}
 	}

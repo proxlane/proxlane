@@ -23,13 +23,27 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // EVERY FILE THAT NAMES THE IMAGE, not just the compose file. `render.yaml` is a one-click
 // deploy blueprint, so a stale pin there hands a stranger an old gateway on their very first
 // impression — the same failure the compose pin had, on a surface with less forgiving readers.
-const PINNED = ['docker/compose.yml', 'render.yaml'];
+const PINNED = ['docker/compose.yml', 'render.yaml', '.do/deploy.template.yaml'];
 const MANIFEST = join(ROOT, 'apps/gateway/package.json');
 // BOTH SPELLINGS. Compose writes `image: ghcr.io/…`; a Render blueprint nests it as
 // `image:\n  url: ghcr.io/…`, so the line reads `url:`. Matching only the first left the
 // blueprint silently unpinned — caught by this script's own per-file floor rather than by
 // noticing later, which is the point of having one.
+// THREE SPELLINGS, and each one was found by this script's own per-file floor rather than by
+// noticing later. Compose writes `image: ghcr.io/…`; a Render blueprint nests it as
+// `image:\n  url: ghcr.io/…`, so the line reads `url:`; and a DigitalOcean app spec does not
+// write the image reference at all — it splits it into `registry`/`repository`/`tag`, so the
+// only thing to rewrite there is a bare `tag:` with no `ghcr.io` anywhere near it.
 const IMAGE = /((?:image|url):\s*ghcr\.io\/proxlane\/gateway:)(\S+)/g;
+// Anchored on `registry_type: GHCR`, not on `tag:` alone: `tag:` is a common enough key that
+// matching it unqualified would rewrite an unrelated one the day somebody adds a second
+// service. The `[\s\S]*?` spans the two lines between them and nothing more.
+const DO_TAG = /(registry_type:\s*GHCR[\s\S]*?\n\s*tag:\s*)(\S+)/g;
+
+/** The pattern that names the image in a given file. */
+function patternFor(rel: string): RegExp {
+	return rel === '.do/deploy.template.yaml' ? DO_TAG : IMAGE;
+}
 
 const version = (JSON.parse(readFileSync(MANIFEST, 'utf8')) as { version?: string }).version;
 if (version === undefined || !/^\d+\.\d+\.\d+$/.test(version)) {
@@ -42,13 +56,14 @@ for (const rel of PINNED) {
 	const before = readFileSync(file, 'utf8');
 	// Non-zero denominator, per file. A rename of the image would otherwise make this a silent
 	// no-op, and the assertion it feeds would fail with no clue that its input stopped matching.
-	IMAGE.lastIndex = 0;
-	if (!IMAGE.test(before)) {
+	const pattern = patternFor(rel);
+	pattern.lastIndex = 0;
+	if (!pattern.test(before)) {
 		process.stderr.write(`${rel} names no gateway image — this script stopped working\n`);
 		process.exit(1);
 	}
-	IMAGE.lastIndex = 0;
-	const after = before.replace(IMAGE, `$1${version}`);
+	pattern.lastIndex = 0;
+	const after = before.replace(pattern, `$1${version}`);
 	if (after === before) {
 		process.stdout.write(`  ${rel} already pins gateway:${version}\n`);
 	} else {

@@ -69,13 +69,26 @@ there isn't one.
 ### On someone else's machine
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/proxlane/proxlane)
+[![Deploy to DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/proxlane/proxlane/tree/main)
 
-The blueprint is [`render.yaml`](render.yaml) in this repo, so you can read exactly what it
-deploys before you click it — a pinned image, a health check, and five environment variables.
-`PROXLANE_API_KEY` is **generated for you**; the only thing it asks of you is a provider key you
-already pay for. Leave the other three blank.
+| | Cost | Awake |
+|---|---|---|
+| **Render** | free | spins down after 15 minutes idle, ~1 min to come back |
+| **DigitalOcean** | ~$5/mo | always |
 
-The image tag in that file is written by the release, not by hand, so a one-click deploy cannot
+Free is the right default. Pick the paid one if a cold start on the first request of a batch
+would hurt — which for a scraper it often does.
+
+Both read a blueprint committed here, not a template on someone's dashboard, so you can see
+exactly what they deploy before you click: [`render.yaml`](render.yaml) and
+[`.do/deploy.template.yaml`](.do/deploy.template.yaml). A pinned image, a health check, an
+in-flight ceiling sized to the instance, and your provider keys. Fill in the providers you pay
+for and leave the rest blank.
+
+On Render `PROXLANE_API_KEY` is **generated for you**. App Platform has no equivalent, so that
+one asks you to paste a key — any random string, `openssl rand -hex 16`.
+
+The image tag in both files is written by the release, not by hand, so a one-click deploy cannot
 quietly hand you a gateway five versions old.
 
 ### On yours
