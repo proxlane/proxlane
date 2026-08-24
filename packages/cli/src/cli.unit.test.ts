@@ -233,6 +233,40 @@ describe('doctor', () => {
 		expect(out).toMatch(/SCRAPERAPI_KEY (set \(\d+ chars\)|not set)/);
 	});
 
+	it('fails when NO key is set, because then nothing routes at all', async () => {
+		// The per-key checks are `ok` when absent, for the reason the next test states. Applied
+		// to *every* key that reasoning produced "13 checks, all good" for a gateway that
+		// cannot serve one request — a green diagnostic on a broken install, in the tool whose
+		// job is answering the first support question.
+		const keys = ['SCRAPERAPI_KEY', 'SCRAPINGBEE_KEY', 'SCRAPFLY_KEY', 'BRIGHTDATA_KEY'];
+		const saved = keys.map((k) => [k, process.env[k]] as const);
+		for (const k of keys) delete process.env[k];
+		try {
+			const [, out] = await capture(() => doctor(true));
+			const { data } = JSON.parse(out);
+			const agg = data.checks.find((c: { name: string }) => c.name === 'providers');
+			expect(agg, 'no aggregate providers check').toBeDefined();
+			expect(agg.ok).toBe(false);
+			expect(agg.fix, 'a failing check must say what to do').toBeTruthy();
+		} finally {
+			for (const [k, v] of saved) if (v !== undefined) process.env[k] = v;
+		}
+	});
+
+	it('says nothing about the aggregate when at least one key is set', async () => {
+		const saved = process.env.SCRAPERAPI_KEY;
+		process.env.SCRAPERAPI_KEY = 'x'.repeat(32);
+		try {
+			const [, out] = await capture(() => doctor(true));
+			const { data } = JSON.parse(out);
+			const agg = data.checks.find((c: { name: string }) => c.name === 'providers');
+			expect(agg, 'the aggregate check should not appear once a key exists').toBeUndefined();
+		} finally {
+			if (saved === undefined) delete process.env.SCRAPERAPI_KEY;
+			else process.env.SCRAPERAPI_KEY = saved;
+		}
+	});
+
 	it('treats a missing BYOK key as information, not failure', async () => {
 		// Reporting it as broken trains people to ignore the output, which is how a
 		// diagnostic stops being read. Nobody is expected to hold all three keys.

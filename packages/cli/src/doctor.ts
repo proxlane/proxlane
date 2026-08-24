@@ -45,21 +45,49 @@ function nodeCheck(): Check {
 
 async function providerKeyChecks(): Promise<Check[]> {
 	const ids = Object.keys(REGISTRY).sort();
-	return ids.map((id) => {
-		const envVar = `${id.toUpperCase().replace(/-/g, '_')}_KEY`;
-		const v = process.env[envVar];
-		const present = v !== undefined && v !== '';
-		return {
-			name: `key:${id}`,
-			// NOT a failure. BYOK means you bring the providers you use, and nobody is expected
-			// to hold all three. Reporting a missing key as broken would train people to ignore
-			// the output, which is how a diagnostic stops being read.
-			ok: true,
-			// Length only, never a prefix or suffix. Redaction happens at the VALUE, before it
-			// reaches any renderer, or the --json path leaks what the human path hides.
-			detail: present ? `$${envVar} set (${v.length} chars)` : `$${envVar} not set`,
-		};
+	const configured = ids.filter((id) => {
+		const v = process.env[`${id.toUpperCase().replace(/-/g, '_')}_KEY`];
+		return v !== undefined && v !== '';
 	});
+	// ZERO KEYS IS NOT THE SAME AS ONE MISSING KEY, and only the second is fine.
+	//
+	// The per-key checks below are deliberately `ok` when a key is absent: BYOK means you bring
+	// the providers you use, and flagging the three you do not have would train people to skip
+	// the output. That reasoning covers a missing key. It does not cover *no* keys, which is a
+	// gateway that cannot route a single request — and `doctor` reported "all good" for it,
+	// which is the exact zero-exit stub this repo is built against, in the tool that exists to
+	// answer the first support question.
+	const none: Check[] =
+		configured.length > 0
+			? []
+			: [
+					{
+						name: 'providers',
+						ok: false,
+						detail: `no provider key is set, so nothing routes, so every request answers NO_PROVIDER_AVAILABLE`,
+						fix: `set at least one of ${ids
+							.map((id) => `$${id.toUpperCase().replace(/-/g, '_')}_KEY`)
+							.join(', ')} and run this again`,
+					},
+				];
+	return [
+		...none,
+		...ids.map((id) => {
+			const envVar = `${id.toUpperCase().replace(/-/g, '_')}_KEY`;
+			const v = process.env[envVar];
+			const present = v !== undefined && v !== '';
+			return {
+				name: `key:${id}`,
+				// NOT a failure. BYOK means you bring the providers you use, and nobody is expected
+				// to hold all three. Reporting a missing key as broken would train people to ignore
+				// the output, which is how a diagnostic stops being read.
+				ok: true,
+				// Length only, never a prefix or suffix. Redaction happens at the VALUE, before it
+				// reaches any renderer, or the --json path leaks what the human path hides.
+				detail: present ? `$${envVar} set (${v.length} chars)` : `$${envVar} not set`,
+			};
+		}),
+	];
 }
 
 function egressCheck(): Check {
