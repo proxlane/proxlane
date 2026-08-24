@@ -63,6 +63,23 @@ publishing anyway.
 
 ## Quickstart
 
+Two ways in. Both give you a gateway you control; neither gives you an account here, because
+there isn't one.
+
+### On someone else's machine
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/proxlane/proxlane)
+
+The blueprint is [`render.yaml`](render.yaml) in this repo, so you can read exactly what it
+deploys before you click it — a pinned image, a health check, and five environment variables.
+`PROXLANE_API_KEY` is **generated for you**; the only thing it asks of you is a provider key you
+already pay for. Leave the other three blank.
+
+The image tag in that file is written by the release, not by hand, so a one-click deploy cannot
+quietly hand you a gateway five versions old.
+
+### On yours
+
 Three commands, and the first one invents a key. There is no hosted endpoint to curl — the
 `localhost` below is not standing in for one, it is where Proxlane runs.
 

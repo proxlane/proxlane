@@ -1,0 +1,36 @@
+# One-click deploy, as a blueprint in the repo rather than a template on someone's dashboard.
+#
+# WHY IN-REPO. A hosted template is a copy of this configuration that nobody can review and that
+# drifts the moment the image version moves — which is exactly the failure this project spent two
+# days finding elsewhere. A blueprint is a file: it is diffed in a pull request, the image tag is
+# written by `scripts/sync-compose-pin.ts` at release time, and `repo:check` assertion 30 holds it
+# to the newest release alongside `docker/compose.yml`.
+#
+# WHAT A READER GETS: a running gateway on their own account, with a key they did not have to
+# invent, needing exactly one thing from them — a provider key they already pay for.
+services:
+  - type: web
+    name: proxlane-gateway
+    runtime: image
+    plan: free
+    image:
+      # Pinned, never `:latest`. `operating.md` B8 makes the pin the supported choice.
+      url: ghcr.io/proxlane/gateway:0.10.0
+    healthCheckPath: /health
+    envVars:
+      # GENERATED, NOT ASKED FOR. This is the key the caller presents to their own gateway; it
+      # registers nowhere and means nothing outside this instance. Asking a reader to invent one
+      # before they have seen the thing work is a step that buys nothing, and the README's own
+      # quickstart had to explain it at length precisely because it reads as a signup.
+      - key: PROXLANE_API_KEY
+        generateValue: true
+      # BYOK. Bring the providers you already pay for; the rest are simply not in the chain.
+      # `sync: false` makes Render prompt for these rather than storing them in this file.
+      - key: SCRAPERAPI_KEY
+        sync: false
+      - key: SCRAPINGBEE_KEY
+        sync: false
+      - key: SCRAPFLY_KEY
+        sync: false
+      - key: BRIGHTDATA_KEY
+        sync: false

@@ -559,12 +559,27 @@ function Hero({
 			    outlined one, while the header had a filled raspberry pill: three shapes and two
 			    fills for the same job. The accent is now a hairline and a glow rather than a
 			    block, so it stays the colour that means "this line is ours". */}
+			{/* THE FIRST ONE IS NOW A THING THAT RUNS, not a page that explains. Every CTA here
+			    used to lead to more reading — docs, or source — on a site whose whole argument is
+			    that you can check the claims yourself. The blueprint deploys a pinned image on
+			    the reader's own account, generates the gateway key for them, and asks for one
+			    provider key they already pay for. No signup here, because there is nothing here
+			    to sign up to. */}
 			<div className="mt-8 flex flex-wrap items-center gap-3">
-				<Cta to="/docs">Bring your own keys</Cta>
+				<Cta href="https://render.com/deploy?repo=https://github.com/proxlane/proxlane">
+					Deploy your own, free
+				</Cta>
+				<Cta to="/docs" tone="quiet">
+					Bring your own keys
+				</Cta>
 				<Cta href="https://github.com/proxlane/proxlane" tone="quiet">
 					Read the source
 				</Cta>
 			</div>
+			<p className="mt-3 text-[color:var(--color-slate)] text-sm">
+				Runs on your account, not ours. The key is generated; the only thing it asks for is a
+				provider key you already have.
+			</p>
 		</section>
 	);
 }

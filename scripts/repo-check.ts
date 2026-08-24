@@ -1642,14 +1642,21 @@ function matchesOwner(pattern: string, file: string): boolean {
 // somebody has run, and bumping it should mean reading a changelog first. So this asserts two
 // things only — that it is a concrete version, and that the version was actually released.
 {
+	// BOTH FILES THAT NAME THE IMAGE. `render.yaml` is the one-click deploy blueprint, and a
+	// stale pin there gives a stranger an old gateway on first contact — the same failure the
+	// compose pin had, on the surface with the least forgiving readers.
 	const COMPOSE = 'docker/compose.yml';
 	const CHANGELOG = 'apps/gateway/CHANGELOG.md';
 	if (!has(COMPOSE) || !has(CHANGELOG)) {
 		fail('30', `${COMPOSE} or ${CHANGELOG} is missing`);
 	} else {
-		const pins = [...read(COMPOSE).matchAll(/image:\s*ghcr\.io\/proxlane\/gateway:(\S+)/g)].map(
-			(m) => m[1] as string,
-		);
+		const pins = ['docker/compose.yml', 'render.yaml']
+			.filter(has)
+			.flatMap((f) =>
+				[...read(f).matchAll(/(?:image:\s*|url:\s*)ghcr\.io\/proxlane\/gateway:(\S+)/g)].map(
+					(m) => m[1] as string,
+				),
+			);
 		if (pins.length === 0) {
 			fail('30', `${COMPOSE} no longer names a gateway image — this check stopped checking`);
 		} else {

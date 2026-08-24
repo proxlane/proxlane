@@ -20,9 +20,16 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const COMPOSE = join(ROOT, 'docker/compose.yml');
+// EVERY FILE THAT NAMES THE IMAGE, not just the compose file. `render.yaml` is a one-click
+// deploy blueprint, so a stale pin there hands a stranger an old gateway on their very first
+// impression — the same failure the compose pin had, on a surface with less forgiving readers.
+const PINNED = ['docker/compose.yml', 'render.yaml'];
 const MANIFEST = join(ROOT, 'apps/gateway/package.json');
-const IMAGE = /(image:\s*ghcr\.io\/proxlane\/gateway:)(\S+)/g;
+// BOTH SPELLINGS. Compose writes `image: ghcr.io/…`; a Render blueprint nests it as
+// `image:\n  url: ghcr.io/…`, so the line reads `url:`. Matching only the first left the
+// blueprint silently unpinned — caught by this script's own per-file floor rather than by
+// noticing later, which is the point of having one.
+const IMAGE = /((?:image|url):\s*ghcr\.io\/proxlane\/gateway:)(\S+)/g;
 
 const version = (JSON.parse(readFileSync(MANIFEST, 'utf8')) as { version?: string }).version;
 if (version === undefined || !/^\d+\.\d+\.\d+$/.test(version)) {
@@ -30,19 +37,22 @@ if (version === undefined || !/^\d+\.\d+\.\d+$/.test(version)) {
 	process.exit(1);
 }
 
-const before = readFileSync(COMPOSE, 'utf8');
-const after = before.replace(IMAGE, `$1${version}`);
-
-// Non-zero denominator. A rename of the image would otherwise make this a silent no-op, and the
-// assertion it feeds would then fail with no clue that its input had stopped matching.
-if (!IMAGE.test(before)) {
-	process.stderr.write(`${COMPOSE} names no gateway image — this script stopped working\n`);
-	process.exit(1);
-}
-
-if (after === before) {
-	process.stdout.write(`  compose already pins gateway:${version}\n`);
-} else {
-	writeFileSync(COMPOSE, after);
-	process.stdout.write(`  compose now pins gateway:${version}\n`);
+for (const rel of PINNED) {
+	const file = join(ROOT, rel);
+	const before = readFileSync(file, 'utf8');
+	// Non-zero denominator, per file. A rename of the image would otherwise make this a silent
+	// no-op, and the assertion it feeds would fail with no clue that its input stopped matching.
+	IMAGE.lastIndex = 0;
+	if (!IMAGE.test(before)) {
+		process.stderr.write(`${rel} names no gateway image — this script stopped working\n`);
+		process.exit(1);
+	}
+	IMAGE.lastIndex = 0;
+	const after = before.replace(IMAGE, `$1${version}`);
+	if (after === before) {
+		process.stdout.write(`  ${rel} already pins gateway:${version}\n`);
+	} else {
+		writeFileSync(file, after);
+		process.stdout.write(`  ${rel} now pins gateway:${version}\n`);
+	}
 }
