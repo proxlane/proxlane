@@ -191,7 +191,7 @@ faithfully reflects a table that is now wrong.
 | `packages/ui/**` | Base UI wrapped, tokens, primitives | design-engineer |
 | `packages/route-viz/**` | the lane diagram: hero, dashboard, SEO pages | design-engineer |
 | `packages/cli/**` | the unscoped `proxlane` package and `doctor`, including its output text | devex-engineer |
-| `docker/**` `/Dockerfile` `/.dockerignore` | the self-host image and the compose files | devex-engineer |
+| `docker/**` `/Dockerfile` `/.dockerignore` `/render.yaml` `.do/**` | the self-host image, the compose files and the one-click deploy blueprints | devex-engineer |
 | `.githooks/**` | pre-commit and pre-push. The fast local copy of what the `main` ruleset now enforces server-side | devex-engineer |
 | `scripts/**` | the command manifest, the stub harness, repo:check, generators | devex-engineer |
 | `tooling/**` | tsconfig, vitest config, container image constants | devex-engineer |

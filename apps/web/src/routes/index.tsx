@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { type Block, Panel, Transcript } from '../components/artifacts.js';
 import { Cta } from '../components/cta.js';
+import { DeployRow } from '../components/deploy.js';
 
 export const Route = createFileRoute('/')({
 	// The homepage declares its own canonical and `og:url` now that the root no longer does.
@@ -559,12 +560,37 @@ function Hero({
 			    outlined one, while the header had a filled raspberry pill: three shapes and two
 			    fills for the same job. The accent is now a hairline and a glow rather than a
 			    block, so it stays the colour that means "this line is ours". */}
-			<div className="mt-8 flex flex-wrap items-center gap-3">
-				<Cta to="/docs">Bring your own keys</Cta>
-				<Cta href="https://github.com/proxlane/proxlane" tone="quiet">
-					Read the source
-				</Cta>
+			{/* THE FIRST ONE IS NOW A THING THAT RUNS, not a page that explains. Every CTA here
+			    used to lead to more reading — docs, or source — on a site whose whole argument is
+			    that you can check the claims yourself. The blueprint deploys a pinned image on
+			    the reader's own account, generates the gateway key for them, and asks for one
+			    provider key they already pay for. No signup here, because there is nothing here
+			    to sign up to. */}
+			{/* TWO HOSTS, EACH IN ITS OWN COLOUR, because "deploy" is a decision about where and
+			    the reader has already made it. One free button is an offer; two named ones with
+			    their prices under them is a choice, and the second is what someone who already
+			    pays for a scraping provider is actually making. */}
+			<div className="mt-8">
+				<DeployRow>
+					<Cta to="/docs" tone="quiet">
+						Bring your own keys
+					</Cta>
+					<Cta href="https://github.com/proxlane/proxlane" tone="quiet">
+						Read the source
+					</Cta>
+				</DeployRow>
 			</div>
+			<p className="mt-4 text-[color:var(--color-slate)] text-sm">
+				Runs on your account, not ours. Each one deploys a blueprint that lives in the repo, so
+				you can{' '}
+				<a
+					className="underline decoration-[color:var(--color-rule)] underline-offset-4 hover:decoration-[color:var(--color-accent)]"
+					href="https://github.com/proxlane/proxlane/blob/main/render.yaml"
+				>
+					read it first
+				</a>
+				: a pinned image, a health check, and one provider key you already pay for.
+			</p>
 		</section>
 	);
 }

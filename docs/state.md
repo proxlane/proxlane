@@ -22,8 +22,8 @@ error. Cooldowns route it. **Health is off unless `PROXLANE_HEALTH=on`** — cal
 independent failures and real providers have bad hours. **5 of 6 detect rules confirmed** by a
 real capture; five of the six had a defect only a real page could show.
 
-**The canary gate is 1 of 3.** §9 wants three consecutive *scheduled* greens; the first landed
-**2026-08-17**, cron is Mondays. The gate reads the step, not the job.
+**The canary gate is 2 of 3**, counting the `test:live` step and not the daily scheduled jobs:
+**2026-08-17** and **2026-08-24** ran green. Cron is Mondays, so the third is launch week itself.
 
 ## Blocked on
 

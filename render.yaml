@@ -1,0 +1,47 @@
+# One-click deploy, as a blueprint in the repo rather than a template on someone's dashboard.
+#
+# WHY IN-REPO. A hosted template is a copy of this configuration that nobody can review and that
+# drifts the moment the image version moves — which is exactly the failure this project spent two
+# days finding elsewhere. A blueprint is a file: it is diffed in a pull request, the image tag is
+# written by `scripts/sync-compose-pin.ts` at release time, and `repo:check` assertion 30 holds it
+# to the newest release alongside `docker/compose.yml`.
+#
+# WHAT A READER GETS: a running gateway on their own account, with a key they did not have to
+# invent, needing exactly one thing from them — a provider key they already pay for.
+services:
+  - type: web
+    name: proxlane-gateway
+    runtime: image
+    plan: free
+    image:
+      # Pinned, never `:latest`. `operating.md` B8 makes the pin the supported choice.
+      url: ghcr.io/proxlane/gateway:0.10.0
+    healthCheckPath: /health
+    envVars:
+      # THE FREE PLAN IS 512 MB, AND THE DEFAULT CONFIGURATION WANTS 800.
+      #
+      # `PROXLANE_MAX_INFLIGHT` defaults to 32 and the body cap to 10 MB, which the boot check
+      # sizes at 32 x 10 x 2.5 = 800 MB. Below that the gateway prints the arithmetic and
+      # `exit(2)`s rather than being OOM-killed under load — correct behaviour, and it turns a
+      # one-click deploy into a crash loop on the one plan this blueprint selects. Reproduced in
+      # a `--memory=512m` container against 0.10.0 before this line existed.
+      #
+      # 16 x 10 x 2.5 = 400 MB, which fits with headroom. Raise it if you move off `free`.
+      - key: PROXLANE_MAX_INFLIGHT
+        value: '16'
+      # GENERATED, NOT ASKED FOR. This is the key the caller presents to their own gateway; it
+      # registers nowhere and means nothing outside this instance. Asking a reader to invent one
+      # before they have seen the thing work is a step that buys nothing, and the README's own
+      # quickstart had to explain it at length precisely because it reads as a signup.
+      - key: PROXLANE_API_KEY
+        generateValue: true
+      # BYOK. Bring the providers you already pay for; the rest are simply not in the chain.
+      # `sync: false` makes Render prompt for these rather than storing them in this file.
+      - key: SCRAPERAPI_KEY
+        sync: false
+      - key: SCRAPINGBEE_KEY
+        sync: false
+      - key: SCRAPFLY_KEY
+        sync: false
+      - key: BRIGHTDATA_KEY
+        sync: false
