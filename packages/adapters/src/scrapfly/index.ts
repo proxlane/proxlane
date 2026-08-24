@@ -45,6 +45,22 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 	p.set('cache', 'false');
 	// Their default is 150_000 — more than twice our own ceiling.
 	p.set('timeout', String(capabilities.maxTimeoutMs));
+	// PINNED, because the other adapters pin it and a failover must not change the page.
+	//
+	// `os` defaults to `null`, which means Scrapfly chooses. ScraperAPI is pinned to
+	// `device_type=desktop` and ScrapingBee to `device=desktop`, so leaving this one to the
+	// provider meant the same GatewayRequest fetched a pinned desktop page on two providers
+	// and a provider-chosen one on the third — visible to the caller only as `X-Provider-Used`
+	// changing, on a product whose whole claim is that failover is invisible.
+	//
+	// It was always a leak. It got worse on 2026-08-14, when their changelog added `android`,
+	// `iphone` and `ipad` to the values `os` selects among, so the unpinned set now contains
+	// phones. Nothing on our side changed; the meaning of not sending it did.
+	//
+	// `win11` rather than `mac` or `linux` for no deeper reason than that it is the most
+	// common desktop and the other two adapters say only "desktop", so any of the three would
+	// satisfy the rule. What matters is that it is stated.
+	p.set('os', 'win11');
 	// `raw` is the page as delivered. The alternatives (clean_html, markdown, text) are
 	// transformations, and a gateway that silently rewrites the page is not a proxy.
 	p.set('format', 'raw');
