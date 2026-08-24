@@ -104,10 +104,7 @@ function Home() {
 				<Station
 					label="lines"
 					title="Four providers, four lines"
-					lead={[
-						'They are not interchangeable, which is the point.',
-						'Printed by proxlane providers, straight from the capability registry. One does sessions, one is limited to seven regions, and rendering JavaScript is free on one and ten times the price on another. A line colour is assigned here too, and every surface reuses it.',
-					]}
+					lead={['They are not interchangeable, which is the point.', linesLead()]}
 				>
 					<Lines />
 				</Station>
@@ -327,6 +324,30 @@ const LAUNCH_LINES = [...CAPABILITIES]
 			js: plain === null || rendered === null || plain === 0 ? 1 : rendered / plain,
 		};
 	});
+
+/**
+ * The sentence above the table, DERIVED for the reason the table itself was.
+ *
+ * IT CARRIED THE EXACT ERROR THE TABLE WAS FIXED FOR. The comment on `LAUNCH_LINES` records
+ * that ScrapingBee's geography "read 7 regions after its country list was corrected to 42
+ * codes" — and when that cell was fixed by deriving it, the caption introducing the table went
+ * on saying "limited to seven regions", one line above a table rendering "42 codes". A reader
+ * saw both at once.
+ *
+ * Fixing the data and leaving the prose that summarises it is the same failure a second time,
+ * so the summary is computed from the same array the table is.
+ */
+function linesLead(): string {
+	const narrow = LAUNCH_LINES.find((l) => l.geo !== 'all');
+	const dearest = LAUNCH_LINES.reduce((a, b) => (b.js > a.js ? b : a));
+	const free = LAUNCH_LINES.some((l) => l.js === 1);
+	const geo =
+		narrow === undefined ? '' : `one reaches ${narrow.geo.replace(' codes', ' countries')}, `;
+	const js = free
+		? `rendering JavaScript is free on one and ${dearest.js}x the price on another`
+		: `rendering JavaScript costs up to ${dearest.js}x`;
+	return `Printed by proxlane providers, straight from the capability registry. One does sessions, ${geo}and ${js}. A line colour is assigned here too, and every surface reuses it.`;
+}
 
 /**
  * The order the gateway actually routes in, which is NOT this table's order.
@@ -576,17 +597,15 @@ function Hero({
 			<div className="mt-8">
 				<DeployRow />
 			</div>
-			<p className="mt-5 max-w-[62ch] text-[color:var(--color-slate)] text-sm leading-relaxed">
-				Runs on your account, not ours. Render&rsquo;s free plan sleeps after fifteen minutes
-				idle and takes about a minute to wake; DigitalOcean stays up. Each deploys a blueprint
-				that lives in the repo, so you can{' '}
+			<p className="mt-5 text-[color:var(--color-slate)] text-sm">
+				Runs on your account, not ours. Each deploys a blueprint you can{' '}
 				<a
 					className="underline decoration-[color:var(--color-rule)] underline-offset-4 hover:decoration-[color:var(--color-accent)]"
 					href="https://github.com/proxlane/proxlane/blob/main/render.yaml"
 				>
-					read it first
+					read first
 				</a>
-				: a pinned image, a health check, and one provider key you already pay for.
+				.
 			</p>
 			<p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
 				<Link
