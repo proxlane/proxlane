@@ -302,7 +302,13 @@ function MobileSheet({
 				onClick={onClose}
 				className={overlayClass(open)}
 			/>
-			<div id="site-menu" aria-hidden={!open} className={sheetClass(open)}>
+			{/* `inert` ALONGSIDE `aria-hidden`, because the second one is a promise the first one
+			    keeps. `aria-hidden` tells a screen reader to skip this subtree; it does nothing
+			    about the tab order, so every link in the closed menu stayed focusable and a
+			    keyboard user tabbed into an invisible sheet. Lighthouse names it
+			    `aria-hidden-focus`, and it was the only accessibility failure left on the page.
+			    Not `display: none`, which would kill the open/close transition this sheet has. */}
+			<div id="site-menu" aria-hidden={!open} inert={!open} className={sheetClass(open)}>
 				{/* OPAQUE, AND NO BLUR. Translucent glass is right for a pill scrolling over the page;
 				    over a scrim it just dilutes. The scrim is dark in BOTH themes, so at 85% the light
 				    theme rendered a near-white surface as mid-grey and the whole menu read as

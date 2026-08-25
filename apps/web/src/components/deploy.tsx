@@ -119,13 +119,12 @@ export function DeployButton({ host }: { readonly host: DeployHost }) {
 		>
 			<Mark />
 			Deploy on {h.name}
-			{/* Mixed from `currentColor` rather than given a token: the pill already sets the text
-			    to the host's colour, so the price recedes within that colour instead of
-			    introducing a second one. A slate price on a purple pill reads as a different
-			    element that happens to be adjacent. */}
-			<span className="text-[color:color-mix(in_oklab,currentColor_60%,transparent)]">
-				{h.price}
-			</span>
+			{/* SMALLER, NOT DIMMER. This was `color-mix(currentColor 60%, transparent)`, which reads
+			    as a receding price and measured as a contrast failure: Lighthouse flagged both
+			    spans, because DigitalOcean's blue is 4.51:1 at FULL strength and anything below
+			    full drops it under 4.5. Size and weight separate the price from the label without
+			    touching the colour, which is the one axis here with no headroom. */}
+			<span className="font-normal text-sm">{h.price}</span>
 		</a>
 	);
 }

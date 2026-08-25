@@ -205,6 +205,21 @@ const ROLES: ReadonlyArray<readonly [string, number, string]> = [
 	// Type, fills and the focus ring — never a stroke on the map — so it is held to the text
 	// floor rather than the graphical one.
 	['color-accent', 4.5, 'accent text and focus ring'],
+	// THE HOST BRANDS ARE HELD ABOVE THE TEXT FLOOR, at 5 rather than 4.5, and the extra half
+	// is the whole point of the row.
+	//
+	// They were absent from this list entirely, because they are not `--map-` roles — so
+	// `tokens:check` passed while Lighthouse failed `color-contrast` on the same page. Adding
+	// them at 4.5 would not have caught it either: DigitalOcean's published #0069ff measures
+	// 4.51 here, clearing a 4.5 floor by a hundredth. It was that hundredth that broke, the
+	// moment the price inside the button was mixed to 60% and landed at 2.46.
+	//
+	// A threshold with no headroom is satisfied and still fragile. 5 is deliberately stricter
+	// than WCAG for these two, because they are the only colours here we do not control: their
+	// owners can restyle at any time, and the next person to reach for the published hex should
+	// get a red check rather than a passing one and a Lighthouse failure a week later.
+	['color-brand-render', 5, 'deploy button label'],
+	['color-brand-digitalocean', 5, 'deploy button label'],
 ];
 for (const [variant, tokens] of [
 	['light', light],

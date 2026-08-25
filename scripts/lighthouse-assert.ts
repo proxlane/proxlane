@@ -56,7 +56,10 @@ if (run('pnpm', ['--filter', '@proxlane/web', 'build'], ROOT) !== 0)
 
 // The built client AND the server bundle. `vite preview` will happily serve a stale or partial
 // output, and a Lighthouse run against a shell is the exact false green the gate warns about.
-for (const artifact of ['dist/index.html', 'dist/server/server.js']) {
+// `dist/server/index.js`, not `server.js`. The guard named a file the build has not emitted
+// for some time, so this command failed on its own precondition before Lighthouse ever ran —
+// a gate that cannot open is indistinguishable from one nobody is failing.
+for (const artifact of ['dist/index.html', 'dist/server/index.js']) {
 	if (!existsSync(join(WEB, artifact))) fail(`build produced no ${artifact}`);
 }
 

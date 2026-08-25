@@ -88,7 +88,12 @@
 	 * argument `components/cta.tsx` makes about our own accent.
 	 */
 	--color-brand-render: #8a05ff;
-	--color-brand-digitalocean: #0069ff;
+	/* #0057db, NOT DigitalOcean's published #0069ff, and the difference is one accessibility
+	 * threshold. Their blue is 4.51:1 on this ground — over 4.5 by a hundredth, with no room
+	 * for the label to be anything but full strength. Lighthouse failed `color-contrast` on
+	 * exactly that. This is the same hue a shade darker, still unmistakably theirs, at 5.94:1.
+	 * Render's purple needs no such adjustment; it is already 5.67:1. */
+	--color-brand-digitalocean: #0057db;
 
 	/* ---- type -------------------------------------------------------------------------
 	 * One humanist sans for everything, hierarchy from weight alone, which is how transit
@@ -202,9 +207,15 @@
 	--color-accent: #f06595;
 	/* Lifted OFF the ground rather than dropped below it: a dark UI reads depth as light. */
 	--color-surface: #1a1e23;
-	/* Lifted for the ink ground: #8a05ff is 3.0:1 there and #0069ff 3.8:1, both under the 4.5
-	 * a button label needs. Same hue, same recognition, legible. */
-	--color-brand-render: #b366ff;
+	/* Lifted for the ink ground: #8a05ff is 3.0:1 there and DigitalOcean's blue 3.8:1, both
+	 * under what a button label needs. Same hue, same recognition, legible.
+	 *
+	 * #b878ff rather than #b366ff, which was 5.36 on the page ground and 4.99 on the panel —
+	 * `tokens:check` caught the second one the moment these tokens gained a contrast row, which
+	 * is the whole reason the row exists. A colour that passes on one ground and fails on the
+	 * other is the failure mode that only shows up in whichever half of the theme nobody is
+	 * looking at. */
+	--color-brand-render: #b878ff;
 	--color-brand-digitalocean: #5aa0ff;
 	/* Deeper on dark. The same 45% over an already-dark page barely separates the dialog. */
 	--color-scrim: rgb(4 6 8 / 0.66);
@@ -259,7 +270,7 @@
 		--color-line-4: #51cf66;
 		--color-accent: #f06595;
 		--color-surface: #1a1e23;
-		--color-brand-render: #b366ff;
+		--color-brand-render: #b878ff;
 		--color-brand-digitalocean: #5aa0ff;
 		--color-scrim: rgb(4 6 8 / 0.66);
 		--glow-line: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
