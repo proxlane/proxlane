@@ -21,10 +21,28 @@ Proxlane is one endpoint in front of ScraperAPI, ScrapingBee, Scrapfly and Brigh
 blocks, errors or times out, Proxlane tries the next one. The response tells you what
 happened at every step.
 
+## Start one
+
+```bash
+docker run -p 8787:8787 \
+  -e PROXLANE_API_KEY="$(openssl rand -hex 32)" \
+  -e SCRAPERAPI_KEY=... \
+  ghcr.io/proxlane/gateway:latest
+```
+
+One provider key is enough. Providers you have no key for are left out of the chain, so add a
+second when you want failover to have somewhere to go.
+
+The gateway will not start without `PROXLANE_API_KEY`. It is the key **you** present to your
+own gateway, it registers nowhere, and without it anyone who can reach the port can spend your
+provider credits.
+
+Your gateway is now on `http://localhost:8787`. There is no hosted endpoint to call instead.
+
 ## Make a request
 
 ```bash tab=cURL
-curl "https://your-gateway/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
+curl "http://localhost:8787/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
 ```
 
 ```python tab=Python
@@ -33,7 +51,7 @@ import os
 import requests
 
 res = requests.get(
-    "https://your-gateway/v1",
+    "http://localhost:8787/v1",
     params={"url": "https://example.com"},
     headers={"Authorization": f"Bearer {os.environ['PROXLANE_API_KEY']}"},
     timeout=120,
@@ -44,7 +62,7 @@ html = res.text
 ```
 
 ```javascript tab=Node
-const url = new URL("https://your-gateway/v1");
+const url = new URL("http://localhost:8787/v1");
 url.searchParams.set("url", "https://example.com");
 
 const res = await fetch(url, {
@@ -104,20 +122,6 @@ const headers = { Authorization: `Bearer ${process.env.PROXLANE_API_KEY}` };
 Prefer this in new code. `api_key` in the query string works, because that is what the
 providers Proxlane replaces accept. But query strings end up in access logs, proxy logs,
 `Referer` headers and error trackers. None of those should hold a credential.
-
-## Run the gateway
-
-```bash
-docker run -p 8787:8787 \
-  -e PROXLANE_API_KEY="$(openssl rand -hex 32)" \
-  -e SCRAPERAPI_KEY=... \
-  ghcr.io/proxlane/gateway:latest
-```
-
-You need at least one provider key. Providers you have no key for are left out of the chain.
-
-The gateway will not start without `PROXLANE_API_KEY`. Without it, anyone who can reach the
-port can spend your provider credits.
 
 ## Next
 
