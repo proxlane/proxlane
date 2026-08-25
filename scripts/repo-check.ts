@@ -2775,6 +2775,12 @@ function matchesOwner(pattern: string, file: string): boolean {
 		'apps/web/src/routes/__root.tsx',
 		'apps/web/src/routes/docs/index.tsx',
 	];
+	// llms.txt is NOT in this list, deliberately. It belongs to `docs:check` assertion 6, which
+	// checks its SUMMARY BLOCK rather than the whole file. Adding it here looked right and was
+	// worthless: this assertion asks whether a provider is named anywhere in a file, and
+	// llms.txt names all four further down in a link description — so the summary could go on
+	// claiming three, which it had been doing, and this check would stay green. Verified by
+	// mutation before the line was moved.
 	// The display names the README table already generates from, so there is one list.
 	const namesSrc = read('scripts/readme-providers.ts');
 	const mapOf = (which: string): Record<string, string> => {
