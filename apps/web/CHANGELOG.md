@@ -1,5 +1,117 @@
 # @proxlane/web
 
+## 0.8.0
+
+### Minor Changes
+
+- [#204](https://github.com/proxlane/proxlane/pull/204) [`e7c3a41`](https://github.com/proxlane/proxlane/commit/e7c3a41b9e5d918a93a930b245befb9b8f49a21e) Thanks [@scarsam](https://github.com/scarsam)! - `Accept: text/markdown` on a docs page now returns the markdown. It returned the router's
+  serialised loader data, which is worse than a 404 because it looks like a successful answer. Both
+  branches send `Vary: Accept, Accept-Encoding` — without it the negotiation is correct exactly
+  until a CDN caches one variant and hands it to a caller who asked for the other.
+
+  The check is a q-value comparison, not a substring test. Every browser sends a wildcard, a
+  wildcard matches `text/markdown`, and a naive test would have served the site's own source to
+  every human visitor while passing any test written for the happy path.
+
+  New `/privacy`. "Nothing phones home" is on every other page and was unsubstantiated; this says
+  what actually happens, including the parts that are not flattering. Written from the code rather
+  than from intent: no cookies and no analytics were verified against the deployed site, and the
+  two localStorage keys are named rather than described as "preferences".
+
+- [#196](https://github.com/proxlane/proxlane/pull/196) [`2e2c8f4`](https://github.com/proxlane/proxlane/commit/2e2c8f4c6cea0aa0bf82808d03c59fd751aaf10c) Thanks [@scarsam](https://github.com/scarsam)! - One-click deploy, on two hosts, in their own colours. The homepage's first call to action is now a
+  thing that runs rather than a page that explains: a pinned image on the reader's own account, with
+  one provider key asked for. Render is free and sleeps after fifteen minutes idle; DigitalOcean is
+  about five dollars a month and stays awake, which for a scraper is often the one that matters. Each
+  price is printed on its button rather than discovered at a checkout. Docs and source are links
+  underneath rather than two more pills, so the row has one primary action per host and one baseline.
+
+  Both blueprints live in the repo — `render.yaml` and `.do/deploy.template.yaml` — so they can be
+  read before they are clicked, and both image tags are written by the release rather than by hand.
+
+  Both also set `PROXLANE_MAX_INFLIGHT=16`. The default of 32 sizes the gateway at 800 MB and these
+  instances are 512, so the boot check would have printed the arithmetic and exited rather than being
+  OOM-killed later. Correct behaviour, and a crash loop on the one plan the button selects.
+
+### Patch Changes
+
+- [#206](https://github.com/proxlane/proxlane/pull/206) [`de6de06`](https://github.com/proxlane/proxlane/commit/de6de06a9594ceb5d93af75ea1c9881844144db5) Thanks [@scarsam](https://github.com/scarsam)! - The 406 that markdown negotiation returns now says why. Two of the ten docs pages —
+  `/docs/outcomes` and `/docs/changelog` — are generated from the outcome taxonomy and from the
+  package changelogs rather than written in `content/docs/`, so they have no markdown source to
+  serve. The code claimed a missing twin meant a broken build; it does not, and the response body
+  now names the reason and points at `llms-full.txt`, which does carry that content.
+
+- [#203](https://github.com/proxlane/proxlane/pull/203) [`9a97791`](https://github.com/proxlane/proxlane/commit/9a977913c5aed3b52afb8647a0a7bf6f3f6d7ce7) Thanks [@scarsam](https://github.com/scarsam)! - Four things an agent reads are now correct or present.
+
+  `llms.txt` — the one file published for machines — summarised the gateway as fronting three
+  providers, and had done since the fourth shipped. Every human-facing surface had already been
+  corrected. `docs:check` now holds its summary block to the registry.
+
+  The 404 was the words "Not Found" inside the site chrome: a correct status and a dead end. It
+  names the docs index and the three machine-readable indexes by full URL, so something that
+  guessed a path wrong can recover instead of concluding the site is empty.
+
+  The homepage carries JSON-LD. `SoftwareApplication` rather than `Organization`, because an
+  Organization block is worth nothing without `contactPoint` and `address`, and there is no company
+  here to describe.
+
+  `GET /health/providers` and `GET /health/cooldowns` declared a 200 with no body schema, so a
+  generated client got `unknown` from the two calls it makes on a schedule. Both are typed from a
+  running container, and `docs:check` fails any operation whose 200 is untyped. The spec also now
+  states what is safe to depend on: `X-Outcome-Class` is closed, `X-Outcome` is not, and at 0.x a
+  breaking change to `/v1` arrives as a minor.
+
+- [#200](https://github.com/proxlane/proxlane/pull/200) [`4ced601`](https://github.com/proxlane/proxlane/commit/4ced601885c80931630e9734d6d55fc0556209d9) Thanks [@scarsam](https://github.com/scarsam)! - The homepage caption above the provider table said one provider was "limited to seven regions"
+  while the table one line below it rendered "42 codes". The table had already been fixed by
+  deriving it from the capability registry; the sentence introducing the table was not, so the
+  correction landed on the data and left the prose summarising it. It is computed from the same
+  array now.
+
+  The deploy paragraph is one line instead of four. The prices are on the buttons, so restating
+  them underneath was reading the reader had already done.
+
+- [#205](https://github.com/proxlane/proxlane/pull/205) [`7c7ebdd`](https://github.com/proxlane/proxlane/commit/7c7ebdd8d641a86c08e485ad29a0631ce0f061ee) Thanks [@scarsam](https://github.com/scarsam)! - Markdown negotiation returned 500 in production. The middleware answered by fetching the page's
+  `.md` twin from its own origin, which works under `vite preview` and does not work from a
+  Cloudflare Worker: the subrequest never reaches the asset layer, so it fell through to Start's
+  router, and Start answers a non-HTML `Accept` with `500 Only HTML requests are supported here`.
+
+  The markdown is inlined at build time now, from the same generated artifacts `/docs/<slug>.md`
+  serves, so the two routes cannot drift. A page with no published twin answers 406 rather than
+  falling through, because falling through is what produced the 500.
+
+  Verified under `wrangler dev`, which runs workerd, rather than under the preview server that
+  missed it the first time.
+
+- [#201](https://github.com/proxlane/proxlane/pull/201) [`b6995dd`](https://github.com/proxlane/proxlane/commit/b6995dd7ca28978c9b98e52cd172dd423a0b427e) Thanks [@scarsam](https://github.com/scarsam)! - The Quickstart now starts a gateway before telling you to call one. "Get started" is the site's
+  primary call to action and it lands here; the page opened by asking the reader to curl
+  `https://your-gateway/…`, a placeholder that resolves to nothing, and only explained how to have
+  a gateway eighty lines further down. It never mentioned `localhost` at all, so the address you
+  would actually call appeared nowhere on the page. Order is now: start it, call it, migrate, move
+  the key out of the query string.
+
+  `proxlane doctor` fails when no provider key is set. Each per-key check stays green when absent,
+  because BYOK means you bring the providers you use and flagging the three you do not have trains
+  people to skip the output. Applied to _every_ key, that produced "13 checks, all good" for a
+  gateway that cannot route one request. Zero keys is a different condition from one missing key,
+  and now it has its own check with a fix line.
+
+- [#202](https://github.com/proxlane/proxlane/pull/202) [`f26dbc3`](https://github.com/proxlane/proxlane/commit/f26dbc3e875e371e68f3c639789b9dcfc18aebc6) Thanks [@scarsam](https://github.com/scarsam)! - Two accessibility defects on the homepage, both found by running `pnpm lighthouse:assert` for the
+  first time in a while.
+
+  The deploy buttons printed their price at 60% of the host's brand colour, which measured 2.46:1.
+  DigitalOcean's published blue is 4.51:1 at full strength, so any dimming at all put it under the
+  floor. The price is smaller and lighter now rather than fainter, and both brand tokens are held
+  to 5:1 by `tokens:check` — above WCAG on purpose, because a threshold cleared by a hundredth is
+  satisfied and still fragile, which is exactly how this shipped.
+
+  The mobile menu was `aria-hidden` while closed and its links stayed focusable, so a keyboard user
+  tabbed into an invisible sheet. It is `inert` when closed now.
+
+  Accessibility is back to 100.
+
+- Updated dependencies [[`71a0421`](https://github.com/proxlane/proxlane/commit/71a042118619c7e1d4809fc1571bd4cb8b5c6022), [`f26dbc3`](https://github.com/proxlane/proxlane/commit/f26dbc3e875e371e68f3c639789b9dcfc18aebc6)]:
+  - @proxlane/adapters@0.7.2
+  - @proxlane/ui@0.2.3
+
 ## 0.7.2
 
 ### Patch Changes

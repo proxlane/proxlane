@@ -1,5 +1,25 @@
 # proxlane
 
+## 0.4.3
+
+### Patch Changes
+
+- [#201](https://github.com/proxlane/proxlane/pull/201) [`b6995dd`](https://github.com/proxlane/proxlane/commit/b6995dd7ca28978c9b98e52cd172dd423a0b427e) Thanks [@scarsam](https://github.com/scarsam)! - The Quickstart now starts a gateway before telling you to call one. "Get started" is the site's
+  primary call to action and it lands here; the page opened by asking the reader to curl
+  `https://your-gateway/…`, a placeholder that resolves to nothing, and only explained how to have
+  a gateway eighty lines further down. It never mentioned `localhost` at all, so the address you
+  would actually call appeared nowhere on the page. Order is now: start it, call it, migrate, move
+  the key out of the query string.
+
+  `proxlane doctor` fails when no provider key is set. Each per-key check stays green when absent,
+  because BYOK means you bring the providers you use and flagging the three you do not have trains
+  people to skip the output. Applied to _every_ key, that produced "13 checks, all good" for a
+  gateway that cannot route one request. Zero keys is a different condition from one missing key,
+  and now it has its own check with a fix line.
+
+- Updated dependencies [[`71a0421`](https://github.com/proxlane/proxlane/commit/71a042118619c7e1d4809fc1571bd4cb8b5c6022)]:
+  - @proxlane/adapters@0.7.2
+
 ## 0.4.2
 
 ### Patch Changes
