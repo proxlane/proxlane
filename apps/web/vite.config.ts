@@ -36,7 +36,10 @@ export default defineConfig({
 		docsPlugin(),
 		cloudflare({ viteEnvironment: { name: 'ssr' } }),
 		tailwindcss(),
-		tanstackStart(),
+		// `srcDirectory` is the default; the entry is named so the Worker uses OUR fetch handler
+		// rather than Start's, which is what makes `Accept: text/markdown` reach a docs page.
+		// Ours calls Start's handler for everything it does not answer itself.
+		tanstackStart({ start: { entry: 'server.ts' } }),
 		react(),
 	],
 });
