@@ -1,4 +1,5 @@
 import { createRouter } from '@tanstack/react-router';
+import { NotFound } from './components/not-found.js';
 import { routeTree } from './routeTree.gen.js';
 
 /**
@@ -13,6 +14,12 @@ export function getRouter() {
 		routeTree,
 		defaultPreload: 'intent',
 		scrollRestoration: true,
+		// A 404 THAT SAYS WHERE TO GO NEXT. The default rendered the words "Not Found" inside
+		// the site chrome and nothing else, which is a dead end for a person and worse for an
+		// agent: it has a correct 404 status and no way to recover from it. The component names
+		// the three machine-readable indexes by URL, so a crawler that guessed a path wrong can
+		// read one and try again instead of concluding the site is empty.
+		defaultNotFoundComponent: NotFound,
 	});
 }
 

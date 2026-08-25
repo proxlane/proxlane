@@ -3,6 +3,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-r
 import type { ReactNode } from 'react';
 import { SiteHeader } from '../components/site-header.js';
 import { Mark } from '../components/wordmark.js';
+import { SITE as STRUCTURED_SITE, softwareApplicationLd } from '../lib/structured-data.js';
 import appCss from '../styles/app.css?url';
 
 /**
@@ -12,7 +13,7 @@ import appCss from '../styles/app.css?url';
  * explicit canonical a search engine gets to pick, and may pick the one nobody links to.
  * Everything below derives from this, so there is one place to change when it moves.
  */
-const SITE = 'https://proxlane.dev';
+const SITE = STRUCTURED_SITE;
 const DESCRIPTION =
 	'Route scraping requests across ScraperAPI, ScrapingBee, Scrapfly and Bright Data with automatic ' +
 	'failover, per-request cost visibility and honest success detection. Change one hostname. ' +
@@ -59,6 +60,23 @@ export const Route = createRootRoute({
 			// duplicate of the homepage and should be dropped from the index, which on a project
 			// whose entire growth model is search is the most expensive possible default. Each
 			// route declares its own via `docHead` in `src/lib/doc-head.ts`.
+		],
+		// JSON-LD, so an agent can read the identity without parsing prose.
+		//
+		// `SoftwareApplication`, not `Organization`: there is no company here, and an
+		// Organization block would need `contactPoint` and `address` to be worth anything —
+		// a postal address and phone number for a personal project, published to satisfy a
+		// checklist. What is true is that this is a developer tool with a licence and a price,
+		// and those are the fields below.
+		//
+		// `price: 0` is not marketing. BYOK and self-host are free forever, the two launch
+		// modes, and there is no hosted endpoint to charge for. `offers` says exactly that
+		// rather than leaving an agent to infer it from a pricing table it has to read.
+		scripts: [
+			{
+				type: 'application/ld+json',
+				children: JSON.stringify(softwareApplicationLd(DESCRIPTION)),
+			},
 		],
 	}),
 	component: RootComponent,

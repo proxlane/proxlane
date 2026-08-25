@@ -4,7 +4,7 @@
 		"title": "Proxlane",
 		"version": "1",
 		"summary": "One endpoint in front of every scraping API.",
-		"description": "Routes a scrape across ScraperAPI, ScrapingBee, Scrapfly and Bright Data. When a provider blocks, errors or times out the next one is tried, and the response headers say what happened at every step.\n\nThis file is generated from the gateway's own outcome taxonomy, so the status codes and the X-Outcome enum below are the ones the router actually uses.\n\nSelf-hosted: there is no shared base URL. Point `servers` at your own gateway.",
+		"description": "Routes a scrape across ScraperAPI, ScrapingBee, Scrapfly and Bright Data. When a provider blocks, errors or times out the next one is tried, and the response headers say what happened at every step.\n\nThis file is generated from the gateway's own outcome taxonomy, so the status codes and the X-Outcome enum below are the ones the router actually uses.\n\nSelf-hosted: there is no shared base URL. Point `servers` at your own gateway.\n\n## What is safe to depend on\n\n`X-Outcome-Class` is a CLOSED set. It has six members and will never gain a seventh, so a switch on it cannot be broken by a release. Branch on it.\n\n`X-Outcome` is OPEN and gains members as new failure modes are told apart. Read it for detail, log it, show it to a human — but do not exhaustively match on it.\n\nThe URL surface is versioned in the path (`/v1`). While the gateway is 0.x a breaking change to that surface arrives as a MINOR release, not a major, because semver reserves nothing below 1.0. Pin the image tag rather than tracking `latest` if that matters to you; `docker/compose.yml` in the repo ships pinned for the same reason.",
 		"license": {
 			"name": "AGPL-3.0-only",
 			"identifier": "AGPL-3.0-only"
@@ -1332,7 +1332,14 @@
 				"description": "Only meaningful with PROXLANE_HEALTH=on, which is off by default because the statistic assumes independent failures and real providers have bad hours instead.",
 				"responses": {
 					"200": {
-						"description": "Health state per provider."
+						"description": "Health state per provider.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProviderHealthBody"
+								}
+							}
+						}
 					},
 					"401": {
 						"description": "The gateway key was missing or wrong.",
@@ -1354,7 +1361,14 @@
 				"description": "Expired entries are included deliberately: the consecutive count is what makes the next cooldown on that key longer.",
 				"responses": {
 					"200": {
-						"description": "Cooling and recently expired entries."
+						"description": "Cooling and recently expired entries.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CooldownsBody"
+								}
+							}
+						}
 					},
 					"401": {
 						"description": "The gateway key was missing or wrong.",
@@ -1512,6 +1526,130 @@
 					"client",
 					"gateway"
 				]
+			},
+			"ProviderHealthBody": {
+				"type": "object",
+				"required": [
+					"providers"
+				],
+				"properties": {
+					"providers": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"required": [
+								"id",
+								"state",
+								"baselineFailureRate",
+								"statistic",
+								"samplesInState"
+							],
+							"properties": {
+								"id": {
+									"type": "string",
+									"description": "Adapter id, e.g. `scraperapi`."
+								},
+								"state": {
+									"type": "string",
+									"enum": [
+										"healthy",
+										"degraded",
+										"demoted"
+									],
+									"description": "`degraded` moves the provider down the chain; `demoted` removes it unless it is the last capable one."
+								},
+								"baselineFailureRate": {
+									"type": [
+										"number",
+										"null"
+									],
+									"description": "The frozen p0 the statistic is measured against. Null until enough samples exist to bootstrap it."
+								},
+								"statistic": {
+									"type": "number",
+									"description": "The accumulated CUSUM value. Crosses a threshold to change state."
+								},
+								"samplesInState": {
+									"type": "integer"
+								}
+							}
+						}
+					}
+				}
+			},
+			"CooldownEntry": {
+				"type": "object",
+				"required": [
+					"scope",
+					"provider",
+					"expiresInMs",
+					"consecutive",
+					"probeTaken"
+				],
+				"properties": {
+					"scope": {
+						"type": "string",
+						"enum": [
+							"domain",
+							"account"
+						],
+						"description": "`domain` is a block fact and is shared; `account` is one org's key and is not."
+					},
+					"provider": {
+						"type": "string"
+					},
+					"domain": {
+						"type": "string",
+						"description": "Present when scope is `domain`."
+					},
+					"premium": {
+						"type": "string",
+						"enum": [
+							"none",
+							"residential",
+							"stealth"
+						],
+						"description": "Present when scope is `domain`. A block at one tier does not imply the others."
+					},
+					"org": {
+						"type": "string",
+						"description": "Present when scope is `account`."
+					},
+					"expiresInMs": {
+						"type": "integer",
+						"minimum": 0
+					},
+					"consecutive": {
+						"type": "integer",
+						"description": "What makes the backoff exponential, and why an expired entry is still listed."
+					},
+					"probeTaken": {
+						"type": "boolean",
+						"description": "True while the single post-expiry probe request is in flight."
+					}
+				}
+			},
+			"CooldownsBody": {
+				"type": "object",
+				"required": [
+					"cooling",
+					"expired"
+				],
+				"properties": {
+					"cooling": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/CooldownEntry"
+						}
+					},
+					"expired": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/CooldownEntry"
+						},
+						"description": "Expired but still recorded: `consecutive` here is the reason the next cooldown on that key is longer."
+					}
+				}
 			},
 			"ErrorBody": {
 				"type": "object",

@@ -14,6 +14,9 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { artifacts } from './docs-artifacts.ts';
+// PROSE, not NAMES: prose calls it "Bright Data" where the README table wants the product,
+// "Bright Data Web Unlocker". One list either way, so a fifth adapter reaches this check.
+import { PROSE } from './readme-providers.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CONTENT = join(ROOT, 'apps/web/content/docs');
@@ -192,7 +195,76 @@ const read = (p: string) => readFileSync(p, 'utf8');
 			if (!routes.includes(l)) fail('6', `llms.txt lists ${l}, which is not a route`);
 		if (routes.length === 0) fail('6', 'no routes to check llms.txt against');
 		else ok('6', routes.length, 'llms.txt lists every docs page');
+
+		// THE SUMMARY BLOCK NAMES EVERY SHIPPED PROVIDER, and it did not.
+		//
+		// llms.txt opens with a `>` quoted summary — the llms.txt convention's own first
+		// paragraph, and the sentence an agent reads before anything else. It named three
+		// providers for as long as the fourth had been shipping, while every human-facing
+		// surface had already been corrected: the file published specifically for machines
+		// carried the stalest claim on the site.
+		//
+		// Checked against the SUMMARY rather than the whole file. `repo:check` assertion 42
+		// asks whether a name appears anywhere in a surface, and llms.txt names all four
+		// further down in a link description, so a whole-file check passes on a summary that
+		// is wrong. That was verified by mutation before this landed here instead.
+		const SHIPPED_PROVIDERS = Object.values(PROSE);
+		const summary = txt
+			.split('\n')
+			.filter((l) => l.startsWith('> '))
+			.join(' ');
+		if (summary === '') fail('6', 'llms.txt has no `>` summary block to check');
+		else {
+			const missing = SHIPPED_PROVIDERS.filter((n) => !summary.includes(n));
+			if (missing.length > 0)
+				fail('6', `llms.txt's summary does not name ${missing.join(', ')}`);
+			else ok('6', SHIPPED_PROVIDERS.length, "llms.txt's summary names every shipped provider");
+		}
 	}
+}
+
+// ------------------------------------------------ 6b. every operation types its 200 body
+//
+// TWO OF THE FIVE DID NOT, and they were the two an operator's tooling polls: /health/providers
+// and /health/cooldowns each declared a 200 with a description and no content at all, so a
+// generated client got `unknown` back from the only calls it makes repeatedly.
+//
+// `*/*` counts, and that is not a loophole. GET /v1 returns the TARGET's body — html, json,
+// an image, whatever the page was — so `application/json` there would be a lie. What this
+// asserts is that a schema exists, not which media type carries it.
+{
+	const spec = JSON.parse(read(join(ROOT, 'apps/web/public/openapi.json'))) as {
+		paths: Record<
+			string,
+			Record<
+				string,
+				{
+					operationId?: string;
+					responses?: Record<string, { content?: Record<string, { schema?: unknown }> }>;
+				}
+			>
+		>;
+	};
+	const METHODS = ['get', 'post', 'put', 'patch', 'delete'];
+	let typed = 0;
+	let total = 0;
+	for (const [path, ops] of Object.entries(spec.paths)) {
+		for (const [method, op] of Object.entries(ops)) {
+			if (!METHODS.includes(method)) continue;
+			total += 1;
+			const content = op.responses?.['200']?.content ?? {};
+			const has = Object.values(content).some((c) => c.schema !== undefined);
+			if (has) typed += 1;
+			else
+				fail(
+					'6b',
+					`${method.toUpperCase()} ${path} (${op.operationId ?? 'no operationId'}) declares a 200 with no typed body`,
+				);
+		}
+	}
+	// Non-zero denominator: a spec that failed to parse into paths would make this vacuous.
+	if (total === 0) fail('6b', 'parsed no operations from openapi.json');
+	else if (typed === total) ok('6b', total, 'every operation types its 200 body');
 }
 
 // ------------------------------------------------------------- 7. the sitemap is complete
