@@ -84,7 +84,17 @@ async function providerKeyChecks(): Promise<Check[]> {
 				ok: true,
 				// Length only, never a prefix or suffix. Redaction happens at the VALUE, before it
 				// reaches any renderer, or the --json path leaks what the human path hides.
-				detail: present ? `$${envVar} set (${v.length} chars)` : `$${envVar} not set`,
+				// WHITESPACE IS REPORTED, because it is invisible and it costs hours. A leading
+				// space survives into `Authorization: Bearer  <key>` and the provider answers
+				// 401, which arrives as AUTH_FAILED and reads as "wrong key" when the key is
+				// right. The gateway trims now; this says so rather than hiding the fix, since
+				// the same value in someone's `.env` will still confuse them when they compare
+				// it against what they pasted.
+				detail: !present
+					? `$${envVar} not set`
+					: v !== v.trim()
+						? `$${envVar} set (${v.trim().length} chars, and had surrounding whitespace — trimmed)`
+						: `$${envVar} set (${v.length} chars)`,
 			};
 		}),
 	];

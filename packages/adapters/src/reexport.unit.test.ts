@@ -45,6 +45,14 @@ const REASONS = {
 	 */
 	EDGE_GUARD: 'edge guard: runs before adapter selection',
 	/**
+	 * Adapters are pure and total: `translate` is handed a key, it never fetches one. Reading
+	 * `process.env` inside an adapter would end the property the entire test strategy rests
+	 * on — that conformance can exercise every adapter against recorded fixtures with a
+	 * placeholder credential, which is what lets a stranger contribute one without holding a
+	 * provider account.
+	 */
+	ENV_READ: 'reads process.env: adapters are handed a key, they never fetch one',
+	/**
 	 * How much memory a DEPLOYMENT needs is a property of the gateway's configuration — its
 	 * concurrency ceiling and body cap — not of any adapter. An adapter that could read this
 	 * would be reading the operator's container limit, which is none of its business.
@@ -108,6 +116,7 @@ const EXCLUSIONS: ReadonlyArray<readonly [reason: string, names: readonly string
 		],
 	],
 	[REASONS.EDGE_GUARD, ['EdgeVerdict', 'guardTargetUrl']],
+	[REASONS.ENV_READ, ['providerKeyFromEnv']],
 	[
 		REASONS.SIZING,
 		[

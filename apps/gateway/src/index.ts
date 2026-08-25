@@ -11,6 +11,7 @@ import {
 	assessMemory,
 	describeSource,
 	overBudgetMessage,
+	providerKeyFromEnv,
 	readMemoryLimit,
 } from '@proxlane/shared';
 import { Redis } from 'ioredis';
@@ -243,9 +244,11 @@ function providerOrder(): string[] {
 const candidates: { adapter: Adapter; key: string }[] = [];
 for (const id of providerOrder()) {
 	const adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
-	const envVar = `${id.toUpperCase().replace(/-/g, '_')}_KEY`;
-	const key = process.env[envVar];
-	if (key === undefined || key === '') continue;
+	// TRIMMED at the boundary. A leading space in the value survives into
+	// `Authorization: Bearer  <key>` and the provider answers 401, which surfaces as
+	// AUTH_FAILED and points at the key rather than at the whitespace. See `providerKeyFromEnv`.
+	const key = providerKeyFromEnv(id);
+	if (key === undefined) continue;
 	candidates.push({ adapter, key });
 }
 

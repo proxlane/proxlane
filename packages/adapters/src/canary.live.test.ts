@@ -14,6 +14,7 @@
 // provider per night, which is the nightly cadence for later. The point is drift detection,
 // and drift does not need volume — it needs regularity.
 
+import { providerKeyFromEnv } from '@proxlane/shared';
 import { describe, expect, it } from 'vitest';
 import { type Adapter, REGISTRY } from './index.js';
 
@@ -30,9 +31,16 @@ const JS_ONLY_MARKER = 'Albert Einstein';
 
 const IDS = Object.keys(REGISTRY).sort();
 
+/**
+ * TRIMMED, via the same helper the gateway uses.
+ *
+ * This read was untrimmed and it is where the cost landed: a CI secret set with a space after
+ * the colon produced AUTH_FAILED on one provider across five runs, while the same key and zone
+ * returned 200 from a terminal. The canary is the thing that is supposed to tell you a provider
+ * is broken, so it must not be the thing inventing the breakage.
+ */
 function keyFor(id: string): string | undefined {
-	const v = process.env[`${id.toUpperCase().replace(/-/g, '_')}_KEY`];
-	return v === '' ? undefined : v;
+	return providerKeyFromEnv(id);
 }
 
 /** Providers we actually hold a key for. */

@@ -748,7 +748,10 @@ if (import.meta.filename === process.argv[1]) {
 	// ---------------------------------------------------------------- run
 
 	const envVar = `${adapterId.toUpperCase().replace(/-/g, '_')}_KEY`;
-	const key = process.env[envVar];
+	// Trimmed for the reason `providerKeyFromEnv` gives. Not imported from `@proxlane/shared`
+	// here: `scripts/` is zero-dependency by rule and runs without a build, so it repeats the
+	// one line rather than reaching into a package's dist.
+	const key = process.env[envVar]?.trim() || undefined;
 	const registryKey = adapterId.replace(/-/g, '_');
 
 	type DevEntry = { load: () => Promise<Adapter>; why: string; keyless: boolean };
