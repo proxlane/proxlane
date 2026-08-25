@@ -18,6 +18,32 @@
 
 import { createMiddleware, createStart } from '@tanstack/react-start';
 
+/**
+ * The published markdown, inlined at build time.
+ *
+ * NOT a same-origin subrequest, which is what this did first and which worked under
+ * `vite preview` and returned 500 on Cloudflare. A Worker fetching its own hostname does not
+ * reach the asset layer the way a browser does, so the fetch failed, the middleware fell
+ * through to Start's router — and Start answers a non-HTML `Accept` with
+ * `500 Only HTML requests are supported here`. Verified against production, not reasoned about.
+ *
+ * These are the same bytes `/docs/<slug>.md` serves, read from the same generated artifacts, so
+ * the header route and the extension route cannot drift.
+ */
+const PUBLISHED = import.meta.glob('../public/docs/*.md', {
+	query: '?raw',
+	import: 'default',
+	eager: true,
+}) as Record<string, string>;
+
+/** `../public/docs/quickstart.md` -> `quickstart`. */
+const BY_SLUG = new Map(
+	Object.entries(PUBLISHED).map(([path, body]) => [
+		path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, ''),
+		body,
+	]),
+);
+
 /** Docs pages only, and never one that already ends in `.md`, which would recurse. */
 const DOCS = /^\/docs\/[a-z0-9-]+$/;
 
@@ -68,19 +94,34 @@ const markdownNegotiation = createMiddleware({ type: 'request' }).server(
 		const isDocs = DOCS.test(pathname);
 
 		if (wantsMarkdown(request.method, pathname, request.headers.get('accept'))) {
-			// A subrequest to the twin. The asset layer answers `.md` before this Worker runs, so
-			// there is no recursion; `DOCS` excludes anything already carrying the extension.
-			const twin = new URL(`${pathname}.md`, new URL(request.url).origin);
-			const res = await fetch(new Request(twin, { method: request.method }));
-			if (res.ok) {
-				const headers = new Headers(res.headers);
-				headers.set('content-type', 'text/markdown; charset=utf-8');
-				headers.set('vary', VARY);
-				return new Response(res.body, { status: res.status, headers });
+			const body = BY_SLUG.get(pathname.slice('/docs/'.length));
+			if (body !== undefined) {
+				return new Response(request.method === 'HEAD' ? null : body, {
+					status: 200,
+					headers: {
+						'content-type': 'text/markdown; charset=utf-8',
+						vary: VARY,
+					},
+				});
 			}
-			// Fall through on a miss rather than answering 404. A docs page with no twin is a bug
-			// in the artifact generator, and the HTML page is the better failure: the reader gets
-			// the content, just not in the shape they asked for.
+			// 406, NOT next(). Start answers a non-HTML `Accept` with `500 Only HTML requests
+			// are supported here`, so falling through would turn a missing twin into a server
+			// error. 406 is what actually happened — the representation was asked for and is
+			// not available — and the body names the two places that do work.
+			//
+			// Defensive rather than expected: `docs:check` holds the published copies to the
+			// content directory, so a docs route without a twin is a broken build, not a state
+			// this is meant to serve.
+			return new Response(
+				`# Not available as markdown\n\n` +
+					`No markdown copy of \`${pathname}\` was published with this build.\n\n` +
+					`- The HTML page: https://proxlane.dev${pathname}\n` +
+					`- Every page, listed for agents: https://proxlane.dev/llms.txt\n`,
+				{
+					status: 406,
+					headers: { 'content-type': 'text/markdown; charset=utf-8', vary: VARY },
+				},
+			);
 		}
 
 		const result = await next();
