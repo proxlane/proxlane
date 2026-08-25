@@ -3,6 +3,7 @@
 export const PACKAGE_NAME = '@proxlane/shared';
 export * from './cooldown.js';
 export * from './edge-guard.js';
+export * from './env.js';
 export * from './error-body.js';
 export * from './health.js';
 export * from './id.js';
