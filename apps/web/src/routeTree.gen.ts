@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BlockPageDetectorRouteImport } from './routes/block-page-detector'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ScrapingApiComparisonRouteImport } from './routes/scraping-api-comparison'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as DocsAdaptersRouteImport } from './routes/docs/adapters'
@@ -38,6 +39,11 @@ const IndexRoute = IndexRouteImport.update({
 const BlockPageDetectorRoute = BlockPageDetectorRouteImport.update({
   id: '/block-page-detector',
   path: '/block-page-detector',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScrapingApiComparisonRoute = ScrapingApiComparisonRouteImport.update({
@@ -137,6 +143,7 @@ const SymptomsDatadomeDetectionRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/block-page-detector': typeof BlockPageDetectorRoute
+  '/privacy': typeof PrivacyRoute
   '/scraping-api-comparison': typeof ScrapingApiComparisonRoute
   '/docs/adapters': typeof DocsAdaptersRoute
   '/docs/agents': typeof DocsAgentsRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/block-page-detector': typeof BlockPageDetectorRoute
+  '/privacy': typeof PrivacyRoute
   '/scraping-api-comparison': typeof ScrapingApiComparisonRoute
   '/docs/adapters': typeof DocsAdaptersRoute
   '/docs/agents': typeof DocsAgentsRoute
@@ -182,6 +190,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/block-page-detector': typeof BlockPageDetectorRoute
+  '/privacy': typeof PrivacyRoute
   '/scraping-api-comparison': typeof ScrapingApiComparisonRoute
   '/docs/adapters': typeof DocsAdaptersRoute
   '/docs/agents': typeof DocsAgentsRoute
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/block-page-detector'
+    | '/privacy'
     | '/scraping-api-comparison'
     | '/docs/adapters'
     | '/docs/agents'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/block-page-detector'
+    | '/privacy'
     | '/scraping-api-comparison'
     | '/docs/adapters'
     | '/docs/agents'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/block-page-detector'
+    | '/privacy'
     | '/scraping-api-comparison'
     | '/docs/adapters'
     | '/docs/agents'
@@ -273,6 +285,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BlockPageDetectorRoute: typeof BlockPageDetectorRoute
+  PrivacyRoute: typeof PrivacyRoute
   ScrapingApiComparisonRoute: typeof ScrapingApiComparisonRoute
   DocsAdaptersRoute: typeof DocsAdaptersRoute
   DocsAgentsRoute: typeof DocsAgentsRoute
@@ -307,6 +320,13 @@ declare module '@tanstack/react-router' {
       path: '/block-page-detector'
       fullPath: '/block-page-detector'
       preLoaderRoute: typeof BlockPageDetectorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/scraping-api-comparison': {
@@ -441,6 +461,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BlockPageDetectorRoute: BlockPageDetectorRoute,
+  PrivacyRoute: PrivacyRoute,
   ScrapingApiComparisonRoute: ScrapingApiComparisonRoute,
   DocsAdaptersRoute: DocsAdaptersRoute,
   DocsAgentsRoute: DocsAgentsRoute,
@@ -466,10 +487,11 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './server.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }
