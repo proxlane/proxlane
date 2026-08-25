@@ -105,18 +105,24 @@ const markdownNegotiation = createMiddleware({ type: 'request' }).server(
 				});
 			}
 			// 406, NOT next(). Start answers a non-HTML `Accept` with `500 Only HTML requests
-			// are supported here`, so falling through would turn a missing twin into a server
-			// error. 406 is what actually happened — the representation was asked for and is
-			// not available — and the body names the two places that do work.
+			// are supported here`, so falling through turns a missing twin into a server error.
+			// 406 is what actually happened: the representation was asked for and does not
+			// exist.
 			//
-			// Defensive rather than expected: `docs:check` holds the published copies to the
-			// content directory, so a docs route without a twin is a broken build, not a state
-			// this is meant to serve.
+			// THIS IS A REAL STATE, not a defensive branch, and an earlier comment here said
+			// the opposite. Eight of the ten docs pages are written as markdown in
+			// `content/docs/` and published as twins. Two — `/docs/outcomes` and
+			// `/docs/changelog` — are generated from the outcome taxonomy and from the package
+			// changelogs, so there is no markdown source to publish and never was. Both answer
+			// 406 today. `/docs/outcomes` is the one worth fixing: an agent asking about
+			// outcomes is asking the question this project exists to answer.
 			return new Response(
 				`# Not available as markdown\n\n` +
-					`No markdown copy of \`${pathname}\` was published with this build.\n\n` +
-					`- The HTML page: https://proxlane.dev${pathname}\n` +
-					`- Every page, listed for agents: https://proxlane.dev/llms.txt\n`,
+					`\`${pathname}\` is generated rather than written, so it has no markdown source ` +
+					`to serve. The content is on the HTML page.\n\n` +
+					`- This page: https://proxlane.dev${pathname}\n` +
+					`- Every page, summarised for agents: https://proxlane.dev/llms.txt\n` +
+					`- Every page as one document: https://proxlane.dev/llms-full.txt\n`,
 				{
 					status: 406,
 					headers: { 'content-type': 'text/markdown; charset=utf-8', vary: VARY },

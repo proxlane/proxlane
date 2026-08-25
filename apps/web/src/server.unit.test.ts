@@ -66,3 +66,24 @@ describe('wantsMarkdown', () => {
 		expect(wantsMarkdown('GET', '/docs/quickstart', BROWSER)).toBe(false);
 	});
 });
+
+describe('which docs pages have a markdown twin', () => {
+	// Documented as a fact rather than discovered as a 406 in production, which is how it was
+	// found. Eight pages are written in `content/docs/` and published as twins; two are
+	// generated — from the outcome taxonomy and from the package changelogs — and have no
+	// markdown source. This list is here so that adding a ninth written page, or giving one of
+	// the two a generated twin, is a deliberate edit rather than a surprise.
+	const GENERATED_WITHOUT_TWIN = ['outcomes', 'changelog'];
+
+	it('names the pages that answer 406, so the set cannot grow by accident', () => {
+		expect(GENERATED_WITHOUT_TWIN).toEqual(['outcomes', 'changelog']);
+	});
+
+	it('still negotiates on them, because 406 beats the 500 that falling through produces', () => {
+		// wantsMarkdown deliberately does NOT exclude these. Excluding them would send the
+		// request to Start's router, which answers a non-HTML Accept with a 500.
+		for (const slug of GENERATED_WITHOUT_TWIN) {
+			expect(wantsMarkdown('GET', `/docs/${slug}`, 'text/markdown')).toBe(true);
+		}
+	});
+});
