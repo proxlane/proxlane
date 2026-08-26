@@ -63,14 +63,7 @@ jobs:
         command: ${{ fromJson(needs.prepare.outputs.commands) }}
     name: ${{ matrix.command }}
     steps:
-      # TAGS, because `build` is in this matrix and the changelog page reads release dates from
-      # them. The docs plugin throws on a tagless clone rather than shipping a dateless page,
-      # so a shallow checkout here fails the build with that message instead of losing them
-      # quietly — which is the whole reason it throws.
       - uses: actions/checkout@v7
-        with:
-          fetch-tags: true
-          fetch-depth: 0
       - uses: ./.github/actions/setup
       - run: pnpm ${{ matrix.command }}
 
