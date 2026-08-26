@@ -1,6 +1,6 @@
 {
 	"name": "@proxlane/shared",
-	"version": "0.8.0",
+	"version": "0.9.0",
 	"description": "The Proxlane outcome taxonomy, request shape and SSRF edge guard, shared by the gateway and every adapter.",
 	"keywords": [
 		"web-scraping",
