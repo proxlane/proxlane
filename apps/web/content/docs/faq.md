@@ -67,6 +67,50 @@ Hosted credits are planned but the rate is not settled, because charging only fo
 requests while the provider still bills us for blocked ones does not add up yet. BYOK and
 self-host are unaffected either way.
 
+## Does failing over cost me more?
+
+Yes, and the response tells you exactly how much.
+
+A failover means the first provider was paid and did not deliver. Providers bill for attempts,
+not for successes: ScraperAPI charges for a 404 and for a request you cancel before its 70-second
+ceiling, and every provider charges for a block it could not get past. So a request that failed
+over twice was billed twice, and it would have been billed twice without Proxlane too, if you had
+written the retry yourself.
+
+What changes is that you can see it. `X-Cost-Estimate` covers every attempt in the chain rather
+than the one that worked, and `X-Chain` names the providers that failed rather than only the one
+that served. A request that quietly cost you three hops looks different from one that cost one.
+
+The honest trade: failover buys a higher success rate with money. If your targets are easy, one
+provider is cheaper and you do not need this.
+
+## Which provider does it try first, and why?
+
+By default ScraperAPI, then Scrapfly, then ScrapingBee, then anything else you hold a key for.
+`PROXLANE_PROVIDER_ORDER` overrides it, and a typo in that list refuses to boot rather than
+quietly changing who gets paid first.
+
+That default is deliberate but **not** evidence-based, and the distinction matters enough to
+state plainly. Published benchmarks rank these providers very differently from one another on
+protected targets, but a benchmark published by a rival scraping API about rival scraping APIs is
+not a source to reorder production traffic on. We do not have our own numbers yet.
+
+Measuring exactly this is what the project is for. Provider health already re-ranks the chain on
+observed behaviour, and per-domain rankings are the phase-3 scoreboard. Until then the order is
+explicit, overridable and provisional, rather than an alphabetical accident presented as a
+ranking.
+
+## What happens when a provider changes their API?
+
+Every response is validated against a schema before anything reads it. A mismatch is a loud
+`PROVIDER_DRIFT` outcome rather than quiet garbage flowing into your parser, and it fails over
+like any other provider fault.
+
+A canary runs every adapter against the live APIs on a schedule and opens an issue when something
+moves, so drift is usually found before a user hits it. Fixtures are re-recorded from real
+provider traffic rather than hand-written, and `pnpm conformance` replays them, so an adapter
+cannot pass by agreeing with a mock somebody wrote from the docs.
+
 ## Which providers are supported?
 
 The list lives in the [README's Providers table](https://github.com/proxlane/proxlane#providers).
