@@ -220,6 +220,7 @@ const ROLES: ReadonlyArray<readonly [string, number, string]> = [
 	// get a red check rather than a passing one and a Lighthouse failure a week later.
 	['color-brand-render', 5, 'deploy button label'],
 	['color-brand-digitalocean', 5, 'deploy button label'],
+	['color-brand-github', 5, 'star button label'],
 ];
 for (const [variant, tokens] of [
 	['light', light],

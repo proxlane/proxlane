@@ -94,6 +94,11 @@
 	 * exactly that. This is the same hue a shade darker, still unmistakably theirs, at 5.94:1.
 	 * Render's purple needs no such adjustment; it is already 5.67:1. */
 	--color-brand-digitalocean: #0057db;
+	/* GitHub's mark is monochrome and INVERTS rather than shifting hue, which is how they use
+	 * it themselves. Their published black is #181717: 17.1:1 here and 1.01:1 on the ink
+	 * ground, where it disappears entirely. So this is the one brand token whose dark value is
+	 * a different colour rather than a lighter one. */
+	--color-brand-github: #181717;
 
 	/* ---- type -------------------------------------------------------------------------
 	 * One humanist sans for everything, hierarchy from weight alone, which is how transit
@@ -216,6 +221,8 @@
 	 * other is the failure mode that only shows up in whichever half of the theme nobody is
 	 * looking at. */
 	--color-brand-render: #b878ff;
+	/* White, not a lifted black. See the light block: this mark inverts. */
+	--color-brand-github: #ffffff;
 	--color-brand-digitalocean: #5aa0ff;
 	/* Deeper on dark. The same 45% over an already-dark page barely separates the dialog. */
 	--color-scrim: rgb(4 6 8 / 0.66);
@@ -271,6 +278,8 @@
 		--color-accent: #f06595;
 		--color-surface: #1a1e23;
 		--color-brand-render: #b878ff;
+		/* White, not a lifted black. See the light block: this mark inverts. */
+		--color-brand-github: #ffffff;
 		--color-brand-digitalocean: #5aa0ff;
 		--color-scrim: rgb(4 6 8 / 0.66);
 		--glow-line: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
