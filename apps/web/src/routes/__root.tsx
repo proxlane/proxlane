@@ -14,10 +14,16 @@ import appCss from '../styles/app.css?url';
  * Everything below derives from this, so there is one place to change when it moves.
  */
 const SITE = STRUCTURED_SITE;
+// 156 CHARACTERS, and the number is the constraint rather than a preference. This was 205, and
+// link previews cut around 150 — so the tail, which is the licence and the fact that you host it
+// yourself, was exactly the part that disappeared. A search result shows roughly 155, so one trim
+// serves both.
+//
+// Provider names stay, and stay early. They are the terms people search for, and a truncation
+// that loses them would cost more than one that loses the tail.
 const DESCRIPTION =
-	'Route scraping requests across ScraperAPI, ScrapingBee, Scrapfly and Bright Data with automatic ' +
-	'failover, per-request cost visibility and honest success detection. Change one hostname. ' +
-	'AGPL, self-hostable.';
+	'One endpoint in front of ScraperAPI, ScrapingBee, Scrapfly and Bright Data. ' +
+	'Automatic failover, honest block detection, per-request cost. AGPL, self-hosted.';
 const TITLE = 'Proxlane: one endpoint in front of every scraping API';
 
 export const Route = createRootRoute({
