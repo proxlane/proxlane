@@ -40,7 +40,13 @@ jobs:
     permissions:
       contents: read
     steps:
+      # `fetch-tags`, because the changelog page reads release dates from git tags and a
+      # shallow checkout has none. The plugin throws rather than shipping a dateless page, so
+      # removing this fails the build loudly instead of quietly losing the dates.
       - uses: actions/checkout@v7
+        with:
+          fetch-tags: true
+          fetch-depth: 0
       - uses: ./.github/actions/setup
 
       # Build through the repo's own script so the deploy cannot diverge from what `pnpm build`
