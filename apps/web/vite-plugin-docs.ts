@@ -15,6 +15,7 @@
 // The transform is keyed on the `?docs` suffix so it cannot collide with anything else Vite
 // does with markdown, and so an accidental plain `import './x.md'` fails loudly.
 
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import MarkdownIt from 'markdown-it';
@@ -427,16 +428,34 @@ const CHANGELOG_PACKAGES: readonly {
 	readonly dir: string;
 	readonly label: string;
 	readonly note: string;
+	/** The npm name, which is what the release tag is built from. */
+	readonly pkg: string;
 }[] = [
-	{ dir: 'apps/gateway', label: 'Gateway', note: 'The proxy itself. This is what you run.' },
-	{ dir: 'packages/cli', label: 'CLI', note: 'The `proxlane` command.' },
+	{
+		dir: 'apps/gateway',
+		label: 'Gateway',
+		note: 'The proxy itself. This is what you run.',
+		pkg: '@proxlane/gateway',
+	},
+	{ dir: 'packages/cli', label: 'CLI', note: 'The `proxlane` command.', pkg: 'proxlane' },
 	{
 		dir: 'packages/adapters',
 		label: 'Adapters',
 		note: 'Provider adapters and the capability registry.',
+		pkg: '@proxlane/adapters',
 	},
-	{ dir: 'packages/detect', label: 'Detection', note: 'Block-page heuristics.' },
-	{ dir: 'packages/shared', label: 'Shared', note: 'The outcome taxonomy and request types.' },
+	{
+		dir: 'packages/detect',
+		label: 'Detection',
+		note: 'Block-page heuristics.',
+		pkg: '@proxlane/detect',
+	},
+	{
+		dir: 'packages/shared',
+		label: 'Shared',
+		note: 'The outcome taxonomy and request types.',
+		pkg: '@proxlane/shared',
+	},
 ];
 
 export interface ChangelogEntry {
@@ -445,6 +464,8 @@ export interface ChangelogEntry {
 	readonly notes: readonly string[];
 	/** True when the release carried nothing but dependency bumps. */
 	readonly dependenciesOnly: boolean;
+	/** ISO date the release tag was cut, or undefined for a version never tagged. */
+	readonly date?: string;
 }
 
 export interface ChangelogPackage {
@@ -463,6 +484,27 @@ export interface ChangelogPackage {
  * still listed, marked as dependencies only, because silently dropping a version makes the
  * list look like it has gaps.
  */
+/**
+ * The one contributor, whose self-credit is noise rather than gratitude.
+ *
+ * `@changesets/changelog-github` writes "Thanks [@handle](url)!" on every entry, which is the
+ * right default and the reason that generator was chosen — it credits strangers, and this
+ * project wants adapters written by strangers. On a repo with a single maintainer it renders
+ * as the same person thanking themselves forty times down one page.
+ *
+ * Stripped for this handle ONLY, and left intact for everyone else, so the first outside
+ * contribution is credited on the page the moment it lands. Delete this constant when there
+ * is a second regular contributor and the thanks stops being self-directed.
+ *
+ * The CHANGELOG.md files keep the credit. They are the record; this is the presentation.
+ */
+const SOLE_MAINTAINER = 'scarsam';
+// NOT ANCHORED, and the first version was. The generator writes the PR link and the commit
+// sha BEFORE the credit -- `[#194](..) [`3302c1c`](..) Thanks [@handle](..)! - the note` -- so
+// a `^Thanks` anchor matched nothing and the strip silently did nothing. The trailing `! - `
+// separator goes with it, or every note starts with a stray dash.
+const SELF_THANKS = new RegExp(`Thanks \\[@${SOLE_MAINTAINER}\\]\\([^)]*\\)!\\s*-\\s*`, 'i');
+
 export function parseChangelog(md: string): ChangelogEntry[] {
 	const out: ChangelogEntry[] = [];
 	// `## 1.2.3` starts a release; `### Minor Changes` sets the kind for what follows.
@@ -495,7 +537,7 @@ export function parseChangelog(md: string): ChangelogEntry[] {
 			const bullet = /^- (?:[0-9a-f]{7,}: )?(.*)$/.exec(line);
 			if (bullet !== null) {
 				inDependencyBlock = false;
-				const text = (bullet[1] ?? '').trim();
+				const text = (bullet[1] ?? '').replace(SELF_THANKS, '').trim();
 				if (text !== '') notes.push(text);
 				continue;
 			}
@@ -514,7 +556,49 @@ export function parseChangelog(md: string): ChangelogEntry[] {
 	return out;
 }
 
+/**
+ * When each release tag was cut, read from git.
+ *
+ * THE CHANGELOG PAGE HAD NO DATES, and its own comment explained why: "changesets records no
+ * dates". True of changesets, and not true of this repo — every release cuts a tag, and a tag
+ * has a date. Deriving it here means the page answers "is this project alive", which is the
+ * first question a stranger asks and the one it could not answer.
+ *
+ * THROWS ON AN EMPTY RESULT, deliberately. `actions/checkout` is shallow by default and a
+ * shallow clone has no tags, so this would work perfectly on a laptop and silently ship a
+ * dateless page. A build that cannot find the dates fails and says so; `deploy-web.yml` and the
+ * CI build both pass `fetch-tags`.
+ */
+function releaseDates(root: string): Map<string, string> {
+	const out = new Map<string, string>();
+	let raw: string;
+	try {
+		raw = execFileSync(
+			'git',
+			['for-each-ref', '--format=%(creatordate:short) %(refname:short)', 'refs/tags'],
+			{ cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+		);
+	} catch (e) {
+		throw new Error(
+			`the changelog needs release dates and git could not be read in ${root}. ` +
+				`This is a build-time dependency on tags: see releaseDates(). ${String(e)}`,
+		);
+	}
+	for (const line of raw.split('\n')) {
+		const m = /^(\d{4}-\d{2}-\d{2}) (.+)@(\d+\.\d+\.\d+)$/.exec(line.trim());
+		if (m) out.set(`${m[2]}@${m[3]}`, m[1] as string);
+	}
+	if (out.size === 0) {
+		throw new Error(
+			'no release tags found, so every changelog entry would be undated. A shallow ' +
+				'checkout does this: pass `fetch-tags: true` to actions/checkout.',
+		);
+	}
+	return out;
+}
+
 export function buildChangelog(root: string): ChangelogPackage[] {
+	const dates = releaseDates(root);
 	const out: ChangelogPackage[] = [];
 	for (const pkg of CHANGELOG_PACKAGES) {
 		const file = join(root, pkg.dir, 'CHANGELOG.md');
@@ -532,10 +616,16 @@ export function buildChangelog(root: string): ChangelogPackage[] {
 		// rather than shipped raw and shown with the backticks still in them. Inline only: a
 		// release note is a sentence, and `render` would wrap each in its own paragraph.
 		const inline = new MarkdownIt({ html: false, linkify: false, typographer: false });
-		const releases = parseChangelog(md).map((r) => ({
-			...r,
-			notes: r.notes.map((n) => inline.renderInline(n)),
-		}));
+		const releases = parseChangelog(md).map((r) => {
+			const date = dates.get(`${pkg.pkg}@${r.version}`);
+			return {
+				...r,
+				notes: r.notes.map((n) => inline.renderInline(n)),
+				// Spread rather than assigned: `exactOptionalPropertyTypes` is on, so an
+				// explicit `undefined` is not the same as an absent key.
+				...(date === undefined ? {} : { date }),
+			};
+		});
 		if (releases.length === 0) continue;
 		out.push({ label: pkg.label, note: pkg.note, current, releases });
 	}
