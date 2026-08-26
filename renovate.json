@@ -2,20 +2,25 @@
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
 	"extends": ["config:recommended", ":semanticCommits"],
 	"schedule": ["before 6am on monday"],
-	"//": [
+	"description": [
 		"THIS FILE ONLY WORKS IF THE RENOVATE GITHUB APP IS INSTALLED ON THE ORG. It is not a",
 		"workflow and nothing in CI runs it. As of 2026-08-13 the App had never run here \u2014 no",
 		"pull request, no dependency dashboard issue, no branch \u2014 which is why the GitHub Actions",
 		"below sat two majors behind until they were bumped by hand, and why the Node 20",
 		"deprecation warning appeared on every run.",
 		"",
-		"If you are reading this because dependencies look stale, check the App before the config."
+		"If you are reading this because dependencies look stale, check the App before the config.",
+		"",
+		"`description`, NOT `//`. Renovate validates every key and rejects unknown ones, so a `//`",
+		"comment key does not document the file, it stops the bot: Renovate refused this config",
+		"on 2026-08-14 and opened no dependency pull request for the twelve days after. The lesson",
+		"is the one `tooling/lighthouse/lighthouserc.json` already carries in its own header \u2014 JSON",
+		"has no comments, and inventing one breaks whichever tool parses the file."
 	],
 	"packageRules": [
 		{
-			"description": "Patch updates automerge, EXCEPT GitHub Actions \u2014 see the rule below.",
+			"description": "Patch updates automerge. GitHub Actions are exempted by the NEXT rule rather than by an exclusion here: `excludeManagers` is not a Renovate option and never was, and it is the second half of why this config was rejected. Later packageRules override earlier ones, so the github-actions rule below turns automerge back off for that manager \u2014 which is what the exclusion was reaching for, expressed in a way the schema accepts.",
 			"matchUpdateTypes": ["patch"],
-			"excludeManagers": ["github-actions"],
 			"automerge": true
 		},
 		{
