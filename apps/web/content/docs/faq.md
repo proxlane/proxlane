@@ -69,47 +69,36 @@ self-host are unaffected either way.
 
 ## Does failing over cost me more?
 
-Yes, and the response tells you exactly how much.
+Yes, and the response says how much.
 
-A failover means the first provider was paid and did not deliver. Providers bill for attempts,
-not for successes: ScraperAPI charges for a 404 and for a request you cancel before its 70-second
-ceiling, and every provider charges for a block it could not get past. So a request that failed
-over twice was billed twice, and it would have been billed twice without Proxlane too, if you had
-written the retry yourself.
+A failover means the first provider was paid and did not deliver. Providers bill attempts, not
+successes. That was true before Proxlane too, if you wrote the retry yourself; what changes is
+that you can see it. `X-Cost-Estimate` covers every hop, and `X-Chain` names the ones that
+failed rather than only the one that served.
 
-What changes is that you can see it. `X-Cost-Estimate` covers every attempt in the chain rather
-than the one that worked, and `X-Chain` names the providers that failed rather than only the one
-that served. A request that quietly cost you three hops looks different from one that cost one.
-
-The honest trade: failover buys a higher success rate with money. If your targets are easy, one
-provider is cheaper and you do not need this.
+The trade: failover buys success rate with money. If your targets are easy, one provider is
+cheaper and you do not need this.
 
 ## Which provider does it try first, and why?
 
-By default ScraperAPI, then Scrapfly, then ScrapingBee, then anything else you hold a key for.
-`PROXLANE_PROVIDER_ORDER` overrides it, and a typo in that list refuses to boot rather than
-quietly changing who gets paid first.
+ScraperAPI, then Scrapfly, then ScrapingBee, then anything else you hold a key for.
+`PROXLANE_PROVIDER_ORDER` overrides it, and a typo there refuses to boot rather than quietly
+changing who gets paid first.
 
-That default is deliberate but **not** evidence-based, and the distinction matters enough to
-state plainly. Published benchmarks rank these providers very differently from one another on
-protected targets, but a benchmark published by a rival scraping API about rival scraping APIs is
-not a source to reorder production traffic on. We do not have our own numbers yet.
-
-Measuring exactly this is what the project is for. Provider health already re-ranks the chain on
-observed behaviour, and per-domain rankings are the phase-3 scoreboard. Until then the order is
-explicit, overridable and provisional, rather than an alphabetical accident presented as a
-ranking.
+That default is deliberate but **not** evidence-based. Published benchmarks rank these providers
+very differently, but a benchmark published by a rival scraping API about rival scraping APIs is
+not a source to reorder production traffic on, and we do not have our own numbers yet. Measuring
+this is what the project is for: health already re-ranks on observed behaviour, and per-domain
+rankings are next.
 
 ## What happens when a provider changes their API?
 
-Every response is validated against a schema before anything reads it. A mismatch is a loud
-`PROVIDER_DRIFT` outcome rather than quiet garbage flowing into your parser, and it fails over
-like any other provider fault.
+Every response is validated against a schema. A mismatch is a loud `PROVIDER_DRIFT` rather than
+quiet garbage reaching your parser, and it fails over like any other provider fault.
 
-A canary runs every adapter against the live APIs on a schedule and opens an issue when something
-moves, so drift is usually found before a user hits it. Fixtures are re-recorded from real
-provider traffic rather than hand-written, and `pnpm conformance` replays them, so an adapter
-cannot pass by agreeing with a mock somebody wrote from the docs.
+A canary runs the adapters against the live APIs weekly and opens an issue when something moves.
+Fixtures are recorded from real traffic rather than hand-written, so an adapter cannot pass by
+agreeing with a mock somebody wrote from the docs.
 
 ## Which providers are supported?
 

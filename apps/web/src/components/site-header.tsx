@@ -26,6 +26,7 @@
 import { Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { Cta } from './cta.js';
+import { GitHubMark } from './github-mark.js';
 import { ThemeToggle } from './theme-toggle.js';
 import { Mark, Wordmark } from './wordmark.js';
 
@@ -239,15 +240,7 @@ export function SiteHeader() {
 								className="group inline-flex min-h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-[color:var(--color-rule)] px-3.5 font-medium text-[color:var(--color-brand-github)] text-sm transition-[border-color,box-shadow,transform] duration-200 ease-(--ease-lane) hover:-translate-y-px hover:border-[color:var(--color-brand-github)] motion-reduce:transform-none motion-reduce:transition-none"
 								href="https://github.com/proxlane/proxlane"
 							>
-								<svg
-									viewBox="0 0 16 16"
-									className="size-4 shrink-0"
-									aria-hidden="true"
-									focusable="false"
-									fill="currentColor"
-								>
-									<path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
-								</svg>
+								<GitHubMark />
 								GitHub
 							</a>
 							<Cta to="/docs/quickstart" size="sm">
@@ -321,7 +314,12 @@ function MobileSheet({
 	readonly open: boolean;
 	readonly onClose: () => void;
 }) {
-	const stations = [...NAV, { to: 'https://github.com/proxlane/proxlane', label: 'github' }];
+	// GitHub carries its mark here too. Desktop got a branded button and mobile got a lowercase
+	// word — and mobile is the half of the audience most likely to arrive from a phone.
+	const stations = [
+		...NAV,
+		{ to: 'https://github.com/proxlane/proxlane', label: 'GitHub', mark: true },
+	];
 	return (
 		<>
 			{/* The page recedes. Tapping it closes, which is the gesture everyone tries first. */}
@@ -363,6 +361,7 @@ function MobileSheet({
 								key={item.to}
 								to={item.to}
 								label={item.label}
+								mark={'mark' in item}
 								index={i}
 								open={open}
 								onClose={onClose}
@@ -390,12 +389,15 @@ function MobileSheet({
 function Station({
 	to,
 	label,
+	mark,
 	index,
 	open,
 	onClose,
 }: {
 	readonly to: string;
 	readonly label: string;
+	/** GitHub is the only station that is a brand rather than a place on this site. */
+	readonly mark?: boolean;
 	readonly index: number;
 	readonly open: boolean;
 	readonly onClose: () => void;
@@ -416,6 +418,11 @@ function Station({
 				aria-hidden="true"
 				className={`${node} border-[color:var(--color-slate)] group-hover:border-[color:var(--color-accent)] group-data-[status=active]:border-[color:var(--color-accent)] group-data-[status=active]:bg-[color:var(--color-accent)]`}
 			/>
+			{mark === true ? (
+				<span className="mr-2 inline-flex text-[color:var(--color-brand-github)]">
+					<GitHubMark />
+				</span>
+			) : null}
 			{label}
 		</>
 	);
