@@ -84,7 +84,13 @@ jobs:
             echo "::notice title=changeset::.changeset does not exist yet (PR 3). Not enforced."
             exit 0
           fi
-          git fetch origin "${{ github.base_ref }}" --depth=1
+          # NO `--depth=1`. A depth-1 fetch gives the base branch's tip with no parents,
+          # so `origin/base...HEAD` has nothing to walk back to and git answers
+          # `fatal: no merge base`. That is invisible while the branch already contains
+          # the base tip, and every open PR starts failing the moment anything else
+          # merges first — with an error that has nothing to do with its own diff.
+          # The checkout above is already `fetch-depth: 0`, so this bought nothing.
+          git fetch origin "${{ github.base_ref }}"
           # Logic lives in scripts/changeset-required.ts, with unit tests. Inline, this asked
           # for a changeset on ANY apps/ or packages/ path — including private packages that
           # can never be published, where the demanded file cannot meaningfully be written.
@@ -145,7 +151,13 @@ jobs:
           # trade. See scripts/infra-leak-patterns.json for the two-class design.
           EXTRA_INFRA_PATTERNS: ${{ secrets.EXTRA_INFRA_PATTERNS }}
         run: |
-          git fetch origin "${{ github.base_ref }}" --depth=1
+          # NO `--depth=1`. A depth-1 fetch gives the base branch's tip with no parents,
+          # so `origin/base...HEAD` has nothing to walk back to and git answers
+          # `fatal: no merge base`. That is invisible while the branch already contains
+          # the base tip, and every open PR starts failing the moment anything else
+          # merges first — with an error that has nothing to do with its own diff.
+          # The checkout above is already `fetch-depth: 0`, so this bought nothing.
+          git fetch origin "${{ github.base_ref }}"
           git diff "origin/${{ github.base_ref }}"...HEAD > /tmp/pr.diff
           # Logic lives in scripts/infra-leak.ts, not inline here, so it has unit tests. An
           # inline check is one nobody can run locally, and therefore one nobody has verified.
@@ -301,7 +313,13 @@ jobs:
           # Conditional by design. security-engineer has no write tools and cannot own the
           # code it reviews, so the trigger set lives in a file both this job and
           # repo:check read — they cannot disagree about what counts as security-touching.
-          git fetch origin "${{ github.base_ref }}" --depth=1
+          # NO `--depth=1`. A depth-1 fetch gives the base branch's tip with no parents,
+          # so `origin/base...HEAD` has nothing to walk back to and git answers
+          # `fatal: no merge base`. That is invisible while the branch already contains
+          # the base tip, and every open PR starts failing the moment anything else
+          # merges first — with an error that has nothing to do with its own diff.
+          # The checkout above is already `fetch-depth: 0`, so this bought nothing.
+          git fetch origin "${{ github.base_ref }}"
           CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)
           MATCH=$(node -e '
             const cfg = require("./scripts/security-review-paths.json");
