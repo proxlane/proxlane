@@ -13,6 +13,19 @@ runs:
         # so CI cannot silently run a different Node than a contributor does.
         node-version-file: .nvmrc
         cache: pnpm
+    # TAGS, BEFORE THE BUILD. The docs plugin reads release dates off git tags to date the
+    # changelog, and it throws on a tagless clone rather than shipping a dateless page.
+    # `actions/checkout` is shallow by default, so every job that builds needs them.
+    #
+    # HERE rather than on each checkout, because "each checkout" is nine of them across four
+    # workflows and I already missed one: adding `fetch-tags` to two of them left the scheduled
+    # canary — the launch gate — failing in `setup` with an error about the changelog. One
+    # mechanism in the action every job already uses cannot be forgotten by the next workflow.
+    #
+    # `--force` because a shallow clone can hold a stale tag ref, and a tag that moved would
+    # otherwise fail the fetch rather than update.
+    - shell: bash
+      run: git fetch --tags --force
     - shell: bash
       run: pnpm install --frozen-lockfile
     # Matrix jobs are independent: each gets a fresh checkout and install, so nothing has
