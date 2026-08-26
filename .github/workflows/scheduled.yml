@@ -84,9 +84,24 @@ jobs:
           # A failing canary means a provider changed under us. That is the signal the
           # whole adapter layer exists to surface, so it opens an issue rather than
           # turning a scheduled run red where nobody looks.
-          gh issue create --title "provider drift: canary failed $(date -u +%F)" \
-            --label "flag:provider-drift" \
-            --body "\`pnpm test:live\` failed on the scheduled canary. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          #
+          # ONE ISSUE, NOT ONE PER RUN. This was an unconditional `gh issue create`, and eight
+          # canary runs in a single morning opened eight identical issues on a public repo —
+          # the whole open-issue list, all dated the same day, all the same failure. To a
+          # visitor that reads as a project falling over rather than as one provider being
+          # misconfigured. A drift issue is about a provider that changed, and it stays true
+          # until somebody closes it, so a second run finding the same thing has nothing new
+          # to say: it comments on the open one and moves on.
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          EXISTING="$(gh issue list --label flag:provider-drift --state open \
+            --json number --jq '.[0].number // empty')"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Still failing. Run: $RUN_URL"
+          else
+            gh issue create --title "provider drift: canary failed $(date -u +%F)" \
+              --label "flag:provider-drift" \
+              --body "\`pnpm test:live\` failed on the scheduled canary. Run: $RUN_URL"
+          fi
       # THE LAUNCH GATE READS THE STEP, NOT THE JOB. `continue-on-error: true` above makes the
       # job green whether the canary passed or failed — by design, so drift opens an issue
       # rather than reddening a scheduled run nobody looks at. But `state.md` counts "three
