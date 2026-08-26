@@ -58,7 +58,44 @@ describe('the canary has something to run against', () => {
 	});
 });
 
+/**
+ * One request, retried ONCE and only when the TARGET failed.
+ *
+ * WHY THIS IS NOT WEAKENING THE GATE. `operations.md` section 9 wants three consecutive
+ * *scheduled* greens, and a manual re-dispatch does not repair a red one — the gate counts
+ * `event == schedule`. So a third-party page having a bad minute on a Monday morning resets a
+ * three-week clock and nothing anyone does afterwards fixes it. That happened twice in one
+ * morning on 2026-08-25, on two different providers, against a demo site answering in 0.5s
+ * from a laptop.
+ *
+ * `TARGET_ERROR` is the one outcome in the taxonomy that says the failure was NOT the
+ * provider's. This canary exists to ask whether the provider still behaves, so a target
+ * failure is not evidence either way — it is noise the gate should not be sensitive to.
+ *
+ * Safe here specifically: the three tests below expect `OK`, `TARGET_NOT_FOUND` and `OK`.
+ * `TARGET_ERROR` is never an expected outcome, so a retry on it cannot paper over an
+ * assertion. Anything the provider is blamed for — `PROVIDER_ERROR`, `PROVIDER_DRIFT`,
+ * `SOFT_BLOCK`, `AUTH_FAILED` — is returned on the first attempt, unretried.
+ *
+ * The retry is LOUD. A provider that needs one every week is drifting toward something, and a
+ * silent second chance is how that stays invisible until it is a real outage.
+ */
 async function attempt(id: string, url: string, renderJs: boolean) {
+	const first = await attemptOnce(id, url, renderJs);
+	if (first.parsed.outcome !== 'TARGET_ERROR') return first;
+	process.stdout.write(
+		`\n  RETRY: ${id} got TARGET_ERROR from ${new URL(url).host} — the target failed, not the ` +
+			`provider. Trying once more.\n`,
+	);
+	await new Promise((r) => setTimeout(r, 2_000));
+	const second = await attemptOnce(id, url, renderJs);
+	if (second.parsed.outcome === 'TARGET_ERROR') {
+		process.stdout.write(`  RETRY: ${id} got TARGET_ERROR twice. Reporting it.\n`);
+	}
+	return second;
+}
+
+async function attemptOnce(id: string, url: string, renderJs: boolean) {
 	const adapter: Adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
 	const wire = adapter.translate(
 		{
