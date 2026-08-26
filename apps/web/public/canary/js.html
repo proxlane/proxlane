@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Proxlane canary: JavaScript render probe</title>
+<meta name="robots" content="noindex, nofollow">
+<!--
+  A page that is empty until JavaScript runs.
+
+  The live canary asks each adapter to prove it still renders JavaScript, which needs a target
+  whose content only exists after execution. That target used to be a third-party scraping-demo
+  site. It failed twice in one morning on two different providers while answering in half a
+  second from a laptop, and `operations.md` section 9 counts three consecutive SCHEDULED greens
+  with no way for a manual re-run to repair one — so somebody else's demo site having a bad
+  minute could reset a three-week launch clock.
+
+  So the gateway now scrapes its own project's page. If this is down we have bigger problems and
+  we already know about them.
+
+  Deliberately plain: no framework, no fonts, no external request of any kind. The marker must
+  appear because a script ran, not because a bundle loaded.
+-->
+<body>
+<p id="marker">This page has not run JavaScript.</p>
+<script>
+  // The string the canary greps for. It exists nowhere in the served HTML — search this file
+  // and you will find it only as these two halves, which is the point: a provider returning
+  // the unrendered source cannot accidentally satisfy the assertion.
+  document.getElementById('marker').textContent = 'proxlane-render' + '-ok';
+</script>
+</body>

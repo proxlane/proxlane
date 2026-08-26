@@ -214,8 +214,27 @@ export function SiteHeader() {
 									{item.label}
 								</NavLink>
 							))}
-							<a className={NAV_LINK} href="https://github.com/proxlane/proxlane">
-								github
+							{/* A STAR, NOT AN EMBED. GitHub's own button is an iframe from ghbtns.com,
+							    which would put a third-party request on every page load of a site whose
+							    argument is that it does not leak — the same reason `design.md` self-hosts
+							    the fonts rather than using a font CDN.
+							    No count, deliberately. A build-time count goes stale between deploys, and
+							    a live one needs the embed. A small number shown next to an ask reads worse
+							    than no number at all. */}
+							<a
+								className={`${NAV_LINK} inline-flex items-center gap-1.5`}
+								href="https://github.com/proxlane/proxlane"
+							>
+								<svg
+									viewBox="0 0 16 16"
+									className="size-3.5 shrink-0"
+									aria-hidden="true"
+									focusable="false"
+									fill="currentColor"
+								>
+									<path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z" />
+								</svg>
+								star
 							</a>
 						</span>
 						<ThemeToggle />
