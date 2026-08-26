@@ -26,8 +26,28 @@ import { type Adapter, REGISTRY } from './index.js';
  * result. A provider quietly dropping rendering — or us sending the wrong parameter — looks
  * exactly like success otherwise: HTTP 200, a real page, no error anywhere.
  */
-const JS_ONLY_TARGET = 'https://quotes.toscrape.com/js/';
-const JS_ONLY_MARKER = 'Albert Einstein';
+/**
+ * A JS-only page WE SERVE, because a launch gate should not depend on somebody else's site.
+ *
+ * This was a third-party scraping-demo site. It failed twice in one morning on two different
+ * providers while answering in half a second from a laptop, and `operations.md` section 9
+ * counts three consecutive SCHEDULED greens with no way for a manual re-dispatch to repair a
+ * red one — so a demo site having a bad minute could reset a three-week clock and nothing done
+ * afterwards would fix it.
+ *
+ * `/canary/js` is deployed from `apps/web/public/canary/js.html`. If it is down we have bigger
+ * problems and already know about them. Note the extensionless path: Cloudflare's asset layer
+ * 307s `.html` to it, and following a redirect through a provider is one more thing that can
+ * fail for a reason unrelated to rendering.
+ *
+ * THE MARKER IS ABSENT FROM THE SERVED SOURCE. The page assembles it from two halves at
+ * runtime, so a provider returning the unrendered document cannot satisfy this by accident —
+ * which the old target never guaranteed, since its marker was plain text in the HTML that the
+ * page also rendered. Verified live against all three providers before this landed: ScraperAPI,
+ * ScrapingBee and Scrapfly each returned OK with the marker present.
+ */
+const JS_ONLY_TARGET = 'https://proxlane.dev/canary/js';
+const JS_ONLY_MARKER = 'proxlane-render-ok';
 
 const IDS = Object.keys(REGISTRY).sort();
 
