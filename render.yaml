@@ -15,7 +15,7 @@ services:
     plan: free
     image:
       # Pinned, never `:latest`. `operating.md` B8 makes the pin the supported choice.
-      url: ghcr.io/proxlane/gateway:0.10.3
+      url: ghcr.io/proxlane/gateway:0.11.0
     healthCheckPath: /health
     envVars:
       # THE FREE PLAN IS 512 MB, AND THE DEFAULT CONFIGURATION WANTS 800.

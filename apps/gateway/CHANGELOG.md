@@ -1,5 +1,16 @@
 # @proxlane/gateway
 
+## 0.11.0
+
+### Minor Changes
+
+- [#234](https://github.com/proxlane/proxlane/pull/234) [`7d7c7ce`](https://github.com/proxlane/proxlane/commit/7d7c7cee2818c48348046a6d4d54932f7296716e) Thanks [@scarsam](https://github.com/scarsam)! - Responses now carry `X-Ignored-Params` naming any query parameter the gateway does not read. `js_render` is ScrapingBee's spelling of `render` and `js` is Scrapfly's; sending either returned HTTP 200 with an unrendered page at a fifth of the cost, and nothing said so.
+
+### Patch Changes
+
+- Updated dependencies [[`1f955e8`](https://github.com/proxlane/proxlane/commit/1f955e823f348a2d4aca85780e3597641772868d)]:
+  - @proxlane/adapters@0.7.5
+
 ## 0.10.3
 
 ### Patch Changes
