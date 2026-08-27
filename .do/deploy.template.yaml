@@ -24,7 +24,7 @@ spec:
         registry_type: GHCR
         registry: proxlane
         repository: gateway
-        tag: 0.10.2
+        tag: 0.10.3
       instance_count: 1
       # 512 MB, the entry size. See PROXLANE_MAX_INFLIGHT below — this number and that one are
       # a pair, and changing one without the other either wastes memory or refuses to boot.
