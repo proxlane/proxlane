@@ -51,4 +51,51 @@ describe('ignoredParams', () => {
 		expect(ignoredParams('')).toEqual([]);
 		expect(ignoredParams('?')).toEqual([]);
 	});
+
+	// -------------------------------------------------------- the header must not become the bug
+
+	it('does not emit a name carrying CR or LF, and counts it instead', () => {
+		// THE REGRESSION THIS FILTER EXISTS FOR. URLSearchParams percent-decodes, so this key is
+		// literally `a\r\nX-Foo: bar`, and `Headers.set` throws a TypeError on it — an unhandled
+		// throw in the middleware, which is a 500 on a request that would otherwise have been
+		// served. Measured 2026-08-27: 500 with the raw name, 200 with it filtered.
+		expect(ignoredParams('?a%0d%0aX-Foo:%20bar=1')).toEqual(['+1']);
+	});
+
+	it('still names the safe parameters alongside an unreportable one', () => {
+		// The dangerous name must not take the useful one down with it.
+		expect(ignoredParams('?js_render=true&a%0d%0aevil=1')).toEqual(['js_render', '+1']);
+	});
+
+	it('caps the list and says how many it did not name', () => {
+		// A junk query must not produce a header of unbounded length, and the count must stay true
+		// — a header that silently under-reports is the exact failure this change removes.
+		const qs = Array.from({ length: 25 }, (_, i) => `p${String(i).padStart(2, '0')}=1`).join(
+			'&',
+		);
+		const out = ignoredParams(`?${qs}`);
+		expect(out).toHaveLength(11);
+		expect(out[0]).toBe('p00');
+		expect(out[9]).toBe('p09');
+		expect(out[10]).toBe('+15');
+	});
+
+	it('produces a value Headers accepts, for every case above', () => {
+		// The property that actually matters, asserted directly rather than inferred. If this ever
+		// throws, the middleware 500s.
+		for (const qs of [
+			'?a%0d%0aX-Foo:%20bar=1',
+			'?js_render=true&a%0d%0aevil=1',
+			`?${Array.from({ length: 25 }, (_, i) => `p${i}=1`).join('&')}`,
+			'?\u00e9t\u00e9=1',
+			`?${'x'.repeat(200)}=1`,
+		]) {
+			const v = ignoredParams(qs).join(',');
+			expect(() => new Headers({ 'X-Ignored-Params': v })).not.toThrow();
+		}
+	});
+
+	it('counts a name that is merely too long, rather than printing it', () => {
+		expect(ignoredParams(`?${'x'.repeat(200)}=1`)).toEqual(['+1']);
+	});
 });

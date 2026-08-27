@@ -558,6 +558,19 @@ describe('query parsing, where a default leaks most easily', () => {
 		expect(r.headers.get('x-ignored-params')).toBeNull();
 	});
 
+	it('serves the request when a parameter name carries CRLF, rather than 500ing', async () => {
+		// Over real HTTP, because that is where it broke: `Headers.set` throws on CR/LF, and an
+		// unhandled throw in the middleware is a 500 on a request that would otherwise have been
+		// served. Measured 2026-08-27 before the filter: 500. Both halves matter — the request
+		// succeeds, AND nothing was smuggled into a header of its own.
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&a%0d%0aX-Foo:%20bar=1`,
+		);
+		expect(r.status).toBe(200);
+		expect(r.headers.get('x-foo')).toBeNull();
+		expect(r.headers.get('x-ignored-params')).toBe('+1');
+	});
+
 	it('names an ignored parameter on an error response too', async () => {
 		// The request that is already going wrong is exactly the one a caller is looking at. A
 		// 400 for a bad `premium` should still mention that `js_render` went nowhere.

@@ -135,13 +135,38 @@ const KNOWN_PARAMS: readonly string[] = [
 	'url',
 ];
 
-/** The parameters this request sent that the gateway does not read, sorted, deduplicated. */
+/**
+ * A parameter name safe to put in a header value, and short enough to be worth printing.
+ *
+ * NOT COSMETIC. `URLSearchParams` percent-decodes, so `?a%0d%0aX-Foo:%20bar=1` yields the key
+ * `a\r\nX-Foo: bar` — and `Headers.set` throws a TypeError on CR or LF rather than emitting
+ * them. The runtime refusing to smuggle is the right behaviour and it is not enough: an
+ * unhandled throw in the middleware turns a caller's request into a 500. Measured 2026-08-27
+ * before this filter existed: that query returned 500 where the same request without it
+ * returned the page. So a header meant to stop quiet failures introduced a loud one.
+ */
+const REPORTABLE = /^[A-Za-z0-9_.-]{1,40}$/;
+
+/** At most this many names, so a junk query cannot produce a header of unbounded length. */
+const MAX_REPORTED = 10;
+
+/**
+ * The parameters this request sent that the gateway does not read, sorted and deduplicated.
+ *
+ * Names only, never values — an unknown parameter carrying somebody's key must leak the name
+ * and not the key. Anything unreportable or past the cap is COUNTED rather than dropped: a
+ * header that silently under-reports is the failure this whole change exists to remove, so it
+ * ends `+N` and the number is true.
+ */
 export function ignoredParams(qs: string): string[] {
 	// `URLSearchParams` over `c.req.queries()` so this is testable without a Context, and so a
 	// repeated key collapses to one name rather than being reported twice.
 	const seen = new Set<string>();
 	for (const [k] of new URLSearchParams(qs)) if (!KNOWN_PARAMS.includes(k)) seen.add(k);
-	return [...seen].sort();
+	const named = [...seen].filter((k) => REPORTABLE.test(k)).sort();
+	const shown = named.slice(0, MAX_REPORTED);
+	const hidden = seen.size - shown.length;
+	return hidden === 0 ? shown : [...shown, `+${hidden}`];
 }
 
 /**
