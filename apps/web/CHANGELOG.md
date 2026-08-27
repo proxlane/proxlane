@@ -1,5 +1,78 @@
 # @proxlane/web
 
+## 0.9.1
+
+### Patch Changes
+
+- [#227](https://github.com/proxlane/proxlane/pull/227) [`cc2558c`](https://github.com/proxlane/proxlane/commit/cc2558cdc2d767bd61dffdbc57adc21258538c22) Thanks [@scarsam](https://github.com/scarsam)! - The header's star link carries GitHub's own mark rather than a generic star glyph. The path is
+  Octicons' `mark-github-16`, read from source and committed, not embedded: GitHub ships a star
+  button and it is an iframe from a third-party host, which is the thing `design.md` self-hosts the
+  fonts to avoid.
+
+  `--color-brand-github` is the one brand token whose dark value is a different colour rather than
+  a lighter one. GitHub's published black is `[#181717](https://github.com/proxlane/proxlane/issues/181717)`, which measures 17.1:1 on the light ground
+  and 1.01:1 on the ink ground, where it vanishes. Their mark inverts by design, so the token does
+  too, and `tokens:check` holds both values to the same floor as the deploy buttons.
+
+  Still no count: a build-time one goes stale between deploys, a live one needs the embed, and a
+  small number beside an ask reads worse than no number.
+
+- [#224](https://github.com/proxlane/proxlane/pull/224) [`f7f91b2`](https://github.com/proxlane/proxlane/commit/f7f91b2a63d765d0449843335e6b592ddf5b8a71) Thanks [@scarsam](https://github.com/scarsam)! - A JS-only page at `/canary/js.html`, served from this site so the live canary can stop depending
+  on somebody else's demo site to prove that providers still render JavaScript. The old target
+  failed twice in one morning on two different providers while answering in half a second from a
+  laptop, and `operations.md` section 9 counts three consecutive _scheduled_ greens with no way for
+  a manual re-run to repair one, so a third party having a bad minute could reset a three-week
+  launch clock.
+
+  The marker it looks for appears nowhere in the served HTML — the script assembles it from two
+  halves — so a provider returning the unrendered source cannot accidentally satisfy the check.
+
+  The header links to GitHub as `star` rather than `github`. Not GitHub's own button: that is an
+  iframe from a third-party host, on a site whose argument is that it does not leak. No count
+  either, because a small number next to an ask reads worse than no number.
+
+- [#222](https://github.com/proxlane/proxlane/pull/222) [`3520b2d`](https://github.com/proxlane/proxlane/commit/3520b2d6c33de2df6efc127543ef3d8f53354daa) Thanks [@scarsam](https://github.com/scarsam)! - Three FAQ entries, each answering a question the docs could already answer and a reader could
+  not find.
+
+  "What does it cost?" said Proxlane costs nothing, which is true and is not the question anyone
+  asks about a failover product. "Does failing over cost me more?" says yes, explains that
+  providers bill attempts rather than successes, and points at the two headers that show it. The
+  trade is stated rather than sold: failover buys success rate with money, and on easy targets one
+  provider is cheaper.
+
+  "Which provider does it try first, and why?" moves the reasoning out of a code comment. The
+  default order is deliberate but not evidence-based, a rival's benchmark is not a source to
+  reorder production traffic on, and measuring this is what the project is for.
+
+  "What happens when a provider changes their API?" was asked three separate times in the comments
+  of the closest comparable launch, and was answered nowhere a reader would look.
+
+- [#230](https://github.com/proxlane/proxlane/pull/230) [`3973441`](https://github.com/proxlane/proxlane/commit/39734410c6b745b04c212790fa423bb13bf4887f) Thanks [@scarsam](https://github.com/scarsam)! - The mobile menu's GitHub entry carries the mark too. Desktop had a branded button and mobile had
+  a lowercase word, which is the half of the audience most likely to arrive from a phone.
+
+  The mark moves into its own component rather than being pasted a third time.
+
+  Three FAQ answers are shorter. The three added this morning were 410 words against a median
+  section of about sixty, and length was the only thing wrong with them — every other docs page has
+  no paragraph over sixty words, and the FAQ had the only two.
+
+  The homepage meta description is 156 characters instead of 205. Link previews cut around 150, so
+  the tail — the licence and the fact that you host it yourself — was the part that disappeared.
+  Provider names stay, and stay early: they are the terms people search.
+
+- [#230](https://github.com/proxlane/proxlane/pull/230) [`3973441`](https://github.com/proxlane/proxlane/commit/39734410c6b745b04c212790fa423bb13bf4887f) Thanks [@scarsam](https://github.com/scarsam)! - The header link says GitHub rather than Star, because that is what it does. GitHub publishes no
+  URL that stars a repository — their own button performs it from inside the iframe this
+  deliberately avoids — so a link labelled Star promised an action it could not perform and
+  delivered a page instead. The mark carries the invitation; the label should not overstate it.
+
+  It also sits beside the primary call to action now rather than across the theme toggle from it.
+  The toggle is a setting; those two are the ways out of the page, and a control wedged between
+  them made them read as unrelated.
+
+- Updated dependencies [[`cc2558c`](https://github.com/proxlane/proxlane/commit/cc2558cdc2d767bd61dffdbc57adc21258538c22), [`a0d6487`](https://github.com/proxlane/proxlane/commit/a0d64874940e548b8f8f2e58c6903c6fc5caf5e4)]:
+  - @proxlane/ui@0.2.4
+  - @proxlane/adapters@0.7.4
+
 ## 0.9.0
 
 ### Minor Changes
