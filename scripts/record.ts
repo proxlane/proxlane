@@ -68,7 +68,8 @@ export type TargetCategory =
 	| 'target-rate-limited'
 	| 'slow-target'
 	| 'deadline'
-	| 'render-js';
+	| 'render-js'
+	| 'large-object';
 
 export interface Target {
 	readonly category: TargetCategory;
@@ -86,6 +87,16 @@ export interface Target {
 	 * category can only ever record something that is not a deadline.
 	 */
 	readonly needsDeadline?: true;
+	/**
+	 * Record this category for these adapters ONLY.
+	 *
+	 * Exists for one reason and should stay narrow: `large-object` needs a target big enough to
+	 * cross Scrapfly's 5 MB offload threshold, and the other three providers answer that by
+	 * INLINING nine megabytes — which base64s into a ~12 MB fixture, per provider, committed to
+	 * git forever. The fixture is about one provider's behaviour, so it is recorded against that
+	 * provider. Anything gated here is reported as skipped, never silently dropped.
+	 */
+	readonly onlyAdapters?: readonly string[];
 	/**
 	 * Non-GET, for the categories that exercise a method the adapter has to forward. Absent
 	 * means GET, which is every other target.
@@ -225,6 +236,21 @@ export const TARGETS: readonly Target[] = [
 		renderJs: true,
 		expect: 'OK',
 		why: 'content only present after JS runs — proves the renderJs capability is honest',
+	},
+	{
+		category: 'large-object',
+		// Over 5 MB, Scrapfly offloads the body to a separate object store and returns a URL in
+		// `content` with `format: clob`. Documented, permanent, no opt-out parameter. Before the
+		// adapter handled it the caller got that 70-character URL AS THE PAGE — HTTP 200,
+		// X-Outcome: OK, the target's own content-type, seven credits billed. Found by a user.
+		//
+		// unpkg is a public package CDN, not a commercial target, and this path is immutable:
+		// a version-pinned file on npm cannot change under the fixture.
+		url: 'https://unpkg.com/typescript@5.9.3/lib/typescript.js',
+		renderJs: false,
+		expect: 'PROVIDER_BODY_OFFLOADED',
+		onlyAdapters: ['scrapfly'],
+		why: 'a body too large to inline must fail over, not arrive as a pointer marked OK',
 	},
 ];
 
@@ -863,6 +889,15 @@ if (import.meta.filename === process.argv[1]) {
 	const unparsed: string[] = [];
 	const skipped: string[] = [];
 	for (const target of targets) {
+		if (target.onlyAdapters !== undefined && !target.onlyAdapters.includes(adapterId)) {
+			// Reported, never silent. A category that vanishes without a word is how a gap in the
+			// corpus becomes invisible.
+			process.stdout.write(
+				`  ${target.category.padEnd(18)} skipped — recorded only for ${target.onlyAdapters.join(', ')}\n`,
+			);
+			skipped.push(target.category);
+			continue;
+		}
 		if (target.needsDeadline === true && timeoutOverride === undefined) {
 			// Not a failure: without the flag this category can only record something that is
 			// not a deadline, which is how the old `timeout` fixture came to hold a 422.

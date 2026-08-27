@@ -13,7 +13,7 @@ import type {
 	PremiumTier,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { costOf } from '../contract.js';
+import { cooldownScope, costOf, shouldFailover } from '../contract.js';
 import { ScrapflyAdapter } from './index.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -94,6 +94,80 @@ describe('a null target status is not drift', () => {
 			body: new TextEncoder().encode(JSON.stringify(env)),
 		};
 		expect(ScrapflyAdapter.parse(res).outcome).toBe('PROVIDER_ERROR');
+	});
+});
+
+describe('a body the provider stored out of band', () => {
+	// THE VALUES BELOW ARE A REAL CAPTURE, not an invention. Taken 2026-08-27 from a live
+	// Scrapfly call against a 9 MB script on a public package CDN — the pointer, the
+	// content-type and the seven-credit charge are that response verbatim.
+	//
+	// It is a unit test rather than a fixture BECAUSE IT COULD NOT BE RECORDED: the account hit
+	// 0/1000 credits during the recording run itself, and the free tier does not reset until
+	// 2026-09-07. `conformance/deferred-fixtures.json` carries that debt with a date, and
+	// conformance goes red if the fixture is still missing once recording is possible again.
+	// Building the envelope inline is the same thing the account-error and drift cases above do,
+	// for the same reason: some shapes cannot be summoned on demand.
+	const OFFLOADED = 'https://api.scrapfly.io/scrape/large_object/01M119CYCRD4B71MN8RTGDBBEY';
+
+	function offloaded(format: 'clob' | 'blob'): ProviderHttpResponse {
+		return {
+			status: 200,
+			headers: {},
+			body: new TextEncoder().encode(
+				JSON.stringify({
+					result: {
+						status_code: 200,
+						format,
+						content: OFFLOADED,
+						content_type: 'text/javascript; charset=utf-8',
+					},
+					context: { cost: { total: 7 } },
+				}),
+			),
+		};
+	}
+
+	it('does not hand back the pointer as though it were the page', () => {
+		// The bug, stated as the thing that must never happen again. Before this, `clob` fell to
+		// the text path and the caller received these 70 characters with HTTP 200, X-Outcome: OK
+		// and the target's own content-type. Any caller writes that to disk as the page.
+		const r = ScrapflyAdapter.parse(offloaded('clob'));
+		expect(r.outcome).toBe('PROVIDER_BODY_OFFLOADED');
+		expect(r.body).toBeUndefined();
+	});
+
+	it('does not base64-decode the pointer into silent garbage', () => {
+		// `blob` was the worse half: the binary path ran Buffer.from(url, 'base64'), which does
+		// not throw on a URL — it lenient-decodes it into meaningless bytes. A caller gets a
+		// corrupt file rather than an obviously wrong one.
+		const r = ScrapflyAdapter.parse(offloaded('blob'));
+		expect(r.outcome).toBe('PROVIDER_BODY_OFFLOADED');
+		expect(r.body).toBeUndefined();
+	});
+
+	it('still reports what the attempt cost, because we were charged for it', () => {
+		// Seven credits, spent, body or no body. Cost is reported and never routed on, and an
+		// attempt that failed still shows up in X-Cost-Estimate — the same honesty the chain
+		// applies to every other failed hop.
+		expect(ScrapflyAdapter.parse(offloaded('clob')).cost).toEqual({
+			microcredits: 7_000_000,
+			source: 'reported',
+		});
+	});
+
+	it('keeps the upstream status, so the caller can see the target was fine', () => {
+		// The target answered 200. The provider is what could not deliver it. Losing that
+		// distinction is how a provider problem gets logged as a target problem.
+		expect(ScrapflyAdapter.parse(offloaded('clob')).upstreamStatusCode).toBe(200);
+	});
+
+	it('fails over, and does not arm a cooldown against a healthy provider', () => {
+		// The policy IS the fix: another provider inlines a body this size, so failover is the
+		// repair rather than a hopeful retry. And Scrapfly is working — sidelining it for hours
+		// over one large page would degrade every small request it handles perfectly well.
+		expect(shouldFailover('PROVIDER_BODY_OFFLOADED')).toBe(true);
+		expect(cooldownScope('PROVIDER_BODY_OFFLOADED')).toBe('none');
 	});
 });
 

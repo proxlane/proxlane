@@ -212,6 +212,7 @@ defined per outcome, centrally, never inside adapters.
 | `RATE_LIMITED` | `provider` | Provider 429 / concurrency cap | 429 + `Retry-After` | no | yes | `acct`, respect headers | no |
 | `AUTH_FAILED` | `provider` | Provider 401/403 on the key | 502 | no | yes | `acct`; mark key unhealthy, notify user | no |
 | `PROVIDER_DRIFT` | `provider` | Response failed schema parse | 502 | no | yes | no | **yes** |
+| `PROVIDER_BODY_OFFLOADED` | `provider` | Provider stored the body out of band and returned a pointer | 502 | no | yes | no | no |
 | `INVALID_REQUEST` | `gateway` | **Our translation** produced a provider 400 | 500 | no | **no** | no | **yes** |
 | `BAD_REQUEST` | `client` | The client's request is malformed or impossible | 400 | no | **no** | no | no |
 | `TARGET_FORBIDDEN` | `client` | Target rejected at our edge (private range, denylist) | 403 | no | **no** | no | no |
@@ -486,6 +487,7 @@ the time an `Outcome` exists, "whose fault" is answered.
 |---|---|
 | the success term | `OK` |
 | the failure term | `PROVIDER_ERROR`, `PROVIDER_DRIFT` |
+| excluded | `PROVIDER_BODY_OFFLOADED` — the provider answered, billed and said what it did. It is working; the response was simply larger than it will inline |
 | nothing — a property of a hop, not a provider | `PROVIDER_TIMEOUT` |
 | nothing — target facts, handled by `cd:blk` | `SOFT_BLOCK`, `HARD_BLOCK`, `TARGET_NOT_FOUND`, `TARGET_ERROR`, `TARGET_RATE_LIMITED` |
 | nothing — account facts, handled by `cd:acct` | `AUTH_FAILED`, `RATE_LIMITED` |

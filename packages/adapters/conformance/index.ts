@@ -27,6 +27,25 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
+/**
+ * Fixtures that are recordable but not yet recorded. See `deferred-fixtures.json`.
+ *
+ * Read as JSON rather than imported so this stays free of `resolveJsonModule`, matching how
+ * every other generated or hand-kept data file in the repo is loaded.
+ */
+interface Deferred {
+	readonly adapter: string;
+	readonly category: string;
+	readonly recordableFrom: string;
+	readonly reason: string;
+}
+const DEFERRED: readonly Deferred[] =
+	(
+		JSON.parse(
+			readFileSync(join(ROOT, 'packages/adapters/conformance/deferred-fixtures.json'), 'utf8'),
+		) as { deferred?: Deferred[] }
+	).deferred ?? [];
+
 export interface Failure {
 	readonly adapter: string;
 	readonly check: string;
@@ -334,6 +353,34 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 		fail('fixtures', `no recorded fixtures — run \`pnpm record --adapter=${id}\``);
 	}
 	const present = new Set(fixtures.map((f) => f.category));
+
+	// FIXTURES THAT ARE OWED, with a date. See `deferred-fixtures.json` for why this is not the
+	// same as a category left out of REQUIRED: that is a permanent structural gap, this is a
+	// debt. Both directions are checked, because an entry that outlives its fixture is a note
+	// claiming a gap that has already closed — which is how the next reader is told to go and
+	// record something that exists.
+	for (const d of DEFERRED) {
+		if (d.adapter !== id) continue;
+		const due = Date.parse(d.recordableFrom);
+		if (!Number.isFinite(due)) {
+			fail('fixtures', `deferred-fixtures.json: \`${d.category}\` has an unparseable date`);
+			continue;
+		}
+		if (present.has(d.category)) {
+			fail(
+				'fixtures',
+				`deferred-fixtures.json still defers \`${d.category}\`, but the fixture exists — ` +
+					'delete the entry',
+			);
+		} else if (Date.now() >= due) {
+			fail(
+				'fixtures',
+				`no \`${d.category}\` fixture, and it has been recordable since ${d.recordableFrom}. ` +
+					`Run \`pnpm record --adapter=${id} --only=${d.category}\`. Deferred because: ${d.reason}`,
+			);
+		}
+	}
+
 	for (const need of REQUIRED) {
 		if (!present.has(need)) {
 			fail(
