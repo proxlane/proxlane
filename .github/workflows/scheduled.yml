@@ -137,6 +137,11 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      # A JOB-LEVEL BLOCK REPLACES THE WORKFLOW-LEVEL ONE, it does not extend it. The
+      # `issues: write` at the top of this file does not reach here, so the drift issue this
+      # job now opens would have 403'd — silently turning the reporting step into the same
+      # invisible failure it exists to end.
+      issues: write
     strategy:
       fail-fast: false
       matrix:
@@ -176,7 +181,39 @@ jobs:
           SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
           SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
           BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
-        run: pnpm record --diff --adapter=${{ matrix.adapter }}
+        id: diff
+        run: pnpm record --diff --adapter=${{ matrix.adapter }} 2>&1 | tee /tmp/diff.txt
+      # DRIFT OPENS AN ISSUE, because a red job in a scheduled run is a thing nobody sees.
+      #
+      # The canary has done this since it was written; this job did not, and the gap showed:
+      # on 2026-08-26 three of four adapters failed here and it went unnoticed until somebody
+      # went looking days later. A weekly check whose only signal is a red square on a page no
+      # one opens is a check that has stopped running, in every sense that matters.
+      #
+      # One issue per adapter, and a comment rather than a duplicate on the next run — the same
+      # shape the canary needed after eight identical issues in one morning. Drift is a fact
+      # about one provider and stays true until somebody re-records.
+      #
+      # `always()` because the step it reports on has just failed, and `continue-on-error` is
+      # deliberately NOT used: the job must still end red, or the launch gate and the weekly
+      # board would both call this green.
+      - if: always() && steps.diff.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          A="${{ matrix.adapter }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # The shape diff itself, which is the whole point: "it failed" sends someone to the
+          # logs, "post.json: -body.headers.Referer" tells them what moved before they open one.
+          DETAIL="$(sed -n '/changed shape/,$p' /tmp/diff.txt | head -30)"
+          EXISTING="$(gh issue list --label flag:provider-drift --state open --search "$A in:title" \
+            --json number --jq '.[0].number // empty')"
+          BODY="$(printf 'Fixture shape changed for %s.\n\n```\n%s\n```\n\nRun: %s\n\nRe-record with `pnpm record --adapter=%s` and read the diff before committing it. A provider changing its response shape is what breaks `parse()`; a TEST TARGET changing what it echoes is not, and the two look identical here.' "$A" "$DETAIL" "$RUN_URL" "$A")"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "fixture drift: $A" --label "flag:provider-drift" --body "$BODY"
+          fi
       # A SECOND, SCOPED PASS, because `--timeout-ms` is global and would time out every other
       # category. Without it `deadline` is skipped — it needs a budget below the target's 30s
       # delay — so `deadline.json` sat exempt from drift detection every single week while the
