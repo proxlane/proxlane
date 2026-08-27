@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "binary",
-	"recordedAt": "2026-08-19T09:17:09.942Z",
+	"recordedAt": "2026-08-27T08:02:54.210Z",
 	"adapter": "scrapingbee",
 	"target": {
 		"url": "https://httpbingo.org/image/jpeg",
@@ -33,12 +33,12 @@
 			"spb-content-length": "35588",
 			"spb-content-type": "image/jpeg",
 			"spb-cost": "1",
-			"spb-date": "Wed, 19 Aug 2026 09:17:09 GMT",
+			"spb-date": "Thu, 27 Aug 2026 08:02:54 GMT",
 			"spb-fly-request-id": "VOLATILE",
 			"spb-initial-status-code": "200",
 			"spb-request-id": "VOLATILE",
 			"spb-resolved-url": "https://httpbingo.org/image/jpeg",
-			"spb-server": "Fly/d778e1ff4 (2026-08-17)",
+			"spb-server": "Fly/bae4c81b48 (2026-08-26)",
 			"spb-via": "2 fly.io, 2 fly.io",
 			"strict-transport-security": "max-age=31556926; includeSubDomains",
 			"vary": "Cookie",

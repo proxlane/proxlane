@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "target-error",
-	"recordedAt": "2026-08-16T16:22:58.927Z",
+	"recordedAt": "2026-08-27T08:02:52.433Z",
 	"adapter": "scrapingbee",
 	"target": {
 		"url": "https://httpbingo.org/status/503",
@@ -33,12 +33,12 @@
 			"spb-content-length": "0",
 			"spb-content-type": "text/plain; charset=utf-8",
 			"spb-cost": "0",
-			"spb-date": "Sun, 16 Aug 2026 16:22:58 GMT",
+			"spb-date": "Thu, 27 Aug 2026 08:02:52 GMT",
 			"spb-fly-request-id": "VOLATILE",
 			"spb-initial-status-code": "503",
 			"spb-request-id": "VOLATILE",
 			"spb-resolved-url": "https://httpbingo.org/status/503",
-			"spb-server": "Fly/40bd1ce81 (2026-08-13)",
+			"spb-server": "Fly/e93089d61 (2026-08-20)",
 			"spb-via": "2 fly.io, 2 fly.io",
 			"strict-transport-security": "max-age=31556926; includeSubDomains",
 			"vary": "Cookie",

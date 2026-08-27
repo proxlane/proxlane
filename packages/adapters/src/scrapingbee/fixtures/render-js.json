@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "render-js",
-	"recordedAt": "2026-08-16T16:23:32.798Z",
+	"recordedAt": "2026-08-27T08:03:28.061Z",
 	"adapter": "scrapingbee",
 	"target": {
 		"url": "https://quotes.toscrape.com/js/",
@@ -31,7 +31,7 @@
 			"spb-content-encoding": "br",
 			"spb-content-type": "text/html; charset=utf-8",
 			"spb-cost": "5",
-			"spb-date": "Sun, 16 Aug 2026 16:23:32 GMT",
+			"spb-date": "Thu, 27 Aug 2026 08:03:27 GMT",
 			"spb-initial-status-code": "200",
 			"spb-request-id": "VOLATILE",
 			"spb-resolved-url": "https://quotes.toscrape.com/js/",

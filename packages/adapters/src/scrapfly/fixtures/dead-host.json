@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "dead-host",
-	"recordedAt": "2026-08-17T08:36:38.966Z",
+	"recordedAt": "2026-08-27T08:01:37.833Z",
 	"adapter": "scrapfly",
 	"target": {
 		"url": "https://not-a-real-host.invalid/",
@@ -10,7 +10,7 @@
 	"expect": "TARGET_ERROR",
 	"request": {
 		"method": "GET",
-		"url": "https://api.scrapfly.io/scrape?key=REDACTED&url=https%3A%2F%2Fnot-a-real-host.invalid%2F&render_js=false&asp=false&proxy_pool=public_datacenter_pool&retry=false&cache=false&timeout=50000&format=raw",
+		"url": "https://api.scrapfly.io/scrape?key=REDACTED&url=https%3A%2F%2Fnot-a-real-host.invalid%2F&render_js=false&asp=false&proxy_pool=public_datacenter_pool&retry=false&cache=false&timeout=50000&os=win11&format=raw",
 		"headers": {
 			"accept": "application/json"
 		}
@@ -19,18 +19,18 @@
 		"status": 400,
 		"headers": {
 			"content-encoding": "gzip",
-			"content-length": "207",
+			"content-length": "205",
 			"content-type": "application/json; charset=utf-8",
 			"date": "VOLATILE",
 			"vary": "Accept-Encoding",
 			"x-request-id": "VOLATILE",
 			"x-scrapfly-reject-code": "400",
 			"x-scrapfly-reject-description": "Invalid hostname, given https://not-a-real-host.invalid/",
-			"x-scrapfly-reject-id": "d118ae6b-3ab3-4f41-94f0-b6465324b28c",
+			"x-scrapfly-reject-id": "5c7d171f-5a24-4984-9a7f-046cbb90ae3e",
 			"x-scrapfly-reject-reason": "invalid api param: url",
 			"x-scrapfly-reject-retryable": "false"
 		},
-		"bodyBase64": "eyJhcGlfcGFyYW0iOiJ1cmwiLCJjb2RlIjoiRVJSOjpTQ1JBUEU6OkNPTkZJR19FUlJPUiIsImVycm9yX2lkIjoiZDExOGFlNmItM2FiMy00ZjQxLTk0ZjAtYjY0NjUzMjRiMjhjIiwiaHR0cF9jb2RlIjo0MDAsImxpbmtzIjpudWxsLCJtZXNzYWdlIjoiSW52YWxpZCBob3N0bmFtZSwgZ2l2ZW4gaHR0cHM6Ly9ub3QtYS1yZWFsLWhvc3QuaW52YWxpZC8iLCJyZWFzb24iOiJCYWQgUmVxdWVzdCJ9",
+		"bodyBase64": "eyJhcGlfcGFyYW0iOiJ1cmwiLCJjb2RlIjoiRVJSOjpTQ1JBUEU6OkNPTkZJR19FUlJPUiIsImVycm9yX2lkIjoiNWM3ZDE3MWYtNWEyNC00OTg0LTlhN2YtMDQ2Y2JiOTBhZTNlIiwiaHR0cF9jb2RlIjo0MDAsImxpbmtzIjpudWxsLCJtZXNzYWdlIjoiSW52YWxpZCBob3N0bmFtZSwgZ2l2ZW4gaHR0cHM6Ly9ub3QtYS1yZWFsLWhvc3QuaW52YWxpZC8iLCJyZWFzb24iOiJCYWQgUmVxdWVzdCJ9",
 		"bodyBytes": 225
 	}
 }
