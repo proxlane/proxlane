@@ -117,7 +117,22 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Provider-Used` | when one served | Omitted, never empty, if nothing served |
 | `X-Detect-Rule` | when a rule fired | Which block-page rule produced a `SOFT_BLOCK` |
 | `X-Provider-Health` | when health is on, or when a floor fired | `demoted-forced`: every provider was demoted and the least bad was used. `cooling-forced`: every provider was cooling and one was tried anyway, rather than take the domain off the air |
+| `X-Ignored-Params` | when you sent one we don't read | The query parameters we threw away, sorted and comma-separated |
 | `Retry-After` | when known | Seconds, rounded up |
+
+**`X-Ignored-Params` is worth wiring into your logs.** We don't reject a parameter we don't
+recognise — ScraperAPI accepts a dozen we don't implement, and rejecting them would break the
+hostname change this whole thing is built on. So the request runs, and the header names what
+went nowhere.
+
+The one that catches people is `render`. `js_render=true` is ScrapingBee's spelling and
+`js=true` is Scrapfly's; ours is `render=true`. Send the wrong one and you get HTTP 200, a
+real page, and no JavaScript — at about a fifth of the cost, which is the tell:
+
+```
+X-Ignored-Params: js_render
+X-Cost-Estimate: 1.000000     # rendered, this would be ~5
+```
 
 Two of those are easy to misread.
 

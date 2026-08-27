@@ -165,6 +165,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -215,6 +218,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -277,6 +283,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -327,6 +336,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -379,6 +391,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -429,6 +444,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -481,6 +499,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -531,6 +552,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -583,6 +607,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -633,6 +660,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -794,6 +824,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -844,6 +877,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -906,6 +942,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -956,6 +995,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -1008,6 +1050,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -1058,6 +1103,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -1110,6 +1158,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -1160,6 +1211,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -1212,6 +1266,9 @@
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
 							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
+							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
@@ -1262,6 +1319,9 @@
 							},
 							"X-Provider-Used": {
 								"$ref": "#/components/headers/X-Provider-Used"
+							},
+							"X-Ignored-Params": {
+								"$ref": "#/components/headers/X-Ignored-Params"
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
@@ -1466,6 +1526,12 @@
 			},
 			"X-Provider-Used": {
 				"description": "The provider that served. Absent, never empty, when nothing served.",
+				"schema": {
+					"type": "string"
+				}
+			},
+			"X-Ignored-Params": {
+				"description": "Query parameters this request sent that the gateway does not read, comma-separated and sorted. Absent when there were none. An unknown parameter is not an error — ScraperAPI accepts parameters we do not implement, and rejecting them would break the hostname-change migration on day one — but it is not silent either: js_render and js are other providers’ spellings of render, and being ignored means an unrendered page at a fifth of the cost, which looks exactly like success.",
 				"schema": {
 					"type": "string"
 				}

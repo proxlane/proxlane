@@ -151,6 +151,11 @@ const HEADERS: Record<string, { description: string; schema: object }> = {
 		description: 'The provider that served. Absent, never empty, when nothing served.',
 		schema: { type: 'string' },
 	},
+	'X-Ignored-Params': {
+		description:
+			'Query parameters this request sent that the gateway does not read, comma-separated and sorted. Absent when there were none. An unknown parameter is not an error — ScraperAPI accepts parameters we do not implement, and rejecting them would break the hostname-change migration on day one — but it is not silent either: js_render and js are other providers\u2019 spellings of render, and being ignored means an unrendered page at a fifth of the cost, which looks exactly like success.',
+		schema: { type: 'string' },
+	},
 	'X-Detect-Rule': {
 		description:
 			'The block-page rule that fired. Present only when one did: emitting "none" everywhere would assert the detector ran and found nothing, which is untrue for a request that never reached a provider.',

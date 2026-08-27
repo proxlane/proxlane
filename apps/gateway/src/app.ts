@@ -107,6 +107,44 @@ function presentedKey(c: {
 }
 
 /**
+ * EVERY QUERY PARAMETER THE GATEWAY READS, so it can say which ones it did not.
+ *
+ * An unknown parameter is silently dropped by every framework, including this one, and the
+ * result is the quiet failure this whole product exists to remove: `js_render=true` is
+ * ScrapingBee's spelling, `js=true` is Scrapfly's, and neither is ours. Both return HTTP 200
+ * with an unrendered page, at one credit instead of five — a success by every signal a caller
+ * has. Measured 2026-08-27 against `/canary/js`: `render=true` came back with the JS-only
+ * marker for five credits, `js_render=true` without it for one. That cost a real user a day.
+ *
+ * A response header rather than a 400, deliberately. Rejecting an unknown parameter would
+ * break the migration promise on day one — ScraperAPI accepts a dozen we do not implement, and
+ * a hostname change would start failing on parameters that were previously harmless. So the
+ * request still runs, and the answer carries `X-Ignored-Params` naming what was thrown away.
+ *
+ * Asserted against `c.req.query(...)` by `docs:check` assertion 12, so a parameter added to
+ * the handler and left out of this list fails the build.
+ */
+const KNOWN_PARAMS: readonly string[] = [
+	'api_key',
+	'binary',
+	'country_code',
+	'premium',
+	'provider',
+	'render',
+	'timeout',
+	'url',
+];
+
+/** The parameters this request sent that the gateway does not read, sorted, deduplicated. */
+export function ignoredParams(qs: string): string[] {
+	// `URLSearchParams` over `c.req.queries()` so this is testable without a Context, and so a
+	// repeated key collapses to one name rather than being reported twice.
+	const seen = new Set<string>();
+	for (const [k] of new URLSearchParams(qs)) if (!KNOWN_PARAMS.includes(k)) seen.add(k);
+	return [...seen].sort();
+}
+
+/**
  * Compare the presented gateway key against the configured one.
  *
  * `timingSafeEqual` over SHA-256 digests rather than a hand-rolled character loop. The loop
@@ -365,6 +403,11 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		c.set('startedAt', performance.now());
 		await next();
 		c.header('X-Request-Id', id);
+		// In the middleware, so it lands on errors too. A caller who typos a parameter AND gets a
+		// 400 for an unrelated reason should still be told about the typo — that is the request
+		// they are already looking at.
+		const ignored = ignoredParams(new URL(c.req.url).search);
+		if (ignored.length > 0) c.header('X-Ignored-Params', ignored.join(','));
 	});
 
 	// Health is "this process is up and serving", not "fully configured". A gateway with no

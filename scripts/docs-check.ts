@@ -467,6 +467,29 @@ const read = (p: string) => readFileSync(p, 'utf8');
 			if (!read_.includes(p))
 				fail('12', `openapi.json describes \`${p}\`, which the gateway never reads`);
 
+		// AND THE LIST THE GATEWAY USES TO REPORT WHAT IT IGNORED, which is the same set a third
+		// time. `KNOWN_PARAMS` drives `X-Ignored-Params`, so a parameter added to the handler and
+		// left out of it would be reported as ignored on every request that sends it — the header
+		// would name a parameter the gateway had just honoured, which is worse than no header.
+		const knownBlock = /const KNOWN_PARAMS: readonly string\[\] = \[([^\]]*)\]/.exec(src);
+		if (knownBlock === null) {
+			fail('12', 'apps/gateway/src/app.ts no longer declares KNOWN_PARAMS');
+		} else {
+			const known = [...(knownBlock[1] as string).matchAll(/'([a-z_]+)'/g)].map(
+				(m) => m[1] as string,
+			);
+			if (known.length === 0) fail('12', 'parsed zero names from KNOWN_PARAMS');
+			for (const p of read_)
+				if (!known.includes(p))
+					fail(
+						'12',
+						`the gateway reads \`${p}\` and KNOWN_PARAMS omits it, so it would be reported as ignored`,
+					);
+			for (const p of known)
+				if (!read_.includes(p))
+					fail('12', `KNOWN_PARAMS lists \`${p}\`, which the gateway never reads`);
+		}
+
 		// Response headers, same argument.
 		const setHeaders = [
 			...new Set(
