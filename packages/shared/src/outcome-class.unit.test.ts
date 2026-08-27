@@ -104,6 +104,7 @@ describe('the mapping is pinned, because changing it is a breaking change', () =
 		RATE_LIMITED: 'provider',
 		AUTH_FAILED: 'provider',
 		PROVIDER_DRIFT: 'provider',
+		PROVIDER_BODY_OFFLOADED: 'provider',
 		INVALID_REQUEST: 'gateway',
 		BAD_REQUEST: 'client',
 		// The SSRF edge guard, not a 403 from the site: `client`, because the caller asked for

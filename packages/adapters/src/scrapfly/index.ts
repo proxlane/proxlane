@@ -191,7 +191,7 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	// is gone, and a mis-decode on their side is undetectable here. `format: 'binary'` is
 	// base64 and does round-trip exactly.
 	const body =
-		result.format === 'binary' || result.format === 'blob'
+		result.format === 'binary'
 			? Uint8Array.from(Buffer.from(result.content, 'base64'))
 			: new TextEncoder().encode(result.content);
 
@@ -209,6 +209,29 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		...(targetRetryAfter === undefined ? {} : { retryAfterMs: targetRetryAfter }),
 		cost,
 	};
+
+	// THE BODY MAY NOT BE IN THE RESPONSE AT ALL, and this is the failure it took a real user
+	// to find. Over 5 MB, Scrapfly offloads the payload to a separate object store and sets
+	// `format` to `clob` (text) or `blob` (binary), with `content` holding a URL to it instead
+	// of the page. Documented behaviour, permanent, and there is no request parameter to opt out.
+	//
+	// Before this branch existed, `clob` fell through to the text path and the caller received
+	// the 70-character URL AS THE PAGE: HTTP 200, `X-Outcome: OK`, the target's own content-type,
+	// `content-length: 70`, seven credits billed. `blob` was worse — base64-decoding a URL yields
+	// silent garbage. Reproduced 2026-08-27 against a 9 MB script; the fixture beside this file
+	// is that recording.
+	//
+	// WE CANNOT FOLLOW THE POINTER. `parse()` is pure and total by contract — no I/O — and the
+	// object store answers 401 without the account key, which parse does not receive. So the
+	// honest move is to fail, and to fail in a way that FAILS OVER: the other three providers
+	// return bodies this size inline, so the caller still gets their page.
+	if (result.format === 'clob' || result.format === 'blob') {
+		return {
+			...base,
+			outcome: 'PROVIDER_BODY_OFFLOADED',
+			...(result.status_code === null ? {} : { upstreamStatusCode: result.status_code }),
+		};
+	}
 
 	const byCode =
 		result.error?.code === undefined || result.error.code === null

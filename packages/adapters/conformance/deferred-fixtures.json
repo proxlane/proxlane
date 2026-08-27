@@ -1,0 +1,23 @@
+{
+	"//": [
+		"Fixtures that are RECORDABLE but not yet recorded, each with the date recording becomes",
+		"possible again. Conformance fails once that date passes and the fixture is still absent,",
+		"and fails again if an entry outlives the fixture it was waiting for.",
+		"",
+		"This is not the same thing as a category left out of REQUIRED. `provider-error` and the",
+		"block pages are absent because they CANNOT be summoned on demand — that is a permanent",
+		"structural gap, stated in prose beside REQUIRED. An entry here is a debt with a due date.",
+		"",
+		"The distinction matters because 'we could not record it this week' is exactly the kind of",
+		"note that becomes permanent by being written in prose nobody re-reads. Assertion-shaped,",
+		"it cannot rot: on the date below, CI starts saying so and does not stop."
+	],
+	"deferred": [
+		{
+			"adapter": "scrapfly",
+			"category": "large-object",
+			"recordableFrom": "2026-09-07",
+			"reason": "Scrapfly's free tier reached 0/1000 credits during the recording run for this very fixture, on 2026-08-27. The behaviour is confirmed against live traffic and parse() is tested against the real captured envelope in index.unit.test.ts; only the recorded exchange is outstanding. The plan resets 2026-09-07 21:16 UTC."
+		}
+	]
+}

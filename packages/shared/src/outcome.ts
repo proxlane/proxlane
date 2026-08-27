@@ -74,6 +74,7 @@ export type Outcome =
 	| 'RATE_LIMITED'
 	| 'AUTH_FAILED'
 	| 'PROVIDER_DRIFT'
+	| 'PROVIDER_BODY_OFFLOADED'
 	| 'INVALID_REQUEST'
 	| 'BAD_REQUEST'
 	| 'TARGET_FORBIDDEN'
@@ -94,6 +95,7 @@ export const OUTCOMES = [
 	'RATE_LIMITED',
 	'AUTH_FAILED',
 	'PROVIDER_DRIFT',
+	'PROVIDER_BODY_OFFLOADED',
 	'INVALID_REQUEST',
 	'BAD_REQUEST',
 	'TARGET_FORBIDDEN',
@@ -376,6 +378,26 @@ export const FAILOVER = {
 		// Their API changed under us. That is worth waking someone for.
 		pages: true,
 		meaning: 'Response failed its Zod schema',
+	},
+	PROVIDER_BODY_OFFLOADED: {
+		class: 'provider',
+		httpStatus: 502,
+		chargeable: false,
+		// ANOTHER PROVIDER CAN SERVE THIS. Scrapfly offloads any body over 5 MB to a separate
+		// object store and returns a URL in `content` instead — documented, permanent, and with
+		// no request parameter to opt out of. The other three return the bytes, so failing over
+		// is not a hopeful retry, it is the fix.
+		failover: true,
+		// NONE, and this is the reason the outcome exists rather than reusing PROVIDER_ERROR.
+		// The provider is healthy: it served the request, billed for it, and told us plainly
+		// what it did. Arming `acct` would sideline it for hours over one large page and
+		// degrade every small request it handles perfectly well.
+		cooldown: 'none',
+		// Nor PROVIDER_DRIFT, which fits in every other respect and pages. This is documented
+		// behaviour we did not handle, not a contract break, and paging on every large fetch
+		// forever is how a pager stops being read.
+		pages: false,
+		meaning: 'the provider stored the body out of band and returned a pointer we cannot follow',
 	},
 	INVALID_REQUEST: {
 		class: 'gateway',

@@ -24,6 +24,10 @@ const EXPECTED: Record<Outcome, 'success' | 'failure' | 'ignore'> = {
 	OK: 'success',
 	PROVIDER_ERROR: 'failure',
 	PROVIDER_DRIFT: 'failure',
+	// IGNORE, for the same reason its cooldown is 'none'. The provider answered, billed and
+	// told us exactly what it did — it is working. Counting a large page against its health
+	// would demote a provider for succeeding at something we cannot use.
+	PROVIDER_BODY_OFFLOADED: 'ignore',
 	// A property of a provider AT A HOP, not of the provider. Degrading shortens its budget,
 	// which raises its timeout rate, which feeds the statistic that degraded it.
 	PROVIDER_TIMEOUT: 'ignore',
