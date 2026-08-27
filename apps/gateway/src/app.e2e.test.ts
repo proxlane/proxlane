@@ -539,6 +539,48 @@ describe('query parsing, where a default leaks most easily', () => {
 		expect(r.status).toBe(200);
 	});
 
+	it('names a parameter it ignored, over real HTTP, without failing the request', async () => {
+		// The header a caller who typed ScrapingBee's spelling would have needed. Note both halves:
+		// the request still SUCCEEDS — rejecting unknown parameters would break the hostname-change
+		// migration, since ScraperAPI accepts a dozen we do not implement — and it still SAYS so.
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&js_render=true&js=true`,
+		);
+		expect(r.status).toBe(200);
+		expect(r.headers.get('x-ignored-params')).toBe('js,js_render');
+	});
+
+	it('says nothing when every parameter is one it reads', async () => {
+		// Absent, not empty. A header present on every response is noise.
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&render=false`,
+		);
+		expect(r.headers.get('x-ignored-params')).toBeNull();
+	});
+
+	it('serves the request when a parameter name carries CRLF, rather than 500ing', async () => {
+		// Over real HTTP, because that is where it broke: `Headers.set` throws on CR/LF, and an
+		// unhandled throw in the middleware is a 500 on a request that would otherwise have been
+		// served. Measured 2026-08-27 before the filter: 500. Both halves matter — the request
+		// succeeds, AND nothing was smuggled into a header of its own.
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&a%0d%0aX-Foo:%20bar=1`,
+		);
+		expect(r.status).toBe(200);
+		expect(r.headers.get('x-foo')).toBeNull();
+		expect(r.headers.get('x-ignored-params')).toBe('+1');
+	});
+
+	it('names an ignored parameter on an error response too', async () => {
+		// The request that is already going wrong is exactly the one a caller is looking at. A
+		// 400 for a bad `premium` should still mention that `js_render` went nowhere.
+		const r = await get(
+			`api_key=${API_KEY}&url=https://example.com/&premium=gold&js_render=true`,
+		);
+		expect(r.status).toBe(400);
+		expect(r.headers.get('x-ignored-params')).toBe('js_render');
+	});
+
 	it('honours provider= as a benchmarking escape hatch', async () => {
 		const only = IDS[1] as string;
 		const r = await get(
