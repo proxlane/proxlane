@@ -531,6 +531,72 @@ describe('transport failures become outcomes no adapter can produce', () => {
 	});
 });
 
+describe('a hard block says WHO blocked you', () => {
+	// The gap a real caller found. `HARD_BLOCK` is the provider saying "blocked", which for
+	// three of the four adapters is literally `status === 403`, so the detector never ran and
+	// the response carried `x-outcome: HARD_BLOCK` with no `X-Detect-Rule` beside it. On the
+	// product whose pitch is naming the defence, the one outcome that IS a block was the one
+	// that could not name it.
+	//
+	// It also quietly capped the corpus: `verifiedAgainstRealCapture` can only be earned by a
+	// rule the detector actually runs, so a vendor that answers 403 every time is a vendor whose
+	// rule live traffic could never confirm.
+	const incapsula = new TextEncoder().encode(
+		'<html><body><iframe id="main-iframe" src="/_Incapsula_Resource?CWUDNSAI=23&xinfo=2-8557599-0"></iframe></body></html>',
+	);
+	const blocked403: TransportResult = {
+		kind: 'response',
+		response: { status: 403, headers: { 'content-type': 'text/html' }, body: incapsula },
+		latencyMs: 10,
+	};
+	const hardBlocker: Adapter = {
+		capabilities: caps({ id: 'a' }),
+		translate: (r) => ({
+			url: `https://api.a.test/?u=${encodeURIComponent(r.url)}`,
+			method: 'GET',
+			headers: {},
+			timeoutMs: 70_000,
+		}),
+		// What a real adapter does with a 403: the provider said blocked, so say blocked. The
+		// bytes are never examined, which is exactly why the chain has to.
+		parse: () => ({ outcome: 'HARD_BLOCK', cost: { microcredits: 0, source: 'estimated' } }),
+	};
+
+	it('names the vendor without touching the outcome', async () => {
+		const r = await runChain(req(), {
+			transport: transportOf([blocked403]),
+			candidates: [{ adapter: hardBlocker, key: 'k' }],
+			maxBodyBytes: 1_000_000,
+		});
+		// BOTH HALVES. The label is new; the outcome must be exactly what it was, because
+		// HARD_BLOCK is already right and already arms the `blk` cooldown. Re-deriving it from a
+		// string match could only make it wrong.
+		expect(r.outcome).toBe('HARD_BLOCK');
+		expect(r.detectRuleId).toBe('imperva-incapsula');
+	});
+
+	it('leaves the label off when no rule recognises the page', async () => {
+		// A bespoke block nobody has a fingerprint for is still a hard block. Absent, not a
+		// guess: a wrong vendor name is worse than no vendor name.
+		const bespoke: TransportResult = {
+			kind: 'response',
+			response: {
+				status: 403,
+				headers: { 'content-type': 'text/html' },
+				body: new TextEncoder().encode('<html><body>Forbidden</body></html>'),
+			},
+			latencyMs: 10,
+		};
+		const r = await runChain(req(), {
+			transport: transportOf([bespoke]),
+			candidates: [{ adapter: hardBlocker, key: 'k' }],
+			maxBodyBytes: 1_000_000,
+		});
+		expect(r.outcome).toBe('HARD_BLOCK');
+		expect(r.detectRuleId).toBeUndefined();
+	});
+});
+
 describe('SOFT_BLOCK, which only the chain can assign', () => {
 	const blockPage = new TextEncoder().encode(
 		'<html><body><script src="/cdn-cgi/challenge-platform/h/b/orchestrate"></script></body></html>',

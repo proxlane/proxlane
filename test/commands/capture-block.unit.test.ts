@@ -17,7 +17,13 @@ import { describe, expect, it } from 'vitest';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-import { buildCapture, destinationFor, registrableHost } from '../../scripts/capture-block.ts';
+import {
+	buildCapture,
+	destinationFor,
+	hostForms,
+	registrableHost,
+	scrubHost,
+} from '../../scripts/capture-block.ts';
 
 const PRIVATE = '/tmp/proxlane-corpus';
 
@@ -107,7 +113,15 @@ describe('a capture carries no name and no secret', () => {
 			'x-sapi-api_key': 'sk-live-abcdefghijklmnop',
 			'set-cookie': 'sess=abc',
 		},
-		body: '<html>blocked, key sk-live-abcdefghijklmnop</html>',
+		// THE HOST IS IN THE BODY ON PURPOSE. It was not, and the assertion below — "never the
+		// host" — therefore passed without ever exercising the body. A real block page names its
+		// own site several times over: a canonical link, a support URL, a cookie domain. The
+		// first live-traffic capture offered to this repo carried its target three times, and
+		// the person handing it over is the one who noticed.
+		body:
+			'<html><a href="https://www.example-shop.com/help">help</a>' +
+			'<p>Access to example-shop.com denied</p>' +
+			'blocked, key sk-live-abcdefghijklmnop</html>',
 	};
 	const cap = buildCapture(
 		ex,
@@ -123,6 +137,46 @@ describe('a capture carries no name and no secret', () => {
 		expect(cap.targetClass).toBe('ecommerce');
 		expect(json).not.toContain('example-shop');
 		expect(json).not.toContain(ex.url);
+	});
+
+	it('removes the host from the BODY, not only from the fields', () => {
+		// The claim in `capture-block.ts` is that the host is dropped "even in the private half,
+		// so a corpus that later becomes publishable does not have to be re-sanitised". Dropping
+		// the `url` field alone does not achieve that while the bytes still spell it out.
+		const body = Buffer.from(cap.bodyBase64, 'base64').toString('utf8');
+		expect(body).not.toContain('example-shop.com');
+		expect(body).not.toContain('example-shop');
+		// And it is a redaction, not a deletion of the page: what made it a block page survives.
+		expect(body).toContain('denied');
+		expect(body).toContain('blocked');
+	});
+
+	it('strips every parent form, not just the exact hostname', () => {
+		expect(hostForms('https://www.a.example-shop.co/x')).toEqual([
+			'www.a.example-shop.co',
+			'a.example-shop.co',
+			'example-shop.co',
+		]);
+	});
+
+	it('leaves non-ASCII bytes untouched while scrubbing', () => {
+		// A block page is often not UTF-8, and a capture exists to be fingerprinted byte for
+		// byte. Round-tripping through latin1 is what keeps a Shift_JIS page intact; a naive
+		// UTF-8 decode would replace every high byte with U+FFFD and silently ruin the corpus
+		// entry this tool exists to produce.
+		const raw = new Uint8Array([
+			0x82,
+			0xa0,
+			...new TextEncoder().encode('shop.example'),
+			0x93,
+			0xfa,
+		]);
+		const out = scrubHost(raw, 'https://shop.example/x');
+		expect(out[0]).toBe(0x82);
+		expect(out[1]).toBe(0xa0);
+		expect(out[out.length - 2]).toBe(0x93);
+		expect(out[out.length - 1]).toBe(0xfa);
+		expect(Buffer.from(out).toString('latin1')).not.toContain('shop.example');
 	});
 
 	it('redacts a key from the headers and from the body', () => {

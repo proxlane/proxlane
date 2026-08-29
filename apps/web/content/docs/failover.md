@@ -35,7 +35,7 @@ providers costs three times as much and returns the same 404.
 A blocked request usually returns HTTP 200 with a challenge page in the body. Status codes
 alone cannot see it, which is why Proxlane reads the body.
 
-When a rule matches, the outcome is `SOFT_BLOCK` and `X-Detect-Rule` names the rule. You get
+When a rule matches a page the provider called a success, the outcome is `SOFT_BLOCK` and `X-Detect-Rule` names the rule. The same header appears on a `HARD_BLOCK` — there the provider already told us it was blocked, and the rule names which defence did it. You get
 the reason, not just the verdict.
 
 Rules currently come from vendor signatures. They have not yet been tuned against a corpus

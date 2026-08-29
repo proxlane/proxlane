@@ -704,7 +704,35 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					// NOT `TARGET_NOT_FOUND`: a 404 is the target's real answer, and re-labelling one
 					// because the 404 page happens to carry a vendor token would make it fail over to
 					// fetch the same 404 three more times.
-					else if (outcome === 'TARGET_ERROR' && res.kind === 'response') {
+					// AND A HARD BLOCK, FOR ATTRIBUTION ONLY — the outcome is not touched.
+					//
+					// `HARD_BLOCK` is the provider saying "blocked", which for three adapters is
+					// literally `status === 403`. The detector never ran on it, so the gateway knew
+					// you were blocked and never asked BY WHOM — on the one outcome where a caller
+					// most wants the answer, and on the product whose whole pitch is naming the
+					// defence. A real caller hit an Incapsula page through the chain and got
+					// `x-outcome: HARD_BLOCK` with no `X-Detect-Rule` beside it.
+					//
+					// It also left a hole in the corpus. `verifiedAgainstRealCapture` can only ever
+					// be earned by a rule the detector actually runs, and a vendor that answers 403
+					// every time is a vendor whose rule live traffic could never confirm — which is
+					// most of the interesting ones.
+					//
+					// THE OUTCOME IS DELIBERATELY UNCHANGED. `HARD_BLOCK` is already correct and
+					// already arms the `blk` cooldown; re-deriving it from a string match could only
+					// make it wrong. This sets the label and nothing else, so a rule that does not
+					// fire costs a missing header rather than a mis-routed request.
+					else if (outcome === 'HARD_BLOCK' && res.kind === 'response') {
+						const raw = res.response.body;
+						if (raw !== undefined && raw.byteLength > 0) {
+							const verdict = detect(
+								raw,
+								res.response.headers['content-type'],
+								parsed?.charset,
+							);
+							if (verdict.blocked) detectRuleId = verdict.ruleId;
+						}
+					} else if (outcome === 'TARGET_ERROR' && res.kind === 'response') {
 						const raw = res.response.body;
 						if (raw !== undefined && raw.byteLength > 0) {
 							const verdict = detect(
