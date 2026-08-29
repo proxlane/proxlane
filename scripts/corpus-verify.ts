@@ -128,6 +128,27 @@ export function verify(dirs: readonly string[]): {
 	return { table, mismatches, seen };
 }
 
+/**
+ * Claims the committed table makes that a regeneration would drop.
+ *
+ * Parsed from the file's own text rather than imported, because the point is to compare against
+ * what is COMMITTED, and importing would read whatever a previous half-finished run left behind.
+ */
+export function retractions(currentText: string, next: Record<string, Verified>): string[] {
+	const gone: string[] = [];
+	for (const m of currentText.matchAll(/^\t'?([a-z0-9-]+)'?: \{\n\t\tcaptures: (\d+),/gm)) {
+		const id = m[1] as string;
+		const was = Number(m[2]);
+		const now = next[id];
+		if (now === undefined) {
+			gone.push(`${id} (${was} capture(s) -> none)`);
+		} else if (now.captures < was) {
+			gone.push(`${id} (${was} capture(s) -> ${now.captures})`);
+		}
+	}
+	return gone;
+}
+
 /** The committed artefact. Sorted, so regenerating twice produces the same bytes. */
 export function render(table: Record<string, Verified>): string {
 	const ids = Object.keys(table).sort();
@@ -206,6 +227,29 @@ if (import.meta.filename === process.argv[1]) {
 			process.stderr.write(
 				'\n  refusing to --write without PROXLANE_PRIVATE_CORPUS: the private captures back ' +
 					'most of the table, and regenerating without them would quietly retract those claims.\n\n',
+			);
+			process.exit(1);
+		}
+		// AND REFUSE TO RETRACT, which the check above does not cover.
+		//
+		// That guard fires only when the private corpus is ENTIRELY absent. A corpus that is
+		// merely INCOMPLETE — one machine holding one of six captures — sailed through it and
+		// regenerated the table from what was mounted, silently deleting five verified rules.
+		// Measured: pointing this at a directory with a single capture rewrote a 5-rule table
+		// down to 1, exit 0, no warning. The website reads this file and prints "no real capture
+		// yet", so the visible result is the project retracting true claims about itself.
+		//
+		// The existing comment already states the intent — "the difference between 'not verified'
+		// and 'unverifiable from here'" — so this is that sentence enforced rather than written.
+		const dropped = retractions(current, table);
+		if (dropped.length > 0 && !process.argv.includes('--allow-retractions')) {
+			process.stderr.write(
+				`\n  refusing to --write: this would retract ${dropped.length} claim(s) that the ` +
+					'committed table makes.\n\n' +
+					dropped.map((d) => `    ${d}\n`).join('') +
+					'\n  Your corpus is probably incomplete rather than the claims being wrong. Mount ' +
+					'the full\n  private corpus and run again, or pass --allow-retractions if a claim ' +
+					'is genuinely being\n  withdrawn.\n\n',
 			);
 			process.exit(1);
 		}
