@@ -1,5 +1,16 @@
 # @proxlane/adapters
 
+## 0.8.0
+
+### Minor Changes
+
+- [#235](https://github.com/proxlane/proxlane/pull/235) [`b694712`](https://github.com/proxlane/proxlane/commit/b69471270c69894ccaa104214254e16e441cf97e) Thanks [@scarsam](https://github.com/scarsam)! - A Scrapfly response over 5MB no longer arrives as a URL marked `OK`. Scrapfly offloads bodies above that size to an object store and returns a pointer; `parse()` read it as the page, so the caller got 70 bytes with HTTP 200, the target's content-type and a charge. It is now `PROVIDER_BODY_OFFLOADED`, which fails over to a provider that returns the body inline.
+
+### Patch Changes
+
+- Updated dependencies [[`b694712`](https://github.com/proxlane/proxlane/commit/b69471270c69894ccaa104214254e16e441cf97e)]:
+  - @proxlane/shared@0.10.0
+
 ## 0.7.5
 
 ### Patch Changes
