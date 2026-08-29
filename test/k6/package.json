@@ -10,6 +10,7 @@
 		"@hono/node-server": "catalog:",
 		"@proxlane/adapters": "workspace:*",
 		"@proxlane/gateway": "workspace:*",
+		"@proxlane/shared": "workspace:*",
 		"@proxlane/tsconfig": "workspace:*",
 		"@types/node": "catalog:",
 		"typescript": "catalog:"

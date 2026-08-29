@@ -7,15 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import {
-	classifyTransportError,
-	MAX_FIXTURE_BYTES,
-	ResponseTooLargeError,
-	readCapped,
-	sanitize,
-	sanitizeHeaders,
-	TARGETS,
-} from './record.ts';
+import { MAX_FIXTURE_BYTES, sanitize, sanitizeHeaders, TARGETS } from './record.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -153,55 +145,10 @@ describe('the fixture byte format', () => {
 	});
 });
 
-describe('telling a deadline from a real transport failure', () => {
-	it('calls an aborted signal a deadline', () => {
-		const c = new AbortController();
-		c.abort();
-		expect(classifyTransportError(c.signal)).toBe('deadline');
-	});
-
-	it('does not call a network failure a deadline just because it says "abort"', () => {
-		// The defect this replaced: `err.message.includes('abort')`. Node reports a real
-		// abort as "This operation was aborted", so message-matching passes its happy path
-		// and looks fine. But a DNS or TLS error whose text merely contains the word would
-		// then be written out as a timeout fixture — the recorder fabricating a recording,
-		// which is the one thing CLAUDE.md says CI cannot detect. The signal is a fact.
-		const c = new AbortController();
-		expect(c.signal.aborted).toBe(false);
-		expect(classifyTransportError(c.signal)).toBe('failure');
-	});
-});
-
-describe('the body cap', () => {
-	function streamOf(chunks: Uint8Array[]) {
-		return {
-			body: new ReadableStream<Uint8Array>({
-				start(c) {
-					for (const ch of chunks) c.enqueue(ch);
-					c.close();
-				},
-			}),
-			arrayBuffer: () => Promise.reject(new Error('arrayBuffer must not be used')),
-		};
-	}
-
-	it('reassembles a multi-chunk body byte-for-byte', async () => {
-		const out = await readCapped(streamOf([new Uint8Array([1, 2]), new Uint8Array([3])]), 100);
-		expect(out).toEqual(new Uint8Array([1, 2, 3]));
-	});
-
-	it('throws once the cap is passed rather than after the whole transfer', async () => {
-		// The point of streaming: a provider sending an enormous body must be stopped part
-		// way, not buffered in full and then rejected.
-		const big = [new Uint8Array(8), new Uint8Array(8), new Uint8Array(8)];
-		await expect(readCapped(streamOf(big), 10)).rejects.toBeInstanceOf(ResponseTooLargeError);
-	});
-
-	it('allows a body exactly at the cap', async () => {
-		const out = await readCapped(streamOf([new Uint8Array(10)]), 10);
-		expect(out.byteLength).toBe(10);
-	});
-
+describe('the fixture ceiling', () => {
+	// The streaming read itself now lives in `@proxlane/shared/transport` and is covered by
+	// `transport.e2e.test.ts` — including the POST body this file's caller used to drop. What
+	// stays here is the one thing that is the recorder's own: how big a committed fixture may be.
 	it('has a cap well under the 10 MB response limit in operations.md section 1', () => {
 		// A fixture is read into memory by every contract test and lives in git forever, so
 		// its ceiling is its own concern and lower than a live response's.

@@ -1,11 +1,37 @@
-// The single owner of network I/O.
+// The single owner of network I/O, and since 0.13.0 that is enforced rather than asserted.
 //
 // `translate` and `parse` are pure so they can be tested against recorded bytes; that only
 // holds if every request in the system goes through here. This is also where the two
 // outcomes no adapter can produce come from — PROVIDER_TIMEOUT and RESPONSE_TOO_LARGE —
 // because both are properties of the transfer, not of anything a provider said.
+//
+// THE HEADER ABOVE USED TO BE A CLAIM AND WAS FALSE. Four places built a wire request and
+// sent it: this file, `scripts/record.ts`, `packages/cli/src/scrape.ts`, and the live canary
+// in `packages/adapters`. Three passed `wire.body`; the canary did not, and Bright Data is
+// the only adapter that POSTs one. So a bodyless POST reached `api.brightdata.com/request`,
+// came back `400 "zone" is required`, and the adapter mapped 400 to AUTH_FAILED — the canary
+// reported a dead credential for a key that was working, every run, for as long as a key was
+// present. The launch gate had never once measured that provider.
+//
+// A missing spread was the symptom. Four hand-rolled copies of one executor was the defect,
+// and the copy that drifted was the test, so nothing was positioned to catch it. The fix is
+// that there is now one of these and the other three call it. `transmits-the-request.contract.test.ts`
+// holds the line for every adapter in the registry.
+//
+// It also lives here, in `shared`, rather than in the gateway, because the canary cannot
+// import an app. See `wire.ts` for why that decides the package.
 
-import type { ProviderHttpRequest, ProviderHttpResponse } from '@proxlane/adapters';
+import type { ProviderHttpRequest, ProviderHttpResponse } from './wire.js';
+
+/**
+ * The body ceiling every caller defaults to, in MB and in bytes.
+ *
+ * `PROXLANE_BODY_CAP_MB` overrides it, and the literal `10` behind that `??` was written out
+ * twice already — in the gateway's boot and in `proxlane doctor` — which is how the CLI ends
+ * up reporting a cap the gateway is not using. One constant, three readers.
+ */
+export const DEFAULT_BODY_CAP_MB = 10;
+export const DEFAULT_BODY_CAP_BYTES = DEFAULT_BODY_CAP_MB * 1024 * 1024;
 
 export type TransportResult =
 	| {

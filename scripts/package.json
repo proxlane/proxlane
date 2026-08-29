@@ -12,6 +12,7 @@
 		"typescript": "catalog:"
 	},
 	"dependencies": {
-		"@proxlane/adapters": "workspace:*"
+		"@proxlane/adapters": "workspace:*",
+		"@proxlane/shared": "workspace:*"
 	}
 }

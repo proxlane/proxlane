@@ -22,6 +22,7 @@ import {
 	GATEWAY_ERROR_CODES,
 	requestIdFrom,
 } from '@proxlane/shared';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import { type Context, Hono } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { MIN_USEFUL_ATTEMPT_MS } from './budget.js';
@@ -32,7 +33,6 @@ import type { HealthStore } from './health-store.js';
 import { InflightLimiter, retryAfterSeconds } from './inflight.js';
 import { hostOf, type RequestLine, timings } from './log.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
-import type { HttpTransport } from './transport.js';
 import { VERSION } from './version.js';
 
 export interface AppDeps {

@@ -11,9 +11,9 @@
 
 import { randomBytes } from 'node:crypto';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
-import type { HttpTransport } from './transport.js';
 
 const API_KEY = randomBytes(24).toString('hex');
 const adapter = await (REGISTRY.scraperapi as () => Promise<Adapter>)();

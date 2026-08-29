@@ -6,11 +6,11 @@
 
 import type { Adapter, Outcome, ProviderCapabilities } from '@proxlane/adapters';
 import { COOLDOWN, cooldownKey, forcedProbeKey, initial } from '@proxlane/shared';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
 import { runChain } from './chain.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
 import { type HealthStore, InMemoryHealthStore } from './health-store.js';
-import type { HttpTransport } from './transport.js';
 
 function caps(id: string): ProviderCapabilities {
 	return {

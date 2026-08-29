@@ -341,27 +341,12 @@ export interface ProviderCapabilities {
 
 // ---------------------------------------------------------------- wire
 
-export interface ProviderHttpRequest {
-	readonly url: string;
-	readonly method: 'GET' | 'POST';
-	readonly headers: Readonly<Record<string, string>>;
-	readonly body?: string;
-	/** Per-attempt, derived by the router. The adapter does not choose it. */
-	readonly timeoutMs: number;
-}
+// Re-exported, not defined here. The types live in `@proxlane/shared/wire` next to the one
+// executor that consumes them, so the live canary in this package can use it without
+// importing an app. Adapter authors still get them from `@proxlane/adapters`.
+export type { ProviderHttpRequest, ProviderHttpResponse } from '@proxlane/shared/wire';
 
-export interface ProviderHttpResponse {
-	readonly status: number;
-	readonly headers: Readonly<Record<string, string>>;
-	/**
-	 * Wire bytes: after transfer-decoding, before charset decoding.
-	 *
-	 * undici has already handled `content-encoding`, so `parse` never sees gzip. Charset
-	 * decoding has NOT happened — a page declaring Shift_JIS in a `<meta>` tag is still
-	 * raw here, which is the only way `/detect` can fingerprint it without mojibake.
-	 */
-	readonly body: Uint8Array;
-}
+import type { ProviderHttpRequest, ProviderHttpResponse } from '@proxlane/shared/wire';
 
 /**
  * The provider's own `Retry-After`, in milliseconds, when it sent one.

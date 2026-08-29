@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import {
 	createReplayTransport,
 	loadFixtures,
@@ -21,7 +22,6 @@ import {
 } from '@proxlane/vitest-config/replay-transport';
 import { describe, expect, it } from 'vitest';
 import { runChain } from './chain.js';
-import type { HttpTransport } from './transport.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const IDS = Object.keys(REGISTRY).sort();

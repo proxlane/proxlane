@@ -1,4 +1,5 @@
 import { type Adapter, type GatewayRequest, policyFor, REGISTRY } from '@proxlane/adapters';
+import { createFetchTransport, DEFAULT_BODY_CAP_BYTES } from '@proxlane/shared/transport';
 import { EXIT, emit, emitError, style } from './output.js';
 
 // `proxlane scrape <url> --provider=<id>` — one real attempt through one real adapter.
@@ -69,78 +70,69 @@ export async function scrape(o: ScrapeOptions, json: boolean): Promise<number> {
 	}
 
 	const budget = o.timeoutMs ?? wire.timeoutMs;
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), budget);
-	const started = Date.now();
-	try {
-		const res = await fetch(wire.url, {
-			method: wire.method,
-			headers: wire.headers,
-			...(wire.body === undefined ? {} : { body: wire.body }),
-			signal: controller.signal,
-		});
-		const bytes = new Uint8Array(await res.arrayBuffer());
-		const headers: Record<string, string> = {};
-		res.headers.forEach((v, k) => {
-			headers[k] = v;
-		});
-		const latencyMs = Date.now() - started;
-
-		const result = adapter.parse({ status: res.status, headers, body: bytes });
-		const policy = policyFor(result.outcome);
-		const data = {
-			url: o.url,
-			provider: adapter.capabilities.id,
-			outcome: result.outcome,
-			upstreamStatusCode: result.upstreamStatusCode,
-			httpStatus: policy.httpStatus,
-			failover: policy.failover,
-			chargeable: policy.chargeable,
-			pages: policy.pages,
-			meaning: policy.meaning,
-			latencyMs,
-			bodyBytes: result.body?.byteLength ?? 0,
-			contentType: result.contentType,
-			charset: result.charset,
-			cost: result.cost,
-			...(o.showBody && result.body !== undefined
-				? { body: new TextDecoder().decode(result.body) }
-				: {}),
-		};
-
-		emit({ ok: result.outcome === 'OK', command: 'scrape', data }, json, () => {
-			const mark =
-				result.outcome === 'OK' ? style('OK', 'green') : style(result.outcome, 'yellow');
-			return (
-				`\n  ${mark}  ${o.url}\n` +
-				`  ${style(`via ${data.provider} · ${latencyMs}ms · ${data.bodyBytes} bytes · upstream ${data.upstreamStatusCode ?? 'n/a'}`, 'dim')}\n` +
-				`  ${style(`${policy.meaning}. failover ${String(policy.failover)}, charged ${String(policy.chargeable)}`, 'dim')}\n` +
-				(o.showBody && result.body !== undefined
-					? `\n${new TextDecoder().decode(result.body)}\n`
-					: '') +
-				'\n'
-			);
-		});
-		// Exit 1 on any non-OK outcome. The command SUCCEEDED at answering; the answer is bad,
-		// and an agent branching on the exit code wants that distinction, not a crash.
-		return result.outcome === 'OK' ? EXIT.OK : EXIT.FAILED;
-	} catch (err) {
-		// Discriminated on the signal, never the message: Node reports an abort as "This
-		// operation was aborted", so message-matching happens to work until a DNS error
-		// containing the word arrives and gets labelled a timeout.
-		const timedOut = controller.signal.aborted;
+	// ONE EXECUTOR, the gateway's own. `proxlane scrape` is the surface a self-hoster reaches
+	// for when the gateway disagrees with them, so it must not answer from a different code
+	// path than the gateway uses. It also inherits the capped streaming read: an uncapped
+	// `arrayBuffer()` here would buffer whatever a provider streamed at a laptop.
+	const result_ = await createFetchTransport().execute(wire, {
+		budgetMs: budget,
+		maxBodyBytes: DEFAULT_BODY_CAP_BYTES,
+	});
+	if (result_.kind === 'timeout') {
+		emitError('scrape', 'PROVIDER_TIMEOUT', `no response within ${budget}ms`, json);
+		return EXIT.FAILED;
+	}
+	if (result_.kind === 'too-large') {
 		emitError(
 			'scrape',
-			timedOut ? 'PROVIDER_TIMEOUT' : 'TRANSPORT_ERROR',
-			timedOut
-				? `no response within ${budget}ms`
-				: `transport failed: ${err instanceof Error ? err.message : String(err)}`,
+			'RESPONSE_TOO_LARGE',
+			`the response passed the ${result_.cap}-byte cap and the transfer was stopped`,
 			json,
 		);
 		return EXIT.FAILED;
-	} finally {
-		// In `finally`, not chained to fetch(): fetch() resolves on HEADERS, so clearing it
-		// there leaves the body read with no deadline at all.
-		clearTimeout(timer);
 	}
+	if (result_.kind !== 'response') {
+		const detail = 'message' in result_ ? result_.message : result_.kind;
+		emitError('scrape', 'TRANSPORT_ERROR', `transport failed: ${detail}`, json);
+		return EXIT.FAILED;
+	}
+	const latencyMs = result_.latencyMs;
+	const result = adapter.parse(result_.response);
+	const policy = policyFor(result.outcome);
+	const data = {
+		url: o.url,
+		provider: adapter.capabilities.id,
+		outcome: result.outcome,
+		upstreamStatusCode: result.upstreamStatusCode,
+		httpStatus: policy.httpStatus,
+		failover: policy.failover,
+		chargeable: policy.chargeable,
+		pages: policy.pages,
+		meaning: policy.meaning,
+		latencyMs,
+		bodyBytes: result.body?.byteLength ?? 0,
+		contentType: result.contentType,
+		charset: result.charset,
+		cost: result.cost,
+		...(o.showBody && result.body !== undefined
+			? { body: new TextDecoder().decode(result.body) }
+			: {}),
+	};
+
+	emit({ ok: result.outcome === 'OK', command: 'scrape', data }, json, () => {
+		const mark =
+			result.outcome === 'OK' ? style('OK', 'green') : style(result.outcome, 'yellow');
+		return (
+			`\n  ${mark}  ${o.url}\n` +
+			`  ${style(`via ${data.provider} · ${latencyMs}ms · ${data.bodyBytes} bytes · upstream ${data.upstreamStatusCode ?? 'n/a'}`, 'dim')}\n` +
+			`  ${style(`${policy.meaning}. failover ${String(policy.failover)}, charged ${String(policy.chargeable)}`, 'dim')}\n` +
+			(o.showBody && result.body !== undefined
+				? `\n${new TextDecoder().decode(result.body)}\n`
+				: '') +
+			'\n'
+		);
+	});
+	// Exit 1 on any non-OK outcome. The command SUCCEEDED at answering; the answer is bad,
+	// and an agent branching on the exit code wants that distinction, not a crash.
+	return result.outcome === 'OK' ? EXIT.OK : EXIT.FAILED;
 }

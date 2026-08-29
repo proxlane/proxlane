@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { REGISTRY } from '@proxlane/adapters';
 import { assessMemory, describeSource, readMemoryLimit } from '@proxlane/shared';
+import { DEFAULT_BODY_CAP_MB } from '@proxlane/shared/transport';
 import { EXIT, emit, style } from './output.js';
 
 // `proxlane doctor` — the self-host support surface.
@@ -296,7 +297,7 @@ function terminalRetryCheck(): Check {
 function backpressureCheck(): Check {
 	const raw = env('PROXLANE_MAX_INFLIGHT');
 	const max = Number(raw ?? 32);
-	const capMb = Number(env('PROXLANE_BODY_CAP_MB') ?? 10);
+	const capMb = Number(env('PROXLANE_BODY_CAP_MB') ?? DEFAULT_BODY_CAP_MB);
 	// The same rule `InflightLimiter` enforces, so `doctor` predicts the boot rather than
 	// disagreeing with it.
 	const ok = Number.isInteger(max) && max >= 1;

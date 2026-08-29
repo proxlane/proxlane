@@ -15,6 +15,7 @@
 // and drift does not need volume — it needs regularity.
 
 import { providerKeyFromEnv } from '@proxlane/shared';
+import { createFetchTransport, DEFAULT_BODY_CAP_BYTES } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
 import { type Adapter, REGISTRY } from './index.js';
 
@@ -115,6 +116,21 @@ async function attempt(id: string, url: string, renderJs: boolean) {
 	return second;
 }
 
+/**
+ * ONE EXECUTOR, shared with the gateway. Never a second copy of it.
+ *
+ * This function used to hand-roll its own `fetch`, and it dropped `wire.body`. Bright Data is
+ * the only adapter that POSTs one, so it alone received a bodyless request, answered
+ * `400 "zone" is required`, and was reported as AUTH_FAILED on every run — a dead credential
+ * for a key that worked. The canary is the instrument the launch gate reads, so the one copy
+ * that drifted was the one nothing else was watching.
+ *
+ * `createFetchTransport` is the gateway's own transport, which is the point: the canary now
+ * exercises the code path production uses, and a capped streaming read and a real
+ * timeout/abort discrimination come along with it.
+ */
+const transport = createFetchTransport();
+
 async function attemptOnce(id: string, url: string, renderJs: boolean) {
 	const adapter: Adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
 	const wire = adapter.translate(
@@ -127,25 +143,19 @@ async function attemptOnce(id: string, url: string, renderJs: boolean) {
 		},
 		keyFor(id) as string,
 	);
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), wire.timeoutMs);
-	try {
-		const res = await fetch(wire.url, {
-			method: wire.method,
-			headers: wire.headers,
-			signal: controller.signal,
-		});
-		const headers: Record<string, string> = {};
-		res.headers.forEach((v, k) => {
-			headers[k] = v;
-		});
-		const body = new Uint8Array(await res.arrayBuffer());
-		return { adapter, parsed: adapter.parse({ status: res.status, headers, body }) };
-	} finally {
-		// In `finally`, so the deadline covers the body read too. fetch() resolves on headers,
-		// and clearing the timer there leaves the transfer unbounded.
-		clearTimeout(timer);
+	const result = await transport.execute(wire, {
+		budgetMs: wire.timeoutMs,
+		maxBodyBytes: DEFAULT_BODY_CAP_BYTES,
+	});
+	if (result.kind !== 'response') {
+		// Surfaced as an assertion failure rather than a thrown transport error, so the report
+		// names the provider and what the transfer did instead of a bare stack.
+		throw new Error(
+			`${id}: transport returned "${result.kind}" instead of a response` +
+				('message' in result ? ` — ${result.message}` : ''),
+		);
 	}
+	return { adapter, parsed: adapter.parse(result.response) };
 }
 
 describe.each(configured)('%s, against the live API', (id) => {

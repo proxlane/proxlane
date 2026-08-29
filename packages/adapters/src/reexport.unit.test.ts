@@ -35,6 +35,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
  */
 const REASONS = {
 	/**
+	 * THE ONE THING AN ADAPTER MUST NEVER TOUCH.
+	 *
+	 * `translate` and `parse` are pure and total — no I/O, no clock, no network — which is the
+	 * property that lets a stranger write an adapter and test it against recorded bytes with no
+	 * credentials. The executor lives in `@proxlane/shared/transport` because the gateway, the
+	 * CLI, `record` and the live canary all need the SAME one; re-exporting it from
+	 * `@proxlane/adapters` would put a `fetch` one import away from every adapter author and
+	 * make the purity rule a matter of discipline rather than of reach.
+	 *
+	 * The wire TYPES are re-exported by `contract.ts` and are deliberately not in this list: an
+	 * adapter must name what it builds, it just must not send it.
+	 */
+	TRANSPORT: 'network I/O: adapters are pure, only the shared executor may send a request',
+	/**
 	 * The gateway owns routing. An adapter translates a request and parses a response; it
 	 * never decides whether a provider is cooling, healthy, or eligible for the next hop.
 	 */
@@ -132,6 +146,17 @@ const EXCLUSIONS: ReadonlyArray<readonly [reason: string, names: readonly string
 			'describeSource',
 			'overBudgetMessage',
 			'readMemoryLimit',
+		],
+	],
+	[
+		REASONS.TRANSPORT,
+		[
+			'DEFAULT_BODY_CAP_BYTES',
+			'DEFAULT_BODY_CAP_MB',
+			'HttpTransport',
+			'TransportOptions',
+			'TransportResult',
+			'createFetchTransport',
 		],
 	],
 	[

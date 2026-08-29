@@ -9,10 +9,10 @@ import type {
 	ProviderCapabilities,
 } from '@proxlane/adapters';
 import { CAPABILITIES, costOf } from '@proxlane/adapters';
+import type { HttpTransport, TransportResult } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
 import { isCapable, runChain } from './chain.js';
-import type { HttpTransport, TransportResult } from './transport.js';
 
 function caps(over: Partial<ProviderCapabilities> & { id: string }): ProviderCapabilities {
 	return {
