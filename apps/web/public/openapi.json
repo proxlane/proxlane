@@ -121,6 +121,16 @@
 						"in": "query"
 					},
 					{
+						"name": "wait_for",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"maxLength": 256
+						},
+						"description": "A CSS selector the renderer must see before it snapshots the page. Implies render=true: a wait condition with no renderer to wait is not a request anyone means, so it is honoured rather than rejected. Rendering means the renderer ran, not that the content arrived — on a late-hydrating page the same request returns the full listing on one attempt and an empty shell on the next, and this is how you name the finish line. Narrows the chain to providers that can express it, which is not all of them: measured on 2026-08-29, Bright Data accepts the directive and could not be shown to enforce it, so it declares it cannot and is filtered out rather than charging you for a page that did not wait. Refused as BAD_REQUEST if empty, longer than 256 characters, or carrying a control character.",
+						"in": "query"
+					},
+					{
 						"name": "timeout",
 						"required": false,
 						"schema": {
@@ -767,6 +777,16 @@
 							]
 						},
 						"description": "Ask for the response body byte for byte — an image, a PDF, anything not text. Narrows the chain to providers that can deliver it, which is not all of them: measured on 2026-08-19, two of the four launch providers destroy binary, one by decoding it as UTF-8 and one by wrapping it in a JSON envelope. Without this a request for an image returns 200 with a quietly corrupted body. If no configured provider can serve bytes the answer is NO_PROVIDER_AVAILABLE, which is the honest failure.",
+						"in": "query"
+					},
+					{
+						"name": "wait_for",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"maxLength": 256
+						},
+						"description": "A CSS selector the renderer must see before it snapshots the page. Implies render=true: a wait condition with no renderer to wait is not a request anyone means, so it is honoured rather than rejected. Rendering means the renderer ran, not that the content arrived — on a late-hydrating page the same request returns the full listing on one attempt and an empty shell on the next, and this is how you name the finish line. Narrows the chain to providers that can express it, which is not all of them: measured on 2026-08-29, Bright Data accepts the directive and could not be shown to enforce it, so it declares it cannot and is filtered out rather than charging you for a page that did not wait. Refused as BAD_REQUEST if empty, longer than 256 characters, or carrying a control character.",
 						"in": "query"
 					},
 					{

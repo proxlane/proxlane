@@ -20,6 +20,7 @@ function caps(id: string, over: Partial<ProviderCapabilities> = {}): ProviderCap
 		id,
 		line: 1,
 		renderJs: true,
+		waitForSelector: true,
 		countryCodes: 'all',
 		premiumTiers: new Set(['none']),
 		sessions: false,

@@ -18,6 +18,7 @@ function caps(over: Partial<ProviderCapabilities> & { id: string }): ProviderCap
 	return {
 		line: 1,
 		renderJs: true,
+		waitForSelector: true,
 		countryCodes: 'all',
 		premiumTiers: new Set(['none']),
 		sessions: false,
@@ -237,6 +238,19 @@ describe('an attempt records what the cost was and where it came from', () => {
 
 describe('capability filtering happens before anyone is charged', () => {
 	it('excludes a provider that cannot render JS', () => {
+		// A WAIT CONDITION THE PROVIDER CANNOT EXPRESS. Filtered, not dropped: a provider that
+		// ignores `wait_for` returns 200 with the pre-hydration shell — the exact failure the
+		// parameter exists to end — and the caller pays for it. Bright Data is the live instance:
+		// `x-unblock-expect` is accepted and not demonstrably enforced, so it declares false.
+		expect(
+			isCapable(caps({ id: 'a', waitForSelector: false }), req({ waitFor: '.results' })),
+			'a provider that cannot wait was offered a wait',
+		).toBe(false);
+		expect(
+			isCapable(caps({ id: 'a', waitForSelector: true }), req({ waitFor: '.results' })),
+		).toBe(true);
+		// And it must not narrow anything when nobody asked.
+		expect(isCapable(caps({ id: 'a', waitForSelector: false }), req({}))).toBe(true);
 		expect(isCapable(caps({ id: 'a', renderJs: false }), req({ renderJs: true }))).toBe(false);
 		expect(isCapable(caps({ id: 'a', renderJs: true }), req({ renderJs: true }))).toBe(true);
 	});

@@ -87,6 +87,11 @@ export const capabilities: ProviderCapabilities = {
 	// diagram, the dashboard charts, the /providers pages. A slot, never a hex.
 	line: 1,
 	renderJs: false,
+	// Can the renderer be told to WAIT for an element before it snapshots? Only declare true once
+	// you have watched it work: a wrong parameter name is silently ignored rather than rejected,
+	// so the caller pays for a rendered shell believing they waited. \`isCapable\` filters the
+	// chain on this, so false simply means requests carrying \`wait_for\` go elsewhere.
+	waitForSelector: false,
 	countryCodes: 'all',
 	premiumTiers: new Set(['none']),
 	sessions: false,

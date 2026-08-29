@@ -33,6 +33,9 @@ export const capabilities: ProviderCapabilities = {
 	id: 'scrapingbee',
 	line: 2,
 	renderJs: true,
+	// `wait_for=<selector>`. Verified live 2026-08-29: 200 with content, and this API rejects
+	// an unknown parameter with 400 "Unknown field", so acceptance proves the name.
+	waitForSelector: true,
 	/**
 	 * The classic-proxy list, in full. 42 codes, counted from the source twice.
 	 *

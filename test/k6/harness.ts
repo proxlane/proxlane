@@ -46,6 +46,7 @@ function mockAdapter(endpoint: string, line: 1 | 2 | 3, id: string): Adapter {
 			id,
 			line,
 			renderJs: true,
+			waitForSelector: true,
 			countryCodes: 'all',
 			premiumTiers: new Set(['none', 'residential', 'stealth']),
 			sessions: true,

@@ -571,6 +571,43 @@ describe('query parsing, where a default leaks most easily', () => {
 		expect(r.headers.get('x-ignored-params')).toBe('+1');
 	});
 
+	it('refuses an empty wait_for rather than waiting for nothing', async () => {
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&wait_for=`,
+		);
+		expect(r.status).toBe(400);
+		expect(((await r.json()) as { error: { message: string } }).error.message).toMatch(
+			/wait_for/,
+		);
+	});
+
+	it('refuses a wait_for carrying a newline', async () => {
+		// One adapter puts this inside a JSON payload and the value is caller-controlled. A
+		// header-shaped value is precisely how the ignored-params header became a 500 in 0.11.0,
+		// so it is refused at our door rather than trusted to whatever encodes it downstream.
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&wait_for=${encodeURIComponent('h1\r\nX-Foo: bar')}`,
+		);
+		expect(r.status).toBe(400);
+		expect(r.headers.get('x-foo')).toBeNull();
+	});
+
+	it('refuses a wait_for longer than the cap', async () => {
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&wait_for=${'a'.repeat(257)}`,
+		);
+		expect(r.status).toBe(400);
+	});
+
+	it('does not report wait_for as ignored, which is the whole point', async () => {
+		// The header that started this: a caller sent `wait_for` and the gateway answered
+		// `X-Ignored-Params: wait_for` — correct, and useless. It is honoured now.
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&wait_for=h1`,
+		);
+		expect(r.headers.get('x-ignored-params')).toBeNull();
+	});
+
 	it('names an ignored parameter on an error response too', async () => {
 		// The request that is already going wrong is exactly the one a caller is looking at. A
 		// 400 for a bad `premium` should still mention that `js_render` went nowhere.

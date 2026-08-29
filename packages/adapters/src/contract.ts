@@ -243,6 +243,31 @@ export interface ProviderCapabilities {
 	 */
 	readonly line: 1 | 2 | 3 | 4;
 	readonly renderJs: boolean;
+	/**
+	 * Can the renderer be told to wait for an element before it snapshots?
+	 *
+	 * MEASURED, not read off a docs page, because a wait that silently does not happen is worse
+	 * than no wait at all — the caller believes the page settled. What each provider gave, on
+	 * 2026-08-29:
+	 *
+	 *   scrapingbee  `wait_for=<selector>`          200 with content; a bogus parameter is
+	 *                                               rejected `400 {"zzz":["Unknown field."]}`,
+	 *                                               so acceptance is proof the name is real
+	 *   scrapfly     `wait_for_selector=<selector>` echoed back in the API's own parsed `config`
+	 *                                               as `"h1"`; a bogus parameter is absent from it
+	 *   scraperapi   `wait_for_selector=<selector>` DOCUMENTED, not verified — the account was out
+	 *                                               of credits and 403s before validation. The
+	 *                                               canary confirms it on the first run with credit
+	 *   brightdata   `x-unblock-expect`             FALSE, deliberately. Nested in the payload's
+	 *                                               `headers` it returns `x-brd-status-code: 502`
+	 *                                               and an empty body; as a top-level header it is
+	 *                                               accepted, but a selector that is NOT on the
+	 *                                               page still returned the page in 8.6s. Accepted
+	 *                                               is not enforced, and until it demonstrably
+	 *                                               waits, declaring it would make the router
+	 *                                               promise something it cannot show.
+	 */
+	readonly waitForSelector: boolean;
 	readonly countryCodes: ReadonlySet<string> | 'all';
 	readonly premiumTiers: ReadonlySet<PremiumTier>;
 	/**

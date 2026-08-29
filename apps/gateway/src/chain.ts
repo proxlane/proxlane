@@ -223,6 +223,10 @@ export function isCapable(caps: ProviderCapabilities, req: GatewayRequest): bool
 	// response, because by the time the body is mojibake the request has already been paid for.
 	if (req.binary === true && !caps.binary) return false;
 	if (req.sessionId !== undefined && !caps.sessions) return false;
+	// A wait condition the provider cannot express. Filtered rather than dropped: sending it to
+	// a provider that ignores it returns 200 with the pre-hydration shell, which is the exact
+	// failure `wait_for` exists to end — and the caller would be charged to receive it.
+	if (req.waitFor !== undefined && !caps.waitForSelector) return false;
 	if (req.countryCode !== undefined && caps.countryCodes !== 'all') {
 		if (!caps.countryCodes.has(req.countryCode.toLowerCase())) return false;
 	}

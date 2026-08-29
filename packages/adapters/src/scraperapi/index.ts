@@ -65,6 +65,13 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 	const p = new URLSearchParams();
 	p.set('url', req.url);
 	p.set('render', String(req.renderJs));
+	// Only when asked. Unlike every other parameter here this one is NOT sent unconditionally:
+	// an empty selector is a different request from no selector, and the providers differ on
+	// which they treat as 'wait for nothing'. `capabilities.waitForSelector` is what stops it
+	// reaching a provider that cannot honour it; this only has to translate the name.
+	// DOCUMENTED, not verified: the account 403s on exhausted credits before it validates a
+	// parameter, so the canary is what confirms this name. Every other adapter's was measured.
+	if (req.waitFor !== undefined) p.set('wait_for_selector', req.waitFor);
 	p.set('premium', String(req.premium === 'residential'));
 	p.set('ultra_premium', String(req.premium === 'stealth'));
 	p.set('device_type', 'desktop');
