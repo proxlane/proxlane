@@ -64,6 +64,10 @@ export const capabilities: ProviderCapabilities = {
 	 * off, so `render=true` and `render=false` produce the same request — see `translate`.
 	 */
 	renderJs: true,
+	// `x-unblock-expect` is ACCEPTED and not demonstrably ENFORCED — measured 2026-08-29, a
+	// selector absent from the page still returned the page. See contract.ts. Declaring true
+	// would have the router promise a wait it cannot show happening.
+	waitForSelector: false,
 	countryCodes: 'all',
 	/**
 	 * ONE TIER, because the tier is a property of the zone rather than of the request.

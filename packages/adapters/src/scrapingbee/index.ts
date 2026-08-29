@@ -48,6 +48,13 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 	//   That is the honest-success-detection failure the product exists to prevent, shipped
 	//   by default, and it is opt-out.
 	p.set('render_js', String(req.renderJs));
+	// Only when asked. Unlike every other parameter here this one is NOT sent unconditionally:
+	// an empty selector is a different request from no selector, and the providers differ on
+	// which they treat as 'wait for nothing'. `capabilities.waitForSelector` is what stops it
+	// reaching a provider that cannot honour it; this only has to translate the name.
+	// Verified live 2026-08-29. This API answers an unknown parameter with
+	// `400 {"zzz":["Unknown field."]}`, so a 200 is proof the name is real.
+	if (req.waitFor !== undefined) p.set('wait_for', req.waitFor);
 	p.set('transparent_status_code', 'true');
 	p.set('premium_proxy', String(req.premium === 'residential'));
 	p.set('stealth_proxy', String(req.premium === 'stealth'));

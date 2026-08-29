@@ -17,6 +17,7 @@ function caps(id: string): ProviderCapabilities {
 		line: 1,
 		id,
 		renderJs: true,
+		waitForSelector: true,
 		post: true,
 		binary: false,
 		sessions: true,

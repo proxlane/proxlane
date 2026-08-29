@@ -50,6 +50,24 @@ export interface GatewayRequest {
 	 * constraint, which is why it lives here rather than in the translate step.
 	 */
 	binary?: boolean;
+	/**
+	 * A CSS selector the renderer must see before it snapshots the page.
+	 *
+	 * The gap this closes: proxlane renders, and on a late-hydrating page it returns the shell
+	 * anyway, because "rendered" means the renderer ran — not that the content arrived. A caller
+	 * measured 936KB with 50 results on one attempt and a 75KB empty shell on the next, from the
+	 * same request. That is a race, not a capability gap, and nothing in the request could
+	 * express the finish line.
+	 *
+	 * IMPLIES `renderJs`. A wait condition on a non-rendered fetch is meaningless — there is no
+	 * renderer to wait. Rejecting the combination was the other option and it is worse: the
+	 * caller's intent is unambiguous, and a 400 teaches them to send a flag they already meant.
+	 * The gateway sets `renderJs` at the edge so every adapter sees a coherent request.
+	 *
+	 * NOT EVERY PROVIDER SELLS IT, so it narrows the chain like `binary` does. See
+	 * `ProviderCapabilities.waitForSelector`.
+	 */
+	waitFor?: string;
 	headers?: Record<string, string>;
 	/** Global. The router derives per-attempt budgets from it; see section 5. */
 	deadlineMs: number;

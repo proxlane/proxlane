@@ -37,6 +37,9 @@ export const capabilities: ProviderCapabilities = {
 	id: 'scraperapi',
 	line: 1,
 	renderJs: true,
+	// `wait_for_selector=<selector>`, from the published parameter list. NOT verified live —
+	// the account 403s on exhausted credits before it validates. The canary confirms it.
+	waitForSelector: true,
 	/**
 	 * `all`, and it is known to over-claim. Left that way ON PURPOSE, with the reason recorded
 	 * because the alternative looks more correct and is worse.

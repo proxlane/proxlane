@@ -42,6 +42,8 @@ export const capabilities: ProviderCapabilities = {
 	// Left as a comment rather than silently modelled, because a capability that lies is
 	// worse than one that is coarse. See the note in index.ts translate().
 	renderJs: true,
+	// A reader endpoint, not a renderer. Nothing to wait for.
+	waitForSelector: false,
 	// No geotargeting at all. An empty set, not 'all' — the router must filter this out for
 	// any request naming a country rather than sending one and hoping.
 	countryCodes: new Set<string>(),

@@ -36,6 +36,7 @@ generator at it, or open it in any OpenAPI viewer.
 | `provider` | no | adapter id | Force one provider and disable failover |
 | `timeout` | no | milliseconds | Deadline for the whole request. Capped at the server's own |
 | `binary` | no | `true`, `1` | Return the body byte for byte. Routes only to providers that can |
+| `wait_for` | no | CSS selector, ≤256 chars | Wait for this element before snapshotting. Implies `render=true`. Routes only to providers that can express it |
 
 ### url
 

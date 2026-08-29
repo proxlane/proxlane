@@ -133,6 +133,7 @@ const KNOWN_PARAMS: readonly string[] = [
 	'render',
 	'timeout',
 	'url',
+	'wait_for',
 ];
 
 /**
@@ -149,6 +150,25 @@ const REPORTABLE = /^[A-Za-z0-9_.-]{1,40}$/;
 
 /** At most this many names, so a junk query cannot produce a header of unbounded length. */
 const MAX_REPORTED = 10;
+
+/** Longest accepted `wait_for` selector. Generous — real selectors are nowhere near it. */
+const MAX_WAIT_FOR = 256;
+
+/**
+ * A C0 control, DEL, or a C1 control.
+ *
+ * Written as a scan rather than a regex on purpose: a character class holding literal control
+ * characters is what `noControlCharactersInRegex` exists to catch, and it is right to — in a
+ * regex they are invisible in review and usually a mistake. Here they are the subject, so the
+ * check says so in code that can be read.
+ */
+function hasControlCharacter(v: string): boolean {
+	for (let i = 0; i < v.length; i++) {
+		const c = v.charCodeAt(i);
+		if (c <= 0x1f || (c >= 0x7f && c <= 0x9f)) return true;
+	}
+	return false;
+}
 
 /**
  * The parameters this request sent that the gateway does not read, sorted and deduplicated.
@@ -615,6 +635,40 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			});
 		}
 		const countryCode = c.req.query('country_code');
+		// A CSS SELECTOR, AND IT IS VALIDATED, because two of the three providers that take it put
+		// it in a query string and the shape is otherwise caller-controlled text on the hot path.
+		// `URLSearchParams` encodes, so this is not about injection there — it is about refusing a
+		// selector that cannot be one, at our door, for free, instead of paying a provider to
+		// reject it. The cap is generous: the longest selector in the wild is nothing like 256.
+		const waitForRaw = c.req.query('wait_for');
+		if (waitForRaw !== undefined) {
+			if (waitForRaw === '') {
+				return errorWith(c, 400, {
+					code: 'BAD_REQUEST',
+					message: 'wait_for must be a CSS selector, not empty',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
+			if (waitForRaw.length > MAX_WAIT_FOR) {
+				return errorWith(c, 400, {
+					code: 'BAD_REQUEST',
+					message: `wait_for must be at most ${MAX_WAIT_FOR} characters`,
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
+			// CONTROL CHARACTERS ONLY. Not an allowlist of selector syntax: CSS selectors legitimately
+			// contain quotes, brackets, colons, parentheses and unicode, and an allowlist written from
+			// memory would reject `[data-id="x"]` while feeling rigorous. What must never pass is a
+			// newline or a NUL — one adapter carries this inside a JSON payload and a header-shaped
+			// value is exactly how the ignored-params header became a 500 in 0.11.0.
+			if (hasControlCharacter(waitForRaw)) {
+				return errorWith(c, 400, {
+					code: 'BAD_REQUEST',
+					message: 'wait_for must not contain control characters',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
+		}
 		const forced = c.req.query('provider');
 		// Ask for bytes and the chain narrows to providers that can actually deliver them. Same
 		// explicit-truth rule as `render`: presence is not truth, or `binary=false` would route
@@ -690,7 +744,12 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			// Explicit, never inferred from presence: `render=false` must mean false, and the
 			// absence of the parameter must mean false too. Treating presence as truth is how
 			// `render=false` ends up rendering and billing 5x.
-			renderJs: renderRaw === 'true' || renderRaw === '1',
+			// `wait_for` IMPLIES RENDER. A wait condition with no renderer to wait is not a
+			// request anyone means, and rejecting it would teach the caller to send a flag they
+			// already implied. Set here, once, so every adapter and the capability filter see
+			// one coherent request rather than each deciding for itself.
+			renderJs: renderRaw === 'true' || renderRaw === '1' || waitForRaw !== undefined,
+			...(waitForRaw === undefined ? {} : { waitFor: waitForRaw }),
 			...(binary ? { binary: true } : {}),
 			premium: premiumRaw,
 			deadlineMs,

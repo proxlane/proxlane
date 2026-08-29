@@ -101,15 +101,15 @@ describe('the canary has something to run against', () => {
  * The retry is LOUD. A provider that needs one every week is drifting toward something, and a
  * silent second chance is how that stays invisible until it is a real outage.
  */
-async function attempt(id: string, url: string, renderJs: boolean) {
-	const first = await attemptOnce(id, url, renderJs);
+async function attempt(id: string, url: string, renderJs: boolean, waitFor?: string) {
+	const first = await attemptOnce(id, url, renderJs, waitFor);
 	if (first.parsed.outcome !== 'TARGET_ERROR') return first;
 	process.stdout.write(
 		`\n  RETRY: ${id} got TARGET_ERROR from ${new URL(url).host} — the target failed, not the ` +
 			`provider. Trying once more.\n`,
 	);
 	await new Promise((r) => setTimeout(r, 2_000));
-	const second = await attemptOnce(id, url, renderJs);
+	const second = await attemptOnce(id, url, renderJs, waitFor);
 	if (second.parsed.outcome === 'TARGET_ERROR') {
 		process.stdout.write(`  RETRY: ${id} got TARGET_ERROR twice. Reporting it.\n`);
 	}
@@ -131,7 +131,7 @@ async function attempt(id: string, url: string, renderJs: boolean) {
  */
 const transport = createFetchTransport();
 
-async function attemptOnce(id: string, url: string, renderJs: boolean) {
+async function attemptOnce(id: string, url: string, renderJs: boolean, waitFor?: string) {
 	const adapter: Adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
 	const wire = adapter.translate(
 		{
@@ -139,6 +139,7 @@ async function attemptOnce(id: string, url: string, renderJs: boolean) {
 			method: 'GET',
 			renderJs,
 			premium: 'none',
+			...(waitFor === undefined ? {} : { waitFor }),
 			deadlineMs: adapter.capabilities.maxTimeoutMs,
 		},
 		keyFor(id) as string,
@@ -200,6 +201,33 @@ describe.each(configured)('%s, against the live API', (id) => {
 			text,
 			`${id} declares renderJs but the page came back without content that only exists after JS runs`,
 		).toContain(JS_ONLY_MARKER);
+	}, 180_000);
+
+	it('honours a wait condition when it says it can', async () => {
+		// THE SECOND HONESTY CHECK, and the reason it exists: three adapters map `wait_for` to a
+		// parameter name, and only two of those names were verifiable when they were written.
+		// ScraperAPI's account was out of credits and 403s before it validates anything, so
+		// `wait_for_selector` there is the published name and nothing more. A wrong name does not
+		// error — the parameter is ignored, the page is snapshotted early, and the caller is
+		// charged for a rendered shell while believing they waited. That is precisely the failure
+		// `wait_for` was added to end, so it must not be the failure `wait_for` introduces.
+		//
+		// The marker only exists after JS runs, so a provider that ignored the selector can still
+		// pass on a fast page. What this pins is narrower and still worth having: asking for the
+		// wait does not break the request. `isCapable` filtering is unit-tested; the name is what
+		// only a live call can judge, and a 400 from the provider is how a wrong one shows up.
+		const adapter: Adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
+		if (!adapter.capabilities.waitForSelector) {
+			expect(adapter.capabilities.waitForSelector).toBe(false);
+			return;
+		}
+		const { parsed } = await attempt(id, JS_ONLY_TARGET, true, 'body');
+		expect(
+			parsed.outcome,
+			`${id} declares waitForSelector and the provider refused the request carrying one — ` +
+				'the parameter name is probably wrong, and a wrong name is silently ignored rather ' +
+				'than rejected on the providers that do accept it',
+		).toBe('OK');
 	}, 180_000);
 });
 

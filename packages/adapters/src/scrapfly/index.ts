@@ -31,6 +31,13 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 	p.set('key', key);
 	p.set('url', req.url);
 	p.set('render_js', String(req.renderJs));
+	// Only when asked. Unlike every other parameter here this one is NOT sent unconditionally:
+	// an empty selector is a different request from no selector, and the providers differ on
+	// which they treat as 'wait for nothing'. `capabilities.waitForSelector` is what stops it
+	// reaching a provider that cannot honour it; this only has to translate the name.
+	// Verified live 2026-08-29: the API echoes its parsed `config` back, and this appears in
+	// it with the value sent while a bogus parameter does not appear at all.
+	if (req.waitFor !== undefined) p.set('wait_for_selector', req.waitFor);
 	// Their anti-scraping-protection bypass, and what 'stealth' means for this provider.
 	p.set('asp', String(req.premium === 'stealth'));
 	p.set(

@@ -41,6 +41,9 @@ export const capabilities: ProviderCapabilities = {
 	id: 'scrapfly',
 	line: 3,
 	renderJs: true,
+	// `wait_for_selector=<selector>`. Verified live 2026-08-29: echoed back in the API's own
+	// parsed `config`, where a bogus parameter does not appear.
+	waitForSelector: true,
 	countryCodes: 'all',
 	// `asp` is their anti-scraping-protection bypass, which is what 'stealth' means here.
 	// Residential is a proxy_pool choice.

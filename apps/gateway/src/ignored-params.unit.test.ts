@@ -42,9 +42,10 @@ describe('ignoredParams', () => {
 	});
 
 	it('reports an unknown parameter that carries no value', () => {
-		// `wait_for` is ScrapingBee's and Scrapfly's, and a caller who types it bare still meant
-		// something by it. Nothing was assigned, so nothing looks wrong — which is the point.
-		expect(ignoredParams('?url=https://example.com&wait_for')).toEqual(['wait_for']);
+		// Nothing was assigned, so nothing looks wrong — which is the point. This used to use
+		// `wait_for` as the example, back when the gateway did not read it. It does now, and a
+		// parameter the gateway honours is the wrong example for a parameter it drops.
+		expect(ignoredParams('?url=https://example.com&js_render')).toEqual(['js_render']);
 	});
 
 	it('is empty for a query string with no parameters at all', () => {
