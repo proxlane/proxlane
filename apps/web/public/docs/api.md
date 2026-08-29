@@ -116,7 +116,7 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `Server-Timing` | always | `gw` is Proxlane, `up` is the providers, `total` is both |
 | `X-Request-Id` | always | Quote this in a support thread |
 | `X-Provider-Used` | when one served | Omitted, never empty, if nothing served |
-| `X-Detect-Rule` | when a rule fired | Which block-page rule produced a `SOFT_BLOCK` |
+| `X-Detect-Rule` | when a rule fired | Which block-page rule matched. On a `SOFT_BLOCK` it is what produced the outcome; on a `HARD_BLOCK` the provider already said blocked and this names the vendor that did it |
 | `X-Provider-Health` | when health is on, or when a floor fired | `demoted-forced`: every provider was demoted and the least bad was used. `cooling-forced`: every provider was cooling and one was tried anyway, rather than take the domain off the air |
 | `X-Ignored-Params` | when you sent one we don't read | The query parameters we threw away, sorted and comma-separated |
 | `Retry-After` | when known | Seconds, rounded up |

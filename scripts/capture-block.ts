@@ -66,6 +66,53 @@ export function registrableHost(url: string): string | undefined {
 	}
 }
 
+/**
+ * Every spelling of the captured host, longest first.
+ *
+ * `www.a.example.com` yields the full hostname AND `a.example.com` and `example.com`, because a
+ * block page references its own site in several forms — a canonical link, a support URL, a
+ * cookie domain — and stripping only the exact `Host:` value leaves the others behind.
+ */
+export function hostForms(url: string): string[] {
+	let h: string;
+	try {
+		h = new URL(url).hostname.toLowerCase();
+	} catch {
+		return [];
+	}
+	const parts = h.split('.');
+	const forms = new Set<string>();
+	for (let i = 0; i + 2 <= parts.length; i++) forms.add(parts.slice(i).join('.'));
+	return [...forms].sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Remove the target's name from bytes that are about to be stored.
+ *
+ * SECTION 19 SAYS THE HOST IS DROPPED "EVEN IN THE PRIVATE HALF", and until now that was true
+ * of the `url` FIELD and false of everything else. `sanitizeBody` redacts secrets, not names, so
+ * a captured block page kept every mention of the site it came from — and the stated reason for
+ * dropping the host is that a private corpus should be publishable later without re-sanitising.
+ * A capture whose body still names the target cannot be.
+ *
+ * Found by the caller who supplied the first live-traffic capture, who checked before handing it
+ * over and counted three occurrences of their target in the body.
+ */
+export function scrubHost(bytes: Uint8Array, url: string): Uint8Array {
+	const forms = hostForms(url);
+	if (forms.length === 0) return bytes;
+	// Latin-1 round-trips arbitrary bytes through a string unchanged, so a page in any charset
+	// survives this: a hostname is ASCII, and every non-ASCII byte is preserved byte for byte.
+	let text = Buffer.from(bytes).toString('latin1');
+	for (const form of forms) {
+		text = text.replace(
+			new RegExp(form.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
+			REDACTED,
+		);
+	}
+	return new Uint8Array(Buffer.from(text, 'latin1'));
+}
+
 export type Destination =
 	| { readonly kind: 'public'; readonly dir: string; readonly host: string }
 	| { readonly kind: 'private'; readonly dir: string }
@@ -127,7 +174,12 @@ export function buildCapture(
 	opts: { readonly rule: string; readonly targetClass: string; readonly now: string },
 	secrets: readonly string[],
 ): Capture {
-	const headers = sanitizeHeaders(ex.headers ?? {}, secrets);
+	const headers = Object.fromEntries(
+		Object.entries(sanitizeHeaders(ex.headers ?? {}, secrets)).map(([k, v]) => [
+			k,
+			Buffer.from(scrubHost(new TextEncoder().encode(v), ex.url)).toString('utf8'),
+		]),
+	);
 	// BOTH PATHS THROUGH ONE SANITISER. `bodyBase64` is the documented preferred input — bytes
 	// survive a charset the text form loses — and it used to bypass sanitisation entirely, so
 	// the default path stored the body exactly as given. Neither path ever called
@@ -140,7 +192,12 @@ export function buildCapture(
 		ex.bodyBase64 !== undefined
 			? new Uint8Array(Buffer.from(ex.bodyBase64, 'base64'))
 			: new TextEncoder().encode(ex.body ?? '');
-	const bodyBase64 = Buffer.from(sanitizeBody(raw, secrets)).toString('base64');
+	// SECRETS FIRST, THEN THE NAME. Two different rules: `sanitizeBody` redacts credentials and
+	// identifying fields, `scrubHost` removes what section 19 bars — the target's name. Neither
+	// covers the other, and the file's own docstring promised the second one before it existed.
+	const bodyBase64 = Buffer.from(scrubHost(sanitizeBody(raw, secrets), ex.url)).toString(
+		'base64',
+	);
 	return {
 		kind: 'block-capture',
 		capturedAt: opts.now,
@@ -242,6 +299,17 @@ if (import.meta.filename === process.argv[1]) {
 	);
 	for (const secret of secrets) {
 		if (secret.length >= 8 && scannable.includes(secret)) leaked.push('a provider key');
+	}
+	// AND THE TARGET'S NAME, which section 19 bars from a stored capture in either half. Asserted
+	// rather than assumed for the same reason as the rest: `scrubHost` is a string replacement,
+	// and a page can spell its own host in a form the URL did not — punycode, an entity, a split
+	// across an attribute. Refusing is correct; a capture is cheap to retake and a name in a
+	// corpus that later becomes publishable is not cheap to remove.
+	for (const form of hostForms(ex.url)) {
+		if (new RegExp(form.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(scannable)) {
+			leaked.push(`the target host (${form.length} chars)`);
+			break;
+		}
 	}
 	if (leaked.length > 0) {
 		process.stderr.write(
