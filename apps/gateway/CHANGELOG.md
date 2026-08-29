@@ -1,5 +1,19 @@
 # @proxlane/gateway
 
+## 0.13.0
+
+### Minor Changes
+
+- [#238](https://github.com/proxlane/proxlane/pull/238) [`9860659`](https://github.com/proxlane/proxlane/commit/9860659a32dbbc04e3c512911daf88e5786ac459) Thanks [@scarsam](https://github.com/scarsam)! - `wait_for=<css selector>` tells the renderer what to wait for before it snapshots the page. Rendering means the renderer ran, not that the content arrived — on a late-hydrating page the same request returns the full listing on one attempt and an empty shell on the next, and until now nothing in the request could name the finish line. It implies `render=true`, and it narrows the chain to providers that can express it: ScrapingBee's `wait_for` and Scrapfly's `wait_for_selector` were verified live, ScraperAPI's is its published name and the canary confirms it, and Bright Data declares it cannot — `x-unblock-expect` is accepted there and could not be shown to enforce a wait, so it is filtered out rather than charging for a page that did not wait.
+
+### Patch Changes
+
+- [#237](https://github.com/proxlane/proxlane/pull/237) [`afd2423`](https://github.com/proxlane/proxlane/commit/afd2423f0f31a9614ad728bc8cd83c21cc71b6a1) Thanks [@scarsam](https://github.com/scarsam)! - One executor for every request. The gateway, `proxlane scrape`, `pnpm record`, the k6 harness and the live canary now all call `createFetchTransport()` from `@proxlane/shared/transport`, instead of each hand-rolling its own `fetch`. The canary's copy dropped `wire.body`, which only Bright Data sends, so it reported a working key as `AUTH_FAILED` on every run — `repo:check` assertion 50 and a new contract test now hold the line. `proxlane scrape` and `pnpm record` gain the capped streaming read and the timeout/abort discrimination they were missing.
+
+- Updated dependencies [[`afd2423`](https://github.com/proxlane/proxlane/commit/afd2423f0f31a9614ad728bc8cd83c21cc71b6a1), [`9860659`](https://github.com/proxlane/proxlane/commit/9860659a32dbbc04e3c512911daf88e5786ac459)]:
+  - @proxlane/shared@0.11.0
+  - @proxlane/adapters@0.9.0
+
 ## 0.12.0
 
 ### Minor Changes
