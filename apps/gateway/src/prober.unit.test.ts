@@ -7,10 +7,10 @@
 
 import type { Adapter, ProviderCapabilities } from '@proxlane/adapters';
 import { HEALTH, type HealthState, initial, observeProbe } from '@proxlane/shared';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
 import { InMemoryHealthStore } from './health-store.js';
 import { PROBE_URL, Prober } from './prober.js';
-import type { HttpTransport } from './transport.js';
 
 function caps(id: string): ProviderCapabilities {
 	return {

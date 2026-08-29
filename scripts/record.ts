@@ -26,6 +26,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Adapter, GatewayRequest } from '@proxlane/adapters';
+import { createFetchTransport } from '@proxlane/shared/transport';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -271,6 +272,8 @@ export interface ExchangeFixture extends FixtureCommon {
 		readonly method: string;
 		readonly url: string;
 		readonly headers: Record<string, string>;
+		/** Absent for a GET. Present, sanitized, for an adapter that POSTs its parameters. */
+		readonly body?: string;
 	};
 	readonly response: {
 		readonly status: number;
@@ -294,19 +297,6 @@ export interface DeadlineFixture extends FixtureCommon {
 
 export type Fixture = ExchangeFixture | DeadlineFixture;
 
-/**
- * Did the deadline fire, or did the transport genuinely fail?
- *
- * Discriminated on the signal, never on the error message. Node reports an abort as
- * `AbortError: This operation was aborted`, so message-matching happens to work — but a DNS
- * or TLS failure whose text merely contains "abort" would then be recorded as a deadline
- * fixture. That is the recorder FABRICATING a fixture, and `CLAUDE.md` is explicit that CI
- * cannot tell a recording from a fabrication. The signal is a fact; the message is prose.
- */
-export function classifyTransportError(signal: AbortSignal): 'deadline' | 'failure' {
-	return signal.aborted ? 'deadline' : 'failure';
-}
-
 export const REDACTED = 'REDACTED';
 
 /**
@@ -316,58 +306,6 @@ export const REDACTED = 'REDACTED';
  * concern and lower: every contract test reads it into memory, and it lives in git forever.
  */
 export const MAX_FIXTURE_BYTES = 2 * 1024 * 1024;
-
-export class ResponseTooLargeError extends Error {
-	// A plain field, not a parameter property: `erasableSyntaxOnly` is on, because
-	// scripts/*.ts run under Node's type stripping rather than through a compiler.
-	bytes: number;
-	constructor(bytes: number) {
-		super(`response exceeded ${MAX_FIXTURE_BYTES} bytes`);
-		this.name = 'ResponseTooLargeError';
-		this.bytes = bytes;
-	}
-}
-
-/**
- * Read the body with a ceiling, streaming rather than buffering blind.
- *
- * `res.arrayBuffer()` will happily accumulate whatever arrives, so a provider streaming an
- * enormous target would balloon memory and then commit the result. Streaming also means the
- * cap trips at the moment it is exceeded rather than after the whole transfer.
- */
-export async function readCapped(
-	res: { body: ReadableStream<Uint8Array> | null; arrayBuffer(): Promise<ArrayBuffer> },
-	max: number,
-): Promise<Uint8Array> {
-	if (res.body === null) {
-		// 204/304 and friends. arrayBuffer() on a null body yields an empty buffer.
-		const buf = new Uint8Array(await res.arrayBuffer());
-		if (buf.byteLength > max) throw new ResponseTooLargeError(buf.byteLength);
-		return buf;
-	}
-	const reader = res.body.getReader();
-	const chunks: Uint8Array[] = [];
-	let total = 0;
-	try {
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			if (value === undefined) continue;
-			total += value.byteLength;
-			if (total > max) throw new ResponseTooLargeError(total);
-			chunks.push(value);
-		}
-	} finally {
-		reader.releaseLock();
-	}
-	const out = new Uint8Array(total);
-	let at = 0;
-	for (const c of chunks) {
-		out.set(c, at);
-		at += c.byteLength;
-	}
-	return out;
-}
 
 /**
  * Headers whose value changes on every request and says nothing about provider behaviour.
@@ -921,162 +859,160 @@ if (import.meta.filename === process.argv[1]) {
 		const wire = adapter.translate(req, providerKey);
 
 		process.stdout.write(`  ${target.category.padEnd(18)} `);
-		// Declared out here, not in the try: the catch discriminates a deadline from a real
-		// transport failure by reading this signal, and cannot see a try-scoped binding.
-		const controller = new AbortController();
+		// ONE EXECUTOR, the gateway's own, so a fixture records the request production sends and
+		// the transfer production performs. A second hand-rolled fetch here is how the live canary
+		// came to drop `wire.body` and report a working Bright Data key as dead for weeks.
+		//
+		// The transport also discriminates deadline from transport error on its own signal, which
+		// is what `classifyTransportError` did here by hand. Branching on `kind` replaces a
+		// throw/catch whose `finally` existed only to clear a timer this file no longer owns.
 		const budgetMs = timeoutOverride ?? wire.timeoutMs;
-		// Cleared in the `finally` below, NOT on the fetch promise. fetch() resolves when
-		// HEADERS arrive, so clearing it there leaves the body read with no deadline at all —
-		// measured: a 2000ms budget allowed a 12730ms request against a trickling target. For
-		// a scraping gateway that is the case that matters, because providers stream the
-		// target's response, so slowness lands in the body rather than the headers.
-		const timer = setTimeout(() => controller.abort(), budgetMs);
-		try {
-			const res = await fetch(wire.url, {
-				method: wire.method,
-				headers: wire.headers,
-				// Spread rather than `body: wire.body`. exactOptionalPropertyTypes rejects an
-				// explicit undefined for an optional property, and it is right to: "absent"
-				// and "present but undefined" are not the same request.
-				...(wire.body === undefined ? {} : { body: wire.body }),
-				signal: controller.signal,
-				// fetch already handled content-encoding, which is what "post-transfer-decoding"
-				// means. Charset decoding has not happened and must not.
-			});
+		const transportResult = await createFetchTransport().execute(wire, {
+			budgetMs,
+			maxBodyBytes: MAX_FIXTURE_BYTES,
+		});
 
-			const rawBytes = await readCapped(res, MAX_FIXTURE_BYTES);
-			// parse() sees the REAL bytes; only the stored fixture is redacted. Verifying the
-			// adapter against a redacted body would test the redaction, not the provider.
-			const bytes = sanitizeBody(rawBytes, secrets);
-			const resHeaders: Record<string, string> = {};
-			res.headers.forEach((v, k) => {
-				resHeaders[k] = v;
-			});
+		if (transportResult.kind === 'too-large') {
+			// Refuse rather than commit a multi-megabyte fixture. operations.md section 1 caps a
+			// real response at 10 MB; a fixture is read into memory by every contract test and
+			// lives in git forever, so the recorder's ceiling is its own.
+			process.stdout.write(`REFUSED: body exceeded ${MAX_FIXTURE_BYTES} bytes\n`);
+			failed++;
+			continue;
+		}
 
-			const fixture: ExchangeFixture = {
-				kind: 'exchange',
+		if (transportResult.kind === 'timeout') {
+			// A deadline fixture has no status and no body. Writing one over a category that
+			// expects content replaces a good recording with an artefact of the flag that produced
+			// it — `--timeout-ms=1 --only=success-html` did exactly that, silently.
+			if (target.expect !== 'PROVIDER_TIMEOUT') {
+				process.stdout.write(
+					`timed out after ${budgetMs}ms — NOT written: ${target.category} expects ` +
+						`${target.expect}, and a deadline fixture would destroy it\n`,
+				);
+				failed++;
+				continue;
+			}
+			process.stdout.write(`timed out after ${budgetMs}ms (recorded)\n`);
+			const deadline: DeadlineFixture = {
+				kind: 'deadline',
 				category: target.category,
 				recordedAt: new Date().toISOString(),
 				adapter: adapterId,
 				target: { url: target.url, renderJs: target.renderJs },
 				expect: target.expect,
-				request: {
-					method: wire.method,
-					url: sanitize(wire.url, secrets),
-					headers: sanitizeHeaders(wire.headers, secrets),
-				},
-				response: {
-					status: res.status,
-					headers: sanitizeHeaders(resHeaders, secrets),
-					bodyBase64: Buffer.from(bytes).toString('base64'),
-					bodyBytes: bytes.byteLength,
-				},
+				transportError: 'aborted-by-deadline',
+				timeoutMs: budgetMs,
 			};
-
-			// Assert the sanitizer worked rather than trusting it. A leaked key in a committed
-			// fixture is unrecoverable once pushed — the check is cheap and the failure is not.
-			const serialized = JSON.stringify(fixture, null, '\t');
-			// Decode the body back out before scanning. The old check ran over the SERIALIZED
-			// fixture, where the body is base64 — so it could never see a secret in a body, in
-			// the one place nothing else was looking either.
-			const scannable = `${serialized}\n${new TextDecoder('utf-8', { fatal: false }).decode(bytes)}`;
-			// COLLECTED, THEN ACTED ON. This used to `failed++` inside the loop and fall straight
-			// through to `writeFileSync` — so a fixture whose `client_ip` survived redaction (the
-			// maintainer's egress address, which CLAUDE.md bans from this repo outright) was
-			// written into the tracked fixture directory while the operator was told it had been
-			// refused. One `git add -A` and it is in public history. `continue` inside the loop
-			// would only have advanced the FIELD, which is presumably how it was missed.
-			const leaked = IDENTIFYING_FIELDS.filter((field) =>
-				new RegExp(`"${field}"\\s*:\\s*"(?!${REDACTED})`).test(scannable),
+			writeFileSync(
+				join(outDir, `${target.category}.json`),
+				`${JSON.stringify(deadline, null, '\t')}\n`,
 			);
-			if (leaked.length > 0) {
-				process.stderr.write(
-					`\n  REFUSING TO WRITE ${target.category}: ${leaked.map((f) => `"${f}"`).join(', ')} survived redaction.\n` +
-						'  This is a bug in sanitizeBody(); fix it before recording again.\n',
-				);
-				failed++;
-				continue;
-			}
-			if (providerKey !== '' && scannable.includes(providerKey)) {
-				process.stderr.write(
-					`\n  REFUSING TO WRITE ${target.category}: the key survived sanitization.\n` +
-						'  This is a bug in sanitize(); fix it before recording again.\n',
-				);
-				failed++;
-				continue;
-			}
-
-			writeFileSync(join(outDir, `${target.category}.json`), `${serialized}\n`);
-
-			// Close the loop: run the adapter's own parse() over what was just recorded and
-			// say whether it produced the outcome the matrix expected. Without this the
-			// recorder happily writes a fixture whose `expect` contradicts its contents — it
-			// did exactly that on the first live run, storing a 422 under a fixture labelled
-			// PROVIDER_TIMEOUT, and nothing noticed.
-			//
-			// Reported, never fatal. Fixtures are recorded BEFORE parse() is implemented, so a
-			// throwing stub is the expected state on day one and asserting here would make the
-			// normal authoring order impossible. Conformance is what asserts.
-			let verdict: string;
-			try {
-				const got = adapter.parse({ status: res.status, headers: resHeaders, body: rawBytes });
-				if (target.expect === 'provider-dependent') {
-					verdict = `~ ${got.outcome} (provider-dependent, not asserted)`;
-				} else {
-					verdict = got.outcome === target.expect ? `= ${got.outcome}` : `! got ${got.outcome}`;
-					if (got.outcome !== target.expect) mismatched.push(target.category);
-				}
-			} catch (err) {
-				verdict = `? parse() threw: ${err instanceof Error ? err.message : String(err)}`;
-				unparsed.push(target.category);
-			}
-			process.stdout.write(
-				`${String(res.status).padEnd(4)} ${String(bytes.byteLength).padStart(6)}b  ${verdict}\n`,
-			);
-		} catch (err) {
-			// A timeout here is a RESULT, not an error — the timeout fixture is meant to time out.
-			// Record what happened so parse() has something to map. Anything else is a genuine
-			// failure and must NOT leave a fixture behind.
-			if (err instanceof ResponseTooLargeError) {
-				// Refuse rather than commit a multi-megabyte fixture. operations.md section 1
-				// caps a real response at 10 MB; a fixture is read into memory by every contract
-				// test and lives in git forever, so the recorder's ceiling is its own.
-				process.stdout.write(`REFUSED: body exceeded ${MAX_FIXTURE_BYTES} bytes\n`);
-				failed++;
-			} else if (classifyTransportError(controller.signal) === 'deadline') {
-				// A deadline fixture has no status and no body. Writing one over a category that
-				// expects content replaces a good recording with an artefact of the flag that
-				// produced it — `--timeout-ms=1 --only=success-html` did exactly that, silently.
-				if (target.expect !== 'PROVIDER_TIMEOUT') {
-					process.stdout.write(
-						`timed out after ${budgetMs}ms — NOT written: ${target.category} expects ` +
-							`${target.expect}, and a deadline fixture would destroy it\n`,
-					);
-					failed++;
-				} else {
-					process.stdout.write(`timed out after ${budgetMs}ms (recorded)\n`);
-					const fixture: DeadlineFixture = {
-						kind: 'deadline',
-						category: target.category,
-						recordedAt: new Date().toISOString(),
-						adapter: adapterId,
-						target: { url: target.url, renderJs: target.renderJs },
-						expect: target.expect,
-						transportError: 'aborted-by-deadline',
-						timeoutMs: budgetMs,
-					};
-					writeFileSync(
-						join(outDir, `${target.category}.json`),
-						`${JSON.stringify(fixture, null, '\t')}\n`,
-					);
-				}
-			} else {
-				process.stdout.write(`FAILED: ${err instanceof Error ? err.message : String(err)}\n`);
-				failed++;
-			}
-		} finally {
-			clearTimeout(timer);
+			continue;
 		}
+
+		if (transportResult.kind !== 'response') {
+			const detail =
+				'message' in transportResult ? transportResult.message : transportResult.kind;
+			process.stdout.write(`FAILED: ${detail}\n`);
+			failed++;
+			continue;
+		}
+
+		const res = transportResult.response;
+		const rawBytes = res.body;
+		// parse() sees the REAL bytes; only the stored fixture is redacted. Verifying the adapter
+		// against a redacted body would test the redaction, not the provider.
+		const bytes = sanitizeBody(rawBytes, secrets);
+		const resHeaders = res.headers;
+
+		const fixture: ExchangeFixture = {
+			kind: 'exchange',
+			category: target.category,
+			recordedAt: new Date().toISOString(),
+			adapter: adapterId,
+			target: { url: target.url, renderJs: target.renderJs },
+			expect: target.expect,
+			request: {
+				method: wire.method,
+				url: sanitize(wire.url, secrets),
+				headers: sanitizeHeaders(wire.headers, secrets),
+				// RECORDED, because the comment above says a fixture is exactly what the adapter
+				// sends and without this it was not. Every launch adapter but Bright Data puts its
+				// parameters in the query string, so the omission was invisible until one POSTed a
+				// JSON payload — and then the fixture showed a request with the target url nowhere
+				// in it. Absent rather than empty for a GET: "no body" and "an empty body" are not
+				// the same request.
+				...(wire.body === undefined ? {} : { body: sanitize(wire.body, secrets) }),
+			},
+			response: {
+				status: res.status,
+				headers: sanitizeHeaders(resHeaders, secrets),
+				bodyBase64: Buffer.from(bytes).toString('base64'),
+				bodyBytes: bytes.byteLength,
+			},
+		};
+
+		// Assert the sanitizer worked rather than trusting it. A leaked key in a committed
+		// fixture is unrecoverable once pushed — the check is cheap and the failure is not.
+		const serialized = JSON.stringify(fixture, null, '\t');
+		// Decode the body back out before scanning. The old check ran over the SERIALIZED
+		// fixture, where the body is base64 — so it could never see a secret in a body, in
+		// the one place nothing else was looking either.
+		const scannable = `${serialized}\n${new TextDecoder('utf-8', { fatal: false }).decode(bytes)}`;
+		// COLLECTED, THEN ACTED ON. This used to `failed++` inside the loop and fall straight
+		// through to `writeFileSync` — so a fixture whose `client_ip` survived redaction (the
+		// maintainer's egress address, which CLAUDE.md bans from this repo outright) was
+		// written into the tracked fixture directory while the operator was told it had been
+		// refused. One `git add -A` and it is in public history. `continue` inside the loop
+		// would only have advanced the FIELD, which is presumably how it was missed.
+		const leaked = IDENTIFYING_FIELDS.filter((field) =>
+			new RegExp(`"${field}"\\s*:\\s*"(?!${REDACTED})`).test(scannable),
+		);
+		if (leaked.length > 0) {
+			process.stderr.write(
+				`\n  REFUSING TO WRITE ${target.category}: ${leaked.map((f) => `"${f}"`).join(', ')} survived redaction.\n` +
+					'  This is a bug in sanitizeBody(); fix it before recording again.\n',
+			);
+			failed++;
+			continue;
+		}
+		if (providerKey !== '' && scannable.includes(providerKey)) {
+			process.stderr.write(
+				`\n  REFUSING TO WRITE ${target.category}: the key survived sanitization.\n` +
+					'  This is a bug in sanitize(); fix it before recording again.\n',
+			);
+			failed++;
+			continue;
+		}
+
+		writeFileSync(join(outDir, `${target.category}.json`), `${serialized}\n`);
+
+		// Close the loop: run the adapter's own parse() over what was just recorded and
+		// say whether it produced the outcome the matrix expected. Without this the
+		// recorder happily writes a fixture whose `expect` contradicts its contents — it
+		// did exactly that on the first live run, storing a 422 under a fixture labelled
+		// PROVIDER_TIMEOUT, and nothing noticed.
+		//
+		// Reported, never fatal. Fixtures are recorded BEFORE parse() is implemented, so a
+		// throwing stub is the expected state on day one and asserting here would make the
+		// normal authoring order impossible. Conformance is what asserts.
+		let verdict: string;
+		try {
+			const got = adapter.parse({ status: res.status, headers: resHeaders, body: rawBytes });
+			if (target.expect === 'provider-dependent') {
+				verdict = `~ ${got.outcome} (provider-dependent, not asserted)`;
+			} else {
+				verdict = got.outcome === target.expect ? `= ${got.outcome}` : `! got ${got.outcome}`;
+				if (got.outcome !== target.expect) mismatched.push(target.category);
+			}
+		} catch (err) {
+			verdict = `? parse() threw: ${err instanceof Error ? err.message : String(err)}`;
+			unparsed.push(target.category);
+		}
+		process.stdout.write(
+			`${String(res.status).padEnd(4)} ${String(bytes.byteLength).padStart(6)}b  ${verdict}\n`,
+		);
 	}
 
 	if (diff) {

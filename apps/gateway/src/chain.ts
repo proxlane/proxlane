@@ -29,10 +29,10 @@ import {
 	eligible as rankByHealth,
 	tiersAtOrBelow,
 } from '@proxlane/shared';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
 import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
-import type { HttpTransport } from './transport.js';
 
 /**
  * The smallest wait a 503 will ever advertise. `Retry-After` is expressed in whole seconds,

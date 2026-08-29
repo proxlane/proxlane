@@ -133,9 +133,26 @@ export interface Adapter {
 
 Rules:
 - `translate` and `parse` are **pure functions**. All I/O goes through one shared
-  `HttpTransport` owned by the gateway, not by adapters. This is what makes real
-  testing possible: pure functions test against recorded bytes, transport tests
-  separately, and nothing needs a mocked provider class.
+  `HttpTransport`, not through adapters. This is what makes real testing possible: pure
+  functions test against recorded bytes, transport tests separately, and nothing needs a
+  mocked provider class.
+- **There is exactly one executor and it lives in `@proxlane/shared/transport`.** The
+  gateway, `proxlane scrape`, `pnpm record`, the k6 harness and the live canary all call
+  `createFetchTransport()`. It is in `shared` rather than the gateway because the canary
+  sits inside `packages/adapters`, which cannot import an app without inverting the layering
+  — and putting the executor in `adapters` instead would hand network I/O to adapter-engineer
+  under CODEOWNERS when the ownership table gives it to platform-engineer. Same correction,
+  and same reason, as the outcome taxonomy.
+
+  **This used to be a claim and it was false**, for the whole of phase 1. Four files built a
+  wire request and sent it with their own `fetch`. Three passed `wire.body`; the canary did
+  not. Bright Data is the only adapter that POSTs a JSON payload, so it alone received a
+  bodyless request, answered `400 "zone" is required`, and was mapped to `AUTH_FAILED` — the
+  canary reported a dead credential for a working key on every run it had one, so the
+  `operations.md` section 9 launch gate had never measured that provider. `repo:check`
+  assertion 50 now bans `.translate(` and `fetch(` in the same file, and
+  `transmits-the-request.contract.test.ts` asserts every adapter's method, headers and body
+  reach the wire intact.
 - **`latencyMs` and `providerRequestId` live on `Exchange`, not on the parse result.**
   A pure function cannot measure elapsed time. Left on the result, the first implementer
   resolves it by passing a clock into `parse`, and the purity property — which the entire

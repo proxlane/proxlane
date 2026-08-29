@@ -3225,6 +3225,66 @@ function matchesOwner(pattern: string, file: string): boolean {
 	}
 }
 
+// -------------------------------------------------------------------------- 50
+//
+// A FILE THAT BUILDS A WIRE REQUEST MUST NOT ALSO SEND ONE.
+//
+// `packages/shared/src/transport.ts` opens with "the single owner of network I/O", and that was
+// a claim rather than a fact for the whole of phase 1. Four files called `adapter.translate()`
+// and then hand-rolled their own `fetch` over the result: the transport, `scripts/record.ts`,
+// `packages/cli/src/scrape.ts` and the live canary. Three spread `wire.body`. The canary did not.
+//
+// Bright Data is the only adapter that POSTs a JSON payload, so it alone got a bodyless request,
+// answered `400 "zone" is required`, and was filed as AUTH_FAILED. The canary reported a dead
+// credential for a working key on every run it had one, which means the `operations.md` section 9
+// launch gate had never measured that provider at all — and the gate is three consecutive greens.
+//
+// The contract test `transmits-the-request.contract.test.ts` proves the executor forwards
+// everything. It cannot prove a caller uses the executor, and that was the actual defect. This
+// does: translate the request, then hand it over. If you need both in one file, you are writing
+// a second transport.
+{
+	const A = '50';
+	// Filtered to what is on disk: `git ls-files` still reports a tracked file whose deletion
+	// is not yet staged, and reading one crashes the whole run.
+	const files = execFileSync('git', ['ls-files', '*.ts'], { cwd: ROOT, encoding: 'utf8' })
+		.split('\n')
+		.filter(
+			(f) =>
+				f !== '' &&
+				has(f) &&
+				// The executor itself, and this file — whose failure message necessarily contains
+				// both spellings it bans.
+				f !== 'packages/shared/src/transport.ts' &&
+				f !== 'scripts/repo-check.ts' &&
+				!f.includes('/dist/'),
+		);
+	let checked50 = 0;
+	for (const f of files) {
+		// Comments stripped first. A file explaining why it must not call `fetch(` is not a file
+		// calling it, and the ban has to survive being described.
+		const src = read(f)
+			.replace(/\/\*[\s\S]*?\*\//g, '')
+			.replace(/^[ \t]*\/\/.*$/gm, '');
+		if (!/\.translate\(/.test(src)) continue;
+		checked50++;
+		// `fetch(` only. `createFetchTransport` is the sanctioned path and contains no call.
+		const bare = /(?<![A-Za-z0-9_.])fetch\s*\(/.test(src);
+		if (bare) {
+			fail(
+				A,
+				`${f} calls adapter.translate() and fetch() in the same file. Requests go through ` +
+					'createFetchTransport() from @proxlane/shared/transport — a second executor is how ' +
+					'the canary came to drop wire.body and report a working Bright Data key as dead.',
+			);
+		}
+	}
+	if (checked50 === 0) {
+		fail(A, 'found no file calling adapter.translate() — this assertion proved nothing');
+	}
+	ok(A, checked50, 'nothing builds a wire request and sends it itself');
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

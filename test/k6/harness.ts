@@ -25,7 +25,7 @@ import {
 // `./x.js` import to `./x.ts`, so the source graph will not load under bare node; and the
 // soak should measure the artifact that ships rather than a differently-bundled copy of it.
 import { createApp } from '@proxlane/gateway/app';
-import { createFetchTransport } from '@proxlane/gateway/transport';
+import { createFetchTransport } from '@proxlane/shared/transport';
 import { startMockProvider } from './mock-provider.ts';
 
 const DECODER = new TextDecoder();

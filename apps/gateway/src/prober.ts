@@ -22,8 +22,8 @@
 
 import type { Adapter } from '@proxlane/adapters';
 import { HEALTH, type HealthState, probeDelayMs } from '@proxlane/shared';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import type { HealthStore } from './health-store.js';
-import type { HttpTransport } from './transport.js';
 
 /**
  * Where a probe points.

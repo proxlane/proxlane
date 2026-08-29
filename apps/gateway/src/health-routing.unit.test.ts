@@ -7,10 +7,10 @@
 
 import type { Adapter, ProviderCapabilities } from '@proxlane/adapters';
 import { HEALTH, type HealthState, initial, observe } from '@proxlane/shared';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
 import { runChain } from './chain.js';
 import { assertSingleWriter, type HealthStore, InMemoryHealthStore } from './health-store.js';
-import type { HttpTransport } from './transport.js';
 
 function caps(id: string): ProviderCapabilities {
 	return {

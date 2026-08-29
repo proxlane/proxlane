@@ -14,13 +14,13 @@ import {
 	providerKeyFromEnv,
 	readMemoryLimit,
 } from '@proxlane/shared';
+import { createFetchTransport, DEFAULT_BODY_CAP_MB } from '@proxlane/shared/transport';
 import { Redis } from 'ioredis';
 import { createApp } from './app.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
 import { assertSingleWriter, type HealthStore, InMemoryHealthStore } from './health-store.js';
 import { createLogger } from './log.js';
 import { Prober } from './prober.js';
-import { createFetchTransport } from './transport.js';
 import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
 import { VERSION } from './version.js';
 
@@ -32,7 +32,7 @@ const PORT = Number(process.env.PORT ?? 8787);
 // the one being cut short. Measured, not reasoned: at 120s the same chain gives it 68s.
 const DEFAULT_DEADLINE_MS = Number(env('PROXLANE_DEADLINE_MS') ?? 120_000);
 // Empty would read as 0 here, i.e. a body cap of nothing, which rejects every response.
-const MAX_BODY_BYTES = Number(env('PROXLANE_BODY_CAP_MB') ?? 10) * 1024 * 1024;
+const MAX_BODY_BYTES = Number(env('PROXLANE_BODY_CAP_MB') ?? DEFAULT_BODY_CAP_MB) * 1024 * 1024;
 
 // The in-flight ceiling. 32 is `plan.md`'s sizing for this deployment: ~1 GB of container
 // memory against a 10 MB body cap at the 2.5x buffering factor `operations.md` section 1

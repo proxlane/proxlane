@@ -11,9 +11,9 @@ import type {
 	Outcome,
 	ProviderCapabilities,
 } from '@proxlane/adapters';
+import type { HttpTransport, TransportResult } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
 import { runChain } from './chain.js';
-import type { HttpTransport, TransportResult } from './transport.js';
 
 function caps(id: string, over: Partial<ProviderCapabilities> = {}): ProviderCapabilities {
 	return {

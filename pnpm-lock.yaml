@@ -456,6 +456,9 @@ importers:
       '@proxlane/adapters':
         specifier: workspace:*
         version: link:../packages/adapters
+      '@proxlane/shared':
+        specifier: workspace:*
+        version: link:../packages/shared
     devDependencies:
       '@proxlane/tsconfig':
         specifier: workspace:*
@@ -478,6 +481,9 @@ importers:
       '@proxlane/gateway':
         specifier: workspace:*
         version: link:../../apps/gateway
+      '@proxlane/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@proxlane/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig

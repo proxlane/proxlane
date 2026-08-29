@@ -9,3 +9,5 @@ export * from './health.js';
 export * from './id.js';
 export * from './memory.js';
 export * from './outcome.js';
+export * from './transport.js';
+export * from './wire.js';

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { type Adapter, type ProviderCapabilities, REGISTRY } from '@proxlane/adapters';
 import { forcedProbeKey } from '@proxlane/shared';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import { createReplayTransport, loadFixtures } from '@proxlane/vitest-config/replay-transport';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp, headersFor } from './app.js';
@@ -22,7 +23,6 @@ import { isCapable } from './chain.js';
 import { InMemoryCooldownStore } from './cooldown-store.js';
 import { InMemoryHealthStore } from './health-store.js';
 import type { RequestLine } from './log.js';
-import type { HttpTransport } from './transport.js';
 import { VERSION } from './version.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
