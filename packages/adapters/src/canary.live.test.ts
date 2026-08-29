@@ -171,7 +171,15 @@ describe.each(configured)('%s, against the live API', (id) => {
 		// The outcome that must never fail over, and the one that costs money to get wrong:
 		// ScraperAPI bills for 404s, so a provider changing how it reports one turns every
 		// dead link into a paid retry across the whole chain.
-		const { parsed } = await attempt(id, 'https://httpbin.dev/status/404', false);
+		// A 404 WITH A BODY, and the distinction is not pedantry. `/status/404` answers with zero
+		// bytes, and an unblocker service cannot tell an empty response from a blocked one: Bright
+		// Data rejected it as `min_size` on one run and `reject_block` on the next, returning
+		// `x-brd-status-code: 502` both times, so the adapter correctly reported PROVIDER_ERROR for
+		// a target that was simply empty. The same provider maps a 404 that has content to 404.
+		//
+		// Found the day the canary first ran against Bright Data at all — until the executor fix it
+		// answered AUTH_FAILED for every provider, so this target had never been exercised there.
+		const { parsed } = await attempt(id, 'https://httpbin.dev/nonexistent-page-xyz', false);
 		expect(parsed.outcome).toBe('TARGET_NOT_FOUND');
 	}, 120_000);
 
