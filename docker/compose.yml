@@ -29,7 +29,7 @@ services:
     # A pin that LAGS the newest release is correct, not stale. A self-hoster wants a version
     # somebody ran, and bumping this is a deliberate act with a changelog to read first.
     # `repo:check` asserts only that it is a concrete version that was actually released.
-    image: ghcr.io/proxlane/gateway:0.13.0
+    image: ghcr.io/proxlane/gateway:0.14.0
     restart: unless-stopped
     ports:
       - '${PORT:-8787}:8787'
