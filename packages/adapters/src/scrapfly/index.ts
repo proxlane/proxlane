@@ -120,6 +120,26 @@ function outcomeForErrorCode(code: string): Outcome | undefined {
 	// A fact about the target's reachability, not about Scrapfly being down.
 	if (code === 'ERR::SCRAPE::NETWORK_ERROR') return 'TARGET_ERROR';
 	if (code === 'ERR::THROTTLE::MAX_CONCURRENT_REQUEST_EXCEEDED') return 'RATE_LIMITED';
+	// OUR QUOTA, NOT THEIR HEALTH — and getting this wrong contaminates every other org.
+	//
+	// Scrapfly answers an exhausted plan with HTTP 429 and `ERR::SCRAPE::QUOTA_LIMIT_REACHED`,
+	// and `result.status_code` is null because it never reached the target. Unlisted here, that
+	// fell through to PROVIDER_ERROR — which `integrations.md` section 3 puts in the FAILURE TERM
+	// of global health, `hs:{provider}`.
+	//
+	// So one org running out of credits would drive the CUSUM statistic for Scrapfly down for
+	// EVERYONE, and demotion removes a provider from every chain for hours to days. That is the
+	// cross-org contamination the two cooldown namespaces exist to prevent, and it is the exact
+	// bug already documented for AUTH_FAILED — "one org letting its key lapse would demote that
+	// provider for every other org".
+	//
+	// The discriminator is section 3's own: is this fact observable identically from any org's
+	// key? A quota is the definition of no. `RATE_LIMITED` is account-scoped (`cd:acct`), fails
+	// over to a provider that has credit, and carries the provider's own `Retry-After` when it
+	// sends one. ScraperAPI's equivalent already lands on an account fact; this one did not.
+	//
+	// Measured 2026-08-29 against a genuinely exhausted free plan, not inferred from docs.
+	if (code === 'ERR::SCRAPE::QUOTA_LIMIT_REACHED') return 'RATE_LIMITED';
 	return undefined;
 }
 

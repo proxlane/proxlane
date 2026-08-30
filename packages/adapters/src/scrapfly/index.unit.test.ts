@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { healthWeight } from '@proxlane/shared';
 import { describe, expect, it } from 'vitest';
 import type {
 	GatewayRequest,
@@ -13,7 +14,7 @@ import type {
 	PremiumTier,
 	ProviderHttpResponse,
 } from '../contract.js';
-import { cooldownScope, costOf, shouldFailover } from '../contract.js';
+import { cooldownScope, costOf, policyFor, shouldFailover } from '../contract.js';
 import { ScrapflyAdapter } from './index.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -77,6 +78,41 @@ describe('a null target status is not drift', () => {
 		const r = ScrapflyAdapter.parse(load('slow-target'));
 		expect(r.outcome).toBe('TARGET_ERROR');
 		expect(r.upstreamStatusCode).toBeUndefined();
+	});
+
+	it('calls an exhausted quota an ACCOUNT fact, never a provider one', () => {
+		// The shape Scrapfly really sends on an empty plan, taken from a live 429 on 2026-08-29:
+		// HTTP 429, `ERR::SCRAPE::QUOTA_LIMIT_REACHED`, and a null `status_code` because it never
+		// reached the target.
+		//
+		// Unmapped, that fell through to PROVIDER_ERROR — which section 3 puts in the failure
+		// term of GLOBAL health, `hs:{provider}`. One org running out of credits would then drive
+		// the statistic down for every org, and demotion removes a provider from every chain for
+		// hours. Exactly the contamination already documented for AUTH_FAILED.
+		const env = {
+			result: {
+				status_code: null,
+				format: 'text',
+				content: '',
+				error: { code: 'ERR::SCRAPE::QUOTA_LIMIT_REACHED', http_code: 429 },
+			},
+		};
+		const res: ProviderHttpResponse = {
+			status: 429,
+			headers: {},
+			body: new TextEncoder().encode(JSON.stringify(env)),
+		};
+		const out = ScrapflyAdapter.parse(res);
+		expect(out.outcome).toBe('RATE_LIMITED');
+		// The half that matters. `acct` keeps it to the org whose quota it is; `blk` would cool a
+		// domain nobody blocked, and a provider-scoped outcome would cool the provider for
+		// strangers.
+		expect(policyFor(out.outcome).cooldown).toBe('acct');
+		// And the one that names the bug: PROVIDER_ERROR is in HEALTH_FAILURE, the global
+		// statistic. An account fact must weigh nothing there, or one org's empty wallet demotes
+		// the provider for strangers.
+		expect(healthWeight(out.outcome)).toBe('ignore');
+		expect(healthWeight('PROVIDER_ERROR')).toBe('failure');
 	});
 
 	it('falls back to PROVIDER_ERROR when the code is unrecognised and there is no status', () => {
