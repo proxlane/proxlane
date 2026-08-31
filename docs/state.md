@@ -34,10 +34,10 @@ Owner decisions and external answers. None is unblocked by writing code.
 - **Hosted credit margin** — `plan.md` §7: the dominant unbilled spend is provider-billed non-`OK`
   outcomes, above all `TARGET_NOT_FOUND`, so it is *which outcomes the caller pays for*, not only
   the rate. Weeks of traffic decide it. Phase 3.
-- **The corpus lost five of its six captures.** `imperva-incapsula` IS now confirmed by a real
-  capture (stored, scrubbed, 2026-08-29) but cannot enter the table: regenerating would retract
-  four claims whose artefacts no longer exist anywhere, and #244 rightly refuses. Retract to what
-  is provable and rebuild from live traffic, or leave five claims standing without evidence. *Yours.*
+- **The corpus proves 2 of 6 detect rules.** Five captures were lost with no backup, so the table
+  was retracted on 08-31 to what it can prove — `operations.md` 8b. A sandbox cannot serve a vendor
+  challenge, so the four come back as `imperva-incapsula` did: from traffic blocked anyway. **Back
+  up `PROXLANE_PRIVATE_CORPUS`** — it is the only evidence behind a public claim. *Yours.*
 - **Provider permission, in writing** — `plan.md` §18 gates the keyless paths on it;
   `_dev/jina-reader` stays out of `REGISTRY` meanwhile. Batch 1 sent: ScrapingBee yes if the
   methodology is public and asked a question back, Bright Data escalated to Compliance, Scrapfly
