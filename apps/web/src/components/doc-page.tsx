@@ -153,6 +153,8 @@ function DocSidebar({ headings }: { readonly headings: readonly DocHeading[] | u
 	const { pathname } = useLocation();
 	const here = pathname.replace(/\/$/, '') || '/docs';
 	const active = useActiveHeading(headings);
+	const [navOpen, setNavOpen] = useState(false);
+	const hereTitle = DOC_NAV.find((i) => i.to === here)?.title ?? 'Documentation';
 
 	return (
 		<nav aria-label="Documentation" className="mb-10 lg:mb-0">
@@ -165,13 +167,45 @@ function DocSidebar({ headings }: { readonly headings: readonly DocHeading[] | u
 				    cap follows: viewport minus the offset above and the padding below. */}
 			<div className="lg:sticky lg:top-28 lg:max-h-[calc(100dvh-9rem)] lg:overflow-y-auto lg:pb-8">
 				<DocSearch />
-				<ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1 lg:flex-col lg:gap-x-0">
+				{/* A DISCLOSURE ON PHONES, A LIST ON DESKTOP.
+				    This was a wrapping row, and ten links across a 390px screen wrapped into four
+				    ragged rows whose items landed at arbitrary x-positions. `body::before` paints a
+				    fixed grid field behind everything, so those ragged rows read as a broken table
+				    rather than as navigation — the gridlines look like column rules the text is
+				    failing to line up with.
+				    Closed by default because the content is what someone came for, and the on-page
+				    heading list below is the navigation they actually want once they are here. Open
+				    it and it uses the same left-rule treatment as that list, which is the one part
+				    of this page that already read correctly on a phone. */}
+				<button
+					type="button"
+					onClick={() => setNavOpen((v) => !v)}
+					aria-expanded={navOpen}
+					aria-controls="doc-nav-list"
+					className="mt-4 flex min-h-11 w-full items-center justify-between gap-3 border-[color:var(--color-rule)] border-b pb-3 text-left text-sm lg:hidden"
+				>
+					<span className="text-[color:var(--color-slate)]">
+						Docs<span className="px-2 text-[color:var(--color-rule)]">/</span>
+						<span className="font-medium text-[color:var(--color-ink)]">{hereTitle}</span>
+					</span>
+					<span
+						aria-hidden="true"
+						className={`text-[color:var(--color-slate)] transition-transform ${navOpen ? 'rotate-180' : ''}`}
+					>
+						⌄
+					</span>
+				</button>
+				<ul
+					id="doc-nav-list"
+					className={`mt-4 flex-col gap-y-1 border-[color:var(--color-rule)] border-l pl-4 lg:mt-4 lg:flex lg:border-l-0 lg:pl-0 ${navOpen ? 'flex' : 'hidden'}`}
+				>
 					{DOC_NAV.map((item) => {
 						const current = item.to === here;
 						return (
 							<li key={item.to}>
 								<Link
 									to={item.to}
+									onClick={() => setNavOpen(false)}
 									className={`inline-flex min-h-9 items-center text-sm transition-colors ${
 										current
 											? 'font-medium text-[color:var(--color-ink)]'
