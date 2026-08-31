@@ -1,10 +1,25 @@
 import type { CostTable, ProviderCapabilities } from '../contract.js';
 
 const costTable: CostTable = {
-	// Re-read 2026-08-31 and unchanged: datacenter 1, residential 25, render_js +5. The page
-	// shows the arithmetic we encode — "1 + 5 = 6" and "25 + 5 = 30". The stealth column is
-	// residential-equivalent because ASP "may dynamically upgrade the proxy pool", so it has no
-	// fixed published price; that is why cost arrives `reported` from this provider.
+	// Re-read 2026-08-31 and unchanged: datacenter 1, residential 25, render_js +5. The billing
+	// page shows the arithmetic we encode — "1 + 5 = 6" and "25 + 5 = 30".
+	//
+	// THE STEALTH COLUMN IS THE CEILING, NOT THE FLOOR, AND SCRAPFLY'S OWN TWO PAGES DISAGREE
+	// ABOUT IT. We map `premium: 'stealth'` to `asp=true`. The billing page — the sourceUrl
+	// above, and the authoritative one — lists no credit cost for ASP at all, saying only that
+	// it "may dynamically upgrade the proxy pool to bypass anti-bot protection, which can affect
+	// the final cost". The marketing pricing page says "5 credits + JS rendering or ASP mode",
+	// which is a floor of 1 + 5 = 6. The sample response ON THAT SAME PAGE reports
+	// `"asp_cost": 30`, which is 25 + 5 — the escalated case, and the number here.
+	//
+	// So a single figure cannot be right: the price is a range whose top depends on what the
+	// target's defences do. We publish the top. Under-quoting a caller who then gets billed five
+	// times the estimate is the worse error, and `cost_budget` exists precisely because ASP can
+	// run away. It costs Scrapfly nothing in the comparison — at 25/30 they are still the
+	// cheapest stealth tier of the four, and the floor would only widen that.
+	//
+	// It also matters less than it looks: Scrapfly returns its real charge on every response, so
+	// this table is the estimate of last resort rather than what a caller is normally shown.
 	effectiveDate: '2026-08-31',
 	sourceUrl: 'https://scrapfly.io/docs/scrape-api/billing',
 	/** Scrapfly sells credits; what a credit costs depends on the plan. */
