@@ -188,12 +188,25 @@ function DocSidebar({ headings }: { readonly headings: readonly DocHeading[] | u
 						Docs<span className="px-2 text-[color:var(--color-rule)]">/</span>
 						<span className="font-medium text-[color:var(--color-ink)]">{hereTitle}</span>
 					</span>
-					<span
+					{/* Drawn, not a glyph, for the reason `theme-toggle.tsx` already gives about the sun
+					    and moon: a unicode character inherits whatever the font does and will not
+					    match a stroke weight. `⌄` was the first version of this and it rendered as a
+					    stray comma sitting above the baseline. Same 16px box and 1.5px stroke as
+					    every other icon here. */}
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 16 16"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="1.5"
+						strokeLinecap="round"
+						strokeLinejoin="round"
 						aria-hidden="true"
-						className={`text-[color:var(--color-slate)] transition-transform ${navOpen ? 'rotate-180' : ''}`}
+						className={`shrink-0 text-[color:var(--color-slate)] transition-transform ${navOpen ? 'rotate-180' : ''}`}
 					>
-						⌄
-					</span>
+						<path d="M4 6.5 8 10.5 12 6.5" />
+					</svg>
 				</button>
 				<ul
 					id="doc-nav-list"
