@@ -6,7 +6,8 @@ import type { CostTable, ProviderCapabilities } from '../contract.js';
 // pay for — which is the point. Adapters are Apache-2.0 so exactly this can happen.
 
 const costTable: CostTable = {
-	effectiveDate: '2026-08-21',
+	// Re-read 2026-08-31 and unchanged: pay-as-you-go $1.5/1K requests = 0.15 usd-cents.
+	effectiveDate: '2026-08-31',
 	sourceUrl: 'https://brightdata.com/pricing/web-unlocker',
 	/** Web Unlocker bills money per request and issues no credits, so cents is its native unit. */
 	unit: 'usd-cents',

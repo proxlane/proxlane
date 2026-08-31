@@ -60,6 +60,23 @@ function Page() {
 					alongside <span className="font-mono text-[color:var(--color-ink)]">x-cost-unit</span>
 					, rather than converting to a currency it would have to guess at.
 				</p>
+				{/* THE LIMIT OF THIS PAGE, STATED ON IT. Two of the four price partly on what the
+				    target's defences do — ScraperAPI adds ten credits per request when it bypasses
+				    Cloudflare, DataDome or PerimeterX, and Scrapfly's ASP may upgrade the proxy pool
+				    mid-request. Neither is a function of the request shape, which is the only thing
+				    a tier-by-rendering matrix can be keyed on. Saying so here is cheaper than being
+				    told, and it is the argument for the reported figure over the estimated one. */}
+				<p>
+					One thing the multiplier cannot show. Two of these price partly on what the{' '}
+					<em>target</em> does, not on what you asked for: ScraperAPI adds ten credits per
+					request when it bypasses Cloudflare, DataDome or PerimeterX, and Scrapfly&rsquo;s
+					anti-bot mode may upgrade the proxy pool mid-request. Neither depends on the request
+					shape, so no table keyed on tier and rendering can hold it. Both providers report what
+					they actually charged, which is why the gateway prefers{' '}
+					<span className="font-mono text-[color:var(--color-ink)]">reported</span> over{' '}
+					<span className="font-mono text-[color:var(--color-ink)]">estimated</span> and tells
+					you which one you got.
+				</p>
 			</div>
 
 			<h2 className="mt-12 font-semibold text-[color:var(--color-ink)] text-xl tracking-[-0.01em]">

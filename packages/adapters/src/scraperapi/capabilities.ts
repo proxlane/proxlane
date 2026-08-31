@@ -5,7 +5,25 @@ import type { CostTable, ProviderCapabilities } from '../contract.js';
 // router filters the failover chain on these before it sends anything.
 
 const costTable: CostTable = {
-	effectiveDate: '2026-08-21',
+	// Re-read 2026-08-31 and unchanged: render=true 10, premium 10 (25 with JS),
+	// ultra_premium 30 (75 with JS). All four figures quoted verbatim on the source page.
+	//
+	// A SURCHARGE THIS MATRIX CANNOT HOLD, found on their pricing page the same day: "sites like
+	// Cloudflare, Datadome, or PerimeterX add 10 credits per request when we bypass them". That
+	// is a property of the TARGET, and every cell here is keyed on the request shape — premium
+	// tier and rendering — so there is nowhere to put it. A plain fetch of a Cloudflare-protected
+	// page costs 11, and this table says 1.
+	//
+	// Scrapfly has the same shape of gap for the same reason: its ASP "may dynamically upgrade
+	// the proxy pool". Two of four providers price partly on what the target's defences do, which
+	// is not a dimension a (tier x rendering) matrix has.
+	//
+	// NOT MODELLED, DELIBERATELY. Adding a "protected target" column would be a number we cannot
+	// know before the request — whether a bypass happened is the provider's judgement, made after
+	// we asked. It is also the strongest argument for the design already in place: the estimate
+	// is the fallback, `X-Cost-Source: reported` is the normal answer, and every response says
+	// which one the caller got.
+	effectiveDate: '2026-08-31',
 	sourceUrl: 'https://docs.scraperapi.com/control-and-optimization/supported-parameters',
 	/** ScraperAPI sells credits; what a credit costs depends on the plan. */
 	unit: 'provider-credits',

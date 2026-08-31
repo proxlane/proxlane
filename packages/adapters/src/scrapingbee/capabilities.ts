@@ -1,7 +1,10 @@
 import type { CostTable, ProviderCapabilities } from '../contract.js';
 
 const costTable: CostTable = {
-	effectiveDate: '2026-08-21',
+	// Re-read 2026-08-31 and unchanged: 5 rendered, 10 premium plain, 25 premium+JS,
+	// 75 stealth. Stealth stays null unrendered because the page says it "only works when
+	// JavaScript rendering is enabled" — the null is their constraint, not our omission.
+	effectiveDate: '2026-08-31',
 	sourceUrl: 'https://www.scrapingbee.com/documentation/',
 	/** ScrapingBee sells credits; what a credit costs depends on the plan. */
 	unit: 'provider-credits',
