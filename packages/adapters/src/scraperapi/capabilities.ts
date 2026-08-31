@@ -5,7 +5,9 @@ import type { CostTable, ProviderCapabilities } from '../contract.js';
 // router filters the failover chain on these before it sends anything.
 
 const costTable: CostTable = {
-	effectiveDate: '2026-08-21',
+	// Re-read 2026-08-31 and unchanged: render=true 10, premium 10 (25 with JS),
+	// ultra_premium 30 (75 with JS). All four figures quoted verbatim on the source page.
+	effectiveDate: '2026-08-31',
 	sourceUrl: 'https://docs.scraperapi.com/control-and-optimization/supported-parameters',
 	/** ScraperAPI sells credits; what a credit costs depends on the plan. */
 	unit: 'provider-credits',

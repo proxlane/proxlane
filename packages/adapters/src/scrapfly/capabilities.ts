@@ -1,7 +1,11 @@
 import type { CostTable, ProviderCapabilities } from '../contract.js';
 
 const costTable: CostTable = {
-	effectiveDate: '2026-08-21',
+	// Re-read 2026-08-31 and unchanged: datacenter 1, residential 25, render_js +5. The page
+	// shows the arithmetic we encode — "1 + 5 = 6" and "25 + 5 = 30". The stealth column is
+	// residential-equivalent because ASP "may dynamically upgrade the proxy pool", so it has no
+	// fixed published price; that is why cost arrives `reported` from this provider.
+	effectiveDate: '2026-08-31',
 	sourceUrl: 'https://scrapfly.io/docs/scrape-api/billing',
 	/** Scrapfly sells credits; what a credit costs depends on the plan. */
 	unit: 'provider-credits',
