@@ -272,6 +272,23 @@ if (import.meta.filename === process.argv[1]) {
 	}
 
 	if (next !== current) {
+		// NAME THE DIRECTION, because the two are not the same problem. A table that would GROW
+		// means a capture is waiting to be recorded. A table that would SHRINK means the corpus
+		// on this machine no longer holds the evidence behind a published claim — which is how
+		// five of six captures went missing without anyone noticing until a regeneration tried
+		// to delete them. Saying only "stale" reports both as the same routine chore.
+		const dropped = retractions(current, table);
+		if (dropped.length > 0) {
+			process.stderr.write(
+				`\n  corpus:verify — this corpus is MISSING the evidence behind ${dropped.length} ` +
+					'published claim(s):\n\n' +
+					dropped.map((d) => `    ${d}\n`).join('') +
+					'\n  The captures live outside the repo by plan.md section 19, so they are only as\n' +
+					'  durable as wherever you keep them. Mount the full corpus, or accept the\n' +
+					'  retraction with `--write --allow-retractions`.\n\n',
+			);
+			process.exit(1);
+		}
 		process.stderr.write(
 			'\n  corpus:verify — the committed table is stale. Run `pnpm corpus:verify --write`.\n\n',
 		);

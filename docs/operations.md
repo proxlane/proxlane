@@ -535,6 +535,36 @@ that every agent then pays to read on every invocation.
 
 ---
 
+## 8b. The block-page corpus is an artefact, and it has to survive
+
+`packages/detect/src/verified.ts` is generated: a rule appears there because a stored capture,
+run through the real `detect()`, fired it. The captures themselves stay out of the repo — a
+dated capture of a named site's defences is what `plan.md` section 19 bars — so they live in
+whatever directory `PROXLANE_PRIVATE_CORPUS` points at.
+
+**That directory is the evidence behind a public claim, and on 2026-08-31 five of its six
+captures were gone.** No backup, nothing in the trash, nothing in git. The table still cited
+their digests, and `apps/web` was still telling visitors those rules were confirmed. Nobody
+noticed until a regeneration tried to delete them.
+
+Three things follow, and none is optional:
+
+- **Back it up.** It is a handful of JSON files and it is the only proof behind the one claim
+  this product is sold on. Losing it retracts published claims — that is not a metaphor, it is
+  what the generator does.
+- **Never regenerate on a partial corpus.** `corpus:verify` refuses a retraction without
+  `--allow-retractions`, and its read-only path now names which claims a mounted corpus cannot
+  back, rather than reporting the same word ("stale") for a table that would grow and one that
+  would shrink.
+- **A lost capture retracts to "no real capture yet", not to a footnote.** The rule was verified
+  once and the record of it is gone; representing that as a third state would mean hand-writing
+  a claim the generator cannot produce, which is the exact thing this file exists to prevent.
+  Under-claiming is the safe direction and the honest one.
+
+Re-capture happens the way `imperva-incapsula` did: from live traffic that was blocked anyway.
+A purpose-built sandbox cannot serve a vendor challenge, so `pnpm capture-block` is fed by real
+requests someone was already making — never by provoking a site into blocking us.
+
 ## 9. Launch gates
 
 **This is the launch checklist.** `plan.md` section 20 is the separate Phase-0 checklist

@@ -273,11 +273,25 @@ describe('the imperva rule means blocked, not merely protected', () => {
 		}
 	});
 
-	it('is still not counted as confirmed', () => {
-		// Both real captures are NEGATIVE: they show the false positive is closed, not that the
-		// rule fires on a block. Imperva blocked neither request, so nobody has a positive
-		// capture. The table must keep saying so.
-		expect(unverifiedRules()).toContain('imperva-incapsula');
+	it('is confirmed, and by a POSITIVE capture rather than the two negative ones', () => {
+		// THE DAY ARRIVED, 2026-08-31. This used to assert the opposite, and the reason it could
+		// is worth keeping: the only real Imperva pages anyone had were NEGATIVE — they showed the
+		// false positive was closed, not that the rule fires on a block, because Imperva had
+		// blocked neither request.
+		//
+		// A caller running the gateway against production traffic was then blocked by Imperva for
+		// real and handed over the 32KB page. It carries `CWUDNSAI`, a third parameter name, which
+		// is why the rule is keyed on the iframe rather than the query string.
+		//
+		// It is also the rule that could never have been confirmed any other way. A purpose-built
+		// sandbox cannot serve a vendor challenge, and until #243 the detector never ran on
+		// HARD_BLOCK at all — so a vendor that answers 403 every time was one live traffic could
+		// not confirm.
+		expect(unverifiedRules()).not.toContain('imperva-incapsula');
+		const v = verificationFor('imperva-incapsula');
+		expect(v?.captures).toBeGreaterThan(0);
+		// A class, never a host. plan.md section 19, and the capture tool enforces it.
+		expect(v?.classes.every((c) => /^[a-z0-9-]+$/.test(c))).toBe(true);
 	});
 });
 
