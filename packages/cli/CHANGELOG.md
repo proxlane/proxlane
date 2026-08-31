@@ -1,5 +1,12 @@
 # proxlane
 
+## 0.4.10
+
+### Patch Changes
+
+- Updated dependencies [[`029dac8`](https://github.com/proxlane/proxlane/commit/029dac8350c41f7b1e4b1705555cf37a7956e36e), [`29150dc`](https://github.com/proxlane/proxlane/commit/29150dce4c7ca4203b4bf5c03804b39cd0c5f63d)]:
+  - @proxlane/adapters@0.9.2
+
 ## 0.4.9
 
 ### Patch Changes

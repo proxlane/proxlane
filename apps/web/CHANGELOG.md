@@ -1,5 +1,20 @@
 # @proxlane/web
 
+## 0.9.7
+
+### Patch Changes
+
+- [#255](https://github.com/proxlane/proxlane/pull/255) [`969d128`](https://github.com/proxlane/proxlane/commit/969d128cc6b27849016ee4f841d1292b89cc2f77) Thanks [@scarsam](https://github.com/scarsam)! - The docs nav disclosure gets a drawn chevron instead of the `⌄` character, which inherited whatever the font decided and rendered as a stray comma floating above the baseline. Same 16px box and 1.5px stroke as every other icon on the site — the reasoning `theme-toggle.tsx` already gives for not using ☀ and ☾.
+
+- [#252](https://github.com/proxlane/proxlane/pull/252) [`029dac8`](https://github.com/proxlane/proxlane/commit/029dac8350c41f7b1e4b1705555cf37a7956e36e) Thanks [@scarsam](https://github.com/scarsam)! - Three fixes found by reading the site on a phone and by running the contributor onboarding path end to end. The docs page list was a wrapping row that broke into four ragged lines on a 390px screen, landing at arbitrary positions against the fixed grid field painted behind every page, so it read as a broken table; it is now a disclosure that opens into the same left-rule list the on-page contents already used. Reference tables were told to fit the viewport, which compressed the widest column — always the last, always the prose — into a ribbon wrapping every cell to three lines; they now take their natural width and scroll, with the first column pinned so a row stays identifiable while you read across it. And `pnpm conformance` on a freshly scaffolded adapter crashed with a Node stack trace pointing into a build artefact, because a scaffold's `translate` throws by design and only `parse` was guarded — it now names the file to implement.
+
+- [#253](https://github.com/proxlane/proxlane/pull/253) [`29150dc`](https://github.com/proxlane/proxlane/commit/29150dce4c7ca4203b4bf5c03804b39cd0c5f63d) Thanks [@scarsam](https://github.com/scarsam)! - All four cost tables re-read against the providers' own live documentation on 2026-08-31 and none had moved, so each `effectiveDate` advances and each carries a note of the figures the source states. ScraperAPI, ScrapingBee and Bright Data confirm every cell verbatim; Scrapfly's page shows the arithmetic the table encodes. Scrapfly's stealth column stays residential-equivalent because ASP "may dynamically upgrade the proxy pool" and therefore has no fixed published price, which is why cost from that provider arrives reported rather than estimated.
+
+  Reading the pricing pages as well as the docs turned up a limit the matrix cannot express, and the comparison page now says so: two of the four price partly on what the _target_ does rather than on what you asked for. ScraperAPI adds ten credits per request when it bypasses Cloudflare, DataDome or PerimeterX, and Scrapfly's ASP may upgrade the proxy pool mid-request. Neither is a function of tier or rendering, which is the only thing a cost matrix is keyed on — which is the argument for preferring the reported figure over the estimated one, and for saying which you got.
+
+- Updated dependencies [[`029dac8`](https://github.com/proxlane/proxlane/commit/029dac8350c41f7b1e4b1705555cf37a7956e36e), [`29150dc`](https://github.com/proxlane/proxlane/commit/29150dce4c7ca4203b4bf5c03804b39cd0c5f63d)]:
+  - @proxlane/adapters@0.9.2
+
 ## 0.9.6
 
 ### Patch Changes
