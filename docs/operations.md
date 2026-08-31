@@ -535,35 +535,38 @@ that every agent then pays to read on every invocation.
 
 ---
 
-## 8b. The block-page corpus is an artefact, and it has to survive
+## 8b. The corpus lives in `proxlane/corpus`, and that has to be written down
 
 `packages/detect/src/verified.ts` is generated: a rule appears there because a stored capture,
-run through the real `detect()`, fired it. The captures themselves stay out of the repo — a
-dated capture of a named site's defences is what `plan.md` section 19 bars — so they live in
-whatever directory `PROXLANE_PRIVATE_CORPUS` points at.
+run through the real `detect()`, fired it. The captures stay out of this repo — a dated capture
+of a named site's defences is what `plan.md` section 19 bars — so they live in the **private
+`proxlane/corpus` repository**, cloned to wherever `PROXLANE_PRIVATE_CORPUS` points.
 
-**That directory is the evidence behind a public claim, and on 2026-08-31 five of its six
-captures were gone.** No backup, nothing in the trash, nothing in git. The table still cited
-their digests, and `apps/web` was still telling visitors those rules were confirmed. Nobody
-noticed until a regeneration tried to delete them.
+**That sentence did not exist until 2026-08-31, and its absence cost five true claims.** A
+working directory on one machine held one of the nine captures. Nothing in the repo said where
+the other eight were, so the conclusion drawn from an exhaustive search of that machine — Time
+Machine, trash, `git fsck` — was that the evidence had been lost, and the table was cut from
+five verified rules to two and published that way. The captures were in a private repo in the
+same organisation, one `gh repo list` away. Restored the same day; the real state is 6 of 6.
 
-Three things follow, and none is optional:
+The guard worked and was overridden. `corpus:verify --write` refused, named all five claims it
+would retract, and said "your corpus is probably incomplete rather than the claims being wrong."
+That is exactly what had happened. `--allow-retractions` exists for a claim genuinely being
+withdrawn, and it was used on a wrong premise instead. A guard that names the right answer
+cannot help if the person reading it is already sure.
 
-- **Back it up.** It is a handful of JSON files and it is the only proof behind the one claim
-  this product is sold on. Losing it retracts published claims — that is not a metaphor, it is
-  what the generator does.
-- **Never regenerate on a partial corpus.** `corpus:verify` refuses a retraction without
-  `--allow-retractions`, and its read-only path now names which claims a mounted corpus cannot
-  back, rather than reporting the same word ("stale") for a table that would grow and one that
-  would shrink.
-- **A lost capture retracts to "no real capture yet", not to a footnote.** The rule was verified
-  once and the record of it is gone; representing that as a third state would mean hand-writing
-  a claim the generator cannot produce, which is the exact thing this file exists to prevent.
-  Under-claiming is the safe direction and the honest one.
+So, in order of what would actually have prevented it:
 
-Re-capture happens the way `imperva-incapsula` did: from live traffic that was blocked anyway.
-A purpose-built sandbox cannot serve a vendor challenge, so `pnpm capture-block` is fed by real
-requests someone was already making — never by provoking a site into blocking us.
+- **Say where the corpus is.** Now said, here, and in `corpus:verify`'s own refusal text.
+- **Clone it before concluding anything is missing.** `gh repo clone proxlane/corpus`.
+- **`--allow-retractions` means you have checked the private repo**, not that you searched one
+  laptop. Retracting a published claim is the most expensive thing this command can do.
+- **Add a new capture to the repo, not only to a local directory**, or the next person to clone
+  it regenerates a table that silently drops yours.
+
+Re-capture, when it is needed, comes from live traffic that was blocked anyway — a purpose-built
+sandbox cannot serve a vendor challenge, which is why `imperva-incapsula` waited for a real
+caller to be blocked by Imperva and hand the page over.
 
 ## 9. Launch gates
 

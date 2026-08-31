@@ -156,7 +156,11 @@ export function render(table: Record<string, Verified>): string {
 		.map((id) => {
 			const e = table[id] as Verified;
 			return (
-				`\t'${id}': {\n` +
+				// QUOTED ONLY WHEN IT HAS TO BE, because the formatter unquotes the rest and this file
+				// is committed. Quoting everything looks tidier and makes `--write` leave `pnpm lint`
+				// red — which stayed hidden while every rule id happened to contain a hyphen, and
+				// appeared the moment `datadome` and `perimeterx` came back into the table.
+				`\t${/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(id) ? id : `'${id}'`}: {\n` +
 				`\t\tcaptures: ${e.captures},\n` +
 				`\t\tclasses: [${e.classes.map((c) => `'${c}'`).join(', ')}],\n` +
 				`\t\tlastVerified: '${e.lastVerified}',\n` +
@@ -283,9 +287,13 @@ if (import.meta.filename === process.argv[1]) {
 				`\n  corpus:verify — this corpus is MISSING the evidence behind ${dropped.length} ` +
 					'published claim(s):\n\n' +
 					dropped.map((d) => `    ${d}\n`).join('') +
-					'\n  The captures live outside the repo by plan.md section 19, so they are only as\n' +
-					'  durable as wherever you keep them. Mount the full corpus, or accept the\n' +
-					'  retraction with `--write --allow-retractions`.\n\n',
+					'\n  The captures live outside the repo by plan.md section 19, in the private\n' +
+					'  proxlane/corpus repository. Clone it and point PROXLANE_PRIVATE_CORPUS there\n' +
+					'  before concluding anything is missing:\n\n' +
+					'    gh repo clone proxlane/corpus\n\n' +
+					'  --write --allow-retractions is for a claim genuinely being withdrawn. It was\n' +
+					'  once used on a corpus that was merely not cloned, and five true claims went\n' +
+					'  out retracted.\n\n',
 			);
 			process.exit(1);
 		}

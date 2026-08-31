@@ -311,8 +311,16 @@ describe('the corpus gap is stated, not discovered', () => {
 		const verified = RULES.filter((r) => verificationFor(r.id) !== undefined).map((r) => r.id);
 		expect([...unverified, ...verified].sort()).toEqual(RULES.map((r) => r.id).sort());
 		expect(unverified.length + verified.length).toBe(RULES.length);
-		// And the gap is still real, or this file should say something else entirely.
-		expect(unverified.length).toBeGreaterThan(0);
+		// THE GAP CLOSED, 2026-08-31. This asserted `unverified.length > 0` with a comment saying
+		// "or this file should say something else entirely", and that day came: every rule is now
+		// confirmed by a stored capture. The partition above is the invariant and it still holds;
+		// requiring a gap would now mean requiring the corpus to stay incomplete.
+		//
+		// It closed twice over, which is the part worth remembering. The last rule was confirmed
+		// by a caller's real Incapsula block page, and then all five older claims were briefly
+		// retracted because the private corpus repo had not been cloned. Neither the count going
+		// up nor the count going down is a thing to assert here — only that the table and the
+		// rule list describe the same six rules.
 	});
 
 	it('cites an artefact for every rule it calls confirmed', () => {
