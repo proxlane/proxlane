@@ -315,7 +315,14 @@ body::before {
 	   forcing the page to. A reference table squeezed into 46rem wraps every cell to three
 	   lines and stops being scannable, which is the only thing a table is for. */
 	overflow-x: auto;
-	width: 100%;
+	/* `max-content` with a 100% floor, not a flat `width: 100%`. At 100% the table was told to
+	   fit the phone, so it did the thing the comment above says it must not: it compressed the
+	   widest column — always the last one, always the prose — into a 90px ribbon wrapping every
+	   cell to three lines, while the narrow columns beside it kept their whitespace. Now every
+	   column takes the width it needs and the table scrolls, which is what `overflow-x` was
+	   already there for; the floor keeps a narrow table filling the measure. */
+	width: max-content;
+	min-width: 100%;
 }
 .doc-prose th {
 	color: var(--color-slate);
@@ -332,9 +339,26 @@ body::before {
 	text-align: left;
 	vertical-align: top;
 }
+/* THE ROW LABEL STAYS PUT. Scrolling right to read the last column took the first one off
+   screen, so a reader arrived at "504 / yes / no / Attempt exceeded its per-attempt budget"
+   with no idea which outcome it belonged to — the name was two columns to the left, and on a
+   390px screen a screenshot of it showed "IMEOUT" and "RROR". The whole value of a reference
+   table is reading across a row you can still identify.
+
+   Folded into the existing first-column rule rather than added beside it: a second, more
+   specific selector earlier in the file is a descending-specificity warning and an invitation
+   to wonder which one won. */
+.doc-prose th:first-child,
 .doc-prose td:first-child {
+	background: var(--color-ground);
 	color: var(--color-ink);
+	left: 0;
+	position: sticky;
 	white-space: nowrap;
+	/* The collapsed border does not travel with a sticky cell, so the rule separating it from
+	   the scrolling columns is drawn here. Without it the first column and the second merge as
+	   soon as anything slides underneath. */
+	box-shadow: 1px 0 0 var(--color-rule);
 }
 .doc-prose blockquote {
 	border-left: 2px solid var(--color-accent);

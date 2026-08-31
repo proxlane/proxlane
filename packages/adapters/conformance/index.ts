@@ -198,8 +198,31 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 	const matrix = requestMatrix(adapter);
 	if (matrix.length === 0) fail('translate', 'request matrix is empty — nothing was exercised');
 	const seen = new Set<string>();
+	let translateUnimplemented = false;
 	for (const req of matrix) {
-		const wire = adapter.translate(req, 'CONFORMANCE_KEY');
+		// A THROWING `translate` IS THE NORMAL STATE OF A NEW ADAPTER, and it used to crash this
+		// suite with a raw Node stack trace. `pnpm new-adapter <id>` scaffolds `translate` and
+		// `parse` as `throw new Error('<id>: translate is not implemented')` — deliberately — and
+		// then tells the contributor their next step is `pnpm conformance --adapter=<id>`. So the
+		// second command in the documented onboarding path answered with an unhandled exception
+		// and a stack trace into `conformance-dist`, which is a build artefact they have never
+		// heard of. Everything else in this repo fails by saying what is missing; this is that.
+		//
+		// Caught per request rather than around the loop, so an adapter that throws on one shape
+		// and not another — a POST it cannot serve, say — still reports the rest.
+		let wire: ReturnType<Adapter['translate']>;
+		try {
+			wire = adapter.translate(req, 'CONFORMANCE_KEY');
+		} catch (err) {
+			fail(
+				'translate',
+				`threw instead of returning a request: ${err instanceof Error ? err.message : String(err)}` +
+					` — implement translate() in packages/adapters/src/${id}/index.ts`,
+			);
+			checks++;
+			translateUnimplemented = true;
+			break;
+		}
 		checks++;
 
 		// Purity: same input, same output. A clock or a counter inside translate would break
@@ -257,6 +280,13 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 		deadlineMs: 30_000,
 	};
 	const wireOf = (r: GatewayRequest) => JSON.stringify(adapter.translate(r, 'CONFORMANCE_KEY'));
+
+	// EVERYTHING BELOW CALLS `translate`, so a scaffold that has not implemented it yet would
+	// throw here having already been told, once, in the failure above. One clear sentence beats
+	// the same exception raised from a second place — and beats the stack trace into
+	// `conformance-dist` that a first-time contributor got instead, from the second command the
+	// onboarding path tells them to run.
+	if (translateUnimplemented) return { failures, checks };
 
 	if (caps.renderJs) {
 		checks++;
