@@ -564,14 +564,45 @@ omission. Both return with the hosted tier, in phase 3, where they belong.
       (section 5)
 - [ ] Conformance green on **every shipped adapter** — four today, and the count is
       `REGISTRY`'s, not a number typed here — plus the live canary green three consecutive
-      scheduled runs (cadence per `operating.md` B6 — weekly at launch, so three weeks)
+      scheduled runs (cadence per `operating.md` B6 — weekly at launch, so three weeks).
+      **The canary covers the adapters we hold a usable key for, and the launch record must
+      name the ones it did not.** From 2026-08-31 that is ScraperAPI and Scrapfly, whose free
+      quotas were exhausted recording fixtures on 08-27 and renew 09-07; both secrets are out
+      of CI until then. With the key present and empty the canary reports "Scrapfly failed",
+      which is false — the provider is fine and our wallet is not. With it absent the canary
+      prints `NOTE: no key for scrapfly — those adapters were NOT checked`, which is true.
+      A weaker gate that says so beats a stronger-looking one that misattributes.
+      **This is a coverage note, not a licence to drop a provider that is actually failing.**
+      A key that is present must go green; the exemption is for a provider we cannot call at
+      all, and it expires the moment credit returns.
 - [ ] `docker compose up` works on a fresh VM with only a provider key
 - [ ] `proxlane doctor` diagnoses the five most likely misconfigurations
 - [ ] SECURITY.md, CONTRIBUTING.md, LICENSE, CoC in place
-- [ ] **One stranger runs it.** Not twenty minutes of someone trying to break it — one person
+- [x] **One stranger runs it.** Not twenty minutes of someone trying to break it — one person
       who is not the maintainer, on their own provider key, reporting what happened. This is the
       only item on the list that would have caught any of the 41 findings the copy panel raised,
-      and it is the input every open question in `state.md` is actually waiting on
+      and it is the input every open question in `state.md` is actually waiting on.
+
+      **Done, 2026-08-26 to 08-31**, and it earned its place at the top of this list. A caller
+      running proxlane against production traffic on their own keys, reporting each time, found
+      six defects in five days — every one of them invisible to conformance, to the canary as it
+      then stood, and to any amount of the maintainer re-reading the code:
+
+      1. the one executor dropped `wire.body`, so Bright Data answered `AUTH_FAILED` on a
+         working key for the whole of phase 1 and the launch gate had never measured it (#237)
+      2. the canary's 404 target returns zero bytes, which an unblocker cannot tell from a
+         block (#237)
+      3. `wait_for` did not exist, so a late-hydrating page returned the shell at random (#238)
+      4. `HARD_BLOCK` never named the vendor, because the detector ran on every path but that
+         one — and a vendor that always answers 403 could therefore never have its rule
+         confirmed by live traffic (#243)
+      5. `capture-block` left the target's host in the stored body while its own docstring
+         promised otherwise (#243)
+      6. an exhausted Scrapfly quota was filed as `PROVIDER_ERROR`, which sits in the
+         cross-org health statistic, so one org's empty wallet could demote a provider for
+         everyone (#246)
+
+      Three weeks of a mechanical canary would have found none of them. Keep this item first.
 
 **Struck, with the reason, so nobody re-adds them:**
 
