@@ -10,7 +10,8 @@ One lane to every scraping provider. Automatic failover, per-request cost visibi
 honest success detection.
 
 Bring your own provider keys and it is free forever. Self-host it and it is free
-forever. Use our hosted credits and you pay provider cost plus a flat 5%.
+forever. Those are the two ways to run it. Hosted credits at provider cost plus 5% are
+designed and not built, and the rate is not settled — see Pricing.
 
 ```diff
 - https://api.scraperapi.com/?api_key=KEY&url=https://example.com
@@ -128,11 +129,14 @@ curl "http://localhost:8787/v1?api_key=$PROXLANE_API_KEY\
 Every response tells you what happened:
 
 ```
-X-Provider-Used: scrapingbee
-X-Attempts: 2
 X-Outcome: OK
-X-Detect-Rule: none
-X-Cost-Estimate: 0.00049
+X-Outcome-Class: ok
+X-Attempts: 1
+X-Chain: scrapingbee:OK
+X-Provider-Used: scrapingbee
+X-Cost-Estimate: 1.000000
+X-Cost-Unit: provider-credits
+X-Cost-Source: reported
 ```
 
 Node:
@@ -197,13 +201,13 @@ the same page costs 10× on one line and 1× on another.
 
 ## Pricing
 
-Three ways to run it. Two of them are free.
+Two ways to run it today, both free. A third is designed and not built.
 
-| | Cost | Requests run on |
-|---|---|---|
-| **BYOK** | free, forever | your provider accounts |
-| **Self-host** | free, forever | your provider accounts, your servers |
-| **Hosted credits** | provider cost + 5% | our provider accounts |
+| | Cost | Requests run on | |
+|---|---|---|---|
+| **BYOK** | free, forever | your provider accounts | ships today |
+| **Self-host** | free, forever | your provider accounts, your servers | ships today |
+| **Hosted credits** | provider cost + 5% | our provider accounts | **not built** |
 
 Hosted credits are pay as you go, no subscription, and you are only charged for
 requests that pass block detection. A 200 with a CAPTCHA in it is not a success and

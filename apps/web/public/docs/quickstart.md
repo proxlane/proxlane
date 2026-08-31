@@ -68,13 +68,14 @@ X-Outcome: OK
 X-Outcome-Class: ok
 X-Attempts: 2
 X-Provider-Used: scrapfly
-X-Cost-Estimate: 0.002800
+X-Cost-Estimate: 2.000000
+X-Cost-Unit: provider-credits
 Server-Timing: gw;dur=1.7, up;dur=2451.0, total;dur=2452.7
 X-Request-Id: 01JD8F2K9WQ3
 ```
 
-Read that as: two providers were tried, the second one served the page, and it cost 0.0028
-credits. Proxlane itself took 1.7 ms. The provider took the other 2.45 seconds.
+Read that as: two providers were tried, the second one served the page, and it cost two
+Scrapfly credits — one per attempt, because the provider charges for the failure too. Proxlane itself took 1.7 ms. The provider took the other 2.45 seconds.
 
 ## Migrate an existing integration
 
