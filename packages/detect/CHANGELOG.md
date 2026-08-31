@@ -1,5 +1,13 @@
 # @proxlane/detect
 
+## 0.3.1
+
+### Patch Changes
+
+- [#248](https://github.com/proxlane/proxlane/pull/248) [`c798431`](https://github.com/proxlane/proxlane/commit/c7984315e320c203d99fce7dd4872203caa26d61) Thanks [@scarsam](https://github.com/scarsam)! - The verified-rules table now claims only what a retained capture can prove. It cited six captures across five rules and one of those artefacts still existed; the rest were lost with no backup, while the docs site went on reporting those rules as confirmed. `verified.ts` is generated precisely so a claim names an artefact, so a claim whose artefact is gone is not verified — the table reads 2 of 6, and `imperva-incapsula` joins it on a positive capture taken from live traffic. `corpus:verify` also names which claims a mounted corpus cannot back on its read-only path, rather than calling a shrinking table and a growing one both "stale".
+
+- [#251](https://github.com/proxlane/proxlane/pull/251) [`8caef80`](https://github.com/proxlane/proxlane/commit/8caef808d5e259b69000baaf27e5dbca6f3a20d1) Thanks [@scarsam](https://github.com/scarsam)! - Restores the five verified detection rules retracted earlier today. The captures behind them were never lost — they live in the private `proxlane/corpus` repository, which nothing in the repo mentioned, so an exhaustive search of one machine concluded the evidence was gone. All six rules are confirmed by a real capture, from nine captures in total. `corpus:verify`'s refusal now names the repo to clone before anyone reaches for `--allow-retractions` again.
+
 ## 0.3.0
 
 ### Minor Changes

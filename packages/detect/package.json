@@ -1,6 +1,6 @@
 {
 	"name": "@proxlane/detect",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Soft-block detection for scraped responses: the HTTP 200 that is really a captcha or a challenge page.",
 	"keywords": [
 		"web-scraping",

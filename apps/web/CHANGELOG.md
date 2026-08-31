@@ -1,5 +1,14 @@
 # @proxlane/web
 
+## 0.9.6
+
+### Patch Changes
+
+- [#249](https://github.com/proxlane/proxlane/pull/249) [`d93b83a`](https://github.com/proxlane/proxlane/commit/d93b83a3ced285b4b49bd182f2e6129f064db993) Thanks [@scarsam](https://github.com/scarsam)! - The route diagram now derives `x-cost-estimate` from its own attempts instead of stating it. The four figures it printed were hand-typed and each was about a thousand times too small: a single plain attempt on any credit provider costs `1.000000`, which is what the gateway returns, while the diagram showed `0.001400`. They read as dollars beside a header naming credits. The `Scenario` type no longer has a cost field, so a scenario cannot state a price its own chain would not produce.
+
+- Updated dependencies [[`c798431`](https://github.com/proxlane/proxlane/commit/c7984315e320c203d99fce7dd4872203caa26d61), [`8caef80`](https://github.com/proxlane/proxlane/commit/8caef808d5e259b69000baaf27e5dbca6f3a20d1)]:
+  - @proxlane/detect@0.3.1
+
 ## 0.9.5
 
 ### Patch Changes
