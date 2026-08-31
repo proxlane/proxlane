@@ -208,8 +208,11 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 		// and a stack trace into `conformance-dist`, which is a build artefact they have never
 		// heard of. Everything else in this repo fails by saying what is missing; this is that.
 		//
-		// Caught per request rather than around the loop, so an adapter that throws on one shape
-		// and not another — a POST it cannot serve, say — still reports the rest.
+		// STOPS AT THE FIRST ONE. An adapter that has not implemented `translate` throws for every
+		// shape in the matrix, so continuing would print the same sentence five times and bury the
+		// other failures under it. A refusal aimed at ONE shape — a POST an adapter will not serve
+		// — is a different thing and has its own check further down, which reads the refusal as
+		// the capability answer it is.
 		let wire: ReturnType<Adapter['translate']>;
 		try {
 			wire = adapter.translate(req, 'CONFORMANCE_KEY');
