@@ -1,5 +1,16 @@
 # @proxlane/gateway
 
+## 0.14.0
+
+### Minor Changes
+
+- [#243](https://github.com/proxlane/proxlane/pull/243) [`0c8d9b4`](https://github.com/proxlane/proxlane/commit/0c8d9b47eecb6a0f022f0852e25c9df064fc9861) Thanks [@scarsam](https://github.com/scarsam)! - A hard block now says who blocked you. `HARD_BLOCK` is the provider reporting a block — for three of the four adapters that is literally `status === 403` — and the detector never ran on it, so the response carried `X-Outcome: HARD_BLOCK` with no `X-Detect-Rule` beside it. On the product whose pitch is naming the defence, the one outcome that _is_ a block could not name it. The outcome is deliberately unchanged; this only adds the label, and a page no rule recognises gets no label rather than a guess.
+
+### Patch Changes
+
+- Updated dependencies [[`8806f7a`](https://github.com/proxlane/proxlane/commit/8806f7a29180260006f1649ee4fe46be1ba07506)]:
+  - @proxlane/adapters@0.9.1
+
 ## 0.13.0
 
 ### Minor Changes

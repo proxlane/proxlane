@@ -1,5 +1,11 @@
 # @proxlane/adapters
 
+## 0.9.1
+
+### Patch Changes
+
+- [#246](https://github.com/proxlane/proxlane/pull/246) [`8806f7a`](https://github.com/proxlane/proxlane/commit/8806f7a29180260006f1649ee4fe46be1ba07506) Thanks [@scarsam](https://github.com/scarsam)! - An exhausted Scrapfly plan is an account fact, not a provider outage. Scrapfly answers HTTP 429 with `ERR::SCRAPE::QUOTA_LIMIT_REACHED` and a null target status; unmapped, that fell through to `PROVIDER_ERROR`, which sits in the failure term of global provider health. One org running out of credits would therefore drive the health statistic down for every org and could demote Scrapfly out of every chain for hours — the same cross-org contamination already documented for `AUTH_FAILED`. It is now `RATE_LIMITED`, which cools per account and fails over to a provider that has credit.
+
 ## 0.9.0
 
 ### Minor Changes
