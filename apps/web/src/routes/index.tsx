@@ -1,4 +1,4 @@
-import { CAPABILITIES, costOf } from '@proxlane/adapters';
+import { CAPABILITIES, capabilitiesFor, costOf } from '@proxlane/adapters';
 import { describeRoute, type RouteAttempt, RouteDiagram } from '@proxlane/route-viz';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
@@ -147,8 +147,9 @@ interface Scenario {
 	/** The outcome the caller received. */
 	readonly outcome: string;
 	readonly status?: number;
-	/** `X-Cost-Estimate`, six decimal places, summed across every attempt. */
-	readonly cost: string;
+	// NO `cost` FIELD, deliberately. It was one, it was typed by hand, and all four values were
+	// off by about a thousand. `costFor` derives it from these attempts instead, so a scenario
+	// cannot state a price its own chain would not produce.
 	readonly caption: string;
 }
 
@@ -181,7 +182,6 @@ const SCENARIOS: readonly Scenario[] = [
 		],
 		outcome: 'OK',
 		status: 200,
-		cost: '0.004200',
 		caption:
 			'The first provider answered 200 with a challenge page and the detector named the rule that caught it; the second failed outright; the third served. Your providers charge for all three, so Proxlane reports all three. It takes no cut of any of it.',
 	},
@@ -191,7 +191,6 @@ const SCENARIOS: readonly Scenario[] = [
 		attempts: [{ provider: 'scraperapi', outcome: 'OK', line: 1, latencyMs: 980 }],
 		outcome: 'OK',
 		status: 200,
-		cost: '0.001400',
 		caption:
 			'The ordinary case: the first provider served, the chain stopped, and your provider charged you for one attempt.',
 	},
@@ -222,7 +221,6 @@ const SCENARIOS: readonly Scenario[] = [
 			},
 		],
 		outcome: 'HARD_BLOCK',
-		cost: '0.004600',
 		caption:
 			'Every provider blocked. The chain reports the last outcome rather than inventing one, and no provider served, so x-provider-used is absent from the response rather than empty. You are still told what was tried, and your providers still charge for it.',
 	},
@@ -234,11 +232,40 @@ const SCENARIOS: readonly Scenario[] = [
 		attempts: [],
 		outcome: 'GATEWAY_BUSY',
 		status: 429,
-		cost: '0.000000',
 		caption:
 			'The gateway was already at its in-flight ceiling, so it refused this request instead of queueing it. A proxy that queues silently becomes a latency black hole. Nothing was tried and nothing was charged. retry-after says when to come back, and the class is gateway, not provider: this one is ours, not a provider throttling you.',
 	},
 ];
+
+/**
+ * What `x-cost-estimate` would actually say for a scenario.
+ *
+ * DERIVED, and it had to become derived. These were four hand-typed decimals — 0.001400,
+ * 0.002800, 0.004200, 0.004600 — and every one was about a thousand times too small. A single
+ * plain attempt on any of the three credit providers costs `1.000000`, which is what the
+ * gateway prints; the typed numbers looked like dollars while the header beside them said
+ * `provider-credits`. The same wrong figures had spread to the README and the quickstart.
+ *
+ * The file already made this argument about the JS multiplier a few lines down: "a declared
+ * multiplier is a third number that can disagree with the two it summarises". A declared cost
+ * is the same thing, and it disagreed.
+ *
+ * Summed the way `app.ts` sums it — every attempt that carries a cost, not only the one that
+ * served, because the provider charges for the failures too — and `mixed` when a chain crosses
+ * units, since Bright Data bills in usd-cents and there is no honest total across the two.
+ */
+function costFor(attempts: readonly { readonly provider: string }[]): string {
+	const tables = attempts.map((a) => capabilitiesFor(a.provider)?.costTable);
+	if (tables.some((t) => t === undefined)) return '0.000000';
+	const units = new Set(tables.map((t) => t?.unit));
+	if (units.size > 1) return 'mixed';
+	let total = 0;
+	for (const t of tables) {
+		if (t === undefined) continue;
+		total += costOf(t, { premium: 'none', renderJs: false }) ?? 0;
+	}
+	return (total / 1_000_000).toFixed(6);
+}
 
 type ScenarioId = (typeof SCENARIOS)[number]['id'];
 
@@ -271,7 +298,7 @@ function headersFor(s: Scenario): readonly (readonly [string, string])[] {
 					['x-chain', s.attempts.map((a) => `${a.provider}:${a.outcome}`).join('>')],
 				] as Row[])),
 		...(served === undefined ? [] : ([['x-provider-used', served.provider]] as Row[])),
-		['x-cost-estimate', s.cost],
+		['x-cost-estimate', costFor(s.attempts)],
 		// Always beside the number. The gateway omits it only when a chain spent in two units and
 		// reports `mixed`, which cannot happen in these scenarios — every one stays on credits.
 		['x-cost-unit', 'provider-credits'],
@@ -434,7 +461,7 @@ const QUICKSTART_BLOCKS: readonly Block[] = [
   x-attempts       2
   x-chain          ${ROUTING_ORDER[0]}:SOFT_BLOCK>${ROUTING_ORDER[1]}:OK
   x-provider-used  ${ROUTING_ORDER[1]}
-  x-cost-estimate  0.002800
+  x-cost-estimate  2.000000
   x-cost-unit      provider-credits
 `,
 	},

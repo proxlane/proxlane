@@ -128,11 +128,14 @@ curl "http://localhost:8787/v1?api_key=$PROXLANE_API_KEY\
 Every response tells you what happened:
 
 ```
-X-Provider-Used: scrapingbee
-X-Attempts: 2
 X-Outcome: OK
-X-Detect-Rule: none
-X-Cost-Estimate: 0.00049
+X-Outcome-Class: ok
+X-Attempts: 1
+X-Chain: scrapingbee:OK
+X-Provider-Used: scrapingbee
+X-Cost-Estimate: 1.000000
+X-Cost-Unit: provider-credits
+X-Cost-Source: reported
 ```
 
 Node:
