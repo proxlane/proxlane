@@ -260,6 +260,35 @@ describe('the imperva rule means blocked, not merely protected', () => {
 		expect(detect(new TextEncoder().encode(article), 'text/html', 'utf-8').blocked).toBe(false);
 	});
 
+	it('catches the bare-script block, which has no iframe at all', () => {
+		// THE SHAPE THIS RULE COULD NOT SEE, and the reason it matters more than the framed one.
+		// Captured from a protected auction site on 2026-09-01, 212 bytes, no iframe and no
+		// incident id — and it reached the caller through a provider as an ordinary body rather
+		// than a flagged block, so their pipeline spent twelve hundred provider requests in a
+		// night on pages it believed were fine.
+		const bare =
+			'<html>\n<head>\n<META NAME="robots" CONTENT="noindex,nofollow">\n' +
+			'<script src="/_Incapsula_Resource?SWJIYLWA=5074a744e2e3d891814e9a2dace20bd4,' +
+			'719d34d31c8e3a6e6fffd425f7e032f3">\n</script>\n<body>\n</body></html>';
+		const v = detect(enc(bare), 'text/html', 'utf-8');
+		expect(v.blocked).toBe(true);
+		expect(v.ruleId).toBe('imperva-incapsula');
+	});
+
+	it('does NOT fire on a served page carrying the same resource token', () => {
+		// THE FALSE POSITIVE THIS RULE WAS NARROWED TO AVOID, now with a real example rather than
+		// a worry. A fully served 200 from an unrelated protected site scripts the same resource,
+		// and its token — 719d34d31c8e3a6e6fffd425f7e032f3 — is the SAME VALUE that appears in the
+		// block above. So the token discriminates nothing and only the query shape does: a served
+		// page carries one token followed by `ns` and `cb`, a bare block carries two comma-joined
+		// and neither of those.
+		const served =
+			'<html><body><h1>Lot 42</h1><p>Real content.</p>' +
+			'<script src="/_Incapsula_Resource?SWJIYLWA=719d34d31c8e3a6e6fffd425f7e032f3' +
+			'&ns=1&cb=824179160" async></script></body></html>';
+		expect(detect(enc(served), 'text/html', 'utf-8').blocked).toBe(false);
+	});
+
 	it('survives Imperva rotating the query parameter', () => {
 		// THE REASON THIS IS STRUCTURAL. Three parameter names for the same resource have been
 		// observed: `CWUDNSAI` on publicly documented block pages, `SWUDNSAI` in this repo's own

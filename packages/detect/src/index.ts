@@ -144,22 +144,52 @@ export const RULES: readonly DetectRule[] = [
 		 * It had never fired in practice for a reason that was luck: on the page measured the tag
 		 * sat at byte 263,564 and `SCAN_BYTES` stops at 262,144. A shorter page fires.
 		 *
-		 * THE DIFFERENCE IS STRUCTURAL, not a parameter. A block page FRAMES the resource —
-		 * `<iframe src="/_Incapsula_Resource?…">` — while an ordinary page SCRIPTS it. That holds
-		 * whatever the query string says, which matters because Imperva rotates the parameter
-		 * name: the block pages documented publicly use `CWUDNSAI`, this repo's own rule sample
-		 * used `SWUDNSAI`, and the live marketing page uses `SWJIYLWA`. Keying on any one of them
-		 * would be a rule with a shelf life.
+		 * IMPERVA SERVES TWO BLOCK SHAPES AND WE ONLY KNEW ONE. The paragraph that used to sit
+		 * here said a block page FRAMES the resource while an ordinary page SCRIPTS it, and that
+		 * "holds whatever the query string says". The second half is right; the first is not. A
+		 * caller running against a protected auction site captured both forms from the same
+		 * endpoint twenty minutes apart on 2026-09-01:
+		 *
+		 *   212 bytes, no iframe, no incident id — a bare <script src="/_Incapsula_Resource?…">
+		 *   863 bytes, the framed form, with incident_id and "Request unsuccessful"
+		 *
+		 * The first is the dangerous one. It reached them through a provider as an ordinary body
+		 * rather than a flagged block, and their pipeline burned twelve hundred provider requests
+		 * in a night on pages it thought were fine. That is the exact failure this whole detector
+		 * exists to prevent, and the iframe rule could not see it.
+		 *
+		 * SO WHAT SEPARATES THEM IS THE QUERY, NOT THE TAG. The tokens do not: a served page from
+		 * an unrelated protected site carried `SWJIYLWA=719d34d31c8e3a6e6fffd425f7e032f3` and so
+		 * did the block above, the same value on both. What differs is the shape.
+		 *
+		 * And the token pair is STABLE, which makes that worse rather than incidental. Two
+		 * captures of the same endpoint two and a half hours apart carry byte-identical tokens,
+		 * and the second of the pair is the one on the served page from the other site. So a rule
+		 * keyed on token identity would not match a block and a normal page occasionally; it would
+		 * match both, on both sites, indefinitely.
+		 *
+		 *   served page   ?<PARAM>=<hex>&ns=1&cb=<n>        one token, then ns and cb
+		 *   bare block    ?<PARAM>=<hex>,<hex>              two tokens, comma-joined, no ns/cb
+		 *   framed block  ?<PARAM>=…&incident_id=…          plus "Request unsuccessful"
+		 *
+		 * The parameter name still rotates — `CWUDNSAI`, `SWUDNSAI`, `SWJIYLWA` all observed — so
+		 * neither half of this rule keys on it.
 		 *
 		 * `Incapsula incident ID` is deliberately NOT an alternative on its own. It is prose, and
 		 * an article explaining the error carries it — the generic-match trap the no-fire corpus
 		 * exists to catch.
 		 *
-		 * STILL UNVERIFIED, and the table says so. Both real captures are negative: they prove the
-		 * false positive is closed, not that the rule fires on a block. Imperva did not block
-		 * either request, so nobody has a positive capture yet.
+		 * VERIFIED by a real capture of EACH shape, which is why the generated table lists two.
+		 *
+		 * The second one is also the best argument this repo has for refusing hand-written
+		 * fixtures. The caller who supplied it first tried reconstructing the page from their own
+		 * terminal output and got 204 bytes instead of 212: the response is CRLF throughout, seven
+		 * of them and no bare newlines, and pasted text loses that. A fixture eight bytes and seven
+		 * line endings wrong would have looked entirely plausible in review.
 		 */
-		test: (h) => /<iframe[^>]*_Incapsula_Resource/i.test(h),
+		test: (h) =>
+			/<iframe[^>]*_Incapsula_Resource/i.test(h) ||
+			/_Incapsula_Resource\?[A-Za-z]+=[0-9a-f]{16,},[0-9a-f]{16,}/i.test(h),
 	},
 	{
 		id: 'akamai-bot-manager',
