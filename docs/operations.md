@@ -611,15 +611,14 @@ omission. Both return with the hosted tier, in phase 3, where they belong.
 - [ ] `docker compose up` works on a fresh VM with only a provider key
 - [ ] `proxlane doctor` diagnoses the five most likely misconfigurations
 - [ ] SECURITY.md, CONTRIBUTING.md, LICENSE, CoC in place
-- [x] **One stranger runs it.** Not twenty minutes of someone trying to break it — one person
+- [ ] **One stranger runs it.** Not twenty minutes of someone trying to break it — one person
       who is not the maintainer, on their own provider key, reporting what happened. This is the
       only item on the list that would have caught any of the 41 findings the copy panel raised,
       and it is the input every open question in `state.md` is actually waiting on.
 
-      **Done, 2026-08-26 to 08-31**, and it earned its place at the top of this list. A caller
-      running proxlane against production traffic on their own keys, reporting each time, found
-      six defects in five days — every one of them invisible to conformance, to the canary as it
-      then stood, and to any amount of the maintainer re-reading the code:
+      **This was ticked on 2026-08-31 and it should not have been.** Between 08-26 and 08-31
+      another project of the maintainer's ran proxlane against production traffic on real
+      provider keys and reported six defects, every one of them real and all now fixed:
 
       1. the one executor dropped `wire.body`, so Bright Data answered `AUTH_FAILED` on a
          working key for the whole of phase 1 and the launch gate had never measured it (#237)
@@ -627,15 +626,25 @@ omission. Both return with the hosted tier, in phase 3, where they belong.
          block (#237)
       3. `wait_for` did not exist, so a late-hydrating page returned the shell at random (#238)
       4. `HARD_BLOCK` never named the vendor, because the detector ran on every path but that
-         one — and a vendor that always answers 403 could therefore never have its rule
-         confirmed by live traffic (#243)
+         one — so a vendor that always answers 403 could never have its rule confirmed (#243)
       5. `capture-block` left the target's host in the stored body while its own docstring
          promised otherwise (#243)
       6. an exhausted Scrapfly quota was filed as `PROVIDER_ERROR`, which sits in the
          cross-org health statistic, so one org's empty wallet could demote a provider for
          everyone (#246)
 
-      Three weeks of a mechanical canary would have found none of them. Keep this item first.
+      That is dogfooding, and it was worth more than three weeks of the mechanical canary. It is
+      not this item. The line says "not the maintainer" for a reason: the six above are all
+      failures of *implementation*, found by someone who already knew what the thing was meant
+      to do. None of them is a failure of *explanation* — nobody was confused by the README,
+      misread an outcome name, or gave up at the second command, because the person running it
+      wrote all of that. A maintainer cannot generate that evidence about their own product, and
+      ticking the box with dogfooding is exactly the self-certification the item exists to stop.
+
+      Still open, therefore, and the strongest reason not to treat "we launched" as satisfying
+      it either: a Show HN produces reactions, not somebody running it on their own keys for a
+      week and saying what broke.
+
 
 **Struck, with the reason, so nobody re-adds them:**
 
