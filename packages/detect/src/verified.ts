@@ -50,10 +50,10 @@ export const VERIFIED: Readonly<Record<string, VerifiedRule>> = {
 		digests: ['6a89f93e9da83547'],
 	},
 	'imperva-incapsula': {
-		captures: 1,
+		captures: 2,
 		classes: ['auction'],
-		lastVerified: '2026-08-31',
-		digests: ['9d34f7c569998332'],
+		lastVerified: '2026-09-01',
+		digests: ['9d34f7c569998332', 'd02032286070b4dd'],
 	},
 	perimeterx: {
 		captures: 1,

@@ -162,6 +162,12 @@ export const RULES: readonly DetectRule[] = [
 		 * an unrelated protected site carried `SWJIYLWA=719d34d31c8e3a6e6fffd425f7e032f3` and so
 		 * did the block above, the same value on both. What differs is the shape.
 		 *
+		 * And the token pair is STABLE, which makes that worse rather than incidental. Two
+		 * captures of the same endpoint two and a half hours apart carry byte-identical tokens,
+		 * and the second of the pair is the one on the served page from the other site. So a rule
+		 * keyed on token identity would not match a block and a normal page occasionally; it would
+		 * match both, on both sites, indefinitely.
+		 *
 		 *   served page   ?<PARAM>=<hex>&ns=1&cb=<n>        one token, then ns and cb
 		 *   bare block    ?<PARAM>=<hex>,<hex>              two tokens, comma-joined, no ns/cb
 		 *   framed block  ?<PARAM>=…&incident_id=…          plus "Request unsuccessful"
@@ -173,10 +179,13 @@ export const RULES: readonly DetectRule[] = [
 		 * an article explaining the error carries it — the generic-match trap the no-fire corpus
 		 * exists to catch.
 		 *
-		 * VERIFIED since 2026-08-31 by a real framed block from live traffic, which is why the
-		 * generated table lists it. The bare-script form above is not in the corpus yet: it
-		 * arrived as pasted text rather than as recorded bytes, and a hand-written fixture is the
-		 * one thing CI cannot tell from a real one.
+		 * VERIFIED by a real capture of EACH shape, which is why the generated table lists two.
+		 *
+		 * The second one is also the best argument this repo has for refusing hand-written
+		 * fixtures. The caller who supplied it first tried reconstructing the page from their own
+		 * terminal output and got 204 bytes instead of 212: the response is CRLF throughout, seven
+		 * of them and no bare newlines, and pasted text loses that. A fixture eight bytes and seven
+		 * line endings wrong would have looked entirely plausible in review.
 		 */
 		test: (h) =>
 			/<iframe[^>]*_Incapsula_Resource/i.test(h) ||
