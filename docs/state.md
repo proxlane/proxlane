@@ -10,9 +10,9 @@ stale file is worse than an empty one. Only what no command can answer: what is 
 **LAUNCH: week of 2026-08-31**, when the canary clears. Show HN, r/webscraping, r/selfhosted.
 **54 views, 5 uniques, 14 days, against 184 PRs** — the bottleneck is distribution, not quality.
 
-**Public since 2026-08-10**, ruleset on `main` with no bypass actor. It serves production traffic,
-which in five days found six defects nothing else would have — see `operations.md` §9, where the
-gate's own highest-value item is now ticked. **Health is off unless `PROXLANE_HEALTH=on`.**
+**Public since 2026-08-10**, ruleset on `main`. Dogfooding it against another of the maintainer's
+projects found six defects in five days. That is not §9's "one stranger runs it", which stays open
+and is still the item every question here waits on. **Health is off unless `PROXLANE_HEALTH=on`.**
 
 **The canary gate is 2 of 3**: **2026-08-17** and **2026-08-24** green, cron Mondays 06:17 UTC.
 It covers **Bright Data and ScrapingBee only** — `SCRAPERAPI_KEY` and `SCRAPFLY_KEY` are out of CI
