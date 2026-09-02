@@ -423,7 +423,7 @@
 						}
 					},
 					"429": {
-						"description": "TARGET_RATE_LIMITED: Target rate-limited us (429); backs off per domain rather than retrying. RATE_LIMITED: Provider 429 or concurrency cap. GATEWAY_BUSY: In-flight ceiling reached; the gateway shed this request rather than queue it.",
+						"description": "TARGET_RATE_LIMITED: Target rate-limited us (429); backs off per domain rather than retrying. RATE_LIMITED: Provider 429, concurrency cap, or the plan quota is spent. GATEWAY_BUSY: In-flight ceiling reached; the gateway shed this request rather than queue it.",
 						"headers": {
 							"X-Outcome": {
 								"$ref": "#/components/headers/X-Outcome"
@@ -531,7 +531,7 @@
 						}
 					},
 					"502": {
-						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. AUTH_FAILED: Provider 401/403 on the key. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
+						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. AUTH_FAILED: Provider rejected the key itself — wrong, revoked or malformed. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
 						"headers": {
 							"X-Outcome": {
 								"$ref": "#/components/headers/X-Outcome"
@@ -1092,7 +1092,7 @@
 						}
 					},
 					"429": {
-						"description": "TARGET_RATE_LIMITED: Target rate-limited us (429); backs off per domain rather than retrying. RATE_LIMITED: Provider 429 or concurrency cap. GATEWAY_BUSY: In-flight ceiling reached; the gateway shed this request rather than queue it.",
+						"description": "TARGET_RATE_LIMITED: Target rate-limited us (429); backs off per domain rather than retrying. RATE_LIMITED: Provider 429, concurrency cap, or the plan quota is spent. GATEWAY_BUSY: In-flight ceiling reached; the gateway shed this request rather than queue it.",
 						"headers": {
 							"X-Outcome": {
 								"$ref": "#/components/headers/X-Outcome"
@@ -1200,7 +1200,7 @@
 						}
 					},
 					"502": {
-						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. AUTH_FAILED: Provider 401/403 on the key. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
+						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. AUTH_FAILED: Provider rejected the key itself — wrong, revoked or malformed. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
 						"headers": {
 							"X-Outcome": {
 								"$ref": "#/components/headers/X-Outcome"
