@@ -612,15 +612,23 @@ ticked one that is not, just in the direction nobody audits.
       calendar Mondays — GitHub delays a public repo's cron by 1–12 hours, so a date-keyed gate
       would have read a late run as a miss and reset a clock that was never broken.
       **The canary covers the adapters we hold a usable key for, and the launch record must
-      name the ones it did not.** From 2026-08-31 that is ScraperAPI and Scrapfly, whose free
-      quotas were exhausted recording fixtures on 08-27 and renew 09-07; both secrets are out
-      of CI until then. With the key present and empty the canary reports "Scrapfly failed",
-      which is false — the provider is fine and our wallet is not. With it absent the canary
-      prints `NOTE: no key for scrapfly — those adapters were NOT checked`, which is true.
-      A weaker gate that says so beats a stronger-looking one that misattributes.
+      name the ones it did not.** From 2026-08-31 that was ScraperAPI and Scrapfly, whose free
+      quotas were exhausted recording fixtures on 08-27; both secrets were pulled from CI
+      because a present-but-empty key made the canary report "Scrapfly failed", which is false
+      — the provider is fine and our wallet is not.
+      **All four keys went back in on 2026-09-02, and pulling a secret is no longer the
+      mechanism.** The canary now reads the outcome instead of the environment: `RATE_LIMITED`
+      is account-scoped and means the plan is spent, so that provider is reported UNCHECKED,
+      by name, exactly as a missing key is. Two things keep it from becoming a way to hide a
+      failure — nothing else is exempt (`PROVIDER_ERROR`, `PROVIDER_DRIFT`, `AUTH_FAILED`,
+      `SOFT_BLOCK` all still red the run), and if *every* configured provider lands there the
+      canary fails, because a run that called nobody is not a green run.
+      A weaker gate that says what it did not check beats a stronger-looking one that
+      misattributes — and the version of that which depends on a human pulling a secret before
+      a Monday cron only works while the human remembers.
       **This is a coverage note, not a licence to drop a provider that is actually failing.**
-      A key that is present must go green; the exemption is for a provider we cannot call at
-      all, and it expires the moment credit returns.
+      The exemption is for a provider we cannot call at all, and it lifts by itself the moment
+      credit returns.
 - [x] `docker compose up` works on a fresh VM with only a provider key. `pnpm
       selfhost:smoke` is that test and it runs weekly on a clean CI runner — builds the image
       from a clean context, brings up the shipped `docker/compose.yml` unmodified, drives the
