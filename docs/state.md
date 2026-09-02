@@ -38,10 +38,10 @@ Owner decisions and external answers. None is unblocked by writing code.
   `proxlane/corpus` repo; clone it and point `PROXLANE_PRIVATE_CORPUS` at it. On 08-31 it was
   wrongly assumed lost and the table was published at 2 of 6 for about an hour — `operations.md`
   8b has the story and the guard that should have stopped it.
-- **Provider permission, in writing** — `plan.md` §18 gates the keyless paths on it;
-  `_dev/jina-reader` stays out of `REGISTRY` meanwhile. Batch 1 sent: ScrapingBee yes if the
-  methodology is public and asked a question back, Bright Data escalated to Compliance, Scrapfly
-  closed without answering, ScraperAPI silent. *External.*
+- **Provider permission, in writing** — `plan.md` §18; `_dev/jina-reader` stays out of `REGISTRY`.
+  **Bright Data 2026-09-01: BYOK is not reselling, but pooling users behind one account or selling
+  access as a product needs separate written approval** — that names hosted credits, not just the
+  keyless paths. ScrapingBee yes-if-public and asked back, Scrapfly closed, ScraperAPI silent. *External.*
 - **Provider credits** — ScraperAPI and Scrapfly at zero until 2026-09-07, exhausted recording
   fixtures on 08-27. `pnpm record` cannot run and the deferred Scrapfly `large-object` fixture
   stays owed. All four adapters run on ~1,000-credit monthly free tiers, so the canary is

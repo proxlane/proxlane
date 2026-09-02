@@ -398,6 +398,14 @@ That is the whole public position. The rate table, the breakeven arithmetic and 
 affiliate terms behind it are commercial and live outside this repo; `docs/state.md`
 carries the open decision without the numbers.
 
+**A prerequisite that is not a number, and so belongs here.** Hosted credits pool users behind
+our provider accounts and sell that access as part of a product. Bright Data put in writing on
+2026-09-01 that such a deployment falls outside their terms without separate written approval —
+see section 18. So the phase-3 decision is not only "does the margin clear"; it is "do we hold
+written approval from every provider in the chain", and the answer today is no for all four.
+Margin was always the reason this was uncommitted. Permission is a second, independent gate,
+and unlike margin it cannot be settled by collecting more traffic.
+
 Two consequences that ARE public, because they shape the code:
 
 - Billing charges only on `OK`. Every other outcome is unbilled spend, which is why
@@ -749,6 +757,25 @@ itself the answer about whether keyless paths ship at launch.
 > opinion are both in hand. It is a default rather than a decision because the cost of
 > being wrong is asymmetric: building ahead of the gate spends provider credits under
 > terms we have not cleared, and cannot be un-spent.
+
+**The first written answer arrived 2026-09-01, and it confirms the gate rather than lifting
+it.** Bright Data's compliance answer splits exactly where this section guessed it would:
+BYOK on the user's own account is **not** reselling and raises no issue on their side, because
+the obligations sit with the account holder. But a deployment that **pools multiple end users
+behind a single account, or offers their service as part of a paid product, falls outside their
+terms without separate written approval.**
+
+That sentence is worth reading twice, because it is broader than this section. Mechanisms 1–3
+are a stranger's request on our account, so they are named by it. **So is hosted credits** —
+section 7's phase-3 model is by construction users pooled behind our account, sold as a
+product. The gate was written as a phase-2 constraint on free-try paths; one provider has now
+put in writing that it reaches the revenue model too.
+
+This is one provider of four, and it does not travel: the terms this section quotes as the
+binding ones are ScraperAPI's, and they have not answered. What changed is that the risk stopped
+being our inference from published terms and became a provider's own statement — which is the
+difference between a guess we could be talked out of and a condition with a named route through
+it (ask for the approval).
 
 **OPEN.** Tracked in `docs/state.md`.
 
