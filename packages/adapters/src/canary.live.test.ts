@@ -67,6 +67,48 @@ function keyFor(id: string): string | undefined {
 /** Providers we actually hold a key for. */
 const configured = IDS.filter((id) => keyFor(id) !== undefined);
 
+/**
+ * Providers whose ACCOUNT stopped us, not whose service did. Populated during the run.
+ *
+ * WHY THIS IS NOT WEAKENING THE GATE, and it is the same argument the TARGET_ERROR retry
+ * below makes one step further out. `RATE_LIMITED` is the outcome that says the provider is
+ * fine and our wallet is not: it is account-scoped (`cd:acct`), never enters the cross-org
+ * health statistic, and is what both ScraperAPI and Scrapfly return when a plan's credits are
+ * spent. A canary that reds on it reports "Scrapfly failed", which is false, and false in the
+ * precise way `operations.md` section 9 says it must not be — the coverage note exists so a
+ * weaker gate that says what it did not check beats a stronger-looking one that misattributes.
+ *
+ * So an exhausted account is treated exactly like a MISSING key: that provider is UNCHECKED,
+ * named in the summary, and named in the launch record. It is not a pass.
+ *
+ * The risk this leaves, stated so it is a decision rather than an oversight: `RATE_LIMITED`
+ * also covers a concurrency cap, which is transient. A provider throttling us every Monday
+ * would go unchecked week after week while the board stayed green. Two things bound it — the
+ * note is loud and per-provider, and if EVERY configured provider lands here the canary fails,
+ * because a run that checked nothing is not a green run.
+ */
+const exhausted = new Set<string>();
+
+/**
+ * True when the provider told us the account, not the service, is the problem.
+ *
+ * Callers must `return` on true rather than asserting: the request never reached the
+ * behaviour under test, so there is nothing to judge.
+ */
+function accountStoppedUs(id: string, outcome: string): boolean {
+	if (outcome !== 'RATE_LIMITED') return false;
+	// Once per provider, not once per attempt. Four identical paragraphs per provider is how a
+	// loud note becomes wallpaper, and the summary below is what the launch record reads anyway.
+	if (exhausted.has(id)) return true;
+	exhausted.add(id);
+	process.stdout.write(
+		`\n  UNCHECKED: ${id} answered RATE_LIMITED — the plan's credits are spent or its ` +
+			'concurrency cap was hit. The provider is fine; our account is not. Not counted as a ' +
+			'pass and not counted as a failure.\n',
+	);
+	return true;
+}
+
 // A live suite that finds no keys must FAIL, not skip. Skipping turns "the canary never ran"
 // into a green board, and this is a launch gate — operations.md section 9 wants it green
 // three consecutive scheduled runs, which is a claim about runs that happened.
@@ -164,6 +206,7 @@ describe.each(configured)('%s, against the live API', (id) => {
 		// Drift detection at its simplest: if this stops being OK, something changed at the
 		// provider and every fixture recorded from them is now suspect.
 		const { parsed } = await attempt(id, 'https://httpbin.dev/html', false);
+		if (accountStoppedUs(id, parsed.outcome)) return;
 		expect(parsed.outcome).toBe('OK');
 		expect(parsed.body?.byteLength ?? 0).toBeGreaterThan(0);
 	}, 120_000);
@@ -181,6 +224,7 @@ describe.each(configured)('%s, against the live API', (id) => {
 		// Found the day the canary first ran against Bright Data at all — until the executor fix it
 		// answered AUTH_FAILED for every provider, so this target had never been exercised there.
 		const { parsed } = await attempt(id, 'https://httpbin.dev/nonexistent-page-xyz', false);
+		if (accountStoppedUs(id, parsed.outcome)) return;
 		expect(parsed.outcome).toBe('TARGET_NOT_FOUND');
 	}, 120_000);
 
@@ -195,6 +239,7 @@ describe.each(configured)('%s, against the live API', (id) => {
 			return;
 		}
 		const { parsed } = await attempt(id, JS_ONLY_TARGET, true);
+		if (accountStoppedUs(id, parsed.outcome)) return;
 		expect(parsed.outcome).toBe('OK');
 		const text = new TextDecoder().decode(parsed.body ?? new Uint8Array());
 		expect(
@@ -222,6 +267,7 @@ describe.each(configured)('%s, against the live API', (id) => {
 			return;
 		}
 		const { parsed } = await attempt(id, JS_ONLY_TARGET, true, 'body');
+		if (accountStoppedUs(id, parsed.outcome)) return;
 		expect(
 			parsed.outcome,
 			`${id} declares waitForSelector and the provider refused the request carrying one — ` +
@@ -232,15 +278,34 @@ describe.each(configured)('%s, against the live API', (id) => {
 });
 
 describe('the corpus this canary defends', () => {
-	it('covers every provider we hold a key for', () => {
+	it('covers every provider we hold a usable key for', () => {
 		// Non-zero denominator, and a named gap. A canary that silently skipped two of three
 		// providers would go green while two thirds of the chain drifted unnoticed.
-		const skipped = IDS.filter((id) => !configured.includes(id));
-		expect(configured.length).toBeGreaterThan(0);
-		if (skipped.length > 0) {
+		//
+		// The denominator is providers actually EXERCISED, not providers configured. A key that
+		// is present but spent buys no coverage, and counting it would let the gate close on a
+		// run that called nobody — which is the same vacuous green the missing-key case has
+		// always been guarded against, arriving through the wallet instead of the environment.
+		const noKey = IDS.filter((id) => !configured.includes(id));
+		const checked = configured.filter((id) => !exhausted.has(id));
+
+		if (noKey.length > 0) {
 			process.stdout.write(
-				`\n  NOTE: no key for ${skipped.join(', ')} — those adapters were NOT checked.\n`,
+				`\n  NOTE: no key for ${noKey.join(', ')} — those adapters were NOT checked.\n`,
 			);
 		}
+		if (exhausted.size > 0) {
+			process.stdout.write(
+				`  NOTE: account exhausted for ${[...exhausted].join(', ')} — those adapters were ` +
+					'NOT checked. The provider is fine; the plan is spent.\n',
+			);
+		}
+
+		expect(
+			checked.length,
+			`the canary exercised no provider at all. Keys present: ${configured.length ? configured.join(', ') : 'none'}. ` +
+				`Accounts exhausted: ${exhausted.size ? [...exhausted].join(', ') : 'none'}. ` +
+				'A run that called nobody is not a green run.',
+		).toBeGreaterThan(0);
 	});
 });

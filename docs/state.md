@@ -17,9 +17,9 @@ and is still the item every question here waits on. **Health is off unless `PROX
 
 **The canary gate CLOSED on 2026-08-31**: three consecutive scheduled greens, 08-17, 08-24, 08-31.
 The third arrived ~7h after its cron, which is why a gate counting *scheduled* runs stalls rather
-than resets when GitHub is late. It covers **Bright Data and ScrapingBee only** — `SCRAPERAPI_KEY`
-and `SCRAPFLY_KEY` are out of CI until their quotas renew 09-07, and §9's launch record names them
-as unchecked. Re-add both on 09-07; the exemption expires with the empty wallet that earned it.
+than resets when GitHub is late. **All four keys back in CI since 09-02**: the canary reads
+`RATE_LIMITED` and reports that provider UNCHECKED, so a spent plan needs no human to pull a secret.
+Quotas renew 09-07 **21:13 UTC**, after that morning's cron — so all four are first covered 09-14.
 
 ## Blocked on
 
