@@ -2650,14 +2650,16 @@ function matchesOwner(pattern: string, file: string): boolean {
 {
 	const MANIFEST = '.github/labels.json';
 	let known: Set<string>;
+	let declared: { name?: string; description?: string }[] = [];
 	try {
 		const raw = JSON.parse(readFileSync(join(ROOT, MANIFEST), 'utf8')) as {
-			labels?: { name?: string }[];
+			labels?: { name?: string; description?: string }[];
 		};
 		// Read the `labels` ARRAY, never the object's keys — assertion 29 derived a command
 		// count from `Object.keys(commands.json)` and counted the `$comment` block as a
 		// command, which is how the README came to advertise 28 of them where 27 exist.
-		known = new Set((raw.labels ?? []).map((l) => String(l.name)));
+		declared = raw.labels ?? [];
+		known = new Set(declared.map((l) => String(l.name)));
 	} catch {
 		fail('40', `${MANIFEST} is missing or not JSON — nothing holds workflow labels to reality`);
 		known = new Set();
@@ -2697,7 +2699,26 @@ function matchesOwner(pattern: string, file: string): boolean {
 			fail('40', `${r.where} names label "${r.label}", absent from ${MANIFEST}`);
 		}
 	}
-	ok('40', refs.length, `label references resolve to a declared label`);
+	// AND EVERY DESCRIPTION FITS. GitHub caps a label description at 100 characters and rejects
+	// the whole call above it, so a longer one in this file is a label that can never be created
+	// — the offline half holding something the authoritative half will refuse. Found by writing
+	// two of them at 140 and 150 characters and watching `gh label create` fail twice.
+	let longest = 0;
+	for (const l of declared) {
+		const d = l.description ?? '';
+		if (d.length > longest) longest = d.length;
+		if (d.length > 100)
+			fail(
+				'40',
+				`${MANIFEST}: "${String(l.name)}" has a ${d.length}-character description. GitHub ` +
+					'rejects anything over 100, so this label cannot be created.',
+			);
+	}
+	ok(
+		'40',
+		refs.length + declared.length,
+		`label references resolve, descriptions fit (longest ${longest})`,
+	);
 }
 
 // ------------------ assertion 41: every adapter's key reaches every place that must pass it

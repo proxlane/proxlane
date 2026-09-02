@@ -81,9 +81,23 @@ jobs:
           # made green. Assertion 40 now holds every `--label` to `.github/labels.json`; this
           # is the second guard, for what an offline check cannot see.
           #
-          # A failing canary means a provider changed under us. That is the signal the
-          # whole adapter layer exists to surface, so it opens an issue rather than
-          # turning a scheduled run red where nobody looks.
+          # A FAILING CANARY MEANS SOMETHING IN THE LOOP CHANGED, AND THIS STEP CANNOT KNOW
+          # WHICH. It used to say "a provider changed under us" and label the issue
+          # `flag:provider-drift` on that basis, which is a diagnosis asserted by a step whose
+          # only evidence is that an assertion failed.
+          #
+          # It was wrong the first time it fired for real. #232 opened as provider drift; all
+          # three failures were Bright Data answering AUTH_FAILED in 62-235ms, and the cause was
+          # ours — the canary hand-rolled a fetch and never sent `wire.body`, so the only adapter
+          # that POSTs one got `400 "zone" is required`. No provider had changed anything. The
+          # label sent the diagnosis in the wrong direction for four days.
+          #
+          # So the title and the label now state what was observed. `record:diff` keeps
+          # `flag:provider-drift`, because that job actually compares a recorded fixture against
+          # live and can show what moved; a human may apply it here once they have established
+          # the cause. The machine reports; the person diagnoses.
+          #
+          # It opens an issue rather than turning a scheduled run red where nobody looks.
           #
           # ONE ISSUE, NOT ONE PER RUN. This was an unconditional `gh issue create`, and eight
           # canary runs in a single morning opened eight identical issues on a public repo —
@@ -93,14 +107,15 @@ jobs:
           # until somebody closes it, so a second run finding the same thing has nothing new
           # to say: it comments on the open one and moves on.
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          EXISTING="$(gh issue list --label flag:provider-drift --state open \
+          EXISTING="$(gh issue list --label flag:canary-red --state open \
             --json number --jq '.[0].number // empty')"
+          BODY="$(printf '`pnpm test:live` failed on the scheduled canary. Run: %s\n\nThe cause is not known from here. Candidates, roughly in the order they have actually happened:\n\n- our own code, if a request stopped reaching the provider intact (#232, #237)\n- a credential that is expired, unset, or out of quota\n- the canary test target changing what it serves\n- a provider genuinely changing its response shape or outcomes\n\nRead the failing assertion and the timings before assuming the last one. A refusal in under a second usually means the request never reached a target.' "$RUN_URL")"
           if [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" --body "Still failing. Run: $RUN_URL"
           else
-            gh issue create --title "provider drift: canary failed $(date -u +%F)" \
-              --label "flag:provider-drift" \
-              --body "\`pnpm test:live\` failed on the scheduled canary. Run: $RUN_URL"
+            gh issue create --title "canary red: test:live failed $(date -u +%F)" \
+              --label "flag:canary-red" \
+              --body "$BODY"
           fi
       # THE LAUNCH GATE READS THE STEP, NOT THE JOB. `continue-on-error: true` above makes the
       # job green whether the canary passed or failed — by design, so drift opens an issue

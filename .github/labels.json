@@ -27,8 +27,13 @@
 			"name": "enhancement"
 		},
 		{
+			"color": "B3541E",
+			"description": "The canary went red. An observation, not a diagnosis: could be ours, a key, or a provider",
+			"name": "flag:canary-red"
+		},
+		{
 			"color": "B3271E",
-			"description": "A provider's response shape or outcome changed under us",
+			"description": "A provider's response shape or outcomes changed. Set by record:diff, or after diagnosis",
 			"name": "flag:provider-drift"
 		},
 		{

@@ -208,7 +208,7 @@ altering the public request surface.
 type:      bug · feature · adapter · docs · content · security
 area:      gateway · adapters · detect · web · infra
 status:    needs-triage · confirmed · blocked · wontfix
-flag:      good-first-issue · help-wanted · provider-drift
+flag:      good-first-issue · help-wanted · provider-drift · canary-red
 ```
 
 **Triage rhythm.** Every issue gets a human response **within 48 hours**. That clock
@@ -217,9 +217,17 @@ Unanswered issues are the single clearest signal that a project is dead, and
 the fix costs minutes — but a 48-hour SLA is destroyed by definition by this document's
 own promise that every process here survives being skipped for a week.
 
-**Provider drift issues are special.** The canary opens them automatically,
-labelled `flag:provider-drift`. These jump the queue: a broken adapter is a broken
-product for anyone routing through that provider.
+**Automatic issues jump the queue, and there are two kinds.** `record:diff` opens
+`flag:provider-drift` when a recorded fixture stops matching what a provider returns, and it
+prints the shape difference, so the label is a finding. The canary opens `flag:canary-red`,
+which is only an observation: an assertion failed, and the cause could be the provider, an
+adapter, the test target or our own credentials.
+
+That distinction was learned the expensive way. #232 opened as provider drift and stayed
+mislabelled for four days; the cause was our own executor dropping a request body, and no
+provider had changed anything. A step whose evidence is "an assertion failed" cannot name a
+cause, so it no longer tries. **Read the failing assertion and the timings first** — a refusal
+inside a second means the request never reached a target, which makes it ours or the key's.
 
 **No stale bot.** Auto-closing issues is a way of lying about the backlog and it
 insults the person who reported. Close deliberately with a reason, or leave it open
