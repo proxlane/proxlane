@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { GatewayRequest, Outcome, ProviderHttpResponse } from '../contract.js';
+import { FAILOVER } from '../contract.js';
 import { ScraperapiAdapter } from './index.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -96,6 +97,33 @@ describe('the 500 that turned out NOT to mean two different things', () => {
 		expect(ScraperapiAdapter.parse({ ...res, status: 429, headers }).outcome).toBe(
 			'RATE_LIMITED',
 		);
+	});
+
+	// The wallet and the key are different problems with different fixes, and 403 used to be
+	// filed under the key. An operator told AUTH_FAILED goes and regenerates a credential that
+	// was never broken; the actual repair is to wait for the cycle or top up. ScraperAPI splits
+	// them by status — 401 is the key, 403 is the quota — with no header to distinguish them,
+	// so this pins the one signal there is.
+	it('separates a spent wallet from a dead key, both being 40x with no sa-statuscode', () => {
+		const res = load('success-html');
+		const { 'sa-statuscode': _drop, ...headers } = res.headers;
+		const outcomeOf = (status: number) =>
+			ScraperapiAdapter.parse({ ...res, status, headers }).outcome;
+
+		expect(outcomeOf(401), 'a rejected key').toBe('AUTH_FAILED');
+		expect(outcomeOf(403), 'credits exhausted for the cycle').toBe('RATE_LIMITED');
+		// Both sides asserted, so neither half is vacuous and collapsing the two back into one
+		// outcome fails here rather than silently.
+		expect(outcomeOf(401)).not.toBe(outcomeOf(403));
+	});
+
+	// What the caller is handed, not just what we call it internally. 502 tells them to look at
+	// the provider; 429 tells them to look at their plan, and carries the retry semantics.
+	it('hands a spent wallet a 429 rather than a 502', () => {
+		const res = load('success-html');
+		const { 'sa-statuscode': _drop, ...headers } = res.headers;
+		const outcome = ScraperapiAdapter.parse({ ...res, status: 403, headers }).outcome;
+		expect(FAILOVER[outcome].httpStatus).toBe(429);
 	});
 
 	it('calls a present-but-nonsense sa-statuscode PROVIDER_DRIFT', () => {

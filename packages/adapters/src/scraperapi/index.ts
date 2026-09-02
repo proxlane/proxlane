@@ -208,10 +208,25 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 			// OUR translation produced a bad provider request. A real bug, and it pages.
 			return withBody('INVALID_REQUEST');
 		case 401:
+			// The key itself. Wrong, revoked, or malformed — nothing about it will work again
+			// until a human replaces it.
 			return withBody('AUTH_FAILED');
 		case 403:
-			// Credits exhausted for the cycle — an account fact, per-account cooldown.
-			return withBody('AUTH_FAILED');
+			// Credits exhausted for the cycle. The line above USED to say exactly that and then
+			// return AUTH_FAILED anyway, which told the operator their key was dead when the key
+			// was fine and the wallet was empty — a diagnosis that sends them to regenerate a
+			// working credential. Same bug as #246 on Scrapfly, different wrong answer.
+			//
+			// Both outcomes are account-scoped and both fail over, so routing is unchanged. What
+			// changes is what the caller is handed: 429 with the wallet's semantics instead of
+			// 502 "the provider is broken", and the key stops being marked unhealthy.
+			//
+			// STRUCTURAL, not prose, per the note above about reading phrases out of bodies.
+			// 401 is the key and 403 is the quota — verified live on 2026-09-02 against an
+			// account at 0/1000, which answers 403 with `You have exhausted the API Credits
+			// available in this monthly cycle` and NO `sa-statuscode` header. There is no
+			// header that separates the two, so the status code is the discriminator there is.
+			return withBody('RATE_LIMITED');
 		case 429:
 			return withBody('RATE_LIMITED');
 		default:

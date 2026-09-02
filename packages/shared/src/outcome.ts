@@ -375,7 +375,7 @@ export const FAILOVER = {
 		// Their 429 is a plan concurrency cap, not a ban — respect Retry-After.
 		cooldown: 'acct',
 		pages: false,
-		meaning: 'Provider 429 or concurrency cap',
+		meaning: 'Provider 429, concurrency cap, or the plan quota is spent',
 	},
 	AUTH_FAILED: {
 		class: 'provider',
@@ -385,7 +385,7 @@ export const FAILOVER = {
 		// Also marks the key unhealthy and notifies the user.
 		cooldown: 'acct',
 		pages: false,
-		meaning: 'Provider 401/403 on the key',
+		meaning: 'Provider rejected the key itself — wrong, revoked or malformed',
 	},
 	PROVIDER_DRIFT: {
 		class: 'provider',
