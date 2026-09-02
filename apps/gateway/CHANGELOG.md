@@ -1,5 +1,16 @@
 # @proxlane/gateway
 
+## 0.15.0
+
+### Minor Changes
+
+- [#260](https://github.com/proxlane/proxlane/pull/260) [`6af3e22`](https://github.com/proxlane/proxlane/commit/6af3e2247a359c5872c0e34c2263169e42117ac8) Thanks [@scarsam](https://github.com/scarsam)! - `NO_PROVIDER_AVAILABLE` now says which capability excluded each provider instead of "no configured provider has the requested capabilities", a sentence true of every cause and actionable for none. A caller who added `wait_for` to a working request got a 4ms refusal with nothing connecting it to the parameter they had just added; the reason now reads `no configured provider can serve this request: brightdata (wait_for), scraperapi (country_code=jp)`. It is per provider because they rarely drop out for the same reason. `isCapable` is now derived from the function that answers why, so the explanation cannot drift from the routing.
+
+### Patch Changes
+
+- Updated dependencies [[`6af3e22`](https://github.com/proxlane/proxlane/commit/6af3e2247a359c5872c0e34c2263169e42117ac8)]:
+  - @proxlane/adapters@0.9.3
+
 ## 0.14.3
 
 ### Patch Changes

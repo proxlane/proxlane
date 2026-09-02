@@ -1,5 +1,11 @@
 # @proxlane/adapters
 
+## 0.9.3
+
+### Patch Changes
+
+- [#260](https://github.com/proxlane/proxlane/pull/260) [`6af3e22`](https://github.com/proxlane/proxlane/commit/6af3e2247a359c5872c0e34c2263169e42117ac8) Thanks [@scarsam](https://github.com/scarsam)! - `pnpm conformance` now warns for a week before a deferred fixture comes due, instead of only failing on the day. The failure was well signposted once it fired — it names the category, the date, the command and the reason it was deferred — and completely silent until then, so a debt booked three weeks out arrives as a surprise red build on an ordinary morning. It now prints `DUE SOON` from seven days out, above the verdict rather than below it.
+
 ## 0.9.2
 
 ### Patch Changes
