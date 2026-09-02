@@ -587,17 +587,30 @@ slip. A gate that cannot close is not a standard, it is a permanent excuse.
 What is struck is struck because the thing it tests was a *decision not to build*, not an
 omission. Both return with the hosted tier, in phase 3, where they belong.
 
+**Five of seven closed as of 2026-09-02**, and the two that remain are the two that were never
+about code: where the soak runs, and one stranger running it. Neither is unblocked by writing
+anything. That is worth stating plainly, because four of the five had been true for weeks and
+were simply never ticked — an unticked box that is actually green is the same failure as a
+ticked one that is not, just in the direction nobody audits.
+
 - [ ] `pnpm k6:soak` green against the thresholds in section 1 — 50 VUs for 30 minutes,
       gateway-internal p95 under 50 ms measured from `Server-Timing`, RSS slope under
       1 MB/min from minute 10, clean 429s at `maxInflight`. **Venue still undecided**
       (`state.md`): the shared box measures the neighbours, so this needs an ephemeral host
-- [ ] `pnpm test:ssrf` green: scheme allowlist, private-range and metadata rejection at
+- [x] `pnpm test:ssrf` green: scheme allowlist, private-range and metadata rejection at
       the edge, all returning `TARGET_FORBIDDEN`. IP pinning and DNS-rebinding cases are
       **out of scope for v1** and defer with the direct-fetch mode that would need them
-      (section 5)
-- [ ] Conformance green on **every shipped adapter** — four today, and the count is
+      (section 5). `edge-guard.ssrf.test.ts` carries a case for each clause, plus a
+      both-sides assertion so no table is vacuous, and a block stating what the guard does
+      *not* do — it never resolves a hostname, so a name pointing at a private IP passes.
+      That limitation is the scope note above, asserted rather than assumed
+- [x] Conformance green on **every shipped adapter** — four today, and the count is
       `REGISTRY`'s, not a number typed here — plus the live canary green three consecutive
       scheduled runs (cadence per `operating.md` B6 — weekly at launch, so three weeks).
+      **Closed 2026-08-31**: scheduled runs of 08-17, 08-24 and 08-31, all green. The third
+      fired ~7h after its 06:17 cron, which is the reason this counts scheduled *runs* and not
+      calendar Mondays — GitHub delays a public repo's cron by 1–12 hours, so a date-keyed gate
+      would have read a late run as a miss and reset a clock that was never broken.
       **The canary covers the adapters we hold a usable key for, and the launch record must
       name the ones it did not.** From 2026-08-31 that is ScraperAPI and Scrapfly, whose free
       quotas were exhausted recording fixtures on 08-27 and renew 09-07; both secrets are out
@@ -608,9 +621,18 @@ omission. Both return with the hosted tier, in phase 3, where they belong.
       **This is a coverage note, not a licence to drop a provider that is actually failing.**
       A key that is present must go green; the exemption is for a provider we cannot call at
       all, and it expires the moment credit returns.
-- [ ] `docker compose up` works on a fresh VM with only a provider key
-- [ ] `proxlane doctor` diagnoses the five most likely misconfigurations
-- [ ] SECURITY.md, CONTRIBUTING.md, LICENSE, CoC in place
+- [x] `docker compose up` works on a fresh VM with only a provider key. `pnpm
+      selfhost:smoke` is that test and it runs weekly on a clean CI runner — builds the image
+      from a clean context, brings up the shipped `docker/compose.yml` unmodified, drives the
+      real HTTP surface and times the whole thing against `plan.md`'s five-minute claim. It
+      asserts the stack **without** a key, because a smoke test that needs credentials is one
+      that mostly does not run; with a key present it also does one real scrape
+- [x] `proxlane doctor` diagnoses the five most likely misconfigurations — thirteen checks
+      today, and each prints *what it found* rather than a bare pass, which is B9's actual
+      requirement: "Postgres 17.2 at db:5432, 4 ms" ends a support thread that "Postgres: ok"
+      starts. The house rule that a new subsystem ships its checks in the same PR is what
+      keeps this true as the count grows
+- [x] SECURITY.md, CONTRIBUTING.md, LICENSE, CoC in place
 - [ ] **One stranger runs it.** Not twenty minutes of someone trying to break it — one person
       who is not the maintainer, on their own provider key, reporting what happened. This is the
       only item on the list that would have caught any of the 41 findings the copy panel raised,
