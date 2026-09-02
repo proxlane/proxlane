@@ -1,5 +1,18 @@
 # @proxlane/adapters
 
+## 0.10.0
+
+### Minor Changes
+
+- [#263](https://github.com/proxlane/proxlane/pull/263) [`b9f7c89`](https://github.com/proxlane/proxlane/commit/b9f7c895172ab202947a10a0a4cfccad634b84e5) Thanks [@scarsam](https://github.com/scarsam)! - ScraperAPI now reports an exhausted credit balance as `RATE_LIMITED` rather than `AUTH_FAILED`. The old line said "Credits exhausted for the cycle" in a comment and then returned the outcome for a rejected key, so an operator whose monthly quota ran out was told their credential was dead and sent to regenerate a key that was fine. Both outcomes are account-scoped and both fail over, so routing is unchanged; what changes is that the caller gets 429 with the wallet's retry semantics instead of 502 "the provider is broken", and a working key stops being marked unhealthy. `RATE_LIMITED`'s stated meaning now covers a spent plan quota, which two adapters already mapped to it.
+
+### Patch Changes
+
+- [#266](https://github.com/proxlane/proxlane/pull/266) [`6786892`](https://github.com/proxlane/proxlane/commit/6786892dcdbe219911693fc452ad5b7c9c1a491b) Thanks [@scarsam](https://github.com/scarsam)! - The live canary now treats an exhausted provider account as a coverage gap rather than a failure. `RATE_LIMITED` is account-scoped and means the plan is spent, so the provider is reported UNCHECKED by name, exactly as a missing key already was. Nothing else is exempt — `PROVIDER_ERROR`, `PROVIDER_DRIFT`, `AUTH_FAILED` and `SOFT_BLOCK` all still fail the run — and if every configured provider lands there the canary fails, because a run that called nobody is not a green run.
+
+- Updated dependencies [[`b9f7c89`](https://github.com/proxlane/proxlane/commit/b9f7c895172ab202947a10a0a4cfccad634b84e5)]:
+  - @proxlane/shared@0.11.1
+
 ## 0.9.3
 
 ### Patch Changes
