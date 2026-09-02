@@ -39,6 +39,9 @@ interface Deferred {
 	readonly recordableFrom: string;
 	readonly reason: string;
 }
+/** How long before a deferred fixture comes due that conformance starts saying so. */
+const DEFERRAL_WARNING_MS = 7 * 24 * 60 * 60 * 1000;
+
 const DEFERRED: readonly Deferred[] =
 	(
 		JSON.parse(
@@ -49,6 +52,19 @@ const DEFERRED: readonly Deferred[] =
 export interface Failure {
 	readonly adapter: string;
 	readonly check: string;
+	readonly detail: string;
+}
+
+/**
+ * Something a reader should know that is not yet a failure.
+ *
+ * Exists for one case: a deferred fixture whose date is approaching. The failure it becomes is
+ * well signposted — it names the category, the date, the command and the reason — but it
+ * arrives with no warning at all, so the first anyone knows is a red build on the morning it
+ * comes due. A debt with a date on it should be visible before the date.
+ */
+export interface Notice {
+	readonly adapter: string;
 	readonly detail: string;
 }
 
@@ -167,10 +183,14 @@ function requestMatrix(a: Adapter): GatewayRequest[] {
 	return out;
 }
 
-export async function conformOne(id: string): Promise<{ failures: Failure[]; checks: number }> {
+export async function conformOne(
+	id: string,
+): Promise<{ failures: Failure[]; checks: number; notices: Notice[] }> {
 	const failures: Failure[] = [];
+	const notices: Notice[] = [];
 	let checks = 0;
 	const fail = (check: string, detail: string) => failures.push({ adapter: id, check, detail });
+	const note = (detail: string) => notices.push({ adapter: id, detail });
 
 	const adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
 	const caps = adapter.capabilities;
@@ -289,7 +309,7 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 	// the same exception raised from a second place — and beats the stack trace into
 	// `conformance-dist` that a first-time contributor got instead, from the second command the
 	// onboarding path tells them to run.
-	if (translateUnimplemented) return { failures, checks };
+	if (translateUnimplemented) return { failures, checks, notices };
 
 	if (caps.renderJs) {
 		checks++;
@@ -410,6 +430,16 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 				'fixtures',
 				`no \`${d.category}\` fixture, and it has been recordable since ${d.recordableFrom}. ` +
 					`Run \`pnpm record --adapter=${id} --only=${d.category}\`. Deferred because: ${d.reason}`,
+			);
+		} else if (due - Date.now() <= DEFERRAL_WARNING_MS) {
+			// A WEEK'S NOTICE. The failure above is clear once it fires and completely silent
+			// until then, so a debt booked three weeks out lands as a surprise red build on an
+			// ordinary morning. Saying it early turns that into something someone can plan.
+			const days = Math.ceil((due - Date.now()) / 86_400_000);
+			note(
+				`\`${d.category}\` becomes a required fixture in ${days} day(s), on ` +
+					`${d.recordableFrom}. Record it with \`pnpm record --adapter=${id} ` +
+					`--only=${d.category}\` before then, or conformance goes red.`,
 			);
 		}
 	}
@@ -532,12 +562,12 @@ export async function conformOne(id: string): Promise<{ failures: Failure[]; che
 		}
 	}
 
-	return { failures, checks };
+	return { failures, checks, notices };
 }
 
 export async function conform(
 	only?: string,
-): Promise<{ failures: Failure[]; checks: number; adapters: string[] }> {
+): Promise<{ failures: Failure[]; checks: number; adapters: string[]; notices: Notice[] }> {
 	const ids = Object.keys(REGISTRY).sort();
 	const targets = only === undefined ? ids : ids.filter((i) => i === only.replace(/-/g, '_'));
 	const results = await Promise.all(targets.map((id) => conformOne(id)));
@@ -545,5 +575,6 @@ export async function conform(
 		failures: results.flatMap((r) => r.failures),
 		checks: results.reduce((n, r) => n + r.checks, 0),
 		adapters: targets,
+		notices: results.flatMap((r) => r.notices),
 	};
 }
