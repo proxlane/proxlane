@@ -216,19 +216,40 @@ export interface ChainDeps {
  * declares and conformance proves it honours.
  */
 export function isCapable(caps: ProviderCapabilities, req: GatewayRequest): boolean {
-	if (req.renderJs && !caps.renderJs) return false;
-	if (!caps.premiumTiers.has(req.premium)) return false;
-	if (req.method === 'POST' && !caps.post) return false;
+	return whyIncapable(caps, req) === undefined;
+}
+
+/**
+ * WHICH capability excluded this provider, or `undefined` if none did.
+ *
+ * `isCapable` is derived from this rather than the other way round, and that direction is the
+ * point: a second function answering "why" beside one answering "whether" is two copies of the
+ * same rules, and the day they disagree is the day the reason string starts lying about the
+ * routing. One list, one order, both answers.
+ *
+ * THE REASON IS FOR A HUMAN AT 3AM. `NO_PROVIDER_AVAILABLE` used to arrive as "no configured
+ * provider has the requested capabilities", which names nothing. A caller who added `wait_for`
+ * to a working request got a 4ms refusal and no way to tell that the parameter they had just
+ * added was what emptied the chain. The strings below are what the response now says instead.
+ */
+export function whyIncapable(
+	caps: ProviderCapabilities,
+	req: GatewayRequest,
+): string | undefined {
+	if (req.renderJs && !caps.renderJs) return 'render';
+	if (!caps.premiumTiers.has(req.premium)) return `premium=${req.premium}`;
+	if (req.method === 'POST' && !caps.post) return 'POST';
 	// Bytes, and most providers cannot. Filtered here rather than discovered from a corrupted
 	// response, because by the time the body is mojibake the request has already been paid for.
-	if (req.binary === true && !caps.binary) return false;
-	if (req.sessionId !== undefined && !caps.sessions) return false;
+	if (req.binary === true && !caps.binary) return 'binary';
+	if (req.sessionId !== undefined && !caps.sessions) return 'sessionId';
 	// A wait condition the provider cannot express. Filtered rather than dropped: sending it to
 	// a provider that ignores it returns 200 with the pre-hydration shell, which is the exact
 	// failure `wait_for` exists to end — and the caller would be charged to receive it.
-	if (req.waitFor !== undefined && !caps.waitForSelector) return false;
+	if (req.waitFor !== undefined && !caps.waitForSelector) return 'wait_for';
 	if (req.countryCode !== undefined && caps.countryCodes !== 'all') {
-		if (!caps.countryCodes.has(req.countryCode.toLowerCase())) return false;
+		if (!caps.countryCodes.has(req.countryCode.toLowerCase()))
+			return `country_code=${req.countryCode.toLowerCase()}`;
 	}
 	// THE COST MATRIX IS A CAPABILITY CLAIM, and nothing read it. `contract.ts` defines a null
 	// cell as "the provider does not sell that combination" — and ScrapingBee's
@@ -239,16 +260,16 @@ export function isCapable(caps: ProviderCapabilities, req: GatewayRequest): bool
 	// A conflict could express this, but it would be a second declaration of a fact the matrix
 	// already holds, and the two would drift. Reading the matrix is the derivation.
 	if (costOf(caps.costTable, { premium: req.premium, renderJs: req.renderJs }) === null) {
-		return false;
+		return `premium=${req.premium} with render=${String(req.renderJs)} is not sold`;
 	}
 	// LAST, and it is the only check that reads more than one field at a time. Everything above
 	// asks "does this provider do X"; a conflict asks "does it do X AND Y together", which is a
 	// question the independent fields cannot pose. ScraperAPI sells sessions and it sells premium
 	// proxies, and it will not sell them in the same request.
 	for (const c of caps.conflicts ?? []) {
-		if (conflictApplies(c, req)) return false;
+		if (conflictApplies(c, req)) return c.why;
 	}
-	return true;
+	return undefined;
 }
 
 export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<ChainResult> {
@@ -279,13 +300,27 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	// provider is missing from a chain distinguishable in the reason string below.
 	const capable = deps.candidates.filter((c) => isCapable(c.adapter.capabilities, guarded));
 	if (capable.length === 0) {
+		// NAME WHAT EXCLUDED THEM. This said "no configured provider has the requested
+		// capabilities", which is true of every possible cause and useful for none of them. A
+		// caller who added `wait_for` to a request that had been working got a 4ms refusal and
+		// nothing to connect it to the parameter they had just added.
+		//
+		// Per provider, because they rarely fail for the same reason: with `wait_for` set, Bright
+		// Data is excluded for not supporting it while ScraperAPI might be excluded for a country
+		// it does not sell. Collapsing that to one sentence throws away the half that explains it.
+		const why = deps.candidates
+			.map(
+				(c) =>
+					`${c.adapter.capabilities.id} (${whyIncapable(c.adapter.capabilities, guarded)})`,
+			)
+			.join(', ');
 		return {
 			outcome: 'NO_PROVIDER_AVAILABLE',
 			attempts,
 			reason:
 				deps.candidates.length === 0
 					? 'no providers configured'
-					: 'no configured provider has the requested capabilities',
+					: `no configured provider can serve this request: ${why}`,
 		};
 	}
 

@@ -12,7 +12,7 @@ import { CAPABILITIES, costOf } from '@proxlane/adapters';
 import type { HttpTransport, TransportResult } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
-import { isCapable, runChain } from './chain.js';
+import { isCapable, runChain, whyIncapable } from './chain.js';
 
 function caps(over: Partial<ProviderCapabilities> & { id: string }): ProviderCapabilities {
 	return {
@@ -255,6 +255,53 @@ describe('capability filtering happens before anyone is charged', () => {
 		expect(isCapable(caps({ id: 'a', renderJs: true }), req({ renderJs: true }))).toBe(true);
 	});
 
+	it('says which capability excluded each provider, not just that none was capable', async () => {
+		// The 4ms refusal a caller actually got. `wait_for` was added to a request that had been
+		// working, every provider dropped out, and the reason said "no configured provider has the
+		// requested capabilities" — true of every cause and useful for none.
+		// `renderJs: true` alongside it, because that is the only shape the chain ever sees: the
+		// edge sets render when `wait_for` is present (app.ts), so a waitFor-without-render request
+		// cannot reach here. The first version of this test forgot that and asserted an exclusion
+		// order that production never produces.
+		const r = await runChain(req({ waitFor: '.results', renderJs: true }), {
+			transport: transportOf([okResponse]),
+			candidates: [
+				{ adapter: adapterOf('a', 'OK', { waitForSelector: false }), key: 'k' },
+				{
+					adapter: adapterOf('b', 'OK', { waitForSelector: false, renderJs: false }),
+					key: 'k',
+				},
+			],
+			maxBodyBytes: 1_000_000,
+		});
+		expect(r.outcome).toBe('NO_PROVIDER_AVAILABLE');
+		expect(r.reason).toContain('wait_for');
+		expect(r.reason).toContain('a (');
+		// PER PROVIDER, because they rarely fail for the same reason. `b` cannot render, and
+		// `wait_for` implies render, so it is excluded earlier in the list than `a` is.
+		expect(r.reason).toContain('b (render)');
+	});
+
+	it('leaves isCapable and the reason unable to disagree', () => {
+		// The failure this guards is subtle: two functions encoding the same rules, one saying
+		// whether and one saying why, drifting until the response explains a decision the router
+		// did not make. `isCapable` is derived from `whyIncapable`, so they cannot.
+		const shapes: GatewayRequest[] = [
+			req({}),
+			req({ renderJs: true }),
+			req({ waitFor: '.x' }),
+			req({ binary: true }),
+			req({ method: 'POST', body: 'x=1' }),
+			req({ premium: 'stealth' }),
+			req({ countryCode: 'jp' }),
+			req({ sessionId: 's' }),
+		];
+		const c = caps({ id: 'a', waitForSelector: false, binary: false, post: false });
+		for (const r of shapes) {
+			expect(isCapable(c, r), JSON.stringify(r)).toBe(whyIncapable(c, r) === undefined);
+		}
+	});
+
 	it('excludes a provider whose cost matrix marks the combination unsold', () => {
 		// THE COST MATRIX IS A CAPABILITY CLAIM AND NOTHING READ IT. `contract.ts` defines a null
 		// cell as "the provider does not sell that combination". ScrapingBee's real table has
@@ -398,7 +445,10 @@ describe('NO_PROVIDER_AVAILABLE, which only the chain can produce', () => {
 			maxBodyBytes: 1_000,
 		});
 		expect(r.outcome).toBe('NO_PROVIDER_AVAILABLE');
-		expect(r.reason).toMatch(/capabilities/);
+		// NAMES THE PROVIDER AND THE REASON. This asserted /capabilities/, which the old wording
+		// satisfied by saying "the requested capabilities" without ever saying which — a string
+		// that is true of every cause and actionable for none.
+		expect(r.reason).toContain('a (render)');
 		// Nothing was attempted, so nothing was spent.
 		expect(r.attempts).toHaveLength(0);
 	});

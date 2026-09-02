@@ -18,6 +18,7 @@ const built = join(ROOT, 'packages/adapters/conformance-dist/index.mjs');
 let conform: (only?: string) => Promise<{
 	failures: { adapter: string; check: string; detail: string }[];
 	checks: number;
+	notices: { adapter: string; detail: string }[];
 	adapters: string[];
 }>;
 try {
@@ -29,7 +30,7 @@ try {
 	process.exit(2);
 }
 
-const { failures, checks, adapters } = await conform(only);
+const { failures, checks, adapters, notices } = await conform(only);
 
 if (adapters.length === 0) {
 	process.stderr.write(
@@ -63,6 +64,11 @@ for (const id of adapters) {
 	process.stdout.write(fs.length === 0 ? `  ok    ${id}\n` : `  FAIL  ${id}  (${fs.length})\n`);
 	for (const f of fs) process.stdout.write(`          [${f.check}] ${f.detail}\n`);
 }
+
+// BEFORE THE VERDICT, not after it. A notice printed under "all adapters conform" is a line
+// nobody reads; printed above the result it is the thing still on screen when someone stops
+// looking.
+for (const n of notices) process.stdout.write(`\n  DUE SOON  ${n.adapter}: ${n.detail}\n`);
 
 if (failures.length > 0) {
 	process.stdout.write(`\n${failures.length} failure(s)\n\n`);
