@@ -1,5 +1,13 @@
 # @proxlane/gateway
 
+## 0.15.1
+
+### Patch Changes
+
+- Updated dependencies [[`b9f7c89`](https://github.com/proxlane/proxlane/commit/b9f7c895172ab202947a10a0a4cfccad634b84e5), [`6786892`](https://github.com/proxlane/proxlane/commit/6786892dcdbe219911693fc452ad5b7c9c1a491b)]:
+  - @proxlane/adapters@0.10.0
+  - @proxlane/shared@0.11.1
+
 ## 0.15.0
 
 ### Minor Changes

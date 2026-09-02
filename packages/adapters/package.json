@@ -1,6 +1,6 @@
 {
 	"name": "@proxlane/adapters",
-	"version": "0.9.3",
+	"version": "0.10.0",
 	"description": "Provider adapters, capability registry and cost tables for Proxlane. Apache-2.0 — write one for your provider.",
 	"keywords": [
 		"web-scraping",
