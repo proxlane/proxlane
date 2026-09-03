@@ -777,6 +777,26 @@ being our inference from published terms and became a provider's own statement â
 difference between a guess we could be talked out of and a condition with a named route through
 it (ask for the approval).
 
+**ScrapingBee's answer is the one to be careful about, because it reads as a yes and is not
+one.** Asked the same question on 2026-08-24, they answered in two voices. Their own AI replied
+first and declined: it could not give a definitive yes or no from the published terms, which it
+quoted as making API access *personal, non-assignable and non-transferable* and as prohibiting
+*making the API available to a third party*. A human then followed with "as long as there is no
+information stored, it should not be an issue".
+
+So what we hold is a support agent's hedged opinion, conditional on a fact about storage, landing
+directly after their own system read the same terms the other way. That is not the written
+permission this section asks for, and the AI's citation is the sharpest adverse reading any
+provider has given us â€” sharper than Bright Data's, which blessed BYOK outright.
+
+The ambiguity is real rather than evasive: in self-host BYOK the account holder runs it
+themselves, so it is arguable no third party exists. Arguable is the point. Recorded here as
+ambiguous, not as agreement, because the failure mode this section exists to prevent is reading
+a polite reply as a clearance.
+
+One thing from them IS firm and worth keeping: the benchmark is fine **provided the methodology
+is public**, which it already is. That is a condition we meet and can cite.
+
 **OPEN.** Tracked in `docs/state.md`.
 
 **Off the table first.** Registering provider accounts on a user's behalf. Provider
