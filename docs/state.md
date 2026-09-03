@@ -34,13 +34,13 @@ Owner decisions and external answers. None is unblocked by writing code.
 - **Hosted credit margin** — `plan.md` §7: the dominant unbilled spend is provider-billed non-`OK`
   outcomes, above all `TARGET_NOT_FOUND`, so it is *which outcomes the caller pays for*, not only
   the rate. Weeks of traffic decide it. Phase 3.
-- **All 6 detect rules are confirmed by a real capture.** The corpus is the private
-  `proxlane/corpus` repo; clone it and point `PROXLANE_PRIVATE_CORPUS` at it. On 08-31 it was
-  wrongly assumed lost and published at 2 of 6 for about an hour — `operations.md` 8b has the guard.
+- **All 6 detect rules are confirmed by a real capture.** Corpus is the private `proxlane/corpus`
+  repo; clone it, point `PROXLANE_PRIVATE_CORPUS` at it. `operations.md` 8b has the 08-31 story.
 - **Provider permission, in writing** — `plan.md` §18; `_dev/jina-reader` stays out of `REGISTRY`.
-  **Bright Data 2026-09-01: BYOK is not reselling, but pooling users behind one account or selling
-  access as a product needs separate written approval** — that names hosted credits, not just the
-  keyless paths. ScrapingBee yes-if-public and asked back, Scrapfly closed, ScraperAPI silent. *External.*
+  **Bright Data 09-01: BYOK is not reselling, but pooling users behind one account or selling access
+  as a product needs written approval** — naming hosted credits, not just keyless. **ScrapingBee is
+  ambiguous, not a yes**: their AI cited non-transferable terms and declined, a human said it should
+  be fine if nothing is stored. Scrapfly closed email 08-29, ScraperAPI silent. *External.*
 - **An affiliate offer and testing credits, from one of the four we rank.** Taking either from
   one provider while publishing a comparison is the conflict; decide it as policy for all four. *Yours.*
 - **Provider credits** — ScraperAPI and Scrapfly at zero until 2026-09-07, exhausted recording
