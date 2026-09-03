@@ -8,7 +8,16 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// Spawns a subprocess per case, so the unit of work is a process rather than a function call.
+// vitest's 5s default was never chosen for that — it is what applies when nobody says
+// otherwise, and it leaves a spawn almost no headroom. These have never failed in CI, where the
+// runner is unloaded; they fail reliably on a developer machine that is also building something
+// else, which is the case that matters, because that is where a false red costs someone an hour
+// chasing a regression that is not there. The ceiling measures nothing: a few seconds each when
+// the machine is idle.
+vi.setConfig({ testTimeout: 60_000 });
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
