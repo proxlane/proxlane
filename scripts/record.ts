@@ -521,6 +521,12 @@ export function reportDiff(
 		readonly skipped: readonly string[];
 		/** Categories whose fresh recording no longer parses to the outcome the matrix expects. */
 		readonly mismatched: readonly string[];
+		/**
+		 * Categories the provider answered `RATE_LIMITED` — the plan's credits are spent or its
+		 * concurrency cap was hit. Required rather than optional: a caller that has not decided
+		 * what to do about an empty wallet is the caller this field exists for.
+		 */
+		readonly exhausted: readonly string[];
 	},
 ): number {
 	// A RECORDING PASS THAT COULD NOT RECORD IS NOT EVIDENCE OF NO DRIFT, and this is the hole
@@ -558,13 +564,30 @@ export function reportDiff(
 	for (const name of names) {
 		const committedPath = join(committedDir, name);
 		const freshPath = join(freshDir, name);
+		const category = name.replace(/\.json$/, '');
+
+		// AN EMPTY WALLET IS NOT A CHANGED PROVIDER, and this is the same lesson as #266 arriving
+		// at a command that never learned it. A spent plan answers 403 or 429 to every category
+		// alike, so `parse()` returns RATE_LIMITED where the matrix expected a target fact — and
+		// every branch below then reads that as drift. Observed on the 2026-09-02 scheduled run:
+		// ScraperAPI at zero credits reported `dead-host` and `target-error` as having stopped
+		// producing TARGET_ERROR, plus a `deadline.json` "absent from the corpus", none of which
+		// had moved. A weekly report of fabricated drift is how a real one stops being read.
+		//
+		// Checked before the existence branches, because an exhausted run writes no fixture at
+		// all for some categories and a partial one for others — both are the same non-event.
+		// Not counted as a pass either: these land in NOT CHECKED, and the zero-denominator
+		// guard below still fails a run where nothing could be compared.
+		if (run.exhausted.includes(category)) {
+			unchecked.push(`${category} (account out of credit)`);
+			continue;
+		}
 
 		if (!existsSync(freshPath)) {
 			// Deliberately not recorded this run, or not recorded at all. Only the first is
 			// acceptable, and it still has to be SAID: `deadline` needs `--timeout-ms` below the
 			// target's delay, so without a second scoped pass it is exempt from drift detection
 			// every single week while the report calls everything else confirmed.
-			const category = name.replace(/\.json$/, '');
 			if (run.skipped.includes(category)) unchecked.push(category);
 			else changed.push(`${name}: committed, but this run recorded nothing for it`);
 			continue;
@@ -589,7 +612,6 @@ export function reportDiff(
 		// `run.mismatched` carries it now. Exactly the shape of the defect this whole command
 		// exists to prevent, in the command itself: a comparison whose two sides come from one
 		// place.
-		const category = name.replace(/\.json$/, '');
 		if (run.mismatched.includes(category)) {
 			changed.push(
 				`${category}: still records, but parse() no longer produces ${String(before.expect)}`,
@@ -824,6 +846,7 @@ if (import.meta.filename === process.argv[1]) {
 
 	let failed = 0;
 	const mismatched: string[] = [];
+	const exhausted: string[] = [];
 	const unparsed: string[] = [];
 	const skipped: string[] = [];
 	for (const target of targets) {
@@ -1002,9 +1025,17 @@ if (import.meta.filename === process.argv[1]) {
 			const got = adapter.parse({ status: res.status, headers: resHeaders, body: rawBytes });
 			if (target.expect === 'provider-dependent') {
 				verdict = `~ ${got.outcome} (provider-dependent, not asserted)`;
+			} else if (got.outcome === target.expect) {
+				verdict = `= ${got.outcome}`;
+			} else if (got.outcome === 'RATE_LIMITED') {
+				// The wallet, not the provider. Separated here rather than in reportDiff so the
+				// console line a human reads says which of the two it was, and so the non-diff
+				// summary below stops calling a spent plan an unexpected outcome.
+				verdict = `! got RATE_LIMITED (account out of credit)`;
+				exhausted.push(target.category);
 			} else {
-				verdict = got.outcome === target.expect ? `= ${got.outcome}` : `! got ${got.outcome}`;
-				if (got.outcome !== target.expect) mismatched.push(target.category);
+				verdict = `! got ${got.outcome}`;
+				mismatched.push(target.category);
 			}
 		} catch (err) {
 			verdict = `? parse() threw: ${err instanceof Error ? err.message : String(err)}`;
@@ -1016,7 +1047,9 @@ if (import.meta.filename === process.argv[1]) {
 	}
 
 	if (diff) {
-		process.exit(reportDiff(adapterId, committedDir, outDir, { failed, skipped, mismatched }));
+		process.exit(
+			reportDiff(adapterId, committedDir, outDir, { failed, skipped, mismatched, exhausted }),
+		);
 	}
 
 	process.stdout.write(
@@ -1026,6 +1059,12 @@ if (import.meta.filename === process.argv[1]) {
 			...(skipped.length > 0 ? [`  ${skipped.length} skipped: ${skipped.join(', ')}`] : []),
 			...(unparsed.length > 0
 				? [`  ${unparsed.length} not parsed yet (parse() throws): ${unparsed.join(', ')}`]
+				: []),
+			...(exhausted.length > 0
+				? [
+						`  ${exhausted.length} could not be recorded — account out of credit: ${exhausted.join(', ')}`,
+						'  The provider is fine; the plan is spent. These fixtures were NOT refreshed.',
+					]
 				: []),
 			...(mismatched.length > 0
 				? [
