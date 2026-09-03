@@ -36,14 +36,14 @@ Owner decisions and external answers. None is unblocked by writing code.
   the rate. Weeks of traffic decide it. Phase 3.
 - **All 6 detect rules are confirmed by a real capture.** The corpus is the private
   `proxlane/corpus` repo; clone it and point `PROXLANE_PRIVATE_CORPUS` at it. On 08-31 it was
-  wrongly assumed lost and the table was published at 2 of 6 for about an hour — `operations.md`
-  8b has the story and the guard that should have stopped it.
-- **Provider permission, in writing** — `plan.md` §18 gates the keyless paths on it;
-  `_dev/jina-reader` stays out of `REGISTRY` meanwhile. Batch 1 sent: ScrapingBee yes if the
-  methodology is public and asked a question back, Bright Data escalated to Compliance, Scrapfly
-  closed without answering, ScraperAPI silent. *External.*
+  wrongly assumed lost and published at 2 of 6 for about an hour — `operations.md` 8b has the guard.
+- **Provider permission, in writing** — `plan.md` §18; `_dev/jina-reader` stays out of `REGISTRY`.
+  **Bright Data 2026-09-01: BYOK is not reselling, but pooling users behind one account or selling
+  access as a product needs separate written approval** — that names hosted credits, not just the
+  keyless paths. ScrapingBee yes-if-public and asked back, Scrapfly closed, ScraperAPI silent. *External.*
+- **An affiliate offer and testing credits, from one of the four we rank.** Taking either from
+  one provider while publishing a comparison is the conflict; decide it as policy for all four. *Yours.*
 - **Provider credits** — ScraperAPI and Scrapfly at zero until 2026-09-07, exhausted recording
-  fixtures on 08-27. `pnpm record` cannot run and the deferred Scrapfly `large-object` fixture
-  stays owed. All four adapters run on ~1,000-credit monthly free tiers, so the canary is
-  permanently one recording session from being blocked. *Yours.*
+  fixtures on 08-27. `pnpm record` cannot run and the Scrapfly `large-object` fixture stays owed.
+  All four run ~1,000-credit free tiers, so the canary is one recording session from blocked. *Yours.*
 - **Credits refundability** — `operations.md` §4. Ask the accountant before the ledger exists.
