@@ -25,7 +25,12 @@ const b64 = (o: unknown) => Buffer.from(JSON.stringify(o), 'utf8').toString('bas
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
 /** A recording pass where everything recorded. Anything else is a separate test below. */
-const CLEAN = { failed: 0, skipped: [] as string[], mismatched: [] as string[] };
+const CLEAN = {
+	failed: 0,
+	skipped: [] as string[],
+	mismatched: [] as string[],
+	exhausted: [] as string[],
+};
 
 /** A fixture as `record.ts` writes one. */
 function fixture(opts: {
@@ -227,9 +232,14 @@ describe('a pass that could not record is not a pass', () => {
 		write(committed, fixture({}));
 		write(fresh, fixture({ at: daysAgo(0) }));
 		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(0);
-		expect(reportDiff('x', committed, fresh, { failed: 1, skipped: [], mismatched: [] })).toBe(
-			1,
-		);
+		expect(
+			reportDiff('x', committed, fresh, {
+				failed: 1,
+				skipped: [],
+				mismatched: [],
+				exhausted: [],
+			}),
+		).toBe(1);
 	});
 
 	it('reports a committed fixture this run recorded nothing for', () => {
@@ -251,7 +261,12 @@ describe('a category that was deliberately skipped is named, not counted as conf
 		writeFileSync(join(committed, 'deadline.json'), `${JSON.stringify(fixture({}))}\n`);
 		write(fresh, fixture({ at: daysAgo(0) }));
 		expect(
-			reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'], mismatched: [] }),
+			reportDiff('x', committed, fresh, {
+				failed: 0,
+				skipped: ['deadline'],
+				mismatched: [],
+				exhausted: [],
+			}),
 		).toBe(0);
 	});
 
@@ -264,7 +279,12 @@ describe('a category that was deliberately skipped is named, not counted as conf
 		write(committed, fixture({}));
 		writeFileSync(join(committed, 'deadline.json'), `${JSON.stringify(fixture({}))}\n`);
 		write(fresh, fixture({ at: daysAgo(0) }));
-		reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'], mismatched: [] });
+		reportDiff('x', committed, fresh, {
+			failed: 0,
+			skipped: ['deadline'],
+			mismatched: [],
+			exhausted: [],
+		});
 		expect(said.join('')).toContain('NOT CHECKED');
 		expect(said.join('')).toContain('deadline');
 	});
@@ -274,7 +294,12 @@ describe('a category that was deliberately skipped is named, not counted as conf
 		// nothing changed, therefore green. An empty comparison is not a clean one.
 		writeFileSync(join(committed, 'deadline.json'), `${JSON.stringify(fixture({}))}\n`);
 		expect(
-			reportDiff('x', committed, fresh, { failed: 0, skipped: ['deadline'], mismatched: [] }),
+			reportDiff('x', committed, fresh, {
+				failed: 0,
+				skipped: ['deadline'],
+				mismatched: [],
+				exhausted: [],
+			}),
 		).toBe(1);
 	});
 });
@@ -297,6 +322,7 @@ describe('a response that still records but parses differently is drift', () => 
 				failed: 0,
 				skipped: [],
 				mismatched: ['success-html'],
+				exhausted: [],
 			}),
 		).toBe(1);
 	});
@@ -306,7 +332,83 @@ describe('a response that still records but parses differently is drift', () => 
 		write(committed, fixture({}));
 		write(fresh, fixture({ at: daysAgo(0) }));
 		expect(
-			reportDiff('x', committed, fresh, { failed: 0, skipped: [], mismatched: ['render-js'] }),
+			reportDiff('x', committed, fresh, {
+				failed: 0,
+				skipped: [],
+				mismatched: ['render-js'],
+				exhausted: [],
+			}),
 		).toBe(0);
+	});
+});
+
+// AN EMPTY WALLET IS NOT A CHANGED PROVIDER. #266 taught the live canary this and the drift
+// detector never heard it. On 2026-09-02 ScraperAPI sat at zero credits, answered 403 to every
+// category, and the scheduled job reported that `dead-host` and `target-error` had stopped
+// producing TARGET_ERROR and that a `deadline.json` had appeared from nowhere. Nothing had moved
+// except the balance.
+describe('a spent plan is not provider drift', () => {
+	/** Write one named fixture, so a case can have something else left to compare. */
+	const put = (dir: string, name: string, o: unknown) =>
+		writeFileSync(join(dir, `${name}.json`), `${JSON.stringify(o, null, '\t')}\n`);
+
+	it('excuses the shape change a 403 body makes, without excusing shape changes at large', () => {
+		// THE REAL SHAPE OF THE 09-02 FAILURE. An exhausted plan does not return a smaller version
+		// of the fixture — it returns a 272-byte error body in place of the recorded one, so every
+		// field the committed fixture had is gone and every field the error has is new. That is
+		// the largest drift signal the comparison can produce, from the one cause that means
+		// nothing. `render-js` compares cleanly and supplies the denominator, so the verdict turns
+		// only on how `success-html` is classified.
+		put(committed, 'render-js', fixture({}));
+		put(fresh, 'render-js', fixture({ at: daysAgo(0) }));
+		write(committed, fixture({}));
+		write(
+			fresh,
+			fixture({
+				at: daysAgo(0),
+				status: 403,
+				body: { error: 'You have exhausted the API Credits available in this monthly cycle' },
+			}),
+		);
+
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
+		expect(reportDiff('x', committed, fresh, { ...CLEAN, exhausted: ['success-html'] })).toBe(
+			0,
+		);
+	});
+
+	it('does not invent a fixture that appeared, when the run could not pay for it', () => {
+		// The `deadline.json: recorded now, absent from the corpus` line from the real failure.
+		write(committed, fixture({}));
+		write(fresh, fixture({ at: daysAgo(0) }));
+		put(fresh, 'deadline', fixture({}));
+
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
+		expect(reportDiff('x', committed, fresh, { ...CLEAN, exhausted: ['deadline'] })).toBe(0);
+	});
+
+	it('does not call a fixture missing, when the run could not pay to record it', () => {
+		// The other half, and the one that produced two of the three lines on 09-02: committed,
+		// but this run recorded nothing for it.
+		put(committed, 'render-js', fixture({}));
+		put(fresh, 'render-js', fixture({ at: daysAgo(0) }));
+		write(committed, fixture({}));
+
+		expect(reportDiff('x', committed, fresh, CLEAN)).toBe(1);
+		expect(reportDiff('x', committed, fresh, { ...CLEAN, exhausted: ['success-html'] })).toBe(
+			0,
+		);
+	});
+
+	it('still refuses to call a wholly unpaid run clean', () => {
+		// THE LINE THAT MATTERS, and the reason the two cases above need a second fixture at all.
+		// Excusing an empty wallet must not become a way to pass without comparing anything: the
+		// zero-denominator rule outranks it. Every category exhausted is not a green week, it is
+		// a week with no evidence, and it exits 1.
+		write(committed, fixture({}));
+		write(fresh, fixture({ at: daysAgo(0) }));
+		expect(reportDiff('x', committed, fresh, { ...CLEAN, exhausted: ['success-html'] })).toBe(
+			1,
+		);
 	});
 });
