@@ -339,6 +339,43 @@ jobs:
           fi
           echo "security-touching files in this diff:"
           echo "$MATCH"
+          # A RELEASE PR CHANGES NO CODE, AND GATING IT TEACHES THE REFLEX THIS GATE EXISTS TO
+          # PREVENT. Every changesets release PR rewrites the gateway's and adapters' `version`
+          # fields and the image pin in `docker/compose.yml` — three security paths, none of them
+          # carrying a line anybody can review. `ci-complete` is the one required check, so each
+          # release sat red until a human put `security-reviewed` on a diff of version strings —
+          # and a label applied reflexively on every release is a label applied reflexively
+          # everywhere, which is worse than not having one.
+          #
+          # THE EXEMPTION IS ON THE DIFF'S SHAPE, not on who opened the PR or what the branch is
+          # called. A fork can name its branch `changeset-release/main`; it cannot make an edit to
+          # `edge-guard.ts` look like a version bump. Anything unrecognised falls through to the
+          # label below, which is the safe direction — the gate stands when in doubt.
+          #
+          # No pattern allows a dependency line. Internal ranges are all `workspace:*` and never
+          # change, and a third-party bump — Renovate moving `undici` — is exactly the
+          # supply-chain diff this job should route to a human.
+          SHAPED=$(node -e '
+            const { execFileSync } = require("node:child_process");
+            const [base, matched] = process.argv.slice(1);
+            const VERSION = /^[+-]\s*"version":\s*"\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?",?$/;
+            const IMAGE = /^[+-]\s*image:\s*ghcr\.io\/proxlane\/gateway:\d+\.\d+\.\d+$/;
+            const shaped = matched.split("\n").filter(Boolean).every((f) => {
+              const diff = execFileSync("git", ["diff", "-U0", base + "...HEAD", "--", f], { encoding: "utf8" });
+              const lines = diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l));
+              // A generated changelog carries prose. It is the only one of the three whose
+              // content is not asserted, because there is no code in it to assert.
+              if (f.endsWith("/CHANGELOG.md")) return true;
+              if (f.endsWith("/package.json")) return lines.every((l) => VERSION.test(l));
+              if (f === "docker/compose.yml") return lines.every((l) => IMAGE.test(l));
+              return false;
+            });
+            console.log(shaped ? "release-shaped" : "");
+          ' "origin/${{ github.base_ref }}" "$MATCH")
+          if [ -n "$SHAPED" ]; then
+            echo "::notice title=security-review::version bumps and generated changelogs only, so there is nothing to review"
+            exit 0
+          fi
           # A NOTICE INSIDE A GREEN CHECK ROUTES NOWHERE. `operating.md` B6 lists this among ten
           # "all blocking" jobs and `repo:check` reports it as covered, but the job was an echo:
           # a PR rewriting `packages/shared/src/edge-guard.ts` printed a `::notice::` and merged

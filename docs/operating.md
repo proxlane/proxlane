@@ -266,7 +266,7 @@ On every PR, all blocking:
 | `changeset` | fails if behaviour changed without one |
 | `secrets` | scan diff and fixtures for key-shaped strings |
 | `build:docker` | amd64 image build, not pushed. arm64 builds in the release workflow on a native runner, never here — QEMU breaks the ten-minute rule |
-| `security-review` | **conditional**, not on every PR: runs when the diff touches `packages/adapters/**`, `apps/gateway/**`, anything referencing `provider_keys`, env parsing, SQL, or `.github/workflows/**` |
+| `security-review` | **conditional**, not on every PR: runs when the diff touches `packages/adapters/**`, `apps/gateway/**`, anything referencing `provider_keys`, env parsing, SQL, or `.github/workflows/**`. Blocks until a human adds `security-reviewed`, **unless every touched line is a version bump or a generated changelog** — see B8 |
 
 Scheduled:
 
@@ -353,6 +353,18 @@ so nobody has to ask.
   weekly. Not scheduled, not held back for a "big" release.
 - The self-host compose file pins a version. `:latest` exists but is documented as
   the unstable choice.
+- **The release PR does not need a `security-reviewed` label**, and the reason is worth
+  keeping. Versioning rewrites the gateway's and adapters' `version` fields and the image
+  pin in `docker/compose.yml` — three of B6's security paths — so every release sat red on
+  the one required check until a human labelled a diff of version strings. That is not a
+  review, it is a habit, and a label applied reflexively on every release is a label applied
+  reflexively everywhere. `security-review` now exempts a diff whose every touched line in
+  those paths is a `"version"` bump, a pinned `ghcr.io/proxlane/gateway` tag, or a generated
+  `CHANGELOG.md`. The test is the diff's **shape**, not the branch name or the author: a fork
+  can call its branch `changeset-release/main`, and it still cannot make an edit to
+  `edge-guard.ts` look like a version bump. Anything unrecognised falls through to the label,
+  so the gate stands whenever in doubt — including a Renovate bump of a third-party dependency,
+  which is a supply-chain diff and exactly what the job is for.
 
 ## B9. Support boundaries, stated out loud
 
