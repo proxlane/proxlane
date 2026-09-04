@@ -216,8 +216,10 @@ faithfully reflects a table that is now wrong.
 as a path claim and puts security-engineer in conflict with platform-engineer over
 `packages/shared/**`. Those are a **review** scope, not paths — security-engineer has no
 write tools and cannot own code it cannot edit. The routing is B6's conditional
-`security-review` job, whose trigger set lives in `scripts/security-review-paths.json` and
-is read by both the workflow and `repo:check`.
+`security-review` job, whose trigger set lives in `scripts/security-review-paths.json`.
+The workflow reads it; `repo:check` assertion 51 asserts the workflow reads **every** key it
+declares. That second half was a claim rather than a fact — `repo:check` did not open the file
+at all, and `contentTriggers` sat unread for the whole of phase 1. See `operating.md` B6a.
 
 **community-manager owns no repo paths** and therefore has no row. A `*(no repo paths)*`
 cell would be parsed as a pattern and match nothing.

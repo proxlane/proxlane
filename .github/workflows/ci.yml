@@ -322,17 +322,32 @@ jobs:
           git fetch origin "${{ github.base_ref }}"
           CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)
           MATCH=$(node -e '
+            const { execFileSync } = require("node:child_process");
             const cfg = require("./scripts/security-review-paths.json");
-            const changed = process.argv[1].split("\n").filter(Boolean);
-            const hit = changed.filter((f) => cfg.paths.some((p) => {
+            const [base, changedRaw] = process.argv.slice(1);
+            const changed = changedRaw.split("\n").filter(Boolean);
+            const byPath = changed.filter((f) => cfg.paths.some((p) => {
               // A prefix match on a non-glob entry is too loose: "SECURITY.md" would also
               // match "SECURITY.md.bak". Globs match their directory; everything else is
               // an exact path.
               if (!p.endsWith("/**")) return f === p;
               return f.startsWith(p.slice(0, -2));
             }));
-            console.log(hit.join("\n"));
-          ' "$CHANGED")
+            // CONTENT TRIGGERS, MATCHED ON CHANGED LINES — never on file contents. `doctor.ts`
+            // contains `process.env` permanently; editing an unrelated function in it is not an
+            // env change, and a trigger that fired on the whole file would route half of
+            // `scripts/**` and `packages/cli/**` to a manual label. What is being asked is
+            // "does this diff touch env handling", and only the diff can answer it.
+            const DOC = /\.(md|txt)$/;
+            const byContent = changed.filter((f) => {
+              if (byPath.includes(f) || DOC.test(f)) return false;
+              const d = execFileSync("git", ["diff", "-U0", base + "...HEAD", "--", f], { encoding: "utf8" });
+              return d.split("\n")
+                .filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l))
+                .some((l) => cfg.contentTriggers.some((t) => l.includes(t)));
+            });
+            console.log([...byPath, ...byContent].join("\n"));
+          ' "origin/${{ github.base_ref }}" "$CHANGED")
           if [ -z "$MATCH" ]; then
             echo "not security-touching"
             exit 0
@@ -360,12 +375,21 @@ jobs:
             const [base, matched] = process.argv.slice(1);
             const VERSION = /^[+-]\s*"version":\s*"\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?",?$/;
             const IMAGE = /^[+-]\s*image:\s*ghcr\.io\/proxlane\/gateway:\d+\.\d+\.\d+$/;
+            const LINK = /\]\(([^)]*)\)/g;
             const shaped = matched.split("\n").filter(Boolean).every((f) => {
               const diff = execFileSync("git", ["diff", "-U0", base + "...HEAD", "--", f], { encoding: "utf8" });
               const lines = diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l));
-              // A generated changelog carries prose. It is the only one of the three whose
-              // content is not asserted, because there is no code in it to assert.
-              if (f.endsWith("/CHANGELOG.md")) return true;
+              // A generated changelog carries prose, not code — but it is RENDERED, on
+              // `/docs/changelog`, so the exemption cannot wave through arbitrary text. Not an
+              // injection risk (`markdown-it` with `html: false`, so raw HTML is escaped); the
+              // reachable one is a link, on a page a reader trusts. `changelog-github` writes
+              // github.com links and nothing else — 584 of them across the whole history, no
+              // exceptions — so a link anywhere else did not come out of the generator.
+              if (f.endsWith("/CHANGELOG.md")) {
+                return lines.every((l) =>
+                  [...l.matchAll(LINK)].every((m) => m[1].startsWith("https://github.com/")),
+                );
+              }
               if (f.endsWith("/package.json")) return lines.every((l) => VERSION.test(l));
               if (f === "docker/compose.yml") return lines.every((l) => IMAGE.test(l));
               return false;
