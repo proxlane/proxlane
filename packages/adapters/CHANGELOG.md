@@ -1,5 +1,14 @@
 # @proxlane/adapters
 
+## 0.10.1
+
+### Patch Changes
+
+- [#269](https://github.com/proxlane/proxlane/pull/269) [`d0e5acc`](https://github.com/proxlane/proxlane/commit/d0e5acc39663142823748136da43a7388cd92c00) Thanks [@scarsam](https://github.com/scarsam)! - `pnpm record --diff` no longer reports an exhausted provider plan as fixture drift. A spent
+  account answers 403 or 429 to every category, so `parse()` returns `RATE_LIMITED` where a target
+  fact was expected; those categories are now reported as NOT CHECKED rather than as changed
+  outcomes, and a run where nothing could be compared still fails.
+
 ## 0.10.0
 
 ### Minor Changes
