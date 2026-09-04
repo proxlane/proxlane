@@ -1,9 +1,10 @@
 # Proxlane
 
-> **Pre-release, and self-host only.** Parts of this work and parts do not — the Status
-> section below says which, and it is kept honest rather than aspirational. The packages are
-> published and **there is no hosted endpoint**: run it yourself, on your own provider keys.
-> Docs are live at [proxlane.dev/docs](https://proxlane.dev/docs).
+> **Self-host only, and pre-1.0.** **There is no hosted endpoint and no account**: you run
+> it, on your own provider keys, from a published image or an npm package. Everything the
+> Status section lists as shipped is covered by a command you can run — and what is missing
+> is missing by decision rather than by breakage: no dashboard, no database, no hosted
+> credits. Docs are live at [proxlane.dev/docs](https://proxlane.dev/docs).
 > Follow the repo if you want to know when that changes.
 
 One lane to every scraping provider. Automatic failover, per-request cost visibility, and
