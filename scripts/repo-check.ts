@@ -3306,6 +3306,60 @@ function matchesOwner(pattern: string, file: string): boolean {
 	ok(A, checked50, 'nothing builds a wire request and sends it itself');
 }
 
+// -------------------------------------------------------------------------- 51
+//
+// THE SECURITY-REVIEW TRIGGER SET IS READ, OR IT IS NOT A TRIGGER SET.
+//
+// `scripts/security-review-paths.json` declared `contentTriggers` — `provider_keys`,
+// `libsodium`, `process.env` — and the workflow read `cfg.paths` only. So `operating.md` B6's
+// claim that the job fires on "anything referencing provider_keys, env parsing, SQL" was false
+// for the whole of phase 1, and `CLAUDE.md`'s claim that the file is "read by both the workflow
+// and repo:check" was false in the half naming this file.
+//
+// Nothing caught it because nothing looked. A key that no consumer reads is indistinguishable
+// from one that is honoured — it fails open, silently, in the job whose entire purpose is
+// routing a diff to a human. Same failure the toolchain table's "a row nothing checks is drift
+// waiting to happen" note is about, in the one file where failing open is worst.
+//
+// So: every key the file declares must appear in the workflow that owns it. This does not prove
+// the key is honoured correctly — assertion 15 proves the job exists, and the shell tests in the
+// PR that added the exemption prove the behaviour — but it does make the file's own contents
+// unable to drift away from its only reader.
+{
+	const A = '51';
+	const cfgPath = 'scripts/security-review-paths.json';
+	const ciPath = '.github/workflows/ci.yml';
+	if (!has(cfgPath) || !has(ciPath)) {
+		fail(A, `${cfgPath} and ${ciPath} must both exist for the trigger set to have a reader`);
+	} else {
+		const ci = read(ciPath);
+		const cfg = JSON.parse(read(cfgPath)) as Record<string, unknown>;
+		// `$comment` is prose for the next reader, not configuration.
+		const keys = Object.keys(cfg).filter((k) => !k.startsWith('$'));
+		if (keys.length === 0) {
+			fail(A, `${cfgPath} declares no keys, so the security-review job is matching on nothing`);
+		}
+		let checked51 = 0;
+		for (const k of keys) {
+			checked51++;
+			const value = cfg[k];
+			if (!Array.isArray(value) || value.length === 0) {
+				fail(A, `${cfgPath} key "${k}" is empty, so it silently matches nothing`);
+			}
+			// `cfg.contentTriggers`, as the workflow spells it.
+			if (!ci.includes(`cfg.${k}`)) {
+				fail(
+					A,
+					`${cfgPath} declares "${k}" and ${ciPath} never reads cfg.${k}. Dead config in the ` +
+						'security gate fails open: the file says a diff is routed to a human and no code ' +
+						'routes it. Wire it up in the security-review job, or delete the key.',
+				);
+			}
+		}
+		ok(A, checked51, 'every security-review trigger key is read by the workflow');
+	}
+}
+
 // -------------------------------------------------------------------------- report
 
 const out = failures.length ? process.stderr : process.stdout;

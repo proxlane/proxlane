@@ -266,7 +266,7 @@ On every PR, all blocking:
 | `changeset` | fails if behaviour changed without one |
 | `secrets` | scan diff and fixtures for key-shaped strings |
 | `build:docker` | amd64 image build, not pushed. arm64 builds in the release workflow on a native runner, never here — QEMU breaks the ten-minute rule |
-| `security-review` | **conditional**, not on every PR: runs when the diff touches `packages/adapters/**`, `apps/gateway/**`, anything referencing `provider_keys`, env parsing, SQL, or `.github/workflows/**`. Blocks until a human adds `security-reviewed`, **unless every touched line is a version bump or a generated changelog** — see B8 |
+| `security-review` | **conditional**, not on every PR. Two ways in, both from `scripts/security-review-paths.json`: the diff touches a declared **path** (`packages/adapters/**`, `apps/gateway/**`, `packages/shared/**`, `packages/db/**`, `.github/workflows/**`, `docker/**`, `SECURITY.md`), or a **changed line** anywhere outside `.md`/`.txt` contains a declared trigger (`provider_keys`, `libsodium`, `process.env`). Changed lines, never file contents — see B6a. Blocks until a human adds `security-reviewed`, **unless every touched line is a version bump, the gateway image pin, or a generated changelog** — see B8 |
 
 Scheduled:
 
@@ -279,6 +279,34 @@ Scheduled:
 
 CI must stay under ten minutes or people stop running it locally and start pushing to
 see what happens.
+
+## B6a. The security-review trigger set
+
+`scripts/security-review-paths.json` is the whole of it, read by the workflow and asserted by
+`repo:check` 51. security-engineer has no write tools and cannot own the code it reviews, so
+this file — not CODEOWNERS — is how a diff reaches it.
+
+**`contentTriggers` matched nothing for the whole of phase 1.** The file declared
+`provider_keys`, `libsodium` and `process.env`; the job read `cfg.paths` and stopped. So the
+B6 row above described a routing rule that did not exist, and nothing noticed, because dead
+config in a gate fails open and looks identical to config that is honoured. Assertion 51 now
+fails if any declared key has no reader — the same reasoning as the toolchain table's "a row
+nothing checks is drift waiting to happen", applied where failing open is worst.
+
+**Triggers match CHANGED LINES, never file contents, and skip `.md`/`.txt`.** `doctor.ts`
+contains `process.env` permanently; editing an unrelated function in it is not an env change.
+Matching the file would route most of `scripts/**` and `packages/cli/**` to a manual label and
+teach the reflex B8's exemption exists to prevent. The question is whether *this diff* touches
+env handling, and only the diff answers it. Prose is excluded for the same reason: a doc
+naming `provider_keys` is describing the schema, not changing it.
+
+**A comment inside a source file still counts, and the PR that wired this up tripped its own
+trigger that way** — assertion 51's comment names all three literals, so `repo:check.ts` was
+routed alongside the workflow. Left as is. Comments are not stripped first because a line-level
+matcher sees changed lines, not files: a `//` line is detectable, a line in the middle of a
+`/* */` block is not, and a rule that catches one but not the other is worse than one that
+catches both. It fails closed, on prose, in a `.ts` file — the direction that costs a label
+rather than a review.
 
 ## B7. Feature workflow
 
@@ -365,6 +393,14 @@ so nobody has to ask.
   `edge-guard.ts` look like a version bump. Anything unrecognised falls through to the label,
   so the gate stands whenever in doubt — including a Renovate bump of a third-party dependency,
   which is a supply-chain diff and exactly what the job is for.
+- **A changelog is exempt as prose, not as a blank cheque.** Changelog notes are *rendered*, on
+  `/docs/changelog`, so "there is no code in it" was the wrong reason to assert nothing about
+  the content. Injection is already closed — `markdown-it` runs with `html: false`, so raw HTML
+  is escaped — but a **link** survives, and a link on a page readers trust is the reachable
+  version of the problem. `@changesets/changelog-github` emits github.com links and nothing else
+  (584 across the history at the time of writing, no exceptions), so a changed changelog line
+  carrying any other link did not come out of the generator, and the exemption does not apply
+  to it.
 
 ## B9. Support boundaries, stated out loud
 
