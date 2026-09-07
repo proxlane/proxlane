@@ -51,12 +51,21 @@ describe('the class agrees with the policy it describes', () => {
 		}
 	});
 
-	it('arms no cooldown for anything the caller or we caused', () => {
+	it('arms no shared cooldown for anything the caller or we caused', () => {
 		// A cooldown punishes a provider or a domain. Neither is at fault when the request was
 		// malformed or our own translation broke.
+		//
+		// ONE EXCEPTION, pinned rather than skipped. AUTH_FAILED is `gateway` — the key is ours
+		// and the target was never asked — and it arms `acct`. That namespace is
+		// `cd:acct:{org}:{provider}`, private to the org that configured the dead key: it
+		// punishes nobody and demotes nothing shared, it takes OUR credential out of rotation
+		// for a while, which is the remedy rather than a penalty. `blk` here would be wrong for
+		// exactly the reason this test exists.
 		for (const cls of ['client', 'gateway'] as const) {
 			for (const o of outcomesInClass(cls)) {
-				expect(FAILOVER[o].cooldown, `${o} arms a cooldown`).toBe('none');
+				expect(FAILOVER[o].cooldown, `${o} arms a cooldown`).toBe(
+					o === 'AUTH_FAILED' ? 'acct' : 'none',
+				);
 			}
 		}
 	});
@@ -102,7 +111,10 @@ describe('the mapping is pinned, because changing it is a breaking change', () =
 		PROVIDER_TIMEOUT: 'provider',
 		PROVIDER_ERROR: 'provider',
 		RATE_LIMITED: 'provider',
-		AUTH_FAILED: 'provider',
+		// `gateway`, not `provider`. The provider rejected a key WE hold, so the request never
+		// got a verdict from the target. Labelled `provider` it read as "the chain tried and the
+		// target declined", and a caller that falls back on `gateway` alone lost a week to it.
+		AUTH_FAILED: 'gateway',
 		PROVIDER_DRIFT: 'provider',
 		PROVIDER_BODY_OFFLOADED: 'provider',
 		INVALID_REQUEST: 'gateway',

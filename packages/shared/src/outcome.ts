@@ -160,7 +160,10 @@ export type OutcomeClass =
 	| 'provider'
 	/** The caller asked for something malformed or not allowed. */
 	| 'client'
-	/** We refused or broke: our limits, our bug, or an exhausted chain. */
+	/**
+	 * We refused or broke: our limits, our bug, an exhausted chain — or a credential WE hold
+	 * that a provider rejected. The request never got a verdict from the target.
+	 */
 	| 'gateway';
 
 export const OUTCOME_CLASSES = [
@@ -223,7 +226,13 @@ export const CLASS_ADVICE = {
 		what: 'Proxlane failed over for you. Seeing this means the whole chain was exhausted.',
 	},
 	client: { action: 'Fix the request', what: 'Retrying an invalid request cannot help.' },
-	gateway: { action: 'Retry later', what: 'Our side. Honour Retry-After when it is present.' },
+	gateway: {
+		action: 'Retry later',
+		what:
+			'Our side: the request never got a verdict from the target. Honour Retry-After when ' +
+			'it is present. If it persists, the gateway is misconfigured — a dead credential, ' +
+			'no capable provider — and the operator has to fix it, not the caller.',
+	},
 } as const satisfies Record<OutcomeClass, { readonly action: string; readonly what: string }>;
 
 /**
@@ -378,7 +387,23 @@ export const FAILOVER = {
 		meaning: 'Provider 429, concurrency cap, or the plan quota is spent',
 	},
 	AUTH_FAILED: {
-		class: 'provider',
+		// `gateway`, NOT `provider`, and it was `provider` for the whole of phase 1. The class
+		// answers "whose problem is it", and a rejected key is ours: the operator configured a
+		// credential the provider no longer accepts, and the request never reached the target.
+		// The spec already said so — `gateway` is "the only one meaning we never found out" —
+		// while this row contradicted it.
+		//
+		// The cost of the wrong answer was a week. A downstream caller branched on the class:
+		// `gateway` meant "the gateway is unusable, fall back to my own account", anything else
+		// meant "four providers already declined this, a fifth paid attempt is waste". A rotated
+		// Bright Data key came back as `provider`, the fallback that would have worked was
+		// suppressed, and that caller's source found zero every night until someone read the
+		// chain by hand. The class exists so nobody has to read the chain by hand.
+		//
+		// Failover, cooldown and status are unchanged. The chain still tries the next provider —
+		// one dead key must not fail a request three working keys could serve — and `acct` still
+		// takes the dead key out of rotation. Only the label a caller branches on moves.
+		class: 'gateway',
 		httpStatus: 502,
 		chargeable: false,
 		failover: true,

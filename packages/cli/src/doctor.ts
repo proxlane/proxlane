@@ -77,12 +77,29 @@ async function providerKeyChecks(): Promise<Check[]> {
 			const envVar = `${id.toUpperCase().replace(/-/g, '_')}_KEY`;
 			const v = process.env[envVar];
 			const present = v !== undefined && v !== '';
+			// BRIGHT DATA IS THE ONE KEY WITH A SHAPE, and nothing said so where the key is set.
+			// Every other provider takes a plain token; this one is `<zone>:<token>`, because
+			// the zone is a property of the account and the REST API wants it named. A token
+			// pasted on its own is not "wrong", it is a request with an empty zone, which the
+			// provider answers `zone "" not found` — and that arrives as AUTH_FAILED, the same
+			// outcome as a revoked key. A downstream caller had exactly that ambiguity and had
+			// to test both forms against the provider by hand to rule one out. This rules it
+			// out before the first request.
+			const shapeless =
+				id === 'brightdata' && present && !/^[^:\s]+:[^:\s]+$/.test((v ?? '').trim());
 			return {
 				name: `key:${id}`,
 				// NOT a failure. BYOK means you bring the providers you use, and nobody is expected
 				// to hold all three. Reporting a missing key as broken would train people to ignore
 				// the output, which is how a diagnostic stops being read.
-				ok: true,
+				//
+				// The one exception is a key that is present and cannot work as written.
+				ok: !shapeless,
+				...(shapeless
+					? {
+							fix: `$${envVar} must be <zone>:<token> — the Web Unlocker zone name, a colon, then the API token. A bare token sends an empty zone and is reported as AUTH_FAILED.`,
+						}
+					: {}),
 				// Length only, never a prefix or suffix. Redaction happens at the VALUE, before it
 				// reaches any renderer, or the --json path leaks what the human path hides.
 				// WHITESPACE IS REPORTED, because it is invisible and it costs hours. A leading
@@ -93,9 +110,11 @@ async function providerKeyChecks(): Promise<Check[]> {
 				// it against what they pasted.
 				detail: !present
 					? `$${envVar} not set`
-					: v !== v.trim()
-						? `$${envVar} set (${v.trim().length} chars, and had surrounding whitespace — trimmed)`
-						: `$${envVar} set (${v.length} chars)`,
+					: shapeless
+						? `$${envVar} set (${v.trim().length} chars) but has no zone prefix`
+						: v !== v.trim()
+							? `$${envVar} set (${v.trim().length} chars, and had surrounding whitespace — trimmed)`
+							: `$${envVar} set (${v.length} chars)`,
 			};
 		}),
 	];

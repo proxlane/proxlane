@@ -285,6 +285,32 @@ describe('doctor', () => {
 			expect(c.ok).toBe(true);
 		}
 	});
+
+	it('fails a Bright Data key with no zone prefix, and says what the shape is', async () => {
+		// The one key with a shape. A bare token is sent with an empty zone, the provider
+		// answers `zone "" not found`, and that arrives as AUTH_FAILED — indistinguishable from
+		// a revoked key. A caller had to test both forms against the provider by hand.
+		const saved = process.env.BRIGHTDATA_KEY;
+		const keyOf = (out: string) =>
+			JSON.parse(out).data.checks.find((c: { name: string }) => c.name === 'key:brightdata');
+		try {
+			process.env.BRIGHTDATA_KEY = 'a'.repeat(36);
+			const [, bare] = await capture(() => doctor(true));
+			expect(keyOf(bare).ok).toBe(false);
+			expect(keyOf(bare).fix).toMatch(/<zone>:<token>/);
+			expect(keyOf(bare).detail).toMatch(/no zone prefix/);
+			// Never the value, not even a prefix — the redaction rule applies to the fix too.
+			expect(keyOf(bare).fix).not.toContain('aaaa');
+
+			process.env.BRIGHTDATA_KEY = `myzone:${'a'.repeat(36)}`;
+			const [, shaped] = await capture(() => doctor(true));
+			expect(keyOf(shaped).ok).toBe(true);
+			expect(keyOf(shaped).fix).toBeUndefined();
+		} finally {
+			if (saved === undefined) delete process.env.BRIGHTDATA_KEY;
+			else process.env.BRIGHTDATA_KEY = saved;
+		}
+	});
 });
 
 describe('doctor knows about routing state', () => {
