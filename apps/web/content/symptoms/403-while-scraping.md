@@ -41,10 +41,15 @@ provider's own API, not on the target page. Proxlane does not pass that status t
 ```
 HTTP/1.1 502 Bad Gateway
 X-Outcome: AUTH_FAILED
-X-Outcome-Class: provider
+X-Outcome-Class: gateway
 X-Attempts: 2
 X-Chain: scraperapi:AUTH_FAILED>scrapfly:OK
 ```
+
+The class is `gateway`, not `provider`: the provider did nothing wrong, the target was never
+asked, and the credential is the gateway's own configuration. That is the distinction a
+client should branch on: `gateway` means the gateway itself needs fixing, where `blocked`
+and `provider` mean it tried and the answer came back no.
 
 The gateway already failed over to a different provider and marked the failed key unhealthy.
 If every provider returns this, every key is wrong or expired, and what comes back is the

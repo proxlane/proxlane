@@ -227,7 +227,7 @@ defined per outcome, centrally, never inside adapters.
 | `PROVIDER_TIMEOUT` | `provider` | Attempt exceeded per-attempt budget | 504 | no | yes | `acct`, short | no |
 | `PROVIDER_ERROR` | `provider` | Provider 5xx / infra failure | 502 | no | yes | `acct`, short | no |
 | `RATE_LIMITED` | `provider` | Provider 429 / concurrency cap | 429 + `Retry-After` | no | yes | `acct`, respect headers | no |
-| `AUTH_FAILED` | `provider` | Provider 401/403 on the key | 502 | no | yes | `acct`; mark key unhealthy, notify user | no |
+| `AUTH_FAILED` | `gateway` | Provider 401/403 on the key | 502 | no | yes | `acct`; mark key unhealthy, notify user | no |
 | `PROVIDER_DRIFT` | `provider` | Response failed schema parse | 502 | no | yes | no | **yes** |
 | `PROVIDER_BODY_OFFLOADED` | `provider` | Provider stored the body out of band and returned a pointer | 502 | no | yes | no | no |
 | `INVALID_REQUEST` | `gateway` | **Our translation** produced a provider 400 | 500 | no | **no** | no | **yes** |
@@ -287,6 +287,25 @@ a request that is simply wrong, so all of it landed on `INVALID_REQUEST`:
   fails over — which is right when one provider refuses and actively wrong when the gateway
   itself is full, because failing over spends the budget the ceiling exists to protect. Now
   `GATEWAY_BUSY`, class `gateway`, no failover, no cooldown.
+
+**`AUTH_FAILED` is class `gateway`, and it was `provider` for the whole of phase 1.** The
+class answers "whose problem is it", and a rejected key is ours: the operator configured a
+credential the provider no longer accepts, and the request never got a verdict from the
+target. The sentence below — `gateway` is "the only one meaning we never found out" — was
+already the rule; this row contradicted it, and the contradiction cost a downstream caller a
+week. Its client fell back to its own provider account on `gateway` and treated everything
+else as "the chain tried, the target declined". A rotated Bright Data key arrived as
+`provider`, the fallback that would have worked was suppressed, and that source found zero
+every night until somebody read `X-Chain` by hand. Failover, cooldown and status are
+unchanged: the chain still moves past a dead key, `acct` still sidelines it. Only the label a
+caller branches on moved.
+
+`RATE_LIMITED` stays `provider`, and it is the weaker call of the two. It covers a plan
+concurrency cap — the provider pacing us, transient, genuinely theirs — and a spent monthly
+quota, which is our wallet. A caller cannot tell "the site blocks you" from "we are out of
+budget" today, and those want opposite responses. Splitting the quota case out is a new
+outcome, and the taxonomy is under the 1.0 stability promise; it is recorded in `state.md`
+rather than done here.
 
 The HTTP column is not decoration: the product's promise is drop-in compatibility, so the
 status a client sees is part of the public surface, and no document defined it.
