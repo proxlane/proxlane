@@ -12,12 +12,5 @@
 		"note that becomes permanent by being written in prose nobody re-reads. Assertion-shaped,",
 		"it cannot rot: on the date below, CI starts saying so and does not stop."
 	],
-	"deferred": [
-		{
-			"adapter": "scrapfly",
-			"category": "large-object",
-			"recordableFrom": "2026-09-07",
-			"reason": "Scrapfly's free tier reached 0/1000 credits during the recording run for this very fixture, on 2026-08-27. The behaviour is confirmed against live traffic and parse() is tested against the real captured envelope in index.unit.test.ts; only the recorded exchange is outstanding. The plan resets 2026-09-07 21:16 UTC."
-		}
-	]
+	"deferred": []
 }

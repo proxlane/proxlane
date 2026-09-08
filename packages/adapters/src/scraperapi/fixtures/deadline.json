@@ -1,0 +1,13 @@
+{
+	"kind": "deadline",
+	"category": "deadline",
+	"recordedAt": "2026-09-08T02:50:35.933Z",
+	"adapter": "scraperapi",
+	"target": {
+		"url": "https://httpbin.dev/delay/30",
+		"renderJs": false
+	},
+	"expect": "PROVIDER_TIMEOUT",
+	"transportError": "aborted-by-deadline",
+	"timeoutMs": 5000
+}
