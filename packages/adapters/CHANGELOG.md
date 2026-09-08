@@ -1,5 +1,14 @@
 # @proxlane/adapters
 
+## 0.10.2
+
+### Patch Changes
+
+- [#278](https://github.com/proxlane/proxlane/pull/278) [`08a3079`](https://github.com/proxlane/proxlane/commit/08a30793adf9dfcc69f110594ce68cfc0d09c033) Thanks [@scarsam](https://github.com/scarsam)! - Scrapfly `large-object` fixture recorded, closing the deferral that came due on 2026-09-07; ScraperAPI `deadline` fixture added.
+
+- Updated dependencies [[`e1971f5`](https://github.com/proxlane/proxlane/commit/e1971f5394dbdd9d91a86c58d8eebf7585ef8e0c)]:
+  - @proxlane/shared@0.12.0
+
 ## 0.10.1
 
 ### Patch Changes
