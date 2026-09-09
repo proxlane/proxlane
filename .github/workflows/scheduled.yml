@@ -198,6 +198,24 @@ jobs:
           BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
         id: diff
         run: pnpm record --diff --adapter=${{ matrix.adapter }} 2>&1 | tee /tmp/diff.txt
+      # A SECOND, SCOPED PASS, because `--timeout-ms` is global and would time out every other
+      # category. Without it `deadline` is skipped — it needs a budget below the target's 30s
+      # delay — so `deadline.json` sat exempt from drift detection every single week while the
+      # report called everything else confirmed. `--diff` now names what it skipped rather than
+      # passing over it in silence; this is what stops it having anything to name.
+      #
+      # HAS AN ID AND A TEE, because for three weeks it did not. The drift-issue step below
+      # keyed on `steps.diff` alone, so this pass could fail — and did, on every adapter, every
+      # Wednesday from 08-26 — with no signal beyond a red square on a page nobody opens. A
+      # scheduled job's second step is exactly as invisible as its first, and needs the same wiring.
+      - if: steps.keyed.outputs.yes == 'true'
+        id: deadline
+        env:
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
+          SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
+          SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
+          BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
+        run: pnpm record --diff --adapter=${{ matrix.adapter }} --only=deadline --timeout-ms=5000 2>&1 | tee /tmp/diff-deadline.txt
       # DRIFT OPENS AN ISSUE, because a red job in a scheduled run is a thing nobody sees.
       #
       # The canary has done this since it was written; this job did not, and the gap showed:
@@ -212,7 +230,12 @@ jobs:
       # `always()` because the step it reports on has just failed, and `continue-on-error` is
       # deliberately NOT used: the job must still end red, or the launch gate and the weekly
       # board would both call this green.
-      - if: always() && steps.diff.outcome == 'failure'
+      #
+      # EITHER PASS, and this step sits BELOW both, which is not where it used to be. It was
+      # between them, so `steps.deadline.outcome` would have been read before that step ran and
+      # always been empty — the condition would have looked right and matched nothing. A pass
+      # that did not run leaves no file, so `cat` of a missing one is silenced rather than fatal.
+      - if: always() && (steps.diff.outcome == 'failure' || steps.deadline.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -220,7 +243,7 @@ jobs:
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           # The shape diff itself, which is the whole point: "it failed" sends someone to the
           # logs, "post.json: -body.headers.Referer" tells them what moved before they open one.
-          DETAIL="$(sed -n '/changed shape/,$p' /tmp/diff.txt | head -30)"
+          DETAIL="$(cat /tmp/diff.txt /tmp/diff-deadline.txt 2>/dev/null | sed -n '/changed shape/,$p' | head -30)"
           EXISTING="$(gh issue list --label flag:provider-drift --state open --search "$A in:title" \
             --json number --jq '.[0].number // empty')"
           BODY="$(printf 'Fixture shape changed for %s.\n\n```\n%s\n```\n\nRun: %s\n\nRe-record with `pnpm record --adapter=%s` and read the diff before committing it. A provider changing its response shape is what breaks `parse()`; a TEST TARGET changing what it echoes is not, and the two look identical here.' "$A" "$DETAIL" "$RUN_URL" "$A")"
@@ -229,18 +252,6 @@ jobs:
           else
             gh issue create --title "fixture drift: $A" --label "flag:provider-drift" --body "$BODY"
           fi
-      # A SECOND, SCOPED PASS, because `--timeout-ms` is global and would time out every other
-      # category. Without it `deadline` is skipped — it needs a budget below the target's 30s
-      # delay — so `deadline.json` sat exempt from drift detection every single week while the
-      # report called everything else confirmed. `--diff` now names what it skipped rather than
-      # passing over it in silence; this is what stops it having anything to name.
-      - if: steps.keyed.outputs.yes == 'true'
-        env:
-          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
-          SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
-          SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
-          BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
-        run: pnpm record --diff --adapter=${{ matrix.adapter }} --only=deadline --timeout-ms=5000
       # An identical re-recording renews the fixture's date, but only once it is 30 days old, so
       # this opens a pull request roughly monthly rather than weekly. Without it the renewal is
       # discarded with the runner and `repo:check`'s freshness assertion ages out fixtures that
