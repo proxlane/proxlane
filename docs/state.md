@@ -7,9 +7,10 @@ stale file is worse than an empty one. Only what no command can answer: what is 
 
 ## Now
 
-**LAUNCH attempted**: the Show HN was flagged within the hour and is still down, no reply from
-the mods. r/webscraping and r/selfhosted are unspent. **54 views, 5 uniques, 14 days, against 184
-PRs** — the bottleneck is distribution, and one flagged post did not change that.
+**LAUNCH, so far**: Show HN flagged within the hour, mods silent. Both Reddit megathreads posted
+09-09 (rules bar a standalone post: r/webscraping always, r/selfhosted until **11-10**); day one,
+zero engagement, no referrals. **73 views, 26 uniques, 14 days, 4 stars.** Next: awesome-web-scraping
+PR from **09-10** (repo one month old), awesome-selfhosted from **12-12** (first release four months).
 
 **Public since 2026-08-10**, ruleset on `main`. Dogfooding it against another of the maintainer's
 projects found six defects in five days. That is not §9's "one stranger runs it", which stays open
@@ -17,9 +18,8 @@ and is still the item every question here waits on. **Health is off unless `PROX
 
 **The canary gate CLOSED on 2026-08-31**: three consecutive scheduled greens, 08-17, 08-24, 08-31.
 The third arrived ~7h after its cron, which is why a gate counting *scheduled* runs stalls rather
-than resets when GitHub is late. **All four keys back in CI since 09-02**: the canary reads
-`RATE_LIMITED` and reports that provider UNCHECKED, so a spent plan needs no human to pull a secret.
-Quotas renew 09-07 **21:13 UTC**, after that morning's cron — so all four are first covered 09-14.
+than resets when GitHub is late. **All four keys in CI since 09-02**; a spent plan reads as
+UNCHECKED, not red. Quotas renewed 09-07, so all four are first covered together on **09-14**.
 
 ## Blocked on
 
