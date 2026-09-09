@@ -10,6 +10,7 @@ import {
 	parsePublished,
 	trustEvidence,
 	type VersionManifest,
+	verifyAll,
 } from './verify-trusted-publish.js';
 
 const TOKEN_PUBLISHED: VersionManifest = {
@@ -125,10 +126,13 @@ describe('retrying while the registry catches up', () => {
 		expect(calls).toBe(1);
 	});
 
-	it('gives up as none when the version never appears', async () => {
+	it('gives up as ABSENT, not none, when the version never appears', async () => {
+		// The distinction that was missing. "Never appeared" is a fact about propagation;
+		// "appeared with no evidence" is the regression. The 0.16.0 release printed the second
+		// message for the first situation.
 		const fetcher: Fetcher = async () => ({});
 		expect(await evidenceFor(pkg, fetcher, { attempts: 3, waitMs: 0, sleep: noSleep })).toBe(
-			'none',
+			'absent',
 		);
 	});
 
@@ -137,7 +141,88 @@ describe('retrying while the registry catches up', () => {
 			throw new Error('ECONNRESET');
 		};
 		expect(await evidenceFor(pkg, fetcher, { attempts: 2, waitMs: 0, sleep: noSleep })).toBe(
+			'absent',
+		);
+	});
+
+	it('keeps none once the version has been seen without evidence', async () => {
+		// A partial write is retried, but a later empty read must not demote a real "none"
+		// back to "never appeared" — that would turn a regression into a propagation notice.
+		let calls = 0;
+		const fetcher: Fetcher = async () => {
+			calls++;
+			return calls === 1 ? { '0.1.0': {} } : {};
+		};
+		expect(await evidenceFor(pkg, fetcher, { attempts: 3, waitMs: 0, sleep: noSleep })).toBe(
 			'none',
 		);
+	});
+});
+
+describe('the whole list is retried in rounds, not one package at a time', () => {
+	// THE 0.16.0 FAILURE, reproduced. Three packages published together; the registry shows
+	// the first one late. Per-package retries gave the first name the shortest effective wait
+	// — checked within seconds of publish — and failed it while the two checked afterwards
+	// passed. Rounds give every package the same window, measured from the same moment.
+	const adapters = { name: '@proxlane/adapters', version: '0.10.2' };
+	const cli = { name: 'proxlane', version: '0.4.14' };
+	const shared = { name: '@proxlane/shared', version: '0.12.0' };
+
+	it('passes a package that appears late while the others settle in round one', async () => {
+		const reads: Record<string, number> = {};
+		const fetcher: Fetcher = async (name) => {
+			reads[name] = (reads[name] ?? 0) + 1;
+			if (name === adapters.name) {
+				return (reads[name] ?? 0) < 3 ? {} : { '0.10.2': OIDC_PUBLISHED };
+			}
+			return name === cli.name ? { '0.4.14': OIDC_PUBLISHED } : { '0.12.0': OIDC_PUBLISHED };
+		};
+		let sleeps = 0;
+		const got = await verifyAll([adapters, cli, shared], fetcher, {
+			rounds: 5,
+			waitMs: 0,
+			sleep: async () => {
+				sleeps++;
+			},
+		});
+		expect(got.get(adapters.name)).toBe('trustedPublisher');
+		expect(got.get(cli.name)).toBe('trustedPublisher');
+		expect(got.get(shared.name)).toBe('trustedPublisher');
+		// The settled two are not re-read; only the straggler costs another round.
+		expect(reads[cli.name]).toBe(1);
+		expect(reads[shared.name]).toBe(1);
+		expect(reads[adapters.name]).toBe(3);
+		expect(sleeps).toBe(2);
+	});
+
+	it('does not sleep at all when everything settles in round one', async () => {
+		const fetcher: Fetcher = async (name) =>
+			name === cli.name ? { '0.4.14': OIDC_PUBLISHED } : { '0.12.0': OIDC_PUBLISHED };
+		let sleeps = 0;
+		await verifyAll([cli, shared], fetcher, {
+			rounds: 12,
+			waitMs: 10_000,
+			sleep: async () => {
+				sleeps++;
+			},
+		});
+		expect(sleeps).toBe(0);
+	});
+
+	it('reports a token publish as provenance without waiting for the rounds to run out', async () => {
+		// A definite bad answer is settled too. Retrying it would delay the one message this
+		// file exists to print.
+		let reads = 0;
+		const fetcher: Fetcher = async () => {
+			reads++;
+			return { '0.1.0': TOKEN_PUBLISHED };
+		};
+		const got = await verifyAll([{ name: 'proxlane', version: '0.1.0' }], fetcher, {
+			rounds: 5,
+			waitMs: 0,
+			sleep: noSleep,
+		});
+		expect(got.get('proxlane')).toBe('provenance');
+		expect(reads).toBe(1);
 	});
 });
