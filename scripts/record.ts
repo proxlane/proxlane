@@ -503,6 +503,31 @@ function shapeOf(fixture: Record<string, unknown>): string[] {
 export const RENEW_AFTER_DAYS = 30;
 
 /**
+ * Split the matrix by `--only`: what this run records, and what it deliberately leaves out.
+ *
+ * `--only` USED TO BE A DISAPPEARANCE, and every scheduled `record:diff` since the deadline
+ * pass was added has been red because of it. The filter dropped the other categories before
+ * the loop, so they never reached `skipped`, and `reportDiff` — which walks the union of both
+ * directories precisely so a category cannot vanish unnoticed — did its job and called each of
+ * them "committed, but this run recorded nothing for it". Eleven fabricated drifts per adapter,
+ * per week, from the one pass whose only purpose is to check the single fixture the first pass
+ * cannot. And that step opens no issue, so it stayed red in a place nobody looks.
+ *
+ * The categories outside `--only` are a scope decision, not a recording failure, and the diff
+ * has to be told the difference. `deferred` is that list.
+ */
+export function partitionByOnly(
+	targets: readonly Target[],
+	only: string | undefined,
+): { readonly selected: readonly Target[]; readonly deferred: readonly TargetCategory[] } {
+	if (only === undefined) return { selected: targets, deferred: [] };
+	return {
+		selected: targets.filter((t) => t.category === only),
+		deferred: targets.filter((t) => t.category !== only).map((t) => t.category),
+	};
+}
+
+/**
  * Compare a fresh recording against the committed one, and renew what has not changed.
  *
  * `recordedAt` is the whole point of the exercise: a fixture whose shape re-records unchanged is
@@ -527,6 +552,11 @@ export function reportDiff(
 		 * what to do about an empty wallet is the caller this field exists for.
 		 */
 		readonly exhausted: readonly string[];
+		/**
+		 * Categories outside `--only`, which this run never tried. A scope decision, not a
+		 * recording failure — see `partitionByOnly`. Optional, because a full run has none.
+		 */
+		readonly deferred?: readonly string[];
 	},
 ): number {
 	// A RECORDING PASS THAT COULD NOT RECORD IS NOT EVIDENCE OF NO DRIFT, and this is the hole
@@ -580,6 +610,13 @@ export function reportDiff(
 		// guard below still fails a run where nothing could be compared.
 		if (run.exhausted.includes(category)) {
 			unchecked.push(`${category} (account out of credit)`);
+			continue;
+		}
+
+		// Outside `--only`. Not recorded on purpose, and said so, rather than read as a fixture
+		// that stopped recording — which is what the branch below would otherwise conclude.
+		if (run.deferred?.includes(category)) {
+			unchecked.push(`${category} (outside --only)`);
 			continue;
 		}
 
@@ -723,7 +760,7 @@ if (import.meta.filename === process.argv[1]) {
 		process.exit(2);
 	}
 
-	const targets = only ? TARGETS.filter((t) => t.category === only) : TARGETS;
+	const { selected: targets, deferred } = partitionByOnly(TARGETS, only);
 	if (targets.length === 0) {
 		process.stderr.write(
 			`no target category "${only}". Known: ${TARGETS.map((t) => t.category).join(', ')}\n`,
@@ -1048,7 +1085,13 @@ if (import.meta.filename === process.argv[1]) {
 
 	if (diff) {
 		process.exit(
-			reportDiff(adapterId, committedDir, outDir, { failed, skipped, mismatched, exhausted }),
+			reportDiff(adapterId, committedDir, outDir, {
+				failed,
+				skipped,
+				mismatched,
+				exhausted,
+				deferred,
+			}),
 		);
 	}
 

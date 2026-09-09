@@ -4,10 +4,19 @@
 // Everything here runs without a provider key and without spending anything.
 
 import { execFileSync } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_FIXTURE_BYTES, sanitize, sanitizeHeaders, TARGETS } from './record.ts';
+import {
+	MAX_FIXTURE_BYTES,
+	partitionByOnly,
+	reportDiff,
+	sanitize,
+	sanitizeHeaders,
+	TARGETS,
+} from './record.ts';
 
 // Spawns a subprocess per case, so the unit of work is a process rather than a function call.
 // vitest's 5s default was never chosen for that — it is what applies when nobody says
@@ -191,6 +200,114 @@ describe('the target matrix', () => {
 
 	it('exercises renderJs, or the capability is never checked', () => {
 		expect(TARGETS.some((t) => t.renderJs)).toBe(true);
+	});
+});
+
+describe('--only is a scope, not a disappearance', () => {
+	// EVERY SCHEDULED record:diff WAS RED, from the second pass — the one that exists to check
+	// `deadline`, which the first pass cannot record. `--only=deadline` filtered the other
+	// categories out before the loop, so they never reached `skipped`, and reportDiff read each
+	// as "committed, but this run recorded nothing for it". Eleven fabricated drifts per
+	// adapter per week, and that step opens no issue, so it stayed red where nobody looks.
+
+	it('names what it left out, so the diff can tell scope from loss', () => {
+		const { selected, deferred } = partitionByOnly(TARGETS, 'deadline');
+		expect(selected.map((t) => t.category)).toEqual(['deadline']);
+		expect(deferred).not.toContain('deadline');
+		expect(deferred.length).toBe(TARGETS.length - 1);
+	});
+
+	it('defers nothing on a full run', () => {
+		const { selected, deferred } = partitionByOnly(TARGETS, undefined);
+		expect(selected).toBe(TARGETS);
+		expect(deferred).toEqual([]);
+	});
+
+	it('selects nothing for an unknown category, so the CLI can refuse it', () => {
+		expect(partitionByOnly(TARGETS, 'no-such-category').selected).toEqual([]);
+	});
+
+	// A corpus with three committed fixtures and a fresh run that recorded only `deadline`.
+	// With `deferred` the other two are NOT CHECKED and the run passes on the one comparison
+	// it made; without it, the same directories are read as two fixtures that stopped
+	// recording — the exact output of the 2026-09-09 scheduled run.
+	const fixture = (category: string) =>
+		JSON.stringify({
+			category,
+			recordedAt: new Date().toISOString(),
+			adapter: 'x',
+			expect: 'OK',
+			kind: 'exchange',
+			response: { status: 200, headers: {}, bodyBase64: '', bodyBytes: 0 },
+		});
+	const corpus = () => {
+		const root = mkdtempSync(join(tmpdir(), 'record-only-'));
+		const committed = join(root, 'committed');
+		const fresh = join(root, 'fresh');
+		mkdirSync(committed);
+		mkdirSync(fresh);
+		for (const c of ['success-html', 'target-error', 'deadline']) {
+			writeFileSync(join(committed, `${c}.json`), fixture(c));
+		}
+		writeFileSync(join(fresh, 'deadline.json'), fixture('deadline'));
+		return { committed, fresh };
+	};
+	const quiet = () => {
+		const out: string[] = [];
+		const so = vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
+			out.push(String(s));
+			return true;
+		});
+		const se = vi.spyOn(process.stderr, 'write').mockImplementation((s) => {
+			out.push(String(s));
+			return true;
+		});
+		return {
+			text: () => out.join(''),
+			restore: () => {
+				so.mockRestore();
+				se.mockRestore();
+			},
+		};
+	};
+
+	it('passes a scoped pass on the one fixture it compared, and says what it did not', () => {
+		const { committed, fresh } = corpus();
+		const q = quiet();
+		try {
+			const code = reportDiff('x', committed, fresh, {
+				failed: 0,
+				skipped: [],
+				mismatched: [],
+				exhausted: [],
+				deferred: ['success-html', 'target-error'],
+			});
+			expect(code).toBe(0);
+			expect(q.text()).toMatch(/1 fixture\(s\) unchanged/);
+			expect(q.text()).toMatch(/NOT CHECKED: .*success-html \(outside --only\)/);
+			expect(q.text()).not.toMatch(/recorded nothing for it/);
+		} finally {
+			q.restore();
+		}
+	});
+
+	it('still reads a genuinely missing recording as drift when nothing was deferred', () => {
+		// The guard this fix must not weaken: a category that stopped recording, on a full
+		// run, is the fixture most likely to have drifted.
+		const { committed, fresh } = corpus();
+		const q = quiet();
+		try {
+			const code = reportDiff('x', committed, fresh, {
+				failed: 0,
+				skipped: [],
+				mismatched: [],
+				exhausted: [],
+			});
+			expect(code).toBe(1);
+			expect(q.text()).toMatch(/success-html\.json: committed, but this run recorded nothing/);
+		} finally {
+			q.restore();
+		}
 	});
 });
 
