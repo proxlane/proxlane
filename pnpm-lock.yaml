@@ -66,9 +66,6 @@ catalogs:
     drizzle-orm:
       specifier: ^0.45
       version: 0.45.2
-    hono:
-      specifier: ^4.12
-      version: 4.13.1
     ioredis:
       specifier: ^6.0
       version: 6.0.0
@@ -152,7 +149,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: 'catalog:'
-        version: 2.1.0(hono@4.13.1)
+        version: 2.1.0(hono@4.13.5)
       '@proxlane/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
@@ -164,7 +161,7 @@ importers:
         version: link:../../packages/shared
       hono:
         specifier: 'catalog:'
-        version: 4.13.1
+        version: 4.13.5
       ioredis:
         specifier: 'catalog:'
         version: 6.0.0
@@ -474,7 +471,7 @@ importers:
     devDependencies:
       '@hono/node-server':
         specifier: 'catalog:'
-        version: 2.1.0(hono@4.13.1)
+        version: 2.1.0(hono@4.13.5)
       '@proxlane/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
@@ -3009,8 +3006,8 @@ packages:
   hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
 
-  hono@4.13.1:
-    resolution: {integrity: sha512-kdJoFVv2xmayw6cY09H7AbMJMt8Jn5jdlEdXsP7AGBdF2DIptVlKlOLKXP41yPip4/a3yQPv9gVcJYI8YY04dw==}
+  hono@4.13.5:
+    resolution: {integrity: sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw==}
     engines: {node: '>=16.9.0'}
 
   hookable@6.1.1:
@@ -4948,9 +4945,9 @@ snapshots:
       protobufjs: 7.6.5
       yargs: 17.7.3
 
-  '@hono/node-server@2.1.0(hono@4.13.1)':
+  '@hono/node-server@2.1.0(hono@4.13.5)':
     dependencies:
-      hono: 4.13.1
+      hono: 4.13.5
 
   '@img/colour@1.1.0': {}
 
@@ -6370,7 +6367,7 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.5
 
-  hono@4.13.1: {}
+  hono@4.13.5: {}
 
   hookable@6.1.1: {}
 
