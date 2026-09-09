@@ -18,6 +18,20 @@
 //
 // NOTE the field is in the FULL packument. `npm view <pkg> _npmUser` renders it as the string
 // "name <email>" and the abbreviated packument omits it, so both are useless here.
+//
+// AND THE PACKUMENT LAGS THE PUBLISH. The 0.16.0 release (2026-09-08) failed here with
+// "@proxlane/adapters@0.10.2 no trust evidence at all" and four lines blaming a static token
+// the repo no longer has. Twenty minutes later the same packument carried
+// `trustedPublisher: {id: "github"}`. The check had retried 30 s per package, sequentially,
+// and adapters was first in the list — checked within seconds of `changeset publish`
+// returning, before the registry had caught up. The two packages checked after it passed,
+// because by then it had. So the retry budget was per package while propagation is per
+// publish, and the first name in the list always got the shortest effective wait.
+//
+// Two things follow. A version that has not appeared yet is a different fact from a version
+// that has appeared with no trust evidence, and they get different words: the first cannot
+// be verified, the second is the regression. And the whole list is retried in rounds, so a
+// slow registry costs the release one wait rather than one wait per package.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -27,6 +41,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** What the registry says backed a published version, strongest first. */
 export type TrustEvidence = 'trustedPublisher' | 'provenance' | 'none';
+
+/**
+ * A lookup's answer. `absent` is not evidence about the publish; it means the registry never
+ * showed the version inside the window, so nothing could be read. Conflating it with `none`
+ * is what turned a propagation delay into "credential regression".
+ */
+export type Lookup = TrustEvidence | 'absent';
 
 export interface VersionManifest {
 	readonly _npmUser?: { readonly trustedPublisher?: { readonly id?: string } };
@@ -119,12 +140,21 @@ export function parsePublished(raw: string): Published[] {
 
 export type Fetcher = (name: string) => Promise<Record<string, VersionManifest> | undefined>;
 
+/** A single read. `absent` when the version is not in the packument, or the fetch failed. */
+async function lookup(pkg: Published, fetchVersions: Fetcher): Promise<Lookup> {
+	const versions = await fetchVersions(pkg.name).catch(() => undefined);
+	const manifest = versions?.[pkg.version];
+	return manifest === undefined ? 'absent' : trustEvidence(manifest);
+}
+
+/** Settled: nothing a later read could change. `none` is retried in case the write was partial. */
+const settled = (l: Lookup): boolean => l === 'trustedPublisher' || l === 'provenance';
+
 /**
- * Read the evidence, retrying while the registry catches up.
+ * Read one package's evidence, retrying while the registry catches up.
  *
- * The packument is not updated atomically with the publish, so a check that runs immediately
- * can see a missing version and conclude "no evidence" about a release that is fine. Absence
- * is therefore retried; a definite answer returns at once.
+ * Kept for a single package; the release uses `verifyAll`, which retries the list in rounds.
+ * Returns `absent` when the version never appeared, which is not the same answer as `none`.
  */
 export async function evidenceFor(
 	pkg: Published,
@@ -134,18 +164,47 @@ export async function evidenceFor(
 		readonly waitMs: number;
 		readonly sleep: (ms: number) => Promise<void>;
 	},
-): Promise<TrustEvidence> {
-	let last: TrustEvidence = 'none';
-	for (let i = 0; i < opts.attempts; i++) {
-		const versions = await fetchVersions(pkg.name).catch(() => undefined);
-		const manifest = versions?.[pkg.version];
-		if (manifest !== undefined) {
-			last = trustEvidence(manifest);
-			if (last !== 'none') return last;
+): Promise<Lookup> {
+	const got = await verifyAll([pkg], fetchVersions, {
+		rounds: opts.attempts,
+		waitMs: opts.waitMs,
+		sleep: opts.sleep,
+	});
+	return got.get(pkg.name) ?? 'absent';
+}
+
+/**
+ * Read every package's evidence, retrying the UNSETTLED ones together in rounds.
+ *
+ * One wait per round, shared by everything still outstanding, so the budget is a property of
+ * the publish rather than of a package's position in the list. A package drops out of the
+ * rounds the moment it settles; on the happy path every package settles in round one and no
+ * sleep happens at all.
+ */
+export async function verifyAll(
+	packages: readonly Published[],
+	fetchVersions: Fetcher,
+	opts: {
+		readonly rounds: number;
+		readonly waitMs: number;
+		readonly sleep: (ms: number) => Promise<void>;
+	},
+): Promise<Map<string, Lookup>> {
+	const out = new Map<string, Lookup>();
+	let pending = [...packages];
+	for (let round = 0; round < opts.rounds && pending.length > 0; round++) {
+		if (round > 0) await opts.sleep(opts.waitMs);
+		const next: Published[] = [];
+		for (const pkg of pending) {
+			const got = await lookup(pkg, fetchVersions);
+			// A version seen with no evidence keeps its `none`; an `absent` read after that does
+			// not demote it back to "never appeared".
+			if (got !== 'absent' || out.get(pkg.name) === undefined) out.set(pkg.name, got);
+			if (!settled(got)) next.push(pkg);
 		}
-		if (i < opts.attempts - 1) await opts.sleep(opts.waitMs);
+		pending = next;
 	}
-	return last;
+	return out;
 }
 
 if (import.meta.filename === process.argv[1]) {
@@ -213,29 +272,61 @@ if (import.meta.filename === process.argv[1]) {
 	};
 	const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+	// Up to two minutes, spent only while something is still missing. The 0.16.0 release
+	// needed somewhere between 30 s and 20 min for its first package; two minutes is a guess
+	// with one data point behind it, and the message below says what to do if it is short.
+	const ROUNDS = 12;
+	const WAIT_MS = 10_000;
+	const results = await verifyAll(packages, fetchVersions, {
+		rounds: ROUNDS,
+		waitMs: WAIT_MS,
+		sleep,
+	});
+
 	let regressed = 0;
+	let unverified = 0;
 	for (const pkg of packages) {
-		const evidence = await evidenceFor(pkg, fetchVersions, {
-			attempts: 5,
-			waitMs: 6_000,
-			sleep,
-		});
+		const got = results.get(pkg.name) ?? 'absent';
 		const label = `${pkg.name}@${pkg.version}`;
-		if (evidence === 'trustedPublisher') {
-			process.stdout.write(`  ok   ${label.padEnd(30)} ${describe(evidence)}\n`);
+		if (got === 'trustedPublisher') {
+			process.stdout.write(`  ok   ${label.padEnd(30)} ${describe(got)}\n`);
+		} else if (got === 'absent') {
+			process.stdout.write(`  ??   ${label.padEnd(30)} not in the registry yet\n`);
+			unverified++;
 		} else {
-			process.stdout.write(`  BAD  ${label.padEnd(30)} ${describe(evidence)}\n`);
+			process.stdout.write(`  BAD  ${label.padEnd(30)} ${describe(got)}\n`);
 			regressed++;
 		}
 	}
 
 	if (regressed > 0) {
+		// Only claim a token fallback when a token exists to fall back to. With OIDC-only
+		// publishing there is none, and the sentence that used to say so here was wrong on the
+		// one release it was printed for.
+		const fallback =
+			process.env.NODE_AUTH_TOKEN !== undefined
+				? '::error::NODE_AUTH_TOKEN is set, so npm fell back to it: the OIDC exchange failed.\n'
+				: '::error::No NODE_AUTH_TOKEN is set, so a token fallback was impossible. Either the trust\n' +
+					'::error::config changed, or the registry wrote the version before its provenance.\n';
 		process.stdout.write(
 			`\n::error::${regressed} package(s) did not publish via trusted publishing.\n` +
 				'::error::The packages ARE published — this is a credential regression, not a broken release.\n' +
-				'::error::npm fell back to the static token, which means the OIDC exchange failed.\n' +
+				fallback +
 				'::error::Check: the trust config still exists (npm trust list <pkg>), and it names\n' +
 				'::error::this workflow file. Renaming release.yml breaks the binding silently.\n',
+		);
+		process.exit(1);
+	}
+	if (unverified > 0) {
+		// Not verified is not the same as verified, so this still fails — but it says what it
+		// is: the registry had not shown the version within the window, and nothing was read.
+		process.stdout.write(
+			`\n::error::${unverified} package(s) never appeared in the registry within ` +
+				`${(ROUNDS * WAIT_MS) / 1000}s, so their trust evidence could not be read.\n` +
+				'::error::This is propagation, not a credential problem: nothing was checked, and nothing\n' +
+				'::error::should be concluded. Confirm by hand once it lands —\n' +
+				'::error::  curl -s https://registry.npmjs.org/<pkg> | jq \'.versions["<ver>"]._npmUser\'\n' +
+				'::error::— then re-run the release workflow with rebuild_image: true to ship the image.\n',
 		);
 		process.exit(1);
 	}
