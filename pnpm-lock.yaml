@@ -67,7 +67,7 @@ catalogs:
       specifier: ^0.45
       version: 0.45.2
     hono:
-      specifier: ^4.12
+      specifier: ^4.13
       version: 4.13.1
     ioredis:
       specifier: ^6.0

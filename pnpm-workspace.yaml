@@ -63,7 +63,7 @@ catalog:
 
   # data
   drizzle-orm: ^0.45
-  hono: ^4.12
+  hono: ^4.13
   ioredis: ^6.0
   libsodium-wrappers: ^0.8
   pino: ^10.3
