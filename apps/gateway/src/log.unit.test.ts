@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLogger, hostOf, type RequestLine, timings } from './log.js';
+import { accountOnlyChain, createLogger, hostOf, type RequestLine, timings } from './log.js';
 
 describe('what a log line may contain', () => {
 	it('keeps the host and discards the query string', () => {
@@ -74,5 +74,47 @@ describe('the off switch', () => {
 			},
 		);
 		expect(() => log?.(line)).not.toThrow();
+	});
+});
+
+describe('a chain that ended with nothing but account faults', () => {
+	// THE CHAIN FROM THE REPORT THAT OPENED #276, and the one #275 is about. Four hops, one of
+	// them a target verdict (scrapingbee:HARD_BLOCK), so the target WAS asked and this is not
+	// the zero-capacity signature, whichever hop happens to be last.
+	it('is not account-only when any hop got a verdict from the target', () => {
+		expect(
+			accountOnlyChain(
+				'scraperapi:RATE_LIMITED>scrapfly:RATE_LIMITED>scrapingbee:HARD_BLOCK>brightdata:AUTH_FAILED',
+				'AUTH_FAILED',
+			),
+		).toBe(false);
+	});
+
+	it('is account-only when every hop was our credential or our wallet', () => {
+		expect(
+			accountOnlyChain(
+				'scraperapi:RATE_LIMITED>scrapfly:RATE_LIMITED>brightdata:AUTH_FAILED',
+				'AUTH_FAILED',
+			),
+		).toBe(true);
+		expect(accountOnlyChain('brightdata:AUTH_FAILED', 'AUTH_FAILED')).toBe(true);
+	});
+
+	it('is never account-only for a served request, even after account faults', () => {
+		// The fallback worked: the wallet emptied on two legs and the third served the page.
+		expect(
+			accountOnlyChain('scraperapi:RATE_LIMITED>scrapfly:RATE_LIMITED>scrapingbee:OK', 'OK'),
+		).toBe(false);
+	});
+
+	it('is false with no chain at all, which is a request that never reached the router', () => {
+		expect(accountOnlyChain(undefined, 'BAD_REQUEST')).toBe(false);
+		expect(accountOnlyChain('', 'NO_PROVIDER_AVAILABLE')).toBe(false);
+	});
+
+	it('reads the outcome after the LAST colon, so a provider id may not confuse it', () => {
+		// Defensive: adapter ids are lowercase today, but the split must not depend on that.
+		expect(accountOnlyChain('some:odd:id:AUTH_FAILED', 'AUTH_FAILED')).toBe(true);
+		expect(accountOnlyChain('scraperapi:', 'AUTH_FAILED')).toBe(false);
 	});
 });

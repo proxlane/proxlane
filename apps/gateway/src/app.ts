@@ -31,7 +31,7 @@ import { runChain } from './chain.js';
 import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
 import { InflightLimiter, retryAfterSeconds } from './inflight.js';
-import { hostOf, type RequestLine, timings } from './log.js';
+import { accountOnlyChain, hostOf, type RequestLine, timings } from './log.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
 import { VERSION } from './version.js';
 
@@ -477,9 +477,38 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	// the key because which providers an operator pays for is commercial and is not published
 	// anywhere. An authenticated version would also mean handing the runtime key to a deploy
 	// job, which is a worse trade than reporting a number that is already public.
-	app.get('/health', (c) =>
-		c.json({ status: 'ok', version: VERSION, providers: deps.candidates.length }),
-	);
+	//
+	// `usable` IS A COUNT TOO, and it is the count that was missing. A downstream caller ran for a
+	// week at zero effective capacity — two accounts out of budget, one dead credential, one
+	// provider hard-blocked on their target — while this endpoint answered `providers: 4` the
+	// whole time, because four were CONFIGURED. `usable` is the providers not currently in an
+	// account cooldown for this org: the ones a request could actually be sent to right now.
+	// `providers: 4, usable: 0` is the whole message, and it costs no names.
+	//
+	// `status` stays `ok` regardless. This is the container healthcheck, and a gateway whose
+	// providers are all out of budget is still a running gateway; flapping liveness on provider
+	// state would have the orchestrator restart a process that has nothing wrong with it. The
+	// state store being unreachable omits the field rather than failing the check, for the same
+	// reason — liveness must not depend on Valkey.
+	app.get('/health', async (c) => {
+		const base = { status: 'ok', version: VERSION, providers: deps.candidates.length };
+		if (deps.cooldowns === undefined) return c.json(base);
+		try {
+			const now = Date.now();
+			const org = deps.orgId ?? 'self';
+			const cooling = new Set(
+				(await deps.cooldowns.list(now))
+					.filter((e) => now < e.untilMs && e.key.startsWith(`cd:acct:${org}:`))
+					.map((e) => e.key.slice(`cd:acct:${org}:`.length)),
+			);
+			const usable = deps.candidates.filter(
+				({ adapter }) => !cooling.has(adapter.capabilities.id),
+			).length;
+			return c.json({ ...base, usable });
+		} catch {
+			return c.json(base);
+		}
+	});
 
 	// The operator's view of what the router believes. Unlike `/health`, this one NAMES
 	// providers — an operator debugging "why is everything slow" needs to know which provider
@@ -954,6 +983,12 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 							// Logged even when it holds one attempt: a one-element chain is how the
 							// log says "nothing failed", and an absent field cannot say that.
 							...(h('X-Chain') === undefined ? {} : { chain: h('X-Chain') as string }),
+							// THE SIGNATURE OF A BROKEN GATEWAY, made greppable. A chain that ended with
+							// nothing but account faults — every hop AUTH_FAILED or RATE_LIMITED — never
+							// got a verdict from the target; that is our credentials or our wallet, not the
+							// site. It is distinct from an ordinary exhausted chain, and the class header
+							// alone cannot say so, because the class is one hop's view (#275).
+							...(accountOnlyChain(h('X-Chain'), h('X-Outcome')) ? { legs: 'account' } : {}),
 							...(h('X-Cost-Estimate') === undefined
 								? {}
 								: { cost: h('X-Cost-Estimate') as string }),

@@ -1395,7 +1395,13 @@
 										},
 										"providers": {
 											"type": "integer",
-											"minimum": 0
+											"minimum": 0,
+											"description": "How many providers are configured."
+										},
+										"usable": {
+											"type": "integer",
+											"minimum": 0,
+											"description": "How many of the configured providers are not in an account cooldown right now — the number a request could actually be sent to. `providers: 4, usable: 0` is a gateway whose credentials or wallets, not the targets, are stopping every request. Still a count and never a name; the names are behind the key on /health/cooldowns. Omitted when cooldowns are off or the state store is unreachable, because liveness must not depend on it."
 										}
 									}
 								}
