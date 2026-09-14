@@ -31,6 +31,12 @@ export interface RequestLine {
 	readonly attempts?: number;
 	/** Every attempt as `provider:outcome`, in order. The only field that names who FAILED. */
 	readonly chain?: string;
+	/**
+	 * `account` when the chain ended with nothing but account faults — every hop AUTH_FAILED or
+	 * RATE_LIMITED — so the target was never asked. Our credentials or our wallet, and the
+	 * greppable signature of a gateway at zero effective capacity (#276). Absent otherwise.
+	 */
+	readonly legs?: 'account';
 	readonly cost?: string;
 	readonly detect?: string;
 	/** Gateway-internal milliseconds — ours, and the number `k6:soak` gates on. */
@@ -94,4 +100,29 @@ export function createLogger(
 			// A log write must never take down the request it describes.
 		}
 	};
+}
+
+/** Outcomes that are a fact about OUR account with the provider, never about the target. */
+const ACCOUNT_FAULTS: ReadonlySet<string> = new Set(['AUTH_FAILED', 'RATE_LIMITED']);
+
+/**
+ * Did this request end with nothing but account faults?
+ *
+ * `X-Chain` is `provider:OUTCOME>provider:OUTCOME…`. If the request was not served and every
+ * hop is an account fault, the target was never asked: the credentials or the wallet ended it,
+ * not the site. That is the signature of a gateway at zero effective capacity, and it is the
+ * one shape the class header cannot express, because the class is the last hop's view (#275).
+ *
+ * A served request, a target verdict anywhere in the chain, or no chain at all is `false`.
+ */
+export function accountOnlyChain(
+	chain: string | undefined,
+	outcome: string | undefined,
+): boolean {
+	if (chain === undefined || chain === '' || outcome === 'OK') return false;
+	const hops = chain.split('>');
+	return hops.every((hop) => {
+		const at = hop.lastIndexOf(':');
+		return at > 0 && ACCOUNT_FAULTS.has(hop.slice(at + 1));
+	});
 }

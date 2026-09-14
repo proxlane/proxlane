@@ -688,6 +688,64 @@ describe('cooldowns, over real HTTP', () => {
 	});
 });
 
+describe('/health reports how many providers are usable', () => {
+	// THE WEEK-LONG OUTAGE THIS CATCHES. A caller's gateway had every leg dead — two accounts out
+	// of budget, one revoked key, one provider blocked on their host — and `/health` said
+	// `providers: 4` throughout, because four were configured. `usable` is the count that was
+	// missing. It stays a count: names are behind the key on /health/cooldowns.
+	//
+	// The store is shared across this file and not reset between tests, and earlier tests drive
+	// fixtures that arm real account cooldowns. So the baseline is cleared before every read
+	// here, and every arm this block makes is cleared before its test ends.
+	const health = async () => {
+		for (const id of IDS) cooldowns.clear(`cd:acct:self:${id}`);
+		return (await (await fetch(`${base}/health`)).json()) as {
+			status: string;
+			providers: number;
+			usable: number;
+		};
+	};
+
+	it('counts every configured provider when nothing is cooling', async () => {
+		const body = await health();
+		expect(body.usable).toBe(body.providers);
+	});
+
+	it('excludes a provider in an account cooldown, and still says ok', async () => {
+		for (const id of IDS) cooldowns.clear(`cd:acct:self:${id}`);
+		cooldowns.arm('cd:acct:self:scrapfly', Date.now());
+		try {
+			const r = await fetch(`${base}/health`);
+			const body = (await r.json()) as { status: string; providers: number; usable: number };
+			expect(r.status).toBe(200);
+			expect(body.status).toBe('ok');
+			expect(body.usable).toBe(body.providers - 1);
+		} finally {
+			cooldowns.clear('cd:acct:self:scrapfly');
+		}
+	});
+
+	it('ignores a domain block, which is a fact about a site rather than an account', async () => {
+		cooldowns.arm('cd:blk:scraperapi:usable.example:none', Date.now());
+		try {
+			const body = await health();
+			expect(body.usable).toBe(body.providers);
+		} finally {
+			cooldowns.clear('cd:blk:scraperapi:usable.example:none');
+		}
+	});
+
+	it("ignores another org's account cooldown", async () => {
+		cooldowns.arm('cd:acct:someone-else:scrapfly', Date.now());
+		try {
+			const body = await health();
+			expect(body.usable).toBe(body.providers);
+		} finally {
+			cooldowns.clear('cd:acct:someone-else:scrapfly');
+		}
+	});
+});
+
 describe('/health/cooldowns', () => {
 	// Cooldowns are ON by default and were the only routing mechanism with no way to see them.
 	// An operator asking "why is one provider never used" had to read source.
@@ -1058,9 +1116,19 @@ describe('cost is never summed across units', () => {
 
 describe('/health', () => {
 	it('answers without a key, because a probe has none', async () => {
+		// Exact, on purpose: this body is the public liveness contract and a container healthcheck
+		// reads it. `usable` equals `providers` only when nothing is cooling, and an earlier test
+		// in this file drives a RATE_LIMITED fixture that arms a real account cooldown — so the
+		// baseline is cleared rather than assumed.
+		for (const id of IDS) cooldowns.clear(`cd:acct:self:${id}`);
 		const r = await fetch(`${base}/health`);
 		expect(r.status).toBe(200);
-		expect(await r.json()).toEqual({ status: 'ok', version: VERSION, providers: IDS.length });
+		expect(await r.json()).toEqual({
+			status: 'ok',
+			version: VERSION,
+			providers: IDS.length,
+			usable: IDS.length,
+		});
 	});
 
 	it('reports a real version, so a deploy can be verified', async () => {
