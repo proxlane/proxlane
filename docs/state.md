@@ -16,10 +16,9 @@ awesome-selfhosted from **12-12**. First migration page live 09-14. **55 views, 
 projects found six defects in five days. That is not §9's "one stranger runs it", which stays open
 and is still the item every question here waits on. **Health is off unless `PROXLANE_HEALTH=on`.**
 
-**The canary gate CLOSED on 2026-08-31**: three consecutive scheduled greens, 08-17, 08-24, 08-31.
-The third arrived ~7h after its cron, which is why a gate counting *scheduled* runs stalls rather
-than resets when GitHub is late. **All four keys in CI since 09-02**; a spent plan reads as
-UNCHECKED, not red. Quotas renewed 09-07, so all four are first covered together on **09-14**.
+**The canary gate CLOSED on 2026-08-31** (08-17, 08-24, 08-31; the third ~7h late, which is why
+the gate counts *scheduled* runs, not Mondays). **All four keys in CI since 09-02**; a spent plan
+reads UNCHECKED, not red. Free tiers are ~1,000 credits, one recording session from blocked. *Yours.*
 
 ## Blocked on
 
@@ -43,7 +42,8 @@ Owner decisions and external answers. None is unblocked by writing code.
   be fine if nothing is stored. Scrapfly closed email 08-29, ScraperAPI silent. *External.*
 - **An affiliate offer and testing credits, from one of the four we rank.** Taking either from
   one provider while publishing a comparison is the conflict; decide it as policy for all four. *Yours.*
-- **Provider credits** — ~1,000-credit free tiers, reset 09-07 21:13 UTC; one recording session from blocked. *Yours.*
+  Bright Data, in writing 09-14: no editorial control over benchmarks, a program exists; replied
+  without accepting, and re-asked the pooling question above. The policy is still the open item.
 - **Split `RATE_LIMITED`?** A concurrency cap is the provider's; a spent quota is our wallet. A caller
   cannot tell "the site blocks you" from "we are out of budget" (#275). New outcome, so 1.0-gated. *Yours.*
 - **Credits refundability** — `operations.md` §4. Ask the accountant before the ledger exists.
