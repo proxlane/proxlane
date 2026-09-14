@@ -25,7 +25,7 @@ jobs:
     if: github.event.schedule == '17 6 * * 1' || inputs.job == 'canary'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
       # test:live is a stub that exits 1. Without this the canary opens a provider-drift
       # issue every Monday from day one — and a weekly false alarm is how a real one stops
@@ -131,7 +131,7 @@ jobs:
     if: github.event.schedule == '23 6 * * 2' || inputs.job == 'cost-drift'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
       - run: echo "::notice::cost-drift needs the ledger and a cost table with reported values; neither exists"
 
@@ -174,7 +174,7 @@ jobs:
           - adapter: brightdata
             secret: BRIGHTDATA_KEY
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
       # Dormant rather than red when a key is absent, the same call the canary makes above and
       # for the same reason: a weekly failure nobody can act on is how a real one stops being
@@ -286,7 +286,7 @@ jobs:
     if: github.event.schedule == '41 6 * * 4' || inputs.job == 'health-sim'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
       - name: rerun the simulation and diff the recorded figures
         run: |
@@ -314,12 +314,12 @@ jobs:
     if: github.event.schedule == '53 6 * * 5' || inputs.job == 'selfhost-smoke'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
       - run: pnpm selfhost:smoke
       - name: open an issue when the self-host path breaks
         if: failure()
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             // The audience for this failure is a stranger who cannot file it themselves,
