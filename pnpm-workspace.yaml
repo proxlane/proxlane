@@ -28,6 +28,11 @@ packages:
 # newest stable, and the next line is a 1.0 RC that CLAUDE.md's pin rules out.
 overrides:
   esbuild@<0.25.0: ^0.25.12
+  # miniflare pins sharp to an exact 0.35.2, which carries two high libheif advisories
+  # (GHSA-g89c-p67h-r497 and its sibling). It is a devDependency chain — wrangler and the
+  # Cloudflare Vite plugin under apps/web — so nothing shipped carries it, but Dependabot
+  # counts it against the public repo all the same. A patch pin, lifted the day miniflare moves.
+  sharp@<0.35.4: 0.35.4
 
 catalog:
   # runtime — the gateway hot path
