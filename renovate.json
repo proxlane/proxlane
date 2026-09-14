@@ -15,8 +15,21 @@
 		"comment key does not document the file, it stops the bot: Renovate refused this config",
 		"on 2026-08-14 and opened no dependency pull request for the twelve days after. The lesson",
 		"is the one `tooling/lighthouse/lighthouserc.json` already carries in its own header \u2014 JSON",
-		"has no comments, and inventing one breaks whichever tool parses the file."
+		"has no comments, and inventing one breaks whichever tool parses the file.",
+		"",
+		"`commitMessageTopic` drops Renovate's default word `dependency` from every subject. The",
+		"title lint applies CLAUDE.md's 72-character rule to what lands after squash, which is the",
+		"subject plus ` (#N)`, so the real budget is 65. Renovate's default produced",
+		"`chore(deps): update dependency @changesets/changelog-github to v1.0.1` at 69 characters on",
+		"2026-09-14 and a patch bump that should have automerged sat red instead. The word carries",
+		"no information the scope `(deps)` does not already carry. `bump` for the action is two",
+		"characters shorter than `update`, which is what puts the longest name in the tree,",
+		"`@fontsource-variable/hanken-grotesk`, inside the budget at a normal version. Measured,",
+		"not guessed: the five longest subjects the tree can produce were computed before this",
+		"landed, and that one was the only one over."
 	],
+	"commitMessageAction": "bump",
+	"commitMessageTopic": "{{depName}}",
 	"packageRules": [
 		{
 			"description": "Patch updates automerge. GitHub Actions are exempted by the NEXT rule rather than by an exclusion here: `excludeManagers` is not a Renovate option and never was, and it is the second half of why this config was rejected. Later packageRules override earlier ones, so the github-actions rule below turns automerge back off for that manager \u2014 which is what the exclusion was reaching for, expressed in a way the schema accepts.",
