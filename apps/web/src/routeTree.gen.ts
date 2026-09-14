@@ -24,6 +24,8 @@ import { Route as DocsHostingRouteImport } from './routes/docs/hosting'
 import { Route as DocsOutcomesRouteImport } from './routes/docs/outcomes'
 import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
 import { Route as DocsUseCasesRouteImport } from './routes/docs/use-cases'
+import { Route as MigrateIndexRouteImport } from './routes/migrate/index'
+import { Route as MigrateScraperapiRouteImport } from './routes/migrate/scraperapi'
 import { Route as OutcomesSlugRouteImport } from './routes/outcomes/$slug'
 import { Route as SymptomsIndexRouteImport } from './routes/symptoms/index'
 import { Route as Symptoms200CaptchaBodyRouteImport } from './routes/symptoms/200-captcha-body'
@@ -106,6 +108,16 @@ const DocsUseCasesRoute = DocsUseCasesRouteImport.update({
   path: '/docs/use-cases',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MigrateIndexRoute = MigrateIndexRouteImport.update({
+  id: '/migrate/',
+  path: '/migrate/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MigrateScraperapiRoute = MigrateScraperapiRouteImport.update({
+  id: '/migrate/scraperapi',
+  path: '/migrate/scraperapi',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OutcomesSlugRoute = OutcomesSlugRouteImport.update({
   id: '/outcomes/$slug',
   path: '/outcomes/$slug',
@@ -155,12 +167,14 @@ export interface FileRoutesByFullPath {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
+  '/migrate/scraperapi': typeof MigrateScraperapiRoute
   '/outcomes/$slug': typeof OutcomesSlugRoute
   '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
   '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
   '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
   '/symptoms/datadome-detection': typeof SymptomsDatadomeDetectionRoute
   '/docs/': typeof DocsIndexRoute
+  '/migrate/': typeof MigrateIndexRoute
   '/symptoms/': typeof SymptomsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -178,12 +192,14 @@ export interface FileRoutesByTo {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
+  '/migrate/scraperapi': typeof MigrateScraperapiRoute
   '/outcomes/$slug': typeof OutcomesSlugRoute
   '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
   '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
   '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
   '/symptoms/datadome-detection': typeof SymptomsDatadomeDetectionRoute
   '/docs': typeof DocsIndexRoute
+  '/migrate': typeof MigrateIndexRoute
   '/symptoms': typeof SymptomsIndexRoute
 }
 export interface FileRoutesById {
@@ -202,12 +218,14 @@ export interface FileRoutesById {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
+  '/migrate/scraperapi': typeof MigrateScraperapiRoute
   '/outcomes/$slug': typeof OutcomesSlugRoute
   '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
   '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
   '/symptoms/cloudflare-challenge-playwright': typeof SymptomsCloudflareChallengePlaywrightRoute
   '/symptoms/datadome-detection': typeof SymptomsDatadomeDetectionRoute
   '/docs/': typeof DocsIndexRoute
+  '/migrate/': typeof MigrateIndexRoute
   '/symptoms/': typeof SymptomsIndexRoute
 }
 export interface FileRouteTypes {
@@ -227,12 +245,14 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/quickstart'
     | '/docs/use-cases'
+    | '/migrate/scraperapi'
     | '/outcomes/$slug'
     | '/symptoms/200-captcha-body'
     | '/symptoms/403-while-scraping'
     | '/symptoms/cloudflare-challenge-playwright'
     | '/symptoms/datadome-detection'
     | '/docs/'
+    | '/migrate/'
     | '/symptoms/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -250,12 +270,14 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/quickstart'
     | '/docs/use-cases'
+    | '/migrate/scraperapi'
     | '/outcomes/$slug'
     | '/symptoms/200-captcha-body'
     | '/symptoms/403-while-scraping'
     | '/symptoms/cloudflare-challenge-playwright'
     | '/symptoms/datadome-detection'
     | '/docs'
+    | '/migrate'
     | '/symptoms'
   id:
     | '__root__'
@@ -273,12 +295,14 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/quickstart'
     | '/docs/use-cases'
+    | '/migrate/scraperapi'
     | '/outcomes/$slug'
     | '/symptoms/200-captcha-body'
     | '/symptoms/403-while-scraping'
     | '/symptoms/cloudflare-challenge-playwright'
     | '/symptoms/datadome-detection'
     | '/docs/'
+    | '/migrate/'
     | '/symptoms/'
   fileRoutesById: FileRoutesById
 }
@@ -297,12 +321,14 @@ export interface RootRouteChildren {
   DocsOutcomesRoute: typeof DocsOutcomesRoute
   DocsQuickstartRoute: typeof DocsQuickstartRoute
   DocsUseCasesRoute: typeof DocsUseCasesRoute
+  MigrateScraperapiRoute: typeof MigrateScraperapiRoute
   OutcomesSlugRoute: typeof OutcomesSlugRoute
   Symptoms200CaptchaBodyRoute: typeof Symptoms200CaptchaBodyRoute
   Symptoms403WhileScrapingRoute: typeof Symptoms403WhileScrapingRoute
   SymptomsCloudflareChallengePlaywrightRoute: typeof SymptomsCloudflareChallengePlaywrightRoute
   SymptomsDatadomeDetectionRoute: typeof SymptomsDatadomeDetectionRoute
   DocsIndexRoute: typeof DocsIndexRoute
+  MigrateIndexRoute: typeof MigrateIndexRoute
   SymptomsIndexRoute: typeof SymptomsIndexRoute
 }
 
@@ -413,6 +439,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsUseCasesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/migrate/': {
+      id: '/migrate/'
+      path: '/migrate'
+      fullPath: '/migrate/'
+      preLoaderRoute: typeof MigrateIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/migrate/scraperapi': {
+      id: '/migrate/scraperapi'
+      path: '/migrate/scraperapi'
+      fullPath: '/migrate/scraperapi'
+      preLoaderRoute: typeof MigrateScraperapiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/outcomes/$slug': {
       id: '/outcomes/$slug'
       path: '/outcomes/$slug'
@@ -473,6 +513,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsOutcomesRoute: DocsOutcomesRoute,
   DocsQuickstartRoute: DocsQuickstartRoute,
   DocsUseCasesRoute: DocsUseCasesRoute,
+  MigrateScraperapiRoute: MigrateScraperapiRoute,
   OutcomesSlugRoute: OutcomesSlugRoute,
   Symptoms200CaptchaBodyRoute: Symptoms200CaptchaBodyRoute,
   Symptoms403WhileScrapingRoute: Symptoms403WhileScrapingRoute,
@@ -480,6 +521,7 @@ const rootRouteChildren: RootRouteChildren = {
     SymptomsCloudflareChallengePlaywrightRoute,
   SymptomsDatadomeDetectionRoute: SymptomsDatadomeDetectionRoute,
   DocsIndexRoute: DocsIndexRoute,
+  MigrateIndexRoute: MigrateIndexRoute,
   SymptomsIndexRoute: SymptomsIndexRoute,
 }
 export const routeTree = rootRouteImport

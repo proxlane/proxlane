@@ -91,6 +91,9 @@ curl "https://your-gateway/v1?api_key=KEY&url=https://example.com&render=true"
 One thing changes meaning. `api_key` is now the **gateway's** key. Your provider keys stay in
 the gateway's environment and are never sent by the client.
 
+The parameter map per provider, and what does not carry over, is on the migration pages:
+[migrate from ScraperAPI](/migrate/scraperapi).
+
 ## Authenticate with a header instead
 
 ```bash tab=cURL

@@ -22,8 +22,17 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const CONTENT = join(ROOT, 'apps/web/content/symptoms');
-const ROUTES = join(ROOT, 'apps/web/src/routes/symptoms');
+// THE FAMILIES THIS LINT COVERS, by directory. Every rule below applies to all of them: each is
+// a page read by someone who arrived from a search with a specific question, named for what
+// they typed, and living outside `/docs` so `docs:check` never sees it. `migrate/` joined
+// `symptoms/` on 2026-09-13, and the constant became a list at the same moment — a second
+// directory that this file did not enumerate would have shipped with no route check, no
+// sitemap check and no `llms.txt` check, which is assertion 7's founding failure with a new
+// name on it.
+const FAMILIES = ['symptoms', 'migrate'] as const;
+type Family = (typeof FAMILIES)[number];
+const contentDir = (f: Family): string => join(ROOT, 'apps/web/content', f);
+const routesDir = (f: Family): string => join(ROOT, 'apps/web/src/routes', f);
 const SITEMAP = join(ROOT, 'apps/web/public/sitemap.xml');
 const LLMS = join(ROOT, 'apps/web/public/llms.txt');
 const DOC_ROUTES = join(ROOT, 'apps/web/src/routes/docs');
@@ -42,38 +51,49 @@ function ok(n: number, what: string): void {
 }
 
 interface Page {
+	readonly family: Family;
 	readonly slug: string;
 	readonly meta: Record<string, string>;
 	readonly body: string;
 }
 
-function read(): Page[] {
-	if (!existsSync(CONTENT)) return [];
-	return readdirSync(CONTENT)
+function read(family: Family): Page[] {
+	const dir = contentDir(family);
+	if (!existsSync(dir)) return [];
+	return readdirSync(dir)
 		.filter((f) => f.endsWith('.md'))
 		.sort()
 		.map((f) => {
-			const src = readFileSync(join(CONTENT, f), 'utf8');
+			const src = readFileSync(join(dir, f), 'utf8');
 			const m = /^---\n([\s\S]*?)\n---\n?/.exec(src);
 			const meta: Record<string, string> = {};
 			for (const line of (m?.[1] ?? '').split('\n')) {
 				const kv = /^([a-z]+):\s*(.+)$/.exec(line.trim());
 				if (kv?.[1] !== undefined && kv[2] !== undefined) meta[kv[1]] = kv[2].trim();
 			}
-			return { slug: f.replace(/\.md$/, ''), meta, body: src.slice(m?.[0].length ?? 0) };
+			return {
+				family,
+				slug: f.replace(/\.md$/, ''),
+				meta,
+				body: src.slice(m?.[0].length ?? 0),
+			};
 		});
 }
 
-const pages = read();
+const pages = FAMILIES.flatMap(read);
 
 // A CHECK WITH NOTHING TO CHECK IS NOT A PASS. The manifest's own gate text for this command
 // said so before it existed, and it is the rule the whole assertion set in this repo runs on.
-if (pages.length === 0) {
-	process.stderr.write(
-		'\n  no symptom pages found in apps/web/content/symptoms\n\n' +
-			'  A lint with an empty denominator reports success and means nothing.\n\n',
-	);
-	process.exit(1);
+// Per family, not in total: a family named in FAMILIES with no pages behind it is the same
+// empty denominator wearing a directory name.
+for (const family of FAMILIES) {
+	if (!pages.some((p) => p.family === family)) {
+		process.stderr.write(
+			`\n  no pages found in apps/web/content/${family}\n\n` +
+				'  A lint with an empty denominator reports success and means nothing.\n\n',
+		);
+		process.exit(1);
+	}
 }
 
 // ---------------------------------------------------------------- 1. one clear query
@@ -151,7 +171,12 @@ const docRoutes = existsSync(DOC_ROUTES)
 				.map((f) => `/docs/${f.replace(/\.tsx$/, '')}`),
 		)
 	: new Set<string>();
-const symptomRoutes = new Set(pages.map((p) => `/symptoms/${p.slug}`));
+// Every family's pages and every family's parent, so a migration page may point at a symptom
+// page and back without either being "not a route".
+const familyRoutes = new Set([
+	...pages.map((p) => `/${p.family}/${p.slug}`),
+	...FAMILIES.map((f) => `/${f}`),
+]);
 // Top-level routes come off disk too, for the same reason the other two do. They used to be a
 // three-item literal, which meant a page like /block-page-detector was rejected as "not a route"
 // while sitting right there in the directory — a check that says the writer is wrong when the
@@ -164,14 +189,7 @@ const topRoutes = existsSync(WEB_ROUTES)
 		)
 	: new Set<string>();
 
-const known = new Set([
-	...docRoutes,
-	...symptomRoutes,
-	...topRoutes,
-	'/docs',
-	'/symptoms',
-	'/',
-]);
+const known = new Set([...docRoutes, ...familyRoutes, ...topRoutes, '/docs', '/']);
 
 let links = 0;
 for (const p of pages) {
@@ -226,17 +244,20 @@ ok(pages.length, 'pages carry no undisclosed commercial link');
 const sitemap = existsSync(SITEMAP) ? readFileSync(SITEMAP, 'utf8') : '';
 const llms = existsSync(LLMS) ? readFileSync(LLMS, 'utf8') : '';
 for (const p of pages) {
-	const route = join(ROUTES, `${p.slug}.tsx`);
-	if (!existsSync(route)) fail(p.slug, `has no route at routes/symptoms/${p.slug}.tsx`);
-	if (!sitemap.includes(`/symptoms/${p.slug}`)) fail(p.slug, 'is missing from sitemap.xml');
-	if (!llms.includes(`/symptoms/${p.slug}`)) fail(p.slug, 'is missing from llms.txt');
+	const route = join(routesDir(p.family), `${p.slug}.tsx`);
+	if (!existsSync(route)) fail(p.slug, `has no route at routes/${p.family}/${p.slug}.tsx`);
+	if (!sitemap.includes(`/${p.family}/${p.slug}`)) fail(p.slug, 'is missing from sitemap.xml');
+	if (!llms.includes(`/${p.family}/${p.slug}`)) fail(p.slug, 'is missing from llms.txt');
 }
-// And the other direction: a route with no page behind it renders nothing.
-if (existsSync(ROUTES)) {
-	for (const f of readdirSync(ROUTES).filter((x) => x.endsWith('.tsx') && x !== 'index.tsx')) {
+// And the other direction: a route with no page behind it renders nothing. The index is the
+// family's parent and has no markdown by design.
+for (const family of FAMILIES) {
+	const dir = routesDir(family);
+	if (!existsSync(dir)) continue;
+	for (const f of readdirSync(dir).filter((x) => x.endsWith('.tsx') && x !== 'index.tsx')) {
 		const slug = f.replace(/\.tsx$/, '');
-		if (!pages.some((p) => p.slug === slug)) {
-			fail(slug, `routes/symptoms/${f} has no markdown behind it`);
+		if (!pages.some((p) => p.family === family && p.slug === slug)) {
+			fail(slug, `routes/${family}/${f} has no markdown behind it`);
 		}
 	}
 }
@@ -255,10 +276,12 @@ ok(pages.length, 'pages are free of em dashes');
 
 // -------------------------------------------------------------------------- report
 const out = failures.length ? process.stderr : process.stdout;
-out.write(`\ncontent:lint — ${checked} items across ${pages.length} symptom page(s)\n\n`);
+out.write(
+	`\ncontent:lint — ${checked} items across ${pages.length} page(s) in ${FAMILIES.length} families\n\n`,
+);
 out.write(`${notes.join('\n')}\n`);
 if (failures.length > 0) {
 	out.write(`\n${failures.length} FAILURE(S):\n${failures.join('\n')}\n\n`);
 	process.exit(1);
 }
-out.write('\nall symptom pages pass\n\n');
+out.write('\nall pages pass\n\n');
