@@ -157,12 +157,17 @@ const read = (p: string) => readFileSync(p, 'utf8');
 // cross-references 404 is worse than one with no cross-references.
 {
 	if (existsSync(CONTENT)) {
-		const routes = new Set([
-			'/docs',
-			...readdirSync(ROUTES)
-				.filter((f) => f.endsWith('.tsx') && f !== 'index.tsx')
-				.map((f) => `/docs/${f.replace(/\.tsx$/, '')}`),
-		]);
+		// EVERY ROUTE ON DISK, not only `/docs/*`. This set used to be the docs routes alone, so a
+		// docs page could not link to a symptom page or a migration page without being told the
+		// target "is not a route" while it sat right there in `routes/`. Read recursively:
+		// `x.tsx` is `/x`, `index.tsx` is its directory, `__root.tsx` is nothing.
+		const walk = (dir: string, prefix: string): string[] =>
+			readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+				if (e.isDirectory()) return walk(join(dir, e.name), `${prefix}/${e.name}`);
+				if (!e.name.endsWith('.tsx') || e.name.startsWith('__')) return [];
+				return [e.name === 'index.tsx' ? prefix || '/' : `${prefix}/${e.name.slice(0, -4)}`];
+			});
+		const routes = new Set(walk(join(ROOT, 'apps/web/src/routes'), ''));
 		let n = 0;
 		for (const f of readdirSync(CONTENT).filter((x) => x.endsWith('.md'))) {
 			for (const m of read(join(CONTENT, f)).matchAll(/\]\((\/[^)#\s]*)/g)) {
