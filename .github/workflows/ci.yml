@@ -40,7 +40,7 @@ jobs:
     outputs:
       commands: ${{ steps.matrix.outputs.commands }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: matrix
         shell: bash
         run: |
@@ -63,7 +63,7 @@ jobs:
         command: ${{ fromJson(needs.prepare.outputs.commands) }}
     name: ${{ matrix.command }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
       - run: pnpm ${{ matrix.command }}
 
@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { fetch-depth: 0 }
       - shell: bash
         run: |
@@ -99,7 +99,7 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { fetch-depth: 0 }
       # The gitleaks ACTION requires GITLEAKS_LICENSE for organisation repos; the CLI does
       # not. Same scanner, same rules, no licence server in the critical path of every PR.
@@ -131,12 +131,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { fetch-depth: 0 }
       # The scanner is a .ts file run through Node's native type stripping, so it needs the
       # pinned Node 24 — the runner's default is older and would fail to parse it. Pinning
       # via .nvmrc rather than a literal keeps it with the rest of the toolchain.
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         # `package-manager-cache: false` is REQUIRED here, not tidiness. v5 turned that flag on
         # by default; it reads `packageManager` from package.json and shells out to pnpm to
         # locate the store. This job never installs pnpm — it only needs Node to run a .ts
@@ -166,7 +166,7 @@ jobs:
   build-docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - shell: bash
         run: |
           # amd64 only. arm64 builds in the release workflow on a native runner — buildx
@@ -299,7 +299,7 @@ jobs:
       pull-requests: read
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { fetch-depth: 0 }
       - shell: bash
         env:
