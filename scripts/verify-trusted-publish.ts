@@ -272,10 +272,13 @@ if (import.meta.filename === process.argv[1]) {
 	};
 	const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-	// Up to two minutes, spent only while something is still missing. The 0.16.0 release
-	// needed somewhere between 30 s and 20 min for its first package; two minutes is a guess
-	// with one data point behind it, and the message below says what to do if it is short.
-	const ROUNDS = 12;
+	// Up to ten minutes, spent only while something is still missing; the happy path waits zero.
+	//
+	// TWO MINUTES WAS SHORT, and the second data point says by how much. 0.16.0 needed between
+	// 30 s and 20 min for one package; 0.18.0 (2026-09-16) had two of three still absent at two
+	// minutes, and all three present with `trustedPublisher: github` when read by hand shortly
+	// after. The registry's full packument lags the publish by minutes, not seconds.
+	const ROUNDS = 60;
 	const WAIT_MS = 10_000;
 	const results = await verifyAll(packages, fetchVersions, {
 		rounds: ROUNDS,
@@ -318,17 +321,27 @@ if (import.meta.filename === process.argv[1]) {
 		process.exit(1);
 	}
 	if (unverified > 0) {
-		// Not verified is not the same as verified, so this still fails — but it says what it
-		// is: the registry had not shown the version within the window, and nothing was read.
+		// A WARNING, NOT A FAILURE, and that is the fix rather than the window above.
+		//
+		// This step fails the `release` job, and `images` and `manifest` need that job — so a
+		// failure here does not flag a problem, it CAUSES one: the gateway image is never built
+		// and the deploy never runs. Twice now (0.16.0, 0.18.0) a slow registry did exactly that
+		// to a release whose publishes were all correct, and the fix both times was a manual
+		// `rebuild_image` dispatch.
+		//
+		// And absence cannot be the regression this file exists to catch. A token fallback is
+		// visible only once the version is readable; until then there is nothing to conclude
+		// either way. So an unreadable version is reported loudly and the release proceeds. A
+		// version that IS readable and lacks trust evidence still fails above, which is the
+		// case that matters.
 		process.stdout.write(
-			`\n::error::${unverified} package(s) never appeared in the registry within ` +
+			`\n::warning::${unverified} package(s) never appeared in the registry within ` +
 				`${(ROUNDS * WAIT_MS) / 1000}s, so their trust evidence could not be read.\n` +
-				'::error::This is propagation, not a credential problem: nothing was checked, and nothing\n' +
-				'::error::should be concluded. Confirm by hand once it lands —\n' +
-				'::error::  curl -s https://registry.npmjs.org/<pkg> | jq \'.versions["<ver>"]._npmUser\'\n' +
-				'::error::— then re-run the release workflow with rebuild_image: true to ship the image.\n',
+				'::warning::This is propagation, not a credential problem, and the release continues.\n' +
+				'::warning::Confirm by hand once it lands:\n' +
+				'::warning::  curl -s https://registry.npmjs.org/<pkg> | jq \'.versions["<ver>"]._npmUser\'\n',
 		);
-		process.exit(1);
+		process.exit(0);
 	}
 	process.stdout.write('\n  every published package authenticated with OIDC.\n');
 }
