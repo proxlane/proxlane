@@ -463,12 +463,64 @@ export function sanitizeHeaders(
  * and `x-scrapfly-response-time` is a duration, so their values are noise while their absence
  * would be news.
  */
-function shapeOf(fixture: Record<string, unknown>): string[] {
+/**
+ * Header NAMES whose presence varies per request, so they cannot be part of a shape.
+ *
+ * `VOLATILE_HEADERS` above handles headers whose VALUE changes; these come and go. Measured,
+ * not guessed, on 2026-09-16 across two runs a few hours apart against the same providers:
+ *
+ *   connection, keep-alive          hop-by-hop; whichever edge answered decides
+ *   content-length vs transfer-encoding   the same response framed two ways, chosen per stream
+ *   age                              present only on a cache hit
+ *   sa-proxy-hash                    ScraperAPI names the exit proxy on some responses and not
+ *                                    others: "1 gone" in the morning, "1 new" that evening
+ *
+ * None of them is read by any `parse()`. Once `record-diff` stopped swallowing its exit code,
+ * these alone opened a drift issue on every adapter, every week.
+ */
+const SHAPELESS_HEADERS = new Set([
+	'age',
+	'connection',
+	'content-length',
+	'keep-alive',
+	'sa-proxy-hash',
+	'transfer-encoding',
+]);
+
+/**
+ * Maps whose KEYS are someone else's data, so the map is shape and its contents are not.
+ *
+ *   headers                  httpbin's echo of the REQUEST the provider sent. Which headers a
+ *                            provider's browser or proxy attaches (`Sec-Ch-Ua`, `Dnt`,
+ *                            `Accept-Language`) changes with the exit it used, so the same
+ *                            fixture reported "6 gone" one run and matched the next
+ *   response_headers, request_headers   the target's headers inside a provider envelope
+ *   config                   Scrapfly's echo of the scrape config; `unblocker` appeared on
+ *                            some responses and not others within the same afternoon
+ *   session_storage_data, local_storage_data   the target page's own storage
+ *
+ * The node itself stays — `body.result.response_headers:object` still has to be there, and
+ * its disappearance is news. What stops being compared is which keys happen to be inside it.
+ * The one `parse()` that reads such a map (Scrapfly, for a `retry-after` by name) treats a
+ * missing key as "no header", so no outcome depends on a key this skips.
+ */
+const OPAQUE_MAPS = new Set([
+	'config',
+	'headers',
+	'local_storage_data',
+	'request_headers',
+	'response_headers',
+	'session_storage_data',
+]);
+
+export function shapeOf(fixture: Record<string, unknown>): string[] {
 	const r = (fixture.response ?? {}) as Record<string, unknown>;
 	const out: string[] = [`status:${String(r.status)}`];
 
 	const headers = (r.headers ?? {}) as Record<string, unknown>;
-	for (const h of Object.keys(headers).sort()) out.push(`header:${h}`);
+	for (const h of Object.keys(headers).sort()) {
+		if (!SHAPELESS_HEADERS.has(h.toLowerCase())) out.push(`header:${h}`);
+	}
 
 	// A non-JSON body is a page from a live target, and its content changes because the web
 	// changes. Nothing about it is a claim regarding the provider, so only the envelope is.
@@ -489,6 +541,9 @@ function shapeOf(fixture: Record<string, unknown>): string[] {
 			for (const el of v.slice(0, 1)) walk(el, `${path}[]`);
 		} else if (v !== null && typeof v === 'object') {
 			out.push(`${path}:object`);
+			// The map is shape; its keys are the target's or the request's. See OPAQUE_MAPS.
+			const leaf = path.slice(path.lastIndexOf('.') + 1);
+			if (OPAQUE_MAPS.has(leaf)) return;
 			for (const k of Object.keys(v as object).sort()) {
 				walk((v as Record<string, unknown>)[k], `${path}.${k}`);
 			}

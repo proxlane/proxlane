@@ -15,6 +15,7 @@ import {
 	reportDiff,
 	sanitize,
 	sanitizeHeaders,
+	shapeOf,
 	TARGETS,
 } from './record.ts';
 
@@ -142,6 +143,72 @@ describe('sanitize', () => {
 		);
 		expect(out['x-ratelimit-limit']).toBe('20, 20;w=60');
 		expect(out['x-ratelimit-remaining']).toBe('VOLATILE');
+	});
+});
+
+describe('a shape is what the provider decides, not what a request happened to get', () => {
+	// 2026-09-16: once record-diff stopped swallowing its exit code, it opened a drift issue on
+	// every adapter for fields that change per request. Each case below is a pair from those two
+	// runs that was reported as drift and was not.
+	const fixture = (headers: Record<string, string>, body: unknown) => ({
+		response: {
+			status: 200,
+			headers,
+			bodyBase64: Buffer.from(JSON.stringify(body)).toString('base64'),
+		},
+	});
+	const same = (a: ReturnType<typeof fixture>, b: ReturnType<typeof fixture>) =>
+		expect(shapeOf(a)).toEqual(shapeOf(b));
+
+	it('ignores headers that come and go per request', () => {
+		same(
+			fixture({ 'content-length': '10', 'sa-proxy-hash': 'x', 'sa-statuscode': '200' }, {}),
+			fixture(
+				{ 'transfer-encoding': 'chunked', connection: 'keep-alive', 'sa-statuscode': '200' },
+				{},
+			),
+		);
+	});
+
+	it("ignores which request headers httpbin echoed, since the provider's exit chose them", () => {
+		same(
+			fixture({}, { headers: { 'Sec-Ch-Ua': ['x'], Dnt: ['1'] }, json: { a: 1 } }),
+			fixture({}, { headers: { Accept: ['*/*'], Priority: ['u=1'] }, json: { a: 1 } }),
+		);
+	});
+
+	it("ignores keys inside Scrapfly's config echo and the target's storage", () => {
+		same(
+			fixture(
+				{},
+				{ config: { url: 'u' }, result: { browser_data: { session_storage_data: {} } } },
+			),
+			fixture(
+				{},
+				{
+					config: { url: 'u', unblocker: false },
+					result: { browser_data: { session_storage_data: { 'https://a': { k: 'v' } } } },
+				},
+			),
+		);
+	});
+
+	it('still reports the map disappearing, which is a real change', () => {
+		const before = shapeOf(fixture({}, { result: { response_headers: { a: 'b' } } }));
+		const after = shapeOf(fixture({}, { result: {} }));
+		expect(before).toContain('body.result.response_headers:object');
+		expect(after).not.toContain('body.result.response_headers:object');
+	});
+
+	it('still reports a provider header disappearing, which is what breaks parse()', () => {
+		expect(shapeOf(fixture({ 'sa-statuscode': '200' }, {}))).toContain('header:sa-statuscode');
+		expect(shapeOf(fixture({}, {}))).not.toContain('header:sa-statuscode');
+	});
+
+	it('still reports an envelope field changing type', () => {
+		const a = shapeOf(fixture({}, { result: { status_code: 200 } }));
+		const b = shapeOf(fixture({}, { result: { status_code: '200' } }));
+		expect(a).not.toEqual(b);
 	});
 });
 
