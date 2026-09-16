@@ -1,0 +1,13 @@
+{
+	"kind": "deadline",
+	"category": "deadline",
+	"recordedAt": "2026-09-16T19:18:00.704Z",
+	"adapter": "brightdata",
+	"target": {
+		"url": "https://httpbin.dev/delay/30",
+		"renderJs": false
+	},
+	"expect": "PROVIDER_TIMEOUT",
+	"transportError": "aborted-by-deadline",
+	"timeoutMs": 5000
+}
