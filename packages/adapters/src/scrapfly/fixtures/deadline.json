@@ -1,7 +1,7 @@
 {
 	"kind": "deadline",
 	"category": "deadline",
-	"recordedAt": "2026-08-07T22:26:22.354Z",
+	"recordedAt": "2026-09-16T11:59:06.350Z",
 	"adapter": "scrapfly",
 	"target": {
 		"url": "https://httpbin.dev/delay/30",
