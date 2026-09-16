@@ -111,19 +111,27 @@ describe('the 500 that turned out NOT to mean two different things', () => {
 			ScraperapiAdapter.parse({ ...res, status, headers }).outcome;
 
 		expect(outcomeOf(401), 'a rejected key').toBe('AUTH_FAILED');
-		expect(outcomeOf(403), 'credits exhausted for the cycle').toBe('RATE_LIMITED');
+		expect(outcomeOf(403), 'credits exhausted for the cycle').toBe('QUOTA_EXHAUSTED');
+		expect(outcomeOf(429), 'the concurrency cap, which is not the wallet').toBe('RATE_LIMITED');
 		// Both sides asserted, so neither half is vacuous and collapsing the two back into one
 		// outcome fails here rather than silently.
 		expect(outcomeOf(401)).not.toBe(outcomeOf(403));
 	});
 
-	// What the caller is handed, not just what we call it internally. 502 tells them to look at
-	// the provider; 429 tells them to look at their plan, and carries the retry semantics.
-	it('hands a spent wallet a 429 rather than a 502', () => {
+	// What the caller is handed, not just what we call it internally.
+	//
+	// REVERSED on 2026-09-16, and this test used to assert 429. The argument then was that 429
+	// "tells them to look at their plan, and carries the retry semantics" — and the retry
+	// semantics were the problem: a client honouring 429 backs off for seconds and retries into
+	// a condition that lasts until the billing cycle turns over. What says "look at your plan"
+	// is the outcome and its class, which is `gateway` now; the status only has to not lie
+	// about when to try again.
+	it('hands a spent wallet a 502 in class gateway, not a 429 that invites a quick retry', () => {
 		const res = load('success-html');
 		const { 'sa-statuscode': _drop, ...headers } = res.headers;
 		const outcome = ScraperapiAdapter.parse({ ...res, status: 403, headers }).outcome;
-		expect(FAILOVER[outcome].httpStatus).toBe(429);
+		expect(FAILOVER[outcome].httpStatus).toBe(502);
+		expect(FAILOVER[outcome].class).toBe('gateway');
 	});
 
 	it('calls a present-but-nonsense sa-statuscode PROVIDER_DRIFT', () => {

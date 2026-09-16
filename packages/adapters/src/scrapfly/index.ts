@@ -134,12 +134,15 @@ function outcomeForErrorCode(code: string): Outcome | undefined {
 	// provider for every other org".
 	//
 	// The discriminator is section 3's own: is this fact observable identically from any org's
-	// key? A quota is the definition of no. `RATE_LIMITED` is account-scoped (`cd:acct`), fails
-	// over to a provider that has credit, and carries the provider's own `Retry-After` when it
-	// sends one. ScraperAPI's equivalent already lands on an account fact; this one did not.
+	// key? A quota is the definition of no. It is account-scoped (`cd:acct`) and fails over to a
+	// provider that has credit.
+	//
+	// QUOTA_EXHAUSTED, not RATE_LIMITED, since that outcome was split (2026-09-16). Scrapfly is the
+	// clean case for the split: it names the two conditions with two codes, so the concurrency cap
+	// one line above and the spent plan here are told apart by the provider itself, not inferred.
 	//
 	// Measured 2026-08-29 against a genuinely exhausted free plan, not inferred from docs.
-	if (code === 'ERR::SCRAPE::QUOTA_LIMIT_REACHED') return 'RATE_LIMITED';
+	if (code === 'ERR::SCRAPE::QUOTA_LIMIT_REACHED') return 'QUOTA_EXHAUSTED';
 	return undefined;
 }
 

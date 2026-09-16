@@ -71,7 +71,7 @@ const configured = IDS.filter((id) => keyFor(id) !== undefined);
  * Providers whose ACCOUNT stopped us, not whose service did. Populated during the run.
  *
  * WHY THIS IS NOT WEAKENING THE GATE, and it is the same argument the TARGET_ERROR retry
- * below makes one step further out. `RATE_LIMITED` is the outcome that says the provider is
+ * below makes one step further out. `QUOTA_EXHAUSTED` is the outcome that says the provider is
  * fine and our wallet is not: it is account-scoped (`cd:acct`), never enters the cross-org
  * health statistic, and is what both ScraperAPI and Scrapfly return when a plan's credits are
  * spent. A canary that reds on it reports "Scrapfly failed", which is false, and false in the
@@ -79,13 +79,20 @@ const configured = IDS.filter((id) => keyFor(id) !== undefined);
  * weaker gate that says what it did not check beats a stronger-looking one that misattributes.
  *
  * So an exhausted account is treated exactly like a MISSING key: that provider is UNCHECKED,
- * named in the summary, and named in the launch record. It is not a pass.
+ * named in the summary, and named in the launch record. It is not a pass. If EVERY configured
+ * provider lands here the canary fails, because a run that checked nothing is not a green run.
  *
- * The risk this leaves, stated so it is a decision rather than an oversight: `RATE_LIMITED`
- * also covers a concurrency cap, which is transient. A provider throttling us every Monday
- * would go unchecked week after week while the board stayed green. Two things bound it — the
- * note is loud and per-provider, and if EVERY configured provider lands here the canary fails,
- * because a run that checked nothing is not a green run.
+ * A CONCURRENCY CAP IS NO LONGER EXEMPT, and that closes the risk this comment used to state.
+ * Until 2026-09-16 the exemption keyed on `RATE_LIMITED`, which covered the cap as well as the
+ * wallet, so a provider throttling us every Monday would have gone unchecked week after week
+ * while the board stayed green. The canary sends one request at a time; a cap at a concurrency
+ * of one is not an empty wallet, it is something worth a red run and an issue.
+ *
+ * STILL NOT COVERED, named rather than implied: ScrapingBee and Bright Data do not distinguish a
+ * spent plan from anything else in a way the adapters can read — ScrapingBee documents one 401
+ * for "invalid, revoked, or out of credits" — so an empty wallet there still arrives as
+ * AUTH_FAILED or RATE_LIMITED and reds the run. That is pre-existing, and it is the honest
+ * failure: the canary cannot tell, so it does not pretend to.
  */
 const exhausted = new Set<string>();
 
@@ -96,19 +103,16 @@ const exhausted = new Set<string>();
  * behaviour under test, so there is nothing to judge.
  */
 function accountStoppedUs(id: string, outcome: string): boolean {
-	// BOTH, FOR NOW. Until the adapters emit QUOTA_EXHAUSTED, a spent plan still arrives as
-	// RATE_LIMITED, and narrowing this first would turn every empty wallet red. The follow-up that
-	// teaches the adapters narrows this to QUOTA_EXHAUSTED alone, which closes the risk stated
-	// above: a provider capping our concurrency every Monday stops being silently unchecked.
-	if (outcome !== 'RATE_LIMITED' && outcome !== 'QUOTA_EXHAUSTED') return false;
+	// The wallet only. See above for why a concurrency cap is not exempt any more.
+	if (outcome !== 'QUOTA_EXHAUSTED') return false;
 	// Once per provider, not once per attempt. Four identical paragraphs per provider is how a
 	// loud note becomes wallpaper, and the summary below is what the launch record reads anyway.
 	if (exhausted.has(id)) return true;
 	exhausted.add(id);
 	process.stdout.write(
-		`\n  UNCHECKED: ${id} answered ${outcome} — the plan's credits are spent or its ` +
-			'concurrency cap was hit. The provider is fine; our account is not. Not counted as a ' +
-			'pass and not counted as a failure.\n',
+		`\n  UNCHECKED: ${id} answered ${outcome} — the plan's credits are spent for this cycle. ` +
+			'The provider is fine; our account is not. Not counted as a pass and not counted as a ' +
+			'failure.\n',
 	);
 	return true;
 }

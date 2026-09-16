@@ -103,7 +103,8 @@ describe('a null target status is not drift', () => {
 			body: new TextEncoder().encode(JSON.stringify(env)),
 		};
 		const out = ScrapflyAdapter.parse(res);
-		expect(out.outcome).toBe('RATE_LIMITED');
+		// QUOTA_EXHAUSTED since the split; RATE_LIMITED is now the concurrency code alone.
+		expect(out.outcome).toBe('QUOTA_EXHAUSTED');
 		// The half that matters. `acct` keeps it to the org whose quota it is; `blk` would cool a
 		// domain nobody blocked, and a provider-scoped outcome would cool the provider for
 		// strangers.
