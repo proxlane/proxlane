@@ -56,6 +56,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://proxlane.dev/migrate/scrapingbee</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://proxlane.dev/symptoms/cloudflare-challenge-playwright</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
