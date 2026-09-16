@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "target-rate-limited",
-	"recordedAt": "2026-08-16T16:21:48.066Z",
+	"recordedAt": "2026-09-16T19:15:17.470Z",
 	"adapter": "scraperapi",
 	"target": {
 		"url": "https://httpbingo.org/status/429",
@@ -28,7 +28,6 @@
 			"content-type": "text/html; charset=utf-8",
 			"date": "VOLATILE",
 			"etag": "W/\"d0-qQGzA5unsNbsxDD6+zEsRRX6CLM\"",
-			"sa-proxy-hash": "undefined",
 			"sa-statuscode": "429",
 			"strict-transport-security": "max-age=15724800; includeSubDomains",
 			"transfer-encoding": "chunked",

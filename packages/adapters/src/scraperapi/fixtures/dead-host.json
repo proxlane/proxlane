@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "dead-host",
-	"recordedAt": "2026-08-17T08:34:10.721Z",
+	"recordedAt": "2026-09-16T19:14:17.807Z",
 	"adapter": "scraperapi",
 	"target": {
 		"url": "https://not-a-real-host.invalid/",
@@ -28,8 +28,7 @@
 			"content-type": "text/html; charset=utf-8",
 			"date": "VOLATILE",
 			"etag": "W/\"d0-qQGzA5unsNbsxDD6+zEsRRX6CLM\"",
-			"sa-proxy-hash": "undefined",
-			"sa-statuscode": "504",
+			"sa-statuscode": "502",
 			"strict-transport-security": "max-age=15724800; includeSubDomains",
 			"transfer-encoding": "chunked",
 			"vary": "Accept-Encoding",
