@@ -1064,11 +1064,15 @@ if (import.meta.filename === process.argv[1]) {
 				verdict = `~ ${got.outcome} (provider-dependent, not asserted)`;
 			} else if (got.outcome === target.expect) {
 				verdict = `= ${got.outcome}`;
-			} else if (got.outcome === 'RATE_LIMITED') {
+			} else if (got.outcome === 'RATE_LIMITED' || got.outcome === 'QUOTA_EXHAUSTED') {
 				// The wallet, not the provider. Separated here rather than in reportDiff so the
 				// console line a human reads says which of the two it was, and so the non-diff
 				// summary below stops calling a spent plan an unexpected outcome.
-				verdict = `! got RATE_LIMITED (account out of credit)`;
+				//
+				// BOTH, and permanently. A spent plan is QUOTA_EXHAUSTED once the adapters emit it;
+				// a concurrency cap hit mid-recording is RATE_LIMITED. Neither is a change in what a
+				// fixture looks like, which is the only thing this command is asking.
+				verdict = `! got ${got.outcome} (account, not provider)`;
 				exhausted.push(target.category);
 			} else {
 				verdict = `! got ${got.outcome}`;

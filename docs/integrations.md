@@ -227,6 +227,7 @@ defined per outcome, centrally, never inside adapters.
 | `PROVIDER_TIMEOUT` | `provider` | Attempt exceeded per-attempt budget | 504 | no | yes | `acct`, short | no |
 | `PROVIDER_ERROR` | `provider` | Provider 5xx / infra failure | 502 | no | yes | `acct`, short | no |
 | `RATE_LIMITED` | `provider` | Provider 429 / concurrency cap | 429 + `Retry-After` | no | yes | `acct`, respect headers | no |
+| `QUOTA_EXHAUSTED` | `gateway` | The plan's credits are spent for the cycle | 502 | no | yes | `acct` | no |
 | `AUTH_FAILED` | `gateway` | Provider 401/403 on the key | 502 | no | yes | `acct`; mark key unhealthy, notify user | no |
 | `PROVIDER_DRIFT` | `provider` | Response failed schema parse | 502 | no | yes | no | **yes** |
 | `PROVIDER_BODY_OFFLOADED` | `provider` | Provider stored the body out of band and returned a pointer | 502 | no | yes | no | no |
@@ -300,12 +301,19 @@ every night until somebody read `X-Chain` by hand. Failover, cooldown and status
 unchanged: the chain still moves past a dead key, `acct` still sidelines it. Only the label a
 caller branches on moved.
 
-`RATE_LIMITED` stays `provider`, and it is the weaker call of the two. It covers a plan
-concurrency cap — the provider pacing us, transient, genuinely theirs — and a spent monthly
-quota, which is our wallet. A caller cannot tell "the site blocks you" from "we are out of
-budget" today, and those want opposite responses. Splitting the quota case out is a new
-outcome, and the taxonomy is under the 1.0 stability promise; it is recorded in `state.md`
-rather than done here.
+**`RATE_LIMITED` split in two on 2026-09-16.** It covered a concurrency cap — the provider
+pacing us, transient, genuinely theirs — and a spent monthly quota, which is our wallet. A
+caller could not tell "slow down" from "we are out of budget", and the same caller that lost a
+week to `AUTH_FAILED` named this as its remaining exposure: on a night when every free tier
+was spent, the chain reported `provider`, and a fallback keyed on `gateway` never fired.
+
+So `RATE_LIMITED` now means the cap alone and stays `provider`, and `QUOTA_EXHAUSTED` is the
+wallet, class `gateway` for the reason `AUTH_FAILED` is. It answers 502 rather than 429,
+because 429 invites a quick retry and a quota comes back with the billing cycle. Adding an
+outcome to an existing class is additive under this taxonomy's own stability rule, and pre-1.0
+is when that is cheapest. An adapter that cannot tell the two apart keeps emitting
+`RATE_LIMITED`: the new outcome is emitted only where a provider's response actually
+distinguishes them, never inferred.
 
 The HTTP column is not decoration: the product's promise is drop-in compatibility, so the
 status a client sees is part of the public surface, and no document defined it.
@@ -412,7 +420,7 @@ degrades under exactly the load it exists to absorb.
 | Key | Outcomes | Scope | Lifetime |
 |---|---|---|---|
 | `cd:blk:{provider}:{domain}` | `SOFT_BLOCK`, `HARD_BLOCK` | shared across orgs; feeds the scoreboard | 15 min, growing to 6 h once settled |
-| `cd:acct:{org}:{provider}` | `RATE_LIMITED`, `AUTH_FAILED`, quota exhaustion | private to one org | 15 min cap |
+| `cd:acct:{org}:{provider}` | `RATE_LIMITED`, `QUOTA_EXHAUSTED`, `AUTH_FAILED` | private to one org | 15 min cap |
 | `hs:{provider}` | `OK`, `PROVIDER_ERROR`, `PROVIDER_DRIFT` | shared across orgs | hours to days |
 
 **There is no per-`domain-class` health key, and that is a decision rather than an
@@ -526,7 +534,7 @@ the time an `Outcome` exists, "whose fault" is answered.
 | excluded | `PROVIDER_BODY_OFFLOADED` — the provider answered, billed and said what it did. It is working; the response was simply larger than it will inline |
 | nothing — a property of a hop, not a provider | `PROVIDER_TIMEOUT` |
 | nothing — target facts, handled by `cd:blk` | `SOFT_BLOCK`, `HARD_BLOCK`, `TARGET_NOT_FOUND`, `TARGET_ERROR`, `TARGET_RATE_LIMITED` |
-| nothing — account facts, handled by `cd:acct` | `AUTH_FAILED`, `RATE_LIMITED` |
+| nothing — account facts, handled by `cd:acct` | `AUTH_FAILED`, `RATE_LIMITED`, `QUOTA_EXHAUSTED` |
 | nothing — ours or the client's | `INVALID_REQUEST`, `BAD_REQUEST`, `TARGET_FORBIDDEN`, `NO_PROVIDER_AVAILABLE`, `RESPONSE_TOO_LARGE`, `BUDGET_EXCEEDED`, `GATEWAY_BUSY` |
 
 `PROVIDER_TIMEOUT` is excluded despite being a provider fact. It is a property of a provider
@@ -535,7 +543,7 @@ provider moves it down the chain, which shortens its budget, which raises its ti
 which feeds the statistic that degraded it. The cost is real — a provider dying purely by
 slow-then-timeout is caught late — and phase 2 can readmit it normalised by hop budget.
 
-**What enforces that table**: `AUTH_FAILED` and `RATE_LIMITED` are excluded because launch is
+**What enforces that table**: `AUTH_FAILED`, `RATE_LIMITED` and `QUOTA_EXHAUSTED` are excluded because launch is
 BYOK, so one org's lapsed key must never demote a provider for every other org. A unit test
 pins every outcome against the union, so adding one fails until somebody decides what
 it means. `TARGET_ERROR` is enforced end to end by a required conformance fixture.

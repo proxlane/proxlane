@@ -96,13 +96,17 @@ const exhausted = new Set<string>();
  * behaviour under test, so there is nothing to judge.
  */
 function accountStoppedUs(id: string, outcome: string): boolean {
-	if (outcome !== 'RATE_LIMITED') return false;
+	// BOTH, FOR NOW. Until the adapters emit QUOTA_EXHAUSTED, a spent plan still arrives as
+	// RATE_LIMITED, and narrowing this first would turn every empty wallet red. The follow-up that
+	// teaches the adapters narrows this to QUOTA_EXHAUSTED alone, which closes the risk stated
+	// above: a provider capping our concurrency every Monday stops being silently unchecked.
+	if (outcome !== 'RATE_LIMITED' && outcome !== 'QUOTA_EXHAUSTED') return false;
 	// Once per provider, not once per attempt. Four identical paragraphs per provider is how a
 	// loud note becomes wallpaper, and the summary below is what the launch record reads anyway.
 	if (exhausted.has(id)) return true;
 	exhausted.add(id);
 	process.stdout.write(
-		`\n  UNCHECKED: ${id} answered RATE_LIMITED — the plan's credits are spent or its ` +
+		`\n  UNCHECKED: ${id} answered ${outcome} — the plan's credits are spent or its ` +
 			'concurrency cap was hit. The provider is fine; our account is not. Not counted as a ' +
 			'pass and not counted as a failure.\n',
 	);

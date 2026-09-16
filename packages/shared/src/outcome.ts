@@ -90,6 +90,7 @@ export type Outcome =
 	| 'PROVIDER_TIMEOUT'
 	| 'PROVIDER_ERROR'
 	| 'RATE_LIMITED'
+	| 'QUOTA_EXHAUSTED'
 	| 'AUTH_FAILED'
 	| 'PROVIDER_DRIFT'
 	| 'PROVIDER_BODY_OFFLOADED'
@@ -111,6 +112,7 @@ export const OUTCOMES = [
 	'PROVIDER_TIMEOUT',
 	'PROVIDER_ERROR',
 	'RATE_LIMITED',
+	'QUOTA_EXHAUSTED',
 	'AUTH_FAILED',
 	'PROVIDER_DRIFT',
 	'PROVIDER_BODY_OFFLOADED',
@@ -384,7 +386,33 @@ export const FAILOVER = {
 		// Their 429 is a plan concurrency cap, not a ban — respect Retry-After.
 		cooldown: 'acct',
 		pages: false,
-		meaning: 'Provider 429, concurrency cap, or the plan quota is spent',
+		// NARROWED, and it used to say "or the plan quota is spent" as well. A concurrency cap is
+		// the provider pacing us: transient, genuinely theirs, over in seconds. A spent monthly
+		// quota is our wallet, over in weeks. A caller could not tell "slow down" from "we are out
+		// of budget", and those want opposite responses. The quota half is QUOTA_EXHAUSTED.
+		meaning: 'Provider 429 or concurrency cap: the provider is pacing us',
+	},
+	QUOTA_EXHAUSTED: {
+		// `gateway`, for the reason AUTH_FAILED is: whose problem is it. The plan's credits are
+		// spent, which is the operator's account and wallet, not the provider's health and not
+		// the target's opinion. A caller that falls back to its own provider account on
+		// `gateway` is doing exactly the right thing here, and under RATE_LIMITED it never did —
+		// a night when every free tier was spent reported `provider`, and the fallback that
+		// would have worked stayed suppressed.
+		class: 'gateway',
+		// 502 like AUTH_FAILED, NOT 429. A 429 tells a client to back off and try again shortly;
+		// a quota comes back with the billing cycle, and a client told 429 would retry into it
+		// for weeks. Nor 402, which would tell the CALLER to pay us.
+		httpStatus: 502,
+		chargeable: false,
+		// Another provider may well have credit, so failing over is the fix, not a hopeful retry.
+		failover: true,
+		// Private to the org whose wallet it is, like every account fact. Re-probing costs
+		// nothing — a spent plan refuses before it bills — so the ordinary `acct` cap is right
+		// even though the quota will not come back for weeks.
+		cooldown: 'acct',
+		pages: false,
+		meaning: "The plan's credits are spent for this billing cycle",
 	},
 	AUTH_FAILED: {
 		// `gateway`, NOT `provider`, and it was `provider` for the whole of phase 1. The class

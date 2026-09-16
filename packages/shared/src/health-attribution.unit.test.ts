@@ -42,6 +42,7 @@ const EXPECTED: Record<Outcome, 'success' | 'failure' | 'ignore'> = {
 	// Account facts. Launch is BYOK, so one org's lapsed key must not demote for other orgs.
 	AUTH_FAILED: 'ignore',
 	RATE_LIMITED: 'ignore',
+	QUOTA_EXHAUSTED: 'ignore',
 	// Ours, or the client's.
 	INVALID_REQUEST: 'ignore',
 	BAD_REQUEST: 'ignore',

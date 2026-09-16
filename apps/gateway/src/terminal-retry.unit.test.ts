@@ -152,6 +152,7 @@ describe('what it must not retry', () => {
 		'HARD_BLOCK',
 		'AUTH_FAILED',
 		'RATE_LIMITED',
+		'QUOTA_EXHAUSTED',
 		'TARGET_NOT_FOUND',
 		'TARGET_ERROR',
 	];
