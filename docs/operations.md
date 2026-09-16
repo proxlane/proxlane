@@ -617,12 +617,16 @@ ticked one that is not, just in the direction nobody audits.
       because a present-but-empty key made the canary report "Scrapfly failed", which is false
       — the provider is fine and our wallet is not.
       **All four keys went back in on 2026-09-02, and pulling a secret is no longer the
-      mechanism.** The canary now reads the outcome instead of the environment: `RATE_LIMITED`
-      is account-scoped and means the plan is spent, so that provider is reported UNCHECKED,
-      by name, exactly as a missing key is. Two things keep it from becoming a way to hide a
-      failure — nothing else is exempt (`PROVIDER_ERROR`, `PROVIDER_DRIFT`, `AUTH_FAILED`,
-      `SOFT_BLOCK` all still red the run), and if *every* configured provider lands there the
-      canary fails, because a run that called nobody is not a green run.
+      mechanism.** The canary now reads the outcome instead of the environment:
+      `QUOTA_EXHAUSTED` is account-scoped and means the plan is spent, so that provider is
+      reported UNCHECKED, by name, exactly as a missing key is. Two things keep it from becoming
+      a way to hide a failure — nothing else is exempt (`RATE_LIMITED`, `PROVIDER_ERROR`,
+      `PROVIDER_DRIFT`, `AUTH_FAILED`, `SOFT_BLOCK` all still red the run), and if *every*
+      configured provider lands there the canary fails, because a run that called nobody is not
+      a green run. Until 2026-09-16 the exemption keyed on `RATE_LIMITED`, which also covered a
+      concurrency cap; splitting the wallet out stopped a weekly throttle from hiding as
+      "unchecked". It covers ScraperAPI and Scrapfly, whose responses distinguish a spent plan;
+      ScrapingBee and Bright Data do not, so an empty wallet there still reds the run.
       A weaker gate that says what it did not check beats a stronger-looking one that
       misattributes — and the version of that which depends on a human pulling a secret before
       a Monday cron only works while the human remembers.

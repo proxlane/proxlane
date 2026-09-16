@@ -217,16 +217,21 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 			// was fine and the wallet was empty — a diagnosis that sends them to regenerate a
 			// working credential. Same bug as #246 on Scrapfly, different wrong answer.
 			//
-			// Both outcomes are account-scoped and both fail over, so routing is unchanged. What
-			// changes is what the caller is handed: 429 with the wallet's semantics instead of
-			// 502 "the provider is broken", and the key stops being marked unhealthy.
+			// Both outcomes are account-scoped and both fail over, so routing is unchanged, and the
+			// key stops being marked unhealthy.
+			//
+			// QUOTA_EXHAUSTED since the split (2026-09-16), not RATE_LIMITED. 429 below is the
+			// concurrency cap; this is the wallet, and the two want opposite responses from a
+			// caller. It now reaches them as 502 / class `gateway` rather than 429 / `provider`,
+			// which reverses the status this line was first given — 429 invited a quick retry
+			// into a condition that lasts until the billing cycle turns over.
 			//
 			// STRUCTURAL, not prose, per the note above about reading phrases out of bodies.
 			// 401 is the key and 403 is the quota — verified live on 2026-09-02 against an
 			// account at 0/1000, which answers 403 with `You have exhausted the API Credits
 			// available in this monthly cycle` and NO `sa-statuscode` header. There is no
 			// header that separates the two, so the status code is the discriminator there is.
-			return withBody('RATE_LIMITED');
+			return withBody('QUOTA_EXHAUSTED');
 		case 429:
 			return withBody('RATE_LIMITED');
 		default:
