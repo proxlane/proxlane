@@ -197,6 +197,13 @@ jobs:
           SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
           BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
         id: diff
+        # `shell: bash`, which GitHub runs as `bash -eo pipefail`. The implicit default is
+        # `bash -e` with NO pipefail, so `record ... | tee` exited with tee's 0 and this step went
+        # green on real drift. The 2026-09-16 run printed "3 fixture(s) changed shape" and
+        # "Command failed with exit code 1" on all four adapters, reported success on all four,
+        # and the issue step below never fired. The tee was here all along; #285 copied it onto
+        # the deadline pass and silenced that one too.
+        shell: bash
         run: pnpm record --diff --adapter=${{ matrix.adapter }} 2>&1 | tee /tmp/diff.txt
       # A SECOND, SCOPED PASS, because `--timeout-ms` is global and would time out every other
       # category. Without it `deadline` is skipped — it needs a budget below the target's 30s
@@ -215,6 +222,8 @@ jobs:
           SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
           SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
           BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
+        # pipefail, for the reason on the step above.
+        shell: bash
         run: pnpm record --diff --adapter=${{ matrix.adapter }} --only=deadline --timeout-ms=5000 2>&1 | tee /tmp/diff-deadline.txt
       # DRIFT OPENS AN ISSUE, because a red job in a scheduled run is a thing nobody sees.
       #
