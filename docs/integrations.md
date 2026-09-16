@@ -741,9 +741,18 @@ us, not on inference.
   `TARGET_FORBIDDEN`, `BUDGET_EXCEEDED`, or the list running out.
 
 **A chain that ran out is not `NO_PROVIDER_AVAILABLE`, and this line used to say it was.**
-When every provider was tried and every one failed, the caller gets the LAST provider's own
-outcome: three providers all blocking is a 502 with `X-Outcome: HARD_BLOCK`, that provider's
-block page as the body, and `X-Provider-Used` naming it. `NO_PROVIDER_AVAILABLE` means the
+When every provider was tried and every one failed, the caller gets a provider's own outcome:
+three providers all blocking is a 502 with `X-Outcome: HARD_BLOCK`, a block page as the body,
+and `X-Provider-Used` naming who blocked.
+
+**Which provider's outcome is decided by what the chain learned, not by order.** If any hop
+heard from the target (class `blocked` or `target`), the last such verdict is the summary;
+only when none did does the last hop's outcome stand. It used to be the last hop regardless,
+so a caller's chain of two spent wallets, a block and a dead key reported the dead key, and
+swapping the last two providers made the same four facts report the block. A verdict is
+information about the world and a fault is information about us, so the verdict wins; "is the
+gateway itself degraded" is answered separately, by `usable` on `/health` and `legs: "account"`
+in the request log. `X-Chain` still lists every hop. (#275) `NO_PROVIDER_AVAILABLE` means the
 opposite — nothing was tried, because no adapter was capable, every capable one was cooling,
 or the request never reached a provider.
 

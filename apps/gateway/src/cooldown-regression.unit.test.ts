@@ -463,6 +463,58 @@ describe('the timeout cap follows health, not position', () => {
 	});
 });
 
+describe('an exhausted chain reports what the target said, not which hop ran last', () => {
+	// #275. The caller's real chain: two spent wallets, a block, a dead key. It reported the dead
+	// key because Bright Data happened to be last in `PROXLANE_PROVIDER_ORDER`.
+	const REPORTED: [string, Outcome][] = [
+		['scraperapi', 'RATE_LIMITED'],
+		['scrapfly', 'RATE_LIMITED'],
+		['scrapingbee', 'HARD_BLOCK'],
+		['brightdata', 'AUTH_FAILED'],
+	];
+
+	it('prefers the block over the dead key that ran after it', async () => {
+		const r = await chain(REPORTED);
+		expect(r.outcome).toBe('HARD_BLOCK');
+		expect(r.provider, 'X-Provider-Used must name who blocked').toBe('scrapingbee');
+		expect(r.result, 'the block page travels with the verdict').toBeDefined();
+		expect(r.attempts.map((a) => `${a.provider}:${a.outcome}`)).toEqual(
+			REPORTED.map(([p, o]) => `${p}:${o}`),
+		);
+	});
+
+	it('gives the same answer whatever order the providers ran in', async () => {
+		const swapped: [string, Outcome][] = [
+			REPORTED[0] as [string, Outcome],
+			REPORTED[1] as [string, Outcome],
+			REPORTED[3] as [string, Outcome],
+			REPORTED[2] as [string, Outcome],
+		];
+		expect((await chain(swapped)).outcome).toBe('HARD_BLOCK');
+		expect((await chain(REPORTED)).outcome).toBe('HARD_BLOCK');
+	});
+
+	it('still reports an account fault when no hop reached the target', async () => {
+		// Nothing to prefer. This is the zero-capacity chain, and it must keep saying so.
+		const r = await chain([
+			['scraperapi', 'RATE_LIMITED'],
+			['brightdata', 'AUTH_FAILED'],
+		]);
+		expect(r.outcome).toBe('AUTH_FAILED');
+		expect(r.provider).toBe('brightdata');
+	});
+
+	it('counts a target error as a verdict too', async () => {
+		// Class `target`, not only `blocked`: the site answered, and that outranks our wallet.
+		const r = await chain([
+			['scrapfly', 'TARGET_ERROR'],
+			['scraperapi', 'RATE_LIMITED'],
+		]);
+		expect(r.outcome).toBe('TARGET_ERROR');
+		expect(r.provider).toBe('scrapfly');
+	});
+});
+
 describe('an exhausted chain says so', () => {
 	// THE DEFECT: the fallthrough was labelled "unreachable" and returned `lastOutcome`. A lost
 	// probe claim `continue`s, so exiting the loop normally IS reachable, and the chain then
