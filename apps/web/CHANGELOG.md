@@ -1,5 +1,17 @@
 # @proxlane/web
 
+## 0.11.0
+
+### Minor Changes
+
+- [#302](https://github.com/proxlane/proxlane/pull/302) [`4020ea3`](https://github.com/proxlane/proxlane/commit/4020ea32d60fbe3c83c4c2b895b073e78732730b) Thanks [@scarsam](https://github.com/scarsam)! - A second migration page: migrate from ScrapingBee. The hostname change, the three renamed parameters, and the two ScrapingBee defaults that change in the caller's favour — `render_js` defaults to true there, so a plain fetch has been billing 5 credits instead of 1, and `transparent_status_code` defaults to false, so a target's 404 has been arriving as a 200. Also the 42-code classic country list and why the gateway does not claim their premium 243, the credit matrix as published on 2026-08-31, and the ScrapingBee parameters that do not carry over.
+
+### Patch Changes
+
+- Updated dependencies [[`799b837`](https://github.com/proxlane/proxlane/commit/799b83732244e01977d8253b2a18f74c2d2f0949), [`f5c1142`](https://github.com/proxlane/proxlane/commit/f5c11423a4d561e902d2e7a70098820e768d1058)]:
+  - @proxlane/shared@0.13.0
+  - @proxlane/adapters@0.11.0
+
 ## 0.10.0
 
 ### Minor Changes

@@ -1,5 +1,18 @@
 # @proxlane/adapters
 
+## 0.11.0
+
+### Minor Changes
+
+- [#305](https://github.com/proxlane/proxlane/pull/305) [`799b837`](https://github.com/proxlane/proxlane/commit/799b83732244e01977d8253b2a18f74c2d2f0949) Thanks [@scarsam](https://github.com/scarsam)! - New outcome `QUOTA_EXHAUSTED`, class `gateway`, status 502: the plan's credits are spent for the billing cycle. `RATE_LIMITED` narrows to what it always mostly was, a provider concurrency cap, and stays class `provider`. A caller could not tell "slow down" from "we are out of budget", and a fallback keyed on `gateway` never fired on a night when every free tier was spent. Additive within an existing class. No adapter emits the new outcome yet; the request log, `pnpm record --diff` and the live canary already treat it as an account fact, so the adapters can start emitting it without any of those reading an empty wallet as a failure.
+
+- [#306](https://github.com/proxlane/proxlane/pull/306) [`f5c1142`](https://github.com/proxlane/proxlane/commit/f5c11423a4d561e902d2e7a70098820e768d1058) Thanks [@scarsam](https://github.com/scarsam)! - Scrapfly and ScraperAPI now report a spent plan as `QUOTA_EXHAUSTED` (class `gateway`, 502) instead of `RATE_LIMITED` (class `provider`, 429). Both providers tell the two apart themselves: Scrapfly with `ERR::SCRAPE::QUOTA_LIMIT_REACHED` versus its concurrency code, ScraperAPI with a 403 carrying no `sa-statuscode` versus a 429. A caller can now fall back on `gateway` when every free tier is spent. ScrapingBee and Bright Data are unchanged, because neither response distinguishes a spent plan in a way the adapter can read without guessing. The live canary now exempts only `QUOTA_EXHAUSTED`, so a concurrency cap during a run is reported rather than silently skipped.
+
+### Patch Changes
+
+- Updated dependencies [[`799b837`](https://github.com/proxlane/proxlane/commit/799b83732244e01977d8253b2a18f74c2d2f0949)]:
+  - @proxlane/shared@0.13.0
+
 ## 0.10.2
 
 ### Patch Changes

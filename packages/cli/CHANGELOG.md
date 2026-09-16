@@ -1,5 +1,17 @@
 # proxlane
 
+## 0.5.0
+
+### Minor Changes
+
+- [#305](https://github.com/proxlane/proxlane/pull/305) [`799b837`](https://github.com/proxlane/proxlane/commit/799b83732244e01977d8253b2a18f74c2d2f0949) Thanks [@scarsam](https://github.com/scarsam)! - New outcome `QUOTA_EXHAUSTED`, class `gateway`, status 502: the plan's credits are spent for the billing cycle. `RATE_LIMITED` narrows to what it always mostly was, a provider concurrency cap, and stays class `provider`. A caller could not tell "slow down" from "we are out of budget", and a fallback keyed on `gateway` never fired on a night when every free tier was spent. Additive within an existing class. No adapter emits the new outcome yet; the request log, `pnpm record --diff` and the live canary already treat it as an account fact, so the adapters can start emitting it without any of those reading an empty wallet as a failure.
+
+### Patch Changes
+
+- Updated dependencies [[`799b837`](https://github.com/proxlane/proxlane/commit/799b83732244e01977d8253b2a18f74c2d2f0949), [`f5c1142`](https://github.com/proxlane/proxlane/commit/f5c11423a4d561e902d2e7a70098820e768d1058)]:
+  - @proxlane/shared@0.13.0
+  - @proxlane/adapters@0.11.0
+
 ## 0.4.14
 
 ### Patch Changes
