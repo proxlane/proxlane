@@ -8,7 +8,7 @@
 //
 //   cd:blk:{provider}:{domain}   SOFT_BLOCK, HARD_BLOCK. A block is a property of the
 //                                DOMAIN, so it is shared across orgs — that is the moat.
-//   cd:acct:{org}:{provider}     RATE_LIMITED, AUTH_FAILED. A rate limit is a property of
+//   cd:acct:{org}:{provider}     RATE_LIMITED, QUOTA_EXHAUSTED, AUTH_FAILED. A rate limit is a property of
 //                                one org's ACCOUNT. ScraperAPI's 429 is a plan concurrency
 //                                cap, not a ban, so under a single key org A saturating its
 //                                own plan would cool that provider for everyone else — the

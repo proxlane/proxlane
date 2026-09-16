@@ -229,6 +229,7 @@ describe('settlement compares the key CLAIMED to the key WRITTEN', () => {
 		'PROVIDER_TIMEOUT',
 		'PROVIDER_ERROR',
 		'RATE_LIMITED',
+		'QUOTA_EXHAUSTED',
 		'AUTH_FAILED',
 		'PROVIDER_DRIFT',
 		'INVALID_REQUEST',

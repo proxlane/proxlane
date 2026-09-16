@@ -63,8 +63,9 @@ describe('the class agrees with the policy it describes', () => {
 		// exactly the reason this test exists.
 		for (const cls of ['client', 'gateway'] as const) {
 			for (const o of outcomesInClass(cls)) {
+				// QUOTA_EXHAUSTED is the second account fact in this class, for the same reason.
 				expect(FAILOVER[o].cooldown, `${o} arms a cooldown`).toBe(
-					o === 'AUTH_FAILED' ? 'acct' : 'none',
+					o === 'AUTH_FAILED' || o === 'QUOTA_EXHAUSTED' ? 'acct' : 'none',
 				);
 			}
 		}
@@ -111,6 +112,8 @@ describe('the mapping is pinned, because changing it is a breaking change', () =
 		PROVIDER_TIMEOUT: 'provider',
 		PROVIDER_ERROR: 'provider',
 		RATE_LIMITED: 'provider',
+		// Split out of RATE_LIMITED: a spent plan is our wallet, not the provider pacing us.
+		QUOTA_EXHAUSTED: 'gateway',
 		// `gateway`, not `provider`. The provider rejected a key WE hold, so the request never
 		// got a verdict from the target. Labelled `provider` it read as "the chain tried and the
 		// target declined", and a caller that falls back on `gateway` alone lost a week to it.

@@ -984,7 +984,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 							// log says "nothing failed", and an absent field cannot say that.
 							...(h('X-Chain') === undefined ? {} : { chain: h('X-Chain') as string }),
 							// THE SIGNATURE OF A BROKEN GATEWAY, made greppable. A chain that ended with
-							// nothing but account faults — every hop AUTH_FAILED or RATE_LIMITED — never
+							// nothing but account faults — AUTH_FAILED, RATE_LIMITED, QUOTA_EXHAUSTED — never
 							// got a verdict from the target; that is our credentials or our wallet, not the
 							// site. It is distinct from an ordinary exhausted chain, and the class header
 							// alone cannot say so, because the class is one hop's view (#275).

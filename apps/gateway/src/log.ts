@@ -32,8 +32,8 @@ export interface RequestLine {
 	/** Every attempt as `provider:outcome`, in order. The only field that names who FAILED. */
 	readonly chain?: string;
 	/**
-	 * `account` when the chain ended with nothing but account faults — every hop AUTH_FAILED or
-	 * RATE_LIMITED — so the target was never asked. Our credentials or our wallet, and the
+	 * `account` when the chain ended with nothing but account faults — every hop AUTH_FAILED,
+	 * RATE_LIMITED or QUOTA_EXHAUSTED — so the target was never asked. Our credentials or our wallet, and the
 	 * greppable signature of a gateway at zero effective capacity (#276). Absent otherwise.
 	 */
 	readonly legs?: 'account';
@@ -103,7 +103,11 @@ export function createLogger(
 }
 
 /** Outcomes that are a fact about OUR account with the provider, never about the target. */
-const ACCOUNT_FAULTS: ReadonlySet<string> = new Set(['AUTH_FAILED', 'RATE_LIMITED']);
+const ACCOUNT_FAULTS: ReadonlySet<string> = new Set([
+	'AUTH_FAILED',
+	'RATE_LIMITED',
+	'QUOTA_EXHAUSTED',
+]);
 
 /**
  * Did this request end with nothing but account faults?
