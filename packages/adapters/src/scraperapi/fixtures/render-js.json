@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "render-js",
-	"recordedAt": "2026-08-16T16:22:52.680Z",
+	"recordedAt": "2026-09-16T12:01:40.332Z",
 	"adapter": "scraperapi",
 	"target": {
 		"url": "https://quotes.toscrape.com/js/",

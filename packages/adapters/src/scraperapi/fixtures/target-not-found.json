@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "target-not-found",
-	"recordedAt": "2026-08-16T16:20:05.461Z",
+	"recordedAt": "2026-09-16T11:57:29.007Z",
 	"adapter": "scraperapi",
 	"target": {
 		"url": "https://httpbingo.org/status/404",
