@@ -26,6 +26,7 @@ import {
 	forcedProbeKey,
 	guardTargetUrl,
 	type HealthState,
+	outcomeClass,
 	eligible as rankByHealth,
 	tiersAtOrBelow,
 } from '@proxlane/shared';
@@ -572,6 +573,25 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	 * both went missing on a response whose `X-Outcome` named a provider fault.
 	 */
 	let lastCompleted: ChainResult | undefined;
+	/**
+	 * The last attempt where the TARGET answered — class `blocked` or `target`.
+	 *
+	 * An exhausted chain used to summarise itself as `lastCompleted`, so its outcome was decided
+	 * by provider order rather than by what the chain learned. A caller's real chain,
+	 * `scraperapi:RATE_LIMITED > scrapfly:RATE_LIMITED > scrapingbee:HARD_BLOCK >
+	 * brightdata:AUTH_FAILED`, reported `AUTH_FAILED` / `gateway`; swap the last two providers
+	 * and the same four facts reported `HARD_BLOCK` / `blocked`. Same request, opposite advice.
+	 *
+	 * So a verdict outranks a fault. A block page is information about the world — this site
+	 * refuses this traffic — and it is the thing a caller acts on. A rate limit or a rejected key
+	 * is information about us, and when the target has also been heard from, it is not why the
+	 * request failed. "Is the gateway itself degraded" is a separate question with its own
+	 * answer: `usable` on `/health`, and `legs: "account"` in the request log. (#275)
+	 *
+	 * When no hop reached the target, there is nothing to prefer and `lastCompleted` stands, so a
+	 * chain of pure account faults still reports one.
+	 */
+	let lastVerdict: ChainResult | undefined;
 	let onceUsed = false;
 	/** Spent across the whole request, not per provider. See TERMINAL_RETRIES. */
 	let terminalRetriesLeft = deps.terminalRetries ?? DEFAULT_TERMINAL_RETRIES;
@@ -925,6 +945,8 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
 				...(parsed === undefined ? {} : { result: parsed }),
 			};
+			const cls = outcomeClass(outcome);
+			if (cls === 'blocked' || cls === 'target') lastVerdict = lastCompleted;
 
 			const policy = policyFor(outcome);
 			if (policy.failover === false) {
@@ -1033,6 +1055,10 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 						continue;
 					}
 				}
+				// THE ORDINARY WAY A CHAIN RUNS OUT, and the one #275 was actually about: the
+				// fallthrough below the loop is only reached when a probe claim is lost. When an
+				// earlier hop heard from the target, that verdict is the summary; see `lastVerdict`.
+				if (lastVerdict !== undefined) return { ...lastVerdict, attempts };
 				return {
 					outcome,
 					attempts,
@@ -1055,8 +1081,9 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	//
 	// An exhausted chain is NO_PROVIDER_AVAILABLE, which is what it has always meant.
 	if (lastCompleted !== undefined) {
-		// The whole result, not its outcome name. See `lastCompleted` above.
-		return { ...lastCompleted, attempts, reason: 'chain exhausted' };
+		// The whole result, not its outcome name — and the target's verdict when there was one,
+		// not whichever hop happened to run last. See `lastCompleted` and `lastVerdict` above.
+		return { ...(lastVerdict ?? lastCompleted), attempts, reason: 'chain exhausted' };
 	}
 	return {
 		outcome: attempts.length === 0 ? 'NO_PROVIDER_AVAILABLE' : lastOutcome,
