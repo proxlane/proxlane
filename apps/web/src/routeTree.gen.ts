@@ -26,6 +26,7 @@ import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
 import { Route as DocsUseCasesRouteImport } from './routes/docs/use-cases'
 import { Route as MigrateIndexRouteImport } from './routes/migrate/index'
 import { Route as MigrateScraperapiRouteImport } from './routes/migrate/scraperapi'
+import { Route as MigrateScrapingbeeRouteImport } from './routes/migrate/scrapingbee'
 import { Route as OutcomesSlugRouteImport } from './routes/outcomes/$slug'
 import { Route as SymptomsIndexRouteImport } from './routes/symptoms/index'
 import { Route as Symptoms200CaptchaBodyRouteImport } from './routes/symptoms/200-captcha-body'
@@ -118,6 +119,11 @@ const MigrateScraperapiRoute = MigrateScraperapiRouteImport.update({
   path: '/migrate/scraperapi',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MigrateScrapingbeeRoute = MigrateScrapingbeeRouteImport.update({
+  id: '/migrate/scrapingbee',
+  path: '/migrate/scrapingbee',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OutcomesSlugRoute = OutcomesSlugRouteImport.update({
   id: '/outcomes/$slug',
   path: '/outcomes/$slug',
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
+  '/migrate/scrapingbee': typeof MigrateScrapingbeeRoute
   '/outcomes/$slug': typeof OutcomesSlugRoute
   '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
   '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
@@ -193,6 +200,7 @@ export interface FileRoutesByTo {
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
+  '/migrate/scrapingbee': typeof MigrateScrapingbeeRoute
   '/outcomes/$slug': typeof OutcomesSlugRoute
   '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
   '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
@@ -219,6 +227,7 @@ export interface FileRoutesById {
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
+  '/migrate/scrapingbee': typeof MigrateScrapingbeeRoute
   '/outcomes/$slug': typeof OutcomesSlugRoute
   '/symptoms/200-captcha-body': typeof Symptoms200CaptchaBodyRoute
   '/symptoms/403-while-scraping': typeof Symptoms403WhileScrapingRoute
@@ -246,6 +255,7 @@ export interface FileRouteTypes {
     | '/docs/quickstart'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
+    | '/migrate/scrapingbee'
     | '/outcomes/$slug'
     | '/symptoms/200-captcha-body'
     | '/symptoms/403-while-scraping'
@@ -271,6 +281,7 @@ export interface FileRouteTypes {
     | '/docs/quickstart'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
+    | '/migrate/scrapingbee'
     | '/outcomes/$slug'
     | '/symptoms/200-captcha-body'
     | '/symptoms/403-while-scraping'
@@ -296,6 +307,7 @@ export interface FileRouteTypes {
     | '/docs/quickstart'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
+    | '/migrate/scrapingbee'
     | '/outcomes/$slug'
     | '/symptoms/200-captcha-body'
     | '/symptoms/403-while-scraping'
@@ -322,6 +334,7 @@ export interface RootRouteChildren {
   DocsQuickstartRoute: typeof DocsQuickstartRoute
   DocsUseCasesRoute: typeof DocsUseCasesRoute
   MigrateScraperapiRoute: typeof MigrateScraperapiRoute
+  MigrateScrapingbeeRoute: typeof MigrateScrapingbeeRoute
   OutcomesSlugRoute: typeof OutcomesSlugRoute
   Symptoms200CaptchaBodyRoute: typeof Symptoms200CaptchaBodyRoute
   Symptoms403WhileScrapingRoute: typeof Symptoms403WhileScrapingRoute
@@ -453,6 +466,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MigrateScraperapiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/migrate/scrapingbee': {
+      id: '/migrate/scrapingbee'
+      path: '/migrate/scrapingbee'
+      fullPath: '/migrate/scrapingbee'
+      preLoaderRoute: typeof MigrateScrapingbeeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/outcomes/$slug': {
       id: '/outcomes/$slug'
       path: '/outcomes/$slug'
@@ -514,6 +534,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsQuickstartRoute: DocsQuickstartRoute,
   DocsUseCasesRoute: DocsUseCasesRoute,
   MigrateScraperapiRoute: MigrateScraperapiRoute,
+  MigrateScrapingbeeRoute: MigrateScrapingbeeRoute,
   OutcomesSlugRoute: OutcomesSlugRoute,
   Symptoms200CaptchaBodyRoute: Symptoms200CaptchaBodyRoute,
   Symptoms403WhileScrapingRoute: Symptoms403WhileScrapingRoute,

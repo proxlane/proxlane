@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import scraperapi from '../../../content/migrate/scraperapi.md?docs';
+import scrapingbee from '../../../content/migrate/scrapingbee.md?docs';
 import { docHead } from '../../lib/doc-head.js';
 
 /**
@@ -13,7 +14,10 @@ import { docHead } from '../../lib/doc-head.js';
  * fails if a page has no route, and a generator here would be machinery in front of a list a
  * person should be looking at while deciding which provider to write up next.
  */
-const PAGES = [{ to: '/migrate/scraperapi', doc: scraperapi }] as const;
+const PAGES = [
+	{ to: '/migrate/scraperapi', doc: scraperapi },
+	{ to: '/migrate/scrapingbee', doc: scrapingbee },
+] as const;
 
 export const Route = createFileRoute('/migrate/')({
 	head: () =>
