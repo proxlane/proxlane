@@ -1,5 +1,19 @@
 # @proxlane/gateway
 
+## 0.18.0
+
+### Minor Changes
+
+- [#305](https://github.com/proxlane/proxlane/pull/305) [`799b837`](https://github.com/proxlane/proxlane/commit/799b83732244e01977d8253b2a18f74c2d2f0949) Thanks [@scarsam](https://github.com/scarsam)! - New outcome `QUOTA_EXHAUSTED`, class `gateway`, status 502: the plan's credits are spent for the billing cycle. `RATE_LIMITED` narrows to what it always mostly was, a provider concurrency cap, and stays class `provider`. A caller could not tell "slow down" from "we are out of budget", and a fallback keyed on `gateway` never fired on a night when every free tier was spent. Additive within an existing class. No adapter emits the new outcome yet; the request log, `pnpm record --diff` and the live canary already treat it as an account fact, so the adapters can start emitting it without any of those reading an empty wallet as a failure.
+
+- [#304](https://github.com/proxlane/proxlane/pull/304) [`1cb8980`](https://github.com/proxlane/proxlane/commit/1cb8980a052527b42cbc20fab5929714371f7af0) Thanks [@scarsam](https://github.com/scarsam)! - An exhausted chain now summarises itself by what the target said rather than by which provider happened to run last. If any hop got a verdict from the target (class `blocked` or `target`), that verdict is the response's `X-Outcome`, `X-Provider-Used`, status and body; only when no hop reached the target does the last hop's outcome stand. A caller's chain of two spent wallets, a hard block and a rejected key used to report the rejected key, and swapping the last two providers made the same four facts report the block. `X-Chain` still lists every hop.
+
+### Patch Changes
+
+- Updated dependencies [[`799b837`](https://github.com/proxlane/proxlane/commit/799b83732244e01977d8253b2a18f74c2d2f0949), [`f5c1142`](https://github.com/proxlane/proxlane/commit/f5c11423a4d561e902d2e7a70098820e768d1058)]:
+  - @proxlane/shared@0.13.0
+  - @proxlane/adapters@0.11.0
+
 ## 0.17.0
 
 ### Minor Changes
