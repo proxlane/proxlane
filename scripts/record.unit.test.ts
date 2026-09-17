@@ -10,8 +10,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
+	fixtureFileFor,
 	MAX_FIXTURE_BYTES,
 	partitionByOnly,
+	QUOTA_FIXTURE,
 	reportDiff,
 	sanitize,
 	sanitizeHeaders,
@@ -270,6 +272,37 @@ describe('the target matrix', () => {
 	});
 });
 
+// A committed fixture reduced to what reportDiff reads.
+const fixture = (category: string) =>
+	JSON.stringify({
+		category,
+		recordedAt: new Date().toISOString(),
+		adapter: 'x',
+		expect: 'OK',
+		kind: 'exchange',
+		response: { status: 200, headers: {}, bodyBase64: '', bodyBytes: 0 },
+	});
+
+// Captures what reportDiff prints, so a test can assert what a human is told.
+const quiet = () => {
+	const out: string[] = [];
+	const so = vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
+		out.push(String(s));
+		return true;
+	});
+	const se = vi.spyOn(process.stderr, 'write').mockImplementation((s) => {
+		out.push(String(s));
+		return true;
+	});
+	return {
+		text: () => out.join(''),
+		restore: () => {
+			so.mockRestore();
+			se.mockRestore();
+		},
+	};
+};
+
 describe('--only is a scope, not a disappearance', () => {
 	// EVERY SCHEDULED record:diff WAS RED, from the second pass — the one that exists to check
 	// `deadline`, which the first pass cannot record. `--only=deadline` filtered the other
@@ -298,15 +331,6 @@ describe('--only is a scope, not a disappearance', () => {
 	// With `deferred` the other two are NOT CHECKED and the run passes on the one comparison
 	// it made; without it, the same directories are read as two fixtures that stopped
 	// recording — the exact output of the 2026-09-09 scheduled run.
-	const fixture = (category: string) =>
-		JSON.stringify({
-			category,
-			recordedAt: new Date().toISOString(),
-			adapter: 'x',
-			expect: 'OK',
-			kind: 'exchange',
-			response: { status: 200, headers: {}, bodyBase64: '', bodyBytes: 0 },
-		});
 	const corpus = () => {
 		const root = mkdtempSync(join(tmpdir(), 'record-only-'));
 		const committed = join(root, 'committed');
@@ -318,24 +342,6 @@ describe('--only is a scope, not a disappearance', () => {
 		}
 		writeFileSync(join(fresh, 'deadline.json'), fixture('deadline'));
 		return { committed, fresh };
-	};
-	const quiet = () => {
-		const out: string[] = [];
-		const so = vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
-			out.push(String(s));
-			return true;
-		});
-		const se = vi.spyOn(process.stderr, 'write').mockImplementation((s) => {
-			out.push(String(s));
-			return true;
-		});
-		return {
-			text: () => out.join(''),
-			restore: () => {
-				so.mockRestore();
-				se.mockRestore();
-			},
-		};
 	};
 
 	it('passes a scoped pass on the one fixture it compared, and says what it did not', () => {
@@ -395,5 +401,65 @@ describe('the CLI refuses to spend credits by accident', () => {
 		const { code, out } = run(['--adapter=nope']);
 		expect(code).not.toBe(0);
 		expect(out).toContain('is not in the registry');
+	});
+});
+
+describe('a spent plan does not overwrite the fixture it interrupted', () => {
+	// `pnpm record` wrote each recording BEFORE running parse() over it, so a run on an empty
+	// wallet replaced `success-html.json` with a quota refusal and then printed "These fixtures
+	// were NOT refreshed". The file a recording lands in is now decided by its outcome.
+
+	it('keeps an expected outcome in its own category', () => {
+		expect(fixtureFileFor('success-html', 'OK', 'OK', false)).toBe('success-html');
+		expect(fixtureFileFor('slow-target', 'provider-dependent', 'PROVIDER_ERROR', false)).toBe(
+			'slow-target',
+		);
+	});
+
+	it('moves a spent plan to its own file, and writes nothing for it in a diff run', () => {
+		expect(fixtureFileFor('success-html', 'OK', 'QUOTA_EXHAUSTED', false)).toBe(QUOTA_FIXTURE);
+		expect(fixtureFileFor('success-html', 'OK', 'QUOTA_EXHAUSTED', true)).toBeUndefined();
+	});
+
+	it('writes nothing for a concurrency cap', () => {
+		expect(fixtureFileFor('success-html', 'OK', 'RATE_LIMITED', false)).toBeUndefined();
+	});
+
+	it('still writes real drift, and a parse() that does not exist yet, to the category', () => {
+		// The guard this must not weaken: a provider that changed what it returns is exactly what
+		// the fixture and the diff exist to show.
+		expect(fixtureFileFor('target-error', 'TARGET_ERROR', 'PROVIDER_ERROR', false)).toBe(
+			'target-error',
+		);
+		expect(fixtureFileFor('success-html', 'OK', undefined, false)).toBe('success-html');
+	});
+
+	it('does not read a committed refusal as drift on a funded run', () => {
+		// Committed `quota-exhausted.json`, fresh run with credit: nothing records it, and the
+		// union walk would otherwise report "committed, but this run recorded nothing" weekly.
+		const root = mkdtempSync(join(tmpdir(), 'record-quota-'));
+		const committed = join(root, 'committed');
+		const fresh = join(root, 'fresh');
+		mkdirSync(committed);
+		mkdirSync(fresh);
+		writeFileSync(join(committed, 'success-html.json'), fixture('success-html'));
+		writeFileSync(join(committed, `${QUOTA_FIXTURE}.json`), fixture(QUOTA_FIXTURE));
+		writeFileSync(join(fresh, 'success-html.json'), fixture('success-html'));
+		const q = quiet();
+		try {
+			const code = reportDiff('x', committed, fresh, {
+				failed: 0,
+				skipped: [],
+				mismatched: [],
+				exhausted: [],
+			});
+			expect(code).toBe(0);
+			expect(q.text()).toMatch(
+				/NOT CHECKED: quota-exhausted \(captured only from a spent plan\)/,
+			);
+			expect(q.text()).not.toMatch(/recorded nothing for it/);
+		} finally {
+			q.restore();
+		}
 	});
 });

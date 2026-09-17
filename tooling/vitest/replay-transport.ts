@@ -73,7 +73,11 @@ export function loadFixtures(repoRoot: string, adapterId: string): ReplayEntry[]
 	const dir = join(repoRoot, 'packages/adapters/src', adapterId, 'fixtures');
 	if (!existsSync(dir)) return [];
 	const recordings = readdirSync(dir)
-		.filter((f) => f.endsWith('.json'))
+		// NOT `quota-exhausted.json`. It records the ACCOUNT refusing a request, not any target
+		// answering one, yet it carries the url of whichever target was interrupted. Matching is
+		// by url and first hit wins, and `quota-exhausted` sorts before `success-html` — so
+		// loading it would replay a spent wallet as the answer to the happy path.
+		.filter((f) => f.endsWith('.json') && f !== 'quota-exhausted.json')
 		.map((f) => ({
 			category: f.replace(/\.json$/, ''),
 			recording: JSON.parse(readFileSync(join(dir, f), 'utf8')) as Recording,

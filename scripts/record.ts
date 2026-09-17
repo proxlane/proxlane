@@ -257,8 +257,46 @@ export const TARGETS: readonly Target[] = [
 
 // ---------------------------------------------------------------- fixture shape
 
+/**
+ * A spent plan's answer, kept as a fixture of its own. Not in `TARGETS`: no target summons it.
+ *
+ * Until 2026-09-17 a spent plan was recorded OVER the category it interrupted. The fixture
+ * was written before `parse()` ran, so `success-html.json` became a quota refusal while the
+ * summary line said "These fixtures were NOT refreshed". A fixture is the contract, so a run on
+ * an empty wallet quietly rewrote it.
+ *
+ * It is also the only way that response becomes evidence. `QUOTA_EXHAUSTED` was mapped from two
+ * observations, on 2026-08-29 and 2026-09-02, and neither was kept, so the claim rested on unit
+ * tests whose bodies somebody typed. The fixture READMEs called a recording "bytes no assertion
+ * reads"; conformance now reads them, and a claim published outside this repo can point at them.
+ */
+export const QUOTA_FIXTURE = 'quota-exhausted';
+
+/**
+ * Which file a recording lands in, decided by what `parse()` made of it. `undefined` writes none.
+ *
+ * - The expected outcome, or one the matrix does not assert: the category's own file.
+ * - `QUOTA_EXHAUSTED` where the matrix expected something else: `QUOTA_FIXTURE`, never the
+ *   category. Not in diff mode, which compares categories and must not grow a file per run.
+ * - `RATE_LIMITED` where unexpected: nothing. A concurrency cap is a moment, not a shape, and
+ *   writing it over the category is the same overwrite as above.
+ * - Any other mismatch: the category's file, as before. That is drift, and the diff says so.
+ * - `parse()` threw: the category's file. Fixtures are recorded before parse() exists.
+ */
+export function fixtureFileFor(
+	category: string,
+	expect: string,
+	got: string | undefined,
+	diff: boolean,
+): string | undefined {
+	if (got === undefined || got === expect || expect === 'provider-dependent') return category;
+	if (got === 'QUOTA_EXHAUSTED') return diff ? undefined : QUOTA_FIXTURE;
+	if (got === 'RATE_LIMITED') return undefined;
+	return category;
+}
+
 interface FixtureCommon {
-	readonly category: TargetCategory;
+	readonly category: TargetCategory | typeof QUOTA_FIXTURE;
 	readonly recordedAt: string;
 	readonly adapter: string;
 	readonly target: { readonly url: string; readonly renderJs: boolean };
@@ -663,6 +701,13 @@ export function reportDiff(
 		// all for some categories and a partial one for others — both are the same non-event.
 		// Not counted as a pass either: these land in NOT CHECKED, and the zero-denominator
 		// guard below still fails a run where nothing could be compared.
+		// Never re-recordable on demand: it exists only when a plan happened to be spent. A diff
+		// run cannot compare it, and calling its absence from a funded run "recorded nothing" would
+		// report drift every week the wallet has credit in it.
+		if (category === QUOTA_FIXTURE) {
+			unchecked.push(`${category} (captured only from a spent plan)`);
+			continue;
+		}
 		if (run.exhausted.includes(category)) {
 			unchecked.push(`${category} (account out of credit)`);
 			continue;
@@ -1101,8 +1146,6 @@ if (import.meta.filename === process.argv[1]) {
 			continue;
 		}
 
-		writeFileSync(join(outDir, `${target.category}.json`), `${serialized}\n`);
-
 		// Close the loop: run the adapter's own parse() over what was just recorded and
 		// say whether it produced the outcome the matrix expected. Without this the
 		// recorder happily writes a fixture whose `expect` contradicts its contents — it
@@ -1112,30 +1155,55 @@ if (import.meta.filename === process.argv[1]) {
 		// Reported, never fatal. Fixtures are recorded BEFORE parse() is implemented, so a
 		// throwing stub is the expected state on day one and asserting here would make the
 		// normal authoring order impossible. Conformance is what asserts.
-		let verdict: string;
+		//
+		// PARSED BEFORE IT IS WRITTEN, because the outcome decides the file. See QUOTA_FIXTURE.
+		let parsedOutcome: string | undefined;
+		let parseError: string | undefined;
 		try {
-			const got = adapter.parse({ status: res.status, headers: resHeaders, body: rawBytes });
-			if (target.expect === 'provider-dependent') {
-				verdict = `~ ${got.outcome} (provider-dependent, not asserted)`;
-			} else if (got.outcome === target.expect) {
-				verdict = `= ${got.outcome}`;
-			} else if (got.outcome === 'RATE_LIMITED' || got.outcome === 'QUOTA_EXHAUSTED') {
-				// The wallet, not the provider. Separated here rather than in reportDiff so the
-				// console line a human reads says which of the two it was, and so the non-diff
-				// summary below stops calling a spent plan an unexpected outcome.
-				//
-				// BOTH, and permanently. A spent plan is QUOTA_EXHAUSTED once the adapters emit it;
-				// a concurrency cap hit mid-recording is RATE_LIMITED. Neither is a change in what a
-				// fixture looks like, which is the only thing this command is asking.
-				verdict = `! got ${got.outcome} (account, not provider)`;
-				exhausted.push(target.category);
-			} else {
-				verdict = `! got ${got.outcome}`;
-				mismatched.push(target.category);
-			}
+			parsedOutcome = adapter.parse({
+				status: res.status,
+				headers: resHeaders,
+				body: rawBytes,
+			}).outcome;
 		} catch (err) {
-			verdict = `? parse() threw: ${err instanceof Error ? err.message : String(err)}`;
+			parseError = err instanceof Error ? err.message : String(err);
+		}
+		const file = fixtureFileFor(target.category, target.expect, parsedOutcome, diff);
+		if (file === QUOTA_FIXTURE) {
+			const quota: ExchangeFixture = {
+				...fixture,
+				category: QUOTA_FIXTURE,
+				expect: 'QUOTA_EXHAUSTED',
+			};
+			writeFileSync(join(outDir, `${file}.json`), `${JSON.stringify(quota, null, '\t')}\n`);
+		} else if (file !== undefined) {
+			writeFileSync(join(outDir, `${file}.json`), `${serialized}\n`);
+		}
+
+		let verdict: string;
+		if (parsedOutcome === undefined) {
+			verdict = `? parse() threw: ${parseError}`;
 			unparsed.push(target.category);
+		} else if (target.expect === 'provider-dependent') {
+			verdict = `~ ${parsedOutcome} (provider-dependent, not asserted)`;
+		} else if (parsedOutcome === target.expect) {
+			verdict = `= ${parsedOutcome}`;
+		} else if (parsedOutcome === 'RATE_LIMITED' || parsedOutcome === 'QUOTA_EXHAUSTED') {
+			// The wallet, not the provider. Separated here rather than in reportDiff so the
+			// console line a human reads says which of the two it was, and so the non-diff
+			// summary below stops calling a spent plan an unexpected outcome.
+			//
+			// BOTH, and permanently. A spent plan is QUOTA_EXHAUSTED once the adapters emit it;
+			// a concurrency cap hit mid-recording is RATE_LIMITED. Neither is a change in what a
+			// fixture looks like, which is the only thing this command is asking.
+			verdict =
+				file === QUOTA_FIXTURE
+					? `! got ${parsedOutcome} (account, not provider) — kept as ${QUOTA_FIXTURE}.json`
+					: `! got ${parsedOutcome} (account, not provider)`;
+			exhausted.push(target.category);
+		} else {
+			verdict = `! got ${parsedOutcome}`;
+			mismatched.push(target.category);
 		}
 		process.stdout.write(
 			`${String(res.status).padEnd(4)} ${String(bytes.byteLength).padStart(6)}b  ${verdict}\n`,
@@ -1166,6 +1234,9 @@ if (import.meta.filename === process.argv[1]) {
 				? [
 						`  ${exhausted.length} could not be recorded — account out of credit: ${exhausted.join(', ')}`,
 						'  The provider is fine; the plan is spent. These fixtures were NOT refreshed.',
+						...(existsSync(join(outDir, `${QUOTA_FIXTURE}.json`))
+							? [`  The refusal itself is recorded as ${QUOTA_FIXTURE}.json.`]
+							: []),
 					]
 				: []),
 			...(mismatched.length > 0

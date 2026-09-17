@@ -17,3 +17,9 @@ The recorder drives a standard target matrix — success (HTML and JSON), target
 summoned from a stable target on demand, so a recorder claiming to produce them would write
 a 200 labelled `block` — a fabrication with a plausible filename. Those come from real
 traffic.
+
+**`quota-exhausted.json` appears only when a plan runs out during `pnpm record`.** The recorder
+writes the refusal there instead of over the category it interrupted, and conformance asserts
+it still parses to `QUOTA_EXHAUSTED` (`ERR::SCRAPE::QUOTA_LIMIT_REACHED`). It is not required,
+because nothing summons it, and it is exempt from the fixture age check for the same reason.
+The replay harness never serves it.
