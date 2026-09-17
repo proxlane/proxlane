@@ -43,5 +43,6 @@ Owner decisions and external answers. None is unblocked by writing code.
 - **Provider money: decided 09-17**, `plan.md` §14. Referral links only where there is no key,
   all four listed alphabetically; no testing credits, no preview. Applied 09-17: ScraperAPI
   approved, ScrapingBee and Bright Data pending, Scrapfly asked (no public program). Nothing is
-  built until the docs page is. Reply to Bright Data (credits declined, pooling) unsent. *Yours.*
+  built until the docs page is. Bright Data replied to 09-17: credits declined, config-only check
+  offered to all four, pooling re-asked. *External.*
 - **Credits refundability** — `operations.md` §4. Ask the accountant before the ledger exists.
