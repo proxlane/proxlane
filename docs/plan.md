@@ -596,8 +596,10 @@ placement terms are read before anything is built.
 **No testing credits from a provider we measure, and no preview.** Credits behind a published
 number are bought on our own accounts at the same volume for every provider: free credits from
 one buy it more samples and a tighter interval, which is a measurement bias and not only an
-appearance. No provider sees a comparison before it is published or edits one after;
-corrections come in as public issues, like anyone's.
+appearance. No provider sees a comparison's results before it is published or edits one
+after; corrections come in as public issues, like anyone's. Before publication, **every**
+provider is offered the same check of its own configuration in the test (product, parameters,
+plan), and nothing else: a setup error is ours to fix, a result is not theirs to review.
 
 This is a real commercial cost: we will sometimes route away from the provider that
 pays us most. Publishing the data is what makes the whole comparison strategy
