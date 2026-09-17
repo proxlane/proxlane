@@ -984,6 +984,7 @@ if (import.meta.filename === process.argv[1]) {
 	let failed = 0;
 	const mismatched: string[] = [];
 	const exhausted: string[] = [];
+	let quotaKept = false;
 	const unparsed: string[] = [];
 	const skipped: string[] = [];
 	for (const target of targets) {
@@ -1169,14 +1170,17 @@ if (import.meta.filename === process.argv[1]) {
 			parseError = err instanceof Error ? err.message : String(err);
 		}
 		const file = fixtureFileFor(target.category, target.expect, parsedOutcome, diff);
-		if (file === QUOTA_FIXTURE) {
+		// The FIRST refusal of a run, not the last: after it every category gets the same answer,
+		// and overwriting it would only swap which interrupted target the file names.
+		if (file === QUOTA_FIXTURE && !quotaKept) {
+			quotaKept = true;
 			const quota: ExchangeFixture = {
 				...fixture,
 				category: QUOTA_FIXTURE,
 				expect: 'QUOTA_EXHAUSTED',
 			};
 			writeFileSync(join(outDir, `${file}.json`), `${JSON.stringify(quota, null, '\t')}\n`);
-		} else if (file !== undefined) {
+		} else if (file !== undefined && file !== QUOTA_FIXTURE) {
 			writeFileSync(join(outDir, `${file}.json`), `${serialized}\n`);
 		}
 
