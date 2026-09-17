@@ -41,6 +41,7 @@ Owner decisions and external answers. None is unblocked by writing code.
   ambiguous, not a yes**: their AI cited non-transferable terms and declined, a human said it should
   be fine if nothing is stored. Scrapfly closed email 08-29, ScraperAPI silent. *External.*
 - **Provider money: decided 09-17**, `plan.md` §14. Referral links only where there is no key,
-  all four listed alphabetically; no testing credits, no preview. Next: apply to the four
-  programs and read their placement terms; nothing is built until one accepts. *Yours.*
+  all four listed alphabetically; no testing credits, no preview. Applied 09-17: ScraperAPI
+  approved, ScrapingBee and Bright Data pending, Scrapfly asked (no public program). Nothing is
+  built until the docs page is. Reply to Bright Data (credits declined, pooling) unsent. *Yours.*
 - **Credits refundability** — `operations.md` §4. Ask the accountant before the ledger exists.
