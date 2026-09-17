@@ -18,14 +18,13 @@ summoned from a stable target on demand, so a recorder claiming to produce them 
 a 200 labelled `block` — a fabrication with a plausible filename. Those come from real
 traffic.
 
-**There is no `account-exhausted` fixture either, and that one is a judgement call rather
-than an impossibility.** The account really was at 0/1000 on 2026-09-02, so it could have
-been recorded — but the outcome is decided by the status code alone (403 with no
-`sa-statuscode` is the spent cycle; 401 is the key), and `index.unit.test.ts` pins exactly
-that. A recording would add bytes no assertion reads.
+**`quota-exhausted.json` appears only when a plan runs out during `pnpm record`.** The recorder
+writes the refusal there instead of over the category it interrupted, and conformance asserts
+it still parses to `QUOTA_EXHAUSTED`. It is not required, because nothing summons it, and it
+is exempt from the fixture age check for the same reason. The replay harness never serves it.
 
-The risk that leaves is narrow and named: if ScraperAPI ever starts sending `sa-statuscode:
-403` on an exhausted account, the adapter would read it as the *target's* 403 and call it
-`HARD_BLOCK`. No fixture catches that, because a fixture recorded today would show the shape
-that is correct today. The live canary is what catches it, which is the division of labour
-those two layers already have.
+The mapping it backs: a 403 with no `sa-statuscode` is the spent cycle, and 401 is the key.
+If ScraperAPI ever starts sending `sa-statuscode: 403` on an exhausted account, the adapter
+would read it as the *target's* 403 and call it `HARD_BLOCK`. A fixture recorded today shows
+today's shape, so the live canary is what catches that: it stops exempting the provider and
+goes red.
