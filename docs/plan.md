@@ -585,6 +585,20 @@ Rules, stated publicly in the docs:
 - Affiliate relationships disclosed plainly on every page carrying a referral link.
 - The routing scoreboard is published. Anyone can check our ranking against our data.
 
+**Where a referral link may appear, decided 2026-09-17.** Only where the caller has no key
+for a provider: the provider setup docs, and a pointer to them from the no-keys error and
+`proxlane doctor`. Never the README, a response, a comparison or a ranking. Wherever it
+appears, all four providers are listed in alphabetical order, a program's referral link or a
+plain link, so a provider that pays us is never first or alone. One line beside the links says
+some are referral links and that they affect neither routing nor rankings. Each program's
+placement terms are read before anything is built.
+
+**No testing credits from a provider we measure, and no preview.** Credits behind a published
+number are bought on our own accounts at the same volume for every provider: free credits from
+one buy it more samples and a tighter interval, which is a measurement bias and not only an
+appearance. No provider sees a comparison before it is published or edits one after;
+corrections come in as public issues, like anyone's.
+
 This is a real commercial cost: we will sometimes route away from the provider that
 pays us most. Publishing the data is what makes the whole comparison strategy
 credible, and credibility is the only durable advantage over the pay-to-play proxy

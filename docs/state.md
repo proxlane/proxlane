@@ -40,10 +40,7 @@ Owner decisions and external answers. None is unblocked by writing code.
   as a product needs written approval** — naming hosted credits, not just keyless. **ScrapingBee is
   ambiguous, not a yes**: their AI cited non-transferable terms and declined, a human said it should
   be fine if nothing is stored. Scrapfly closed email 08-29, ScraperAPI silent. *External.*
-- **An affiliate offer and testing credits, from one of the four we rank.** Taking either from
-  one provider while publishing a comparison is the conflict; decide it as policy for all four. *Yours.*
-  Bright Data, in writing 09-14: no editorial control over benchmarks, a program exists; replied
-  without accepting, and re-asked the pooling question above. The policy is still the open item.
-- **Split `RATE_LIMITED`?** A concurrency cap is the provider's; a spent quota is our wallet. A caller
-  cannot tell "the site blocks you" from "we are out of budget" (#275). New outcome, so 1.0-gated. *Yours.*
+- **Provider money: decided 09-17**, `plan.md` §14. Referral links only where there is no key,
+  all four listed alphabetically; no testing credits, no preview. Next: apply to the four
+  programs and read their placement terms; nothing is built until one accepts. *Yours.*
 - **Credits refundability** — `operations.md` §4. Ask the accountant before the ledger exists.
