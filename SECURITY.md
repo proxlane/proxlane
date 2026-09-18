@@ -59,6 +59,8 @@ Two gaps, stated because their absence is the finding and you should not have to
 
 **Cooldown state is shared across callers on purpose, and is not abuse-metered.** `cd:blk:{provider}:{domain}` is keyed by domain and deliberately shared: a block is a property of the site, which is the point. With multiple tenants that becomes an amplification surface — a caller who can provoke a genuine block on a domain denies that domain to everyone on the instance, and holds it with a few requests per fifteen minutes. Launch is BYOK single-tenant, so today the only person who can do this is the operator. **It is in scope and unmitigated**, and the corroboration or per-tenant shadow-key design has to land with the hosted tier rather than after it. `operations.md` section 5 defers rate limiting to the same milestone.
 
+**The sandbox key shares the in-flight ceiling with the live key.** `PROXLANE_SANDBOX_KEY` never reaches a provider, a provider key, or `/health/*`, and every sandbox response and log line says it is one. What it can do is hold `PROXLANE_MAX_INFLIGHT` slots at near-zero cost per request, since nothing waits on I/O, and shed live callers to `GATEWAY_BUSY`. On a self-hosted instance the holder of that key is the operator. If this key class is ever issued to strangers it needs its own ceiling first; that lands with the hosted tier, alongside the rate limiting above.
+
 Both lines change in the same PR as the code.
 
 ## Supported versions

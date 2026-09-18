@@ -30,6 +30,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 // generic-api-key pattern, and a scanner cannot tell a test key from a real one — it should
 // not try. Randomising also means no value here can ever be copied into something real.
 const API_KEY = randomBytes(24).toString('hex');
+/** The second key class. Anything it authenticates never reaches a provider. */
+const SANDBOX_KEY = randomBytes(24).toString('hex');
 
 const IDS = Object.keys(REGISTRY).sort();
 const adapters: { adapter: Adapter; key: string }[] = [];
@@ -47,15 +49,19 @@ let base: string;
 let server: ReturnType<typeof serve>;
 let health: InMemoryHealthStore;
 let cooldowns: InMemoryCooldownStore;
+/** Kept so the sandbox tests can assert the provider boundary was never crossed. */
+let replay: ReturnType<typeof createReplayTransport>;
 
 beforeAll(async () => {
-	const transport: HttpTransport = createReplayTransport(entries);
+	replay = createReplayTransport(entries);
+	const transport: HttpTransport = replay;
 	health = new InMemoryHealthStore();
 	cooldowns = new InMemoryCooldownStore();
 	const app = createApp({
 		transport,
 		candidates: adapters,
 		apiKey: API_KEY,
+		sandboxKey: SANDBOX_KEY,
 		maxBodyBytes: 10 * 1024 * 1024,
 		defaultDeadlineMs: 90_000,
 		health,
@@ -1178,5 +1184,98 @@ describe('/health', () => {
 		const r = await bare.request('/health');
 		expect(r.status).toBe(200);
 		expect(await r.json()).toEqual({ status: 'ok', version: VERSION, providers: 0 });
+	});
+});
+
+describe('the sandbox: X-Proxlane-Simulate with the sandbox key', () => {
+	// integrations.md section 6. Every assertion here is against the response a real caller
+	// sees over TCP, and the one property that matters most is asserted on the transport: the
+	// provider boundary is never crossed.
+	const sandbox = (outcome: string | undefined, qs = 'url=https://example.com/') =>
+		fetch(`${base}/v1?${qs}`, {
+			headers: {
+				Authorization: `Bearer ${SANDBOX_KEY}`,
+				...(outcome === undefined ? {} : { 'X-Proxlane-Simulate': outcome }),
+			},
+		});
+
+	it('answers a simulated OK as a 200 page, having called no provider', async () => {
+		const before = replay.served.length;
+		const r = await sandbox('OK');
+		expect(r.status).toBe(200);
+		expect(r.headers.get('x-outcome')).toBe('OK');
+		expect(r.headers.get('x-proxlane-simulated')).toBe('OK');
+		expect(r.headers.get('x-provider-used')).toBe(IDS[0]);
+		expect(r.headers.get('x-attempts')).toBe('1');
+		expect(r.headers.get('x-cost-estimate')).toBe('0.000000');
+		expect(await r.text()).toContain('Simulated OK');
+		expect(replay.served.length).toBe(before);
+	});
+
+	it('defaults to OK when the header is absent', async () => {
+		const r = await sandbox(undefined);
+		expect(r.status).toBe(200);
+		expect(r.headers.get('x-proxlane-simulated')).toBe('OK');
+	});
+
+	it('takes the status and the chain shape from the outcome table', async () => {
+		const before = replay.served.length;
+		// PROVIDER_TIMEOUT fails over: every configured provider is a hop, and the status is
+		// FAILOVER's 504, not anything upstream.
+		const r = await sandbox('PROVIDER_TIMEOUT');
+		expect(r.status).toBe(504);
+		expect(r.headers.get('x-outcome')).toBe('PROVIDER_TIMEOUT');
+		expect(r.headers.get('x-outcome-class')).toBe('provider');
+		expect(r.headers.get('x-attempts')).toBe(String(IDS.length));
+		expect(r.headers.get('x-chain')).toBe(IDS.map((id) => `${id}:PROVIDER_TIMEOUT`).join('>'));
+		const body = (await r.json()) as { error: { code: string }; attempts: unknown[] };
+		expect(body.error.code).toBe('PROVIDER_TIMEOUT');
+		expect(body.attempts).toHaveLength(IDS.length);
+		expect(replay.served.length).toBe(before);
+	});
+
+	it('carries a rule id on a simulated SOFT_BLOCK, as the real chain does', async () => {
+		const r = await sandbox('SOFT_BLOCK');
+		expect(r.status).toBe(502);
+		expect(r.headers.get('x-detect-rule')).toBeTruthy();
+		expect(await r.text()).toContain('Simulated SOFT_BLOCK');
+	});
+
+	it('refuses an outcome that is not in the taxonomy', async () => {
+		const r = await sandbox('NOT_AN_OUTCOME');
+		expect(r.status).toBe(400);
+		const body = (await r.json()) as { error: { code: string; message: string } };
+		expect(body.error.code).toBe('BAD_REQUEST');
+		expect(body.error.message).toContain('SOFT_BLOCK');
+	});
+
+	it('still validates the request, so a sandbox test exercises our 400s', async () => {
+		const r = await sandbox('OK', 'url=https://example.com/&premium=gold');
+		expect(r.status).toBe(400);
+	});
+
+	it('is LOUD, not silent, when the live key sends the header', async () => {
+		// The one security property the spec asks for. A live key that believed it was in a
+		// sandbox must not spend, and must not be told it did not spend by having the header
+		// dropped. Nothing is served and nothing reaches a provider.
+		const before = replay.served.length;
+		const r = await fetch(`${base}/v1?url=${target('success-html')}`, {
+			headers: { Authorization: `Bearer ${API_KEY}`, 'X-Proxlane-Simulate': 'OK' },
+		});
+		expect(r.status).toBe(400);
+		const body = (await r.json()) as { error: { code: string; message: string } };
+		expect(body.error.code).toBe('BAD_REQUEST');
+		expect(body.error.message).toContain('PROXLANE_SANDBOX_KEY');
+		expect(r.headers.get('x-proxlane-simulated')).toBeNull();
+		expect(replay.served.length).toBe(before);
+	});
+
+	it('does not accept the sandbox key as a live key for anything else', async () => {
+		// The sandbox key authenticates /v1 only, and only into the sandbox. /health/providers
+		// is the live key's, and a second class of caller must not read operator state with it.
+		const r = await fetch(`${base}/health/providers`, {
+			headers: { Authorization: `Bearer ${SANDBOX_KEY}` },
+		});
+		expect(r.status).toBe(401);
 	});
 });

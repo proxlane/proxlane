@@ -318,6 +318,47 @@ describe('doctor', () => {
 	});
 });
 
+describe('doctor knows the sandbox key', () => {
+	const keys = ['PROXLANE_SANDBOX_KEY', 'PROXLANE_API_KEY'] as const;
+	const withEnv = async (values: Record<string, string | undefined>) => {
+		const saved = keys.map((k) => [k, process.env[k]] as const);
+		for (const k of keys) {
+			if (values[k] === undefined) delete process.env[k];
+			else process.env[k] = values[k];
+		}
+		try {
+			const [, out] = await capture(() => doctor(true));
+			const { data } = JSON.parse(out);
+			return data.checks.find((c: { name: string }) => c.name === 'sandbox');
+		} finally {
+			for (const [k, v] of saved) {
+				if (v === undefined) delete process.env[k];
+				else process.env[k] = v;
+			}
+		}
+	};
+
+	it('is information when unset, and fine when set to its own value', async () => {
+		expect((await withEnv({ PROXLANE_SANDBOX_KEY: undefined })).ok).toBe(true);
+		const on = await withEnv({
+			PROXLANE_SANDBOX_KEY: 'a'.repeat(32),
+			PROXLANE_API_KEY: 'b'.repeat(32),
+		});
+		expect(on.ok).toBe(true);
+		expect(on.detail).toContain('calls no provider');
+	});
+
+	it('fails when it equals the live key, which is the one way to set it wrong', async () => {
+		// The gateway refuses to boot on this. Doctor says why, so a restart loop has a name.
+		const same = await withEnv({
+			PROXLANE_SANDBOX_KEY: 'a'.repeat(32),
+			PROXLANE_API_KEY: 'a'.repeat(32),
+		});
+		expect(same.ok).toBe(false);
+		expect(same.fix).toContain('openssl rand');
+	});
+});
+
 describe('doctor knows about routing state', () => {
 	// Two operator reviews had to ask for these. `operating.md` B9's rule — every support
 	// question that takes more than one exchange becomes a check — was not followed when

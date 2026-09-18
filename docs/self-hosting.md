@@ -264,6 +264,7 @@ most:
 | Variable | Default | Notes |
 |---|---|---|
 | `PROXLANE_API_KEY` | none | **Required.** Refuses to boot without it |
+| `PROXLANE_SANDBOX_KEY` | unset | A second key that can never spend: `/v1` answers from the outcome table and calls no provider. Must differ from the live key |
 | `SCRAPERAPI_KEY` `SCRAPINGBEE_KEY` `SCRAPFLY_KEY` `BRIGHTDATA_KEY` | none | BYOK. All optional. Bright Data's is `<zone>:<token>` |
 | `PORT` | `8787` | |
 | `PROXLANE_DEADLINE_MS` | `120000` | Global per-request deadline |

@@ -168,6 +168,16 @@ const HEADERS: Record<string, { description: string; schema: object }> = {
 			'The block-page rule that fired. Present only when one did: emitting "none" everywhere would assert the detector ran and found nothing, which is untrue for a request that never reached a provider.',
 		schema: { type: 'string' },
 	},
+	'X-Proxlane-Simulated': {
+		description:
+			'Present on every sandbox response, naming the simulated outcome. The sandbox key answers /v1 from the outcome table and calls no provider; this header is what stops a simulated 200 passing as a real one downstream. Never present on a live-key response.',
+		schema: { type: 'string' },
+	},
+	'X-Content-Type-Options': {
+		description:
+			"`nosniff`, on sandbox responses only. A proxied page is the target's and is passed through as received; a simulated page is HTML of our own served from the gateway origin, so it gets the header a page of our own would.",
+		schema: { type: 'string' },
+	},
 	'X-Provider-Health': {
 		description:
 			'Present when health tracking is on, or when a routing floor fired. demoted-forced means every capable provider was demoted and the least bad was used anyway. cooling-forced means every capable provider was on cooldown and one was tried regardless, rate-limited per domain, rather than take the domain off the air for the length of the backoff.',

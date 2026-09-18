@@ -119,6 +119,8 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Provider-Health` | when health is on, or when a floor fired | `demoted-forced`: every provider was demoted and the least bad was used. `cooling-forced`: every provider was cooling and one was tried anyway, rather than take the domain off the air |
 | `X-Ignored-Params` | when you sent one we don't read | The query parameters we threw away, sorted and comma-separated |
 | `Retry-After` | when known | Seconds, rounded up |
+| `X-Proxlane-Simulated` | sandbox only | The simulated outcome. See [Sandbox](#sandbox) |
+| `X-Content-Type-Options` | sandbox only | `nosniff`. A simulated page is ours, served from the gateway's origin, so it gets the header a page of our own would |
 
 **`X-Ignored-Params` is worth wiring into your logs.** We don't reject a parameter we don't
 recognise — ScraperAPI accepts a dozen we don't implement, and rejecting them would break the
@@ -224,6 +226,45 @@ happened to a scrape, and a request rejected at the door never became one.
 
 `attempts` lists what was tried and what each provider said. That is the grain you need when
 debugging a failover.
+
+## Sandbox
+
+Set `PROXLANE_SANDBOX_KEY` on the gateway and you have a second key that can never spend. A
+request authenticated with it is answered from the outcome table, with the real headers, and
+no provider is called:
+
+```bash
+curl "http://localhost:8787/v1?url=https://example.com" \
+  -H "Authorization: Bearer $PROXLANE_SANDBOX_KEY" \
+  -H "X-Proxlane-Simulate: SOFT_BLOCK"
+```
+
+```
+HTTP/1.1 502
+X-Outcome: SOFT_BLOCK
+X-Outcome-Class: blocked
+X-Attempts: 3
+X-Chain: scraperapi:SOFT_BLOCK>scrapfly:SOFT_BLOCK>scrapingbee:SOFT_BLOCK
+X-Detect-Rule: cf-challenge
+X-Proxlane-Simulated: SOFT_BLOCK
+X-Cost-Estimate: 0.000000
+```
+
+`X-Proxlane-Simulate` names any [outcome](/docs/outcomes); leave it out and you get `OK`. The
+status, the attempt count and whether a body comes back are all read from the same table the
+router uses, so a simulated `PROVIDER_TIMEOUT` walks every configured provider and answers 504
+exactly as the real one would. Every sandbox response carries `X-Proxlane-Simulated`.
+
+The request is still validated first: a bad `url` or `premium` gets the same 400 it would live,
+and the edge guard runs, so a private or metadata address is `TARGET_FORBIDDEN` in the sandbox
+exactly as it is in production. Every sandbox line in the request log carries `sim`.
+
+**With the live key, the header is refused.** A caller who sends `X-Proxlane-Simulate` believes
+they are testing, so the gateway answers 400 `BAD_REQUEST` rather than spend real credits or
+silently drop the header. That is the only way it cannot cost you money or tell you a test
+passed against the wrong thing.
+
+The sandbox key opens `/v1` only. `/health/*` still wants the live key.
 
 ## Backpressure
 
