@@ -4,30 +4,28 @@ title: Getting provider keys
 summary: Which provider to start with, where to get a key, and what to set.
 ---
 
-Proxlane has no account system and resells nothing. Requests run on **your** provider accounts,
-so before the gateway can do anything you need at least one provider key. One is enough; a
-second is what gives failover somewhere to go.
+Proxlane has no accounts of its own. Requests run on your provider accounts, so you need at
+least one provider key before the gateway can do anything. One is enough. A second one gives
+failover somewhere to go.
 
-All four offer a free trial, so you can see whether Proxlane fits before paying anyone. The
-sizes differ and change often; each provider's pricing page is the authority.
+All four have a free trial. The sizes differ and change often, so check the pricing pages.
 
 *Some links on this page are referral links. If you create a provider account through one,
 Proxlane may earn a commission, at no extra cost to you. It changes nothing about how requests
 are routed, how providers are measured, or what gets published.*
 
-## The four, alphabetically
+## The four providers
 
-Listed A to Z, not best to worst. Which one is best depends on your targets, and the honest
-answer is that you find out by running them. The measured comparison is not published yet,
-because there is not enough traffic behind it to be worth trusting.
+Listed alphabetically. Which one works best depends on your targets, and the only way to know
+is to run them. A measured comparison will be published once there is enough traffic behind it.
 
 ### Bright Data
 
-[brightdata.com](https://brightdata.com) — the Web Unlocker product.
+[brightdata.com](https://brightdata.com), the Web Unlocker product.
 
-The cheapest of the four for rendered pages: rendering is included rather than a multiplier.
-The key has a shape the others do not, `<zone>:<token>`, because the zone is a property of
-your account. A bare token reads as an empty zone and comes back as `AUTH_FAILED`.
+Rendering is included in the price, so this is the cheapest of the four for rendered pages.
+The key is `<zone>:<token>`, because the zone belongs to your account. A bare token is read as
+an empty zone and comes back as `AUTH_FAILED`.
 
 ```bash
 BRIGHTDATA_KEY=my-unlocker-zone:abc123...
@@ -35,11 +33,11 @@ BRIGHTDATA_KEY=my-unlocker-zone:abc123...
 
 ### ScraperAPI
 
-[scraperapi.com](https://www.scraperapi.com) — the widest set of options.
+[scraperapi.com](https://www.scraperapi.com), the one with the most options.
 
-The only one of the four that keeps a session across requests (`sessionId`), and it sells
+It is the only one of the four that keeps a session across requests (`sessionId`), and it sells
 residential and stealth tiers. Rendering costs ten times a plain request. Binary responses come
-back decoded, so Proxlane does not route images or PDFs here.
+back decoded, so Proxlane does not send images or PDFs here.
 
 ```bash
 SCRAPERAPI_KEY=abc123...
@@ -47,10 +45,10 @@ SCRAPERAPI_KEY=abc123...
 
 ### ScrapingBee
 
-[scrapingbee.com](https://www.scrapingbee.com) — the simplest API of the four.
+[scrapingbee.com](https://www.scrapingbee.com), the simplest API of the four.
 
-Rendering costs five times a plain request. Geotargeting covers a published list of regions
-rather than everywhere, and the countries available depend on your plan.
+Rendering costs five times a plain request. Geotargeting covers a fixed list of regions, and
+which countries you get depends on your plan.
 
 ```bash
 SCRAPINGBEE_KEY=abc123...
@@ -58,12 +56,11 @@ SCRAPINGBEE_KEY=abc123...
 
 ### Scrapfly
 
-[scrapfly.io](https://scrapfly.io) — the most detailed cost reporting.
+[scrapfly.io](https://scrapfly.io), the one with exact cost reporting.
 
-Every response carries what it actually cost, so `X-Cost` from Proxlane is the provider's own
-number rather than an estimate. Rendering costs six times a plain request. Bodies over about
-5 MB are offloaded to a URL, which Proxlane treats as a failure to fail over from rather than
-handing you a link where a page should be.
+Every response says what it cost, so `X-Cost` from Proxlane is Scrapfly's own number, not an
+estimate. Rendering costs six times a plain request. Bodies over about 5 MB come back as a
+URL instead of a page; Proxlane treats that as a failure and moves to the next provider.
 
 ```bash
 SCRAPFLY_KEY=abc123...
@@ -71,10 +68,9 @@ SCRAPFLY_KEY=abc123...
 
 ## Which to start with
 
-- **Cheapest for rendered pages:** Bright Data, where rendering is not a multiplier.
-- **Most options:** ScraperAPI, if you need sessions or a residential tier.
-- **Exact costs per request:** Scrapfly.
-- **Fewest decisions:** ScrapingBee.
+If you render a lot of pages, Bright Data is the cheapest. If you need sessions or a
+residential tier, ScraperAPI. If you want the exact cost of every request, Scrapfly. If you
+want the fewest decisions, ScrapingBee.
 
 ## Setting the key
 
@@ -88,14 +84,13 @@ docker run -p 8787:8787 \
   ghcr.io/proxlane/gateway:latest
 ```
 
-Providers you set no key for are left out of the chain entirely. Nothing fails, and nothing is
-logged about them; they are simply not candidates.
+Providers with no key are left out of the chain. Nothing fails and nothing is logged about
+them.
 
-Run `proxlane doctor` to check what the gateway can see. It reports which keys are set, whether
-the Bright Data key has the right shape, and what will happen if none are.
+Run `proxlane doctor` to see what the gateway sees: which keys are set, whether the Bright
+Data key has the right shape, and what happens if none are set.
 
 ## Where your keys go
 
-Into the gateway process you run, and to the provider named on each request. Proxlane has no
-server of its own to send them to. Self-hosted means the whole path is yours: the container,
-the keys, the logs, and whatever the provider bills you.
+To the gateway you run, and from there to the provider named on each request. Proxlane has
+no server of its own. The container, the keys, the logs and the provider bill are all yours.
