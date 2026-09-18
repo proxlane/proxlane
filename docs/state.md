@@ -11,6 +11,7 @@ stale file is worse than an empty one. Only what no command can answer: what is 
 days on: zero engagement, zero referrals (r/selfhosted standalone post allowed from **11-10**).
 Directory PRs open, unanswered: lorien/awesome-web-scraping #294, Germey/AwesomeWebScraping #20;
 awesome-selfhosted from **12-12**. First migration page live 09-14. **55 views, 24 uniques, 4 stars.**
+**Outreach from 09-18**: six emails to maintainers with provider code in public repos. Sandbox (#325) is the keyless first minute.
 
 **Public since 2026-08-10**, ruleset on `main`. Dogfooding it against another of the maintainer's
 projects found six defects in five days. That is not §9's "one stranger runs it", which stays open
