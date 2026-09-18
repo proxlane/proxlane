@@ -18,8 +18,9 @@ projects found six defects in five days. That is not §9's "one stranger runs it
 and is still the item every question here waits on. **Health is off unless `PROXLANE_HEALTH=on`.**
 
 **The canary gate CLOSED on 2026-08-31** (08-17, 08-24, 08-31; the third ~7h late, which is why
-the gate counts *scheduled* runs, not Mondays). **All four keys in CI since 09-02**; a spent plan
-reads UNCHECKED, not red. Free tiers are ~1,000 credits, one recording session from blocked. *Yours.*
+the gate counts *scheduled* runs, not Mondays). **Four keys in CI since 09-02**; a spent plan reads
+UNCHECKED, not red. **Firecrawl shipped 09-18 (#328) and `FIRECRAWL_KEY` is not an Actions secret
+yet**, so the canary and record-diff skip it until it is. Free tiers are ~1,000 credits. *Yours.*
 
 ## Blocked on
 
