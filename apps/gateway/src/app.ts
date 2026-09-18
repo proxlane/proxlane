@@ -864,8 +864,12 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 
 		// Named on every sandbox response, so a simulated 200 that leaks into a real pipeline is
 		// caught by the first thing that reads headers rather than by a customer.
+		// `nosniff` alongside it on the body path: unlike a proxied page, this HTML is OURS,
+		// served from the gateway's origin, so it gets the header a page of our own would.
 		const simulatedHeader =
-			simulated === undefined ? {} : { 'X-Proxlane-Simulated': simulated };
+			simulated === undefined
+				? {}
+				: { 'X-Proxlane-Simulated': simulated, 'X-Content-Type-Options': 'nosniff' };
 
 		const policy = policyFor(result.outcome);
 		// 'upstream' means pass the TARGET's status through — the drop-in promise: a caller
@@ -1052,6 +1056,13 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 							...(h('X-Detect-Rule') === undefined
 								? {}
 								: { detect: h('X-Detect-Rule') as string }),
+							// A SANDBOX LINE SAYS SO. Without this a sandbox holder could write
+							// `AUTH_FAILED` lines naming real providers with `legs: account` — the
+							// zero-capacity signature from #276 — and nothing in the log could tell
+							// them from the real thing. Found in review.
+							...(h('X-Proxlane-Simulated') === undefined
+								? {}
+								: { sim: h('X-Proxlane-Simulated') as string }),
 							...timings(h('Server-Timing')),
 						});
 					}

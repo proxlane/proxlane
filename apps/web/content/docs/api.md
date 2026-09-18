@@ -119,6 +119,8 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Provider-Health` | when health is on, or when a floor fired | `demoted-forced`: every provider was demoted and the least bad was used. `cooling-forced`: every provider was cooling and one was tried anyway, rather than take the domain off the air |
 | `X-Ignored-Params` | when you sent one we don't read | The query parameters we threw away, sorted and comma-separated |
 | `Retry-After` | when known | Seconds, rounded up |
+| `X-Proxlane-Simulated` | sandbox only | The simulated outcome. See [Sandbox](#sandbox) |
+| `X-Content-Type-Options` | sandbox only | `nosniff`. A simulated page is ours, served from the gateway's origin, so it gets the header a page of our own would |
 
 **`X-Ignored-Params` is worth wiring into your logs.** We don't reject a parameter we don't
 recognise — ScraperAPI accepts a dozen we don't implement, and rejecting them would break the
@@ -253,7 +255,9 @@ status, the attempt count and whether a body comes back are all read from the sa
 router uses, so a simulated `PROVIDER_TIMEOUT` walks every configured provider and answers 504
 exactly as the real one would. Every sandbox response carries `X-Proxlane-Simulated`.
 
-The request is still validated first: a bad `url` or `premium` gets the same 400 it would live.
+The request is still validated first: a bad `url` or `premium` gets the same 400 it would live,
+and the edge guard runs, so a private or metadata address is `TARGET_FORBIDDEN` in the sandbox
+exactly as it is in production. Every sandbox line in the request log carries `sim`.
 
 **With the live key, the header is refused.** A caller who sends `X-Proxlane-Simulate` believes
 they are testing, so the gateway answers 400 `BAD_REQUEST` rather than spend real credits or

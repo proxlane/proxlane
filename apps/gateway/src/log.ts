@@ -43,6 +43,13 @@ export interface RequestLine {
 	readonly gw?: number;
 	/** Provider milliseconds. Their time, not ours. */
 	readonly up?: number;
+	/**
+	 * The simulated outcome, on a sandbox request. Present so a line the sandbox key wrote can
+	 * never be read as a provider's behaviour: every other field on it is what the real chain
+	 * would have produced, by design, and `legs: account` in particular is a signature people
+	 * grep for.
+	 */
+	readonly sim?: string;
 }
 
 /**

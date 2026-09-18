@@ -23,6 +23,7 @@ import {
 	policyFor,
 } from '@proxlane/adapters';
 import { RULES } from '@proxlane/detect';
+import { guardTargetUrl } from '@proxlane/shared';
 import type { Attempt, ChainResult } from './chain.js';
 
 export const SIMULATE_HEADER = 'x-proxlane-simulate';
@@ -63,6 +64,19 @@ export function simulate(
 	providerIds: readonly string[],
 	req: GatewayRequest,
 ): ChainResult {
+	// THE EDGE GUARD RUNS HERE TOO, inside this function so no caller can skip it. The first
+	// version replaced `runChain` wholesale, and `runChain` is where the guard lived — so a
+	// sandbox request for a metadata address answered a simulated 200 where live answers
+	// TARGET_FORBIDDEN. No connection opened, so nothing leaked; but a caller's SSRF regression
+	// test would have passed in the sandbox and failed in production, which inverts the one
+	// promise a sandbox makes. Found in review. The reflected URL below is the string the guard
+	// judged, for the reason chain.ts gives: validate one string, echo another, and the echo is
+	// the bypass.
+	const verdict = guardTargetUrl(req.url);
+	if (!verdict.allowed) {
+		return { outcome: verdict.outcome, attempts: [], reason: verdict.reason };
+	}
+	const url = verdict.url.href;
 	const policy = policyFor(outcome);
 	const ids = providerIds.length === 0 ? [NOBODY] : providerIds;
 	const hops =
@@ -93,7 +107,7 @@ export function simulate(
 			? {
 					result: {
 						outcome,
-						body: new TextEncoder().encode(simulatedPage(outcome, req.url)),
+						body: new TextEncoder().encode(simulatedPage(outcome, url)),
 						contentType: 'text/html; charset=utf-8',
 						charset: 'utf-8',
 						// The only outcome whose status is `upstream` is OK, and a simulated OK is a 200.
