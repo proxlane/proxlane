@@ -1,5 +1,14 @@
 # proxlane
 
+## 0.5.1
+
+### Patch Changes
+
+- [#324](https://github.com/proxlane/proxlane/pull/324) [`0779b48`](https://github.com/proxlane/proxlane/commit/0779b48dafa4c3e55a1b0999c8c7e69e6575f916) Thanks [@scarsam](https://github.com/scarsam)! - `doctor` points someone with no provider keys at https://proxlane.dev/docs/providers, where to get one.
+
+- Updated dependencies [[`3228b22`](https://github.com/proxlane/proxlane/commit/3228b22af113c4693521c74e92dcc33761b36c3d), [`d99b1c6`](https://github.com/proxlane/proxlane/commit/d99b1c6fc7d2512603035d27836131a6a7f186cb), [`2285c4f`](https://github.com/proxlane/proxlane/commit/2285c4fb2dbcb21795856b9e8e583c668854a748)]:
+  - @proxlane/adapters@0.12.0
+
 ## 0.5.0
 
 ### Minor Changes

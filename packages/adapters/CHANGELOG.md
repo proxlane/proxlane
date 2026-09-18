@@ -1,5 +1,17 @@
 # @proxlane/adapters
 
+## 0.12.0
+
+### Minor Changes
+
+- [#328](https://github.com/proxlane/proxlane/pull/328) [`3228b22`](https://github.com/proxlane/proxlane/commit/3228b22af113c4693521c74e92dcc33761b36c3d) Thanks [@scarsam](https://github.com/scarsam)! - Firecrawl adapter: one credit per page, rendered or not, raw page bytes via `rawBase64`, 26 countries, no POST. New `targetStatus` capability, false for Firecrawl, says whether a provider reports the target's status on a failure; when it cannot, every target failure is `TARGET_ERROR` and the chain moves on. A fifth line colour for the route diagram comes with it.
+
+### Patch Changes
+
+- [#311](https://github.com/proxlane/proxlane/pull/311) [`d99b1c6`](https://github.com/proxlane/proxlane/commit/d99b1c6fc7d2512603035d27836131a6a7f186cb) Thanks [@scarsam](https://github.com/scarsam)! - Fixtures re-recorded where the 2026-09-16 weekly diff found a changed shape, plus the missing ScrapingBee and Bright Data `deadline` fixtures. Every change was additive or target-side (Scrapfly added `config.unblocker`, the test target stopped echoing `Sec-Ch-Ua` client hints); every category still maps to the same outcome, and conformance passes on all four adapters.
+
+- [#318](https://github.com/proxlane/proxlane/pull/318) [`2285c4f`](https://github.com/proxlane/proxlane/commit/2285c4fb2dbcb21795856b9e8e583c668854a748) Thanks [@scarsam](https://github.com/scarsam)! - Conformance checks a recorded `quota-exhausted` fixture, when one exists, still parses to `QUOTA_EXHAUSTED`.
+
 ## 0.11.0
 
 ### Minor Changes
