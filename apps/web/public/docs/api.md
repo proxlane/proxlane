@@ -65,7 +65,7 @@ You can ask for less time than the server budgeted. You cannot ask for more: the
 what bounds how long one request holds a slot, and the gateway's memory sizing depends on it.
 
 The floor is 8000. Below that a single attempt cannot finish, so the request would time out
-without having tried anything — that is a `400`, not a `504`.
+without having tried anything. That is a `400`, not a `504`.
 
 When the deadline runs out the outcome is `BUDGET_EXCEEDED`.
 
@@ -124,13 +124,13 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Content-Type-Options` | sandbox only | `nosniff`. A simulated page is ours, served from the gateway's origin, so it gets the header a page of our own would |
 
 **`X-Ignored-Params` is worth wiring into your logs.** We don't reject a parameter we don't
-recognise — ScraperAPI accepts a dozen we don't implement, and rejecting them would break the
+recognise. ScraperAPI accepts a dozen we don't implement, and rejecting them would break the
 hostname change this whole thing is built on. So the request runs, and the header names what
 went nowhere.
 
 The one that catches people is `render`. `js_render=true` is ScrapingBee's spelling and
 `js=true` is Scrapfly's; ours is `render=true`. Send the wrong one and you get HTTP 200, a
-real page, and no JavaScript — at about a fifth of the cost, which is the tell:
+real page, and no JavaScript, at about a fifth of the cost. The cost is the tell:
 
 ```
 X-Ignored-Params: js_render
@@ -139,14 +139,14 @@ X-Cost-Estimate: 1.000000     # rendered, this would be ~5
 
 Two of those are easy to misread.
 
-A request rejected before a provider was chosen — no `url`, a bad `premium`, a wrong key —
+A request rejected before a provider was chosen (no `url`, a bad `premium`, a wrong key)
 carries `X-Outcome-Class`, `X-Attempts: 0` and `X-Cost-Estimate: 0.000000`. It has no
 `X-Outcome`, because the taxonomy describes what happened to a scrape and that request never
 became one. This is the reason to branch on the class.
 
 **`X-Cost-Source` tells you whose number it is.** Three of the four providers report what they
 charged on the response itself, and the adapter passes that straight through. `estimated` means
-they said nothing and we applied our own table for that provider — a figure worth treating with
+they said nothing and we applied our own table for that provider, a figure worth treating with
 more suspicion than a reported one, because it is our model of their pricing rather than their
 answer. `mixed` means a chain used both, which a failover across providers routinely does.
 
@@ -165,7 +165,7 @@ X-Attempts: 2
 
 A single-attempt request has a one-element chain, which matters: an absent header could not
 otherwise say "nothing failed". It is omitted, never empty, when no provider was tried at
-all — a bad URL, a refused target, every provider cooling. `X-Attempts: 0` says that already.
+all: a bad URL, a refused target, every provider cooling. `X-Attempts: 0` says that already.
 
 **`Retry-After` is never guessed.** If it is absent, Proxlane does not know when to retry. A
 number you can trust is worth more than a number that is always present.
@@ -260,10 +260,10 @@ The request is still validated first: a bad `url` or `premium` gets the same 400
 and the edge guard runs, so a private or metadata address is `TARGET_FORBIDDEN` in the sandbox
 exactly as it is in production. Every sandbox line in the request log carries `sim`.
 
-**With the live key, the header is refused.** A caller who sends `X-Proxlane-Simulate` believes
-they are testing, so the gateway answers 400 `BAD_REQUEST` rather than spend real credits or
-silently drop the header. That is the only way it cannot cost you money or tell you a test
-passed against the wrong thing.
+**With the live key, the header is refused.** A caller who sends `X-Proxlane-Simulate` thinks
+they are in the sandbox. Running the request would spend real credits on a test, and dropping
+the header would let the test pass against the wrong thing, so the gateway answers 400
+`BAD_REQUEST` instead.
 
 The sandbox key opens `/v1` only. `/health/*` still wants the live key.
 
