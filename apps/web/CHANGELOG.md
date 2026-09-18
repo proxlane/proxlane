@@ -1,5 +1,18 @@
 # @proxlane/web
 
+## 0.11.1
+
+### Patch Changes
+
+- [#328](https://github.com/proxlane/proxlane/pull/328) [`3228b22`](https://github.com/proxlane/proxlane/commit/3228b22af113c4693521c74e92dcc33761b36c3d) Thanks [@scarsam](https://github.com/scarsam)! - Firecrawl adapter: one credit per page, rendered or not, raw page bytes via `rawBase64`, 26 countries, no POST. New `targetStatus` capability, false for Firecrawl, says whether a provider reports the target's status on a failure; when it cannot, every target failure is `TARGET_ERROR` and the chain moves on. A fifth line colour for the route diagram comes with it.
+
+- [#327](https://github.com/proxlane/proxlane/pull/327) [`ccecd47`](https://github.com/proxlane/proxlane/commit/ccecd47fa88aaabe18fe1a92aa6b6b10f709b671) Thanks [@scarsam](https://github.com/scarsam)! - The providers and API docs pages read plainer: no em dashes, less filler, same facts.
+
+- Updated dependencies [[`3228b22`](https://github.com/proxlane/proxlane/commit/3228b22af113c4693521c74e92dcc33761b36c3d), [`d99b1c6`](https://github.com/proxlane/proxlane/commit/d99b1c6fc7d2512603035d27836131a6a7f186cb), [`2285c4f`](https://github.com/proxlane/proxlane/commit/2285c4fb2dbcb21795856b9e8e583c668854a748)]:
+  - @proxlane/adapters@0.12.0
+  - @proxlane/ui@0.2.5
+  - @proxlane/route-viz@0.2.2
+
 ## 0.11.0
 
 ### Minor Changes

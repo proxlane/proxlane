@@ -1,5 +1,16 @@
 # @proxlane/gateway
 
+## 0.19.0
+
+### Minor Changes
+
+- [#325](https://github.com/proxlane/proxlane/pull/325) [`739aa67`](https://github.com/proxlane/proxlane/commit/739aa67986c4fa03f3fe24bb9d02b294fbbf3e97) Thanks [@scarsam](https://github.com/scarsam)! - Sandbox mode: `PROXLANE_SANDBOX_KEY` is a second key that can never spend. With it, `X-Proxlane-Simulate: <OUTCOME>` answers `/v1` from the outcome table, with the real headers, and calls no provider. The live key is refused with 400 if it sends the header.
+
+### Patch Changes
+
+- Updated dependencies [[`3228b22`](https://github.com/proxlane/proxlane/commit/3228b22af113c4693521c74e92dcc33761b36c3d), [`d99b1c6`](https://github.com/proxlane/proxlane/commit/d99b1c6fc7d2512603035d27836131a6a7f186cb), [`2285c4f`](https://github.com/proxlane/proxlane/commit/2285c4fb2dbcb21795856b9e8e583c668854a748)]:
+  - @proxlane/adapters@0.12.0
+
 ## 0.18.0
 
 ### Minor Changes
