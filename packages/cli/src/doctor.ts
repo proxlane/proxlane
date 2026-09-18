@@ -66,9 +66,14 @@ async function providerKeyChecks(): Promise<Check[]> {
 						name: 'providers',
 						ok: false,
 						detail: `no provider key is set, so nothing routes, so every request answers NO_PROVIDER_AVAILABLE`,
+						// The page, not the providers' own links: `plan.md` §14 keeps referral links
+						// on one docs page and out of the terminal, and a reader who has no key
+						// needs to choose a provider before they need an environment variable.
 						fix: `set at least one of ${ids
 							.map((id) => `$${id.toUpperCase().replace(/-/g, '_')}_KEY`)
-							.join(', ')} and run this again`,
+							.join(
+								', ',
+							)} and run this again. No account yet? https://proxlane.dev/docs/providers`,
 					},
 				];
 	return [
