@@ -49,14 +49,21 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 		// Their cache stores our scrape for anyone who asks next. Off: the target's page is the
 		// caller's business, not a shared index.
 		storeInCache: false,
-		blockAds: false,
+		// TRUE, THEIR DEFAULT, AND NOT BY CHOICE. Measured 2026-09-18: with `blockAds: false` a
+		// rendered request is served by "[pdf, document, image]" and no browser engine, and fails
+		// `SCRAPE_ALL_ENGINES_FAILED` on a page that renders fine with it true. Reproduced six
+		// times, bisected against every other pinned field. So the rendered DOM comes back with
+		// their ad and cookie-banner blocking applied, and the providers page says so.
+		blockAds: true,
 		mobile: false,
 		// Their sample request sends `parsers: ["pdf"]`, which turns a PDF into extracted text.
 		// Empty, so a PDF arrives as the bytes it is and `binary` stays true of every body.
 		parsers: [],
-		// Their default. Pinned because a scraping provider that started verifying certificates
-		// would fail targets the other three fetch, and the change would otherwise be silent.
-		skipTlsVerification: true,
+		// FALSE, against their default of true. With verification off, a body served by anyone
+		// on the path between Firecrawl and the target comes back as the page and the detector
+		// scores it as real. No other adapter turns certificate checks off, and a target with a
+		// broken certificate failing here is the honest result: it fails over.
+		skipTlsVerification: false,
 		// `enhanced` is their stealth pool. Never `auto`: auto escalates on its own, and an
 		// escalation we did not ask for is a cost we cannot report.
 		proxy: req.premium === 'stealth' ? 'enhanced' : 'basic',
@@ -179,6 +186,10 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	// honest answer is to re-encode as UTF-8 and declare it: content intact, original encoding
 	// gone.
 	if (typeof data.rawBase64 === 'string') {
+		// Strict, because `Buffer.from(…, 'base64')` is not: it decodes a truncated or corrupt
+		// string to a silently short body, which would then be returned as a complete page.
+		if (!/^[A-Za-z0-9+/]*={0,2}$/.test(data.rawBase64))
+			return { outcome: 'PROVIDER_DRIFT', cost };
 		return {
 			outcome,
 			body: Uint8Array.from(Buffer.from(data.rawBase64, 'base64')),

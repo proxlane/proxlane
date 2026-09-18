@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "target-error",
-	"recordedAt": "2026-09-18T13:54:30.848Z",
+	"recordedAt": "2026-09-18T14:08:03.910Z",
 	"adapter": "firecrawl",
 	"target": {
 		"url": "https://httpbingo.org/status/503",
@@ -16,7 +16,7 @@
 			"content-type": "application/json",
 			"accept": "application/json"
 		},
-		"body": "{\"url\":\"https://httpbingo.org/status/503\",\"formats\":[\"rawBase64\"],\"onlyMainContent\":false,\"onlyCleanContent\":false,\"maxAge\":0,\"storeInCache\":false,\"blockAds\":false,\"mobile\":false,\"parsers\":[],\"skipTlsVerification\":true,\"proxy\":\"basic\",\"waitFor\":0,\"timeout\":90000}"
+		"body": "{\"url\":\"https://httpbingo.org/status/503\",\"formats\":[\"rawBase64\"],\"onlyMainContent\":false,\"onlyCleanContent\":false,\"maxAge\":0,\"storeInCache\":false,\"blockAds\":true,\"mobile\":false,\"parsers\":[],\"skipTlsVerification\":false,\"proxy\":\"basic\",\"waitFor\":0,\"timeout\":90000}"
 	},
 	"response": {
 		"status": 500,
@@ -26,7 +26,7 @@
 			"content-type": "application/json; charset=utf-8",
 			"date": "VOLATILE",
 			"etag": "W/\"212-wlrqUtleTWyzIpealE80vqyYuwY\"",
-			"x-response-time": "3595.866ms"
+			"x-response-time": "832.411ms"
 		},
 		"bodyBase64": "eyJzdWNjZXNzIjpmYWxzZSwiY29kZSI6IlNDUkFQRV9BTExfRU5HSU5FU19GQUlMRUQiLCJlcnJvciI6IkFsbCBzY3JhcGluZyBlbmdpbmVzIGZhaWxlZCB0byByZXRyaWV2ZSBjb250ZW50IGZyb20gdGhpcyBVUkwuIEVuZ2luZXMgdHJpZWQ6IFtmaXJlLWVuZ2luZTtjaHJvbWUtY2RwXS4gVGhpcyB1c3VhbGx5IGhhcHBlbnMgd2hlbjogKDEpIFRoZSBVUkwgaXMgaW52YWxpZCBvciB0aGUgcGFnZSBkb2Vzbid0IGV4aXN0ICg0MDQpLCAoMikgVGhlIHdlYnNpdGUgaXMgYmxvY2tpbmcgYXV0b21hdGVkIGFjY2VzcywgKDMpIFRoZSB3ZWJzaXRlIGlzIGRvd24gb3IgdW5yZWFjaGFibGUsICg0KSBUaGUgcGFnZSByZXF1aXJlcyBhdXRoZW50aWNhdGlvbi4gRG91YmxlIGNoZWNrIHRoZSBVUkwgaXMgY29ycmVjdCBhbmQgYWNjZXNzaWJsZSBpbiBhIGJyb3dzZXIuIElmIHRoZSBpc3N1ZSBwZXJzaXN0cywgY29udGFjdCB1cyBhdCBoZWxwQGZpcmVjcmF3bC5jb20gd2l0aCB5b3VyIHJlcXVlc3QgSUQgZm9yIGludmVzdGlnYXRpb24uIn0=",
 		"bodyBytes": 530

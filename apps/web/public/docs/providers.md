@@ -39,6 +39,9 @@ One credit per page whether or not it renders, which makes it the cheapest of th
 rendered pages alongside Bright Data. Proxlane asks it for the raw page bytes, not the
 markdown it is known for. It has no residential tier and cannot forward a POST.
 
+Rendered pages come back with Firecrawl's ad and cookie-banner blocking applied. That is their
+default, and turning it off makes them skip the browser engine, so it stays on.
+
 One thing it cannot do: say why a page failed. A 404, a 503 and a block page all come back as
 the same error, so Proxlane reports `TARGET_ERROR` and moves to the next provider, which then
 says which it was. Its free plan is 1,000 credits a month.

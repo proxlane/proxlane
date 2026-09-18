@@ -416,6 +416,9 @@ const NOT_SECRET = new Set(['x-usage-tokens', 'x-token-count']);
  */
 export const IDENTIFYING_FIELDS = [
 	'client_ip',
+	// Firecrawl's per-job handle. A timestamp-derived UUID rather than an account id, and useless
+	// without the key, but it is the provider's identifier for OUR request and nothing reads it.
+	'scrapeId',
 	'project_uuid',
 	'user_uuid',
 	'account_id',
