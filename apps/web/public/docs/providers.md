@@ -8,13 +8,13 @@ Proxlane has no accounts of its own. Requests run on your provider accounts, so 
 least one provider key before the gateway can do anything. One is enough. A second one gives
 failover somewhere to go.
 
-All four have a free trial. The sizes differ and change often, so check the pricing pages.
+All five have a free trial. The sizes differ and change often, so check the pricing pages.
 
 *Some links on this page are referral links. If you create a provider account through one,
 Proxlane may earn a commission, at no extra cost to you. It changes nothing about how requests
 are routed, how providers are measured, or what gets published.*
 
-## The four providers
+## The five providers
 
 Listed alphabetically. Which one works best depends on your targets, and the only way to know
 is to run them. A measured comparison will be published once there is enough traffic behind it.
@@ -31,11 +31,24 @@ an empty zone and comes back as `AUTH_FAILED`.
 BRIGHTDATA_KEY=my-unlocker-zone:abc123...
 ```
 
+### Firecrawl
+
+[firecrawl.dev](https://www.firecrawl.dev), built for feeding pages to LLMs.
+
+One credit per page whether or not it renders, which makes it the cheapest of the five for
+rendered pages alongside Bright Data. Proxlane asks it for the raw page bytes, not the
+markdown it is known for. It has no residential tier and cannot forward a POST. Its free plan
+is 1,000 credits a month.
+
+```bash
+FIRECRAWL_KEY=fc-abc123...
+```
+
 ### ScraperAPI
 
 [scraperapi.com](https://www.scraperapi.com), the one with the most options.
 
-It is the only one of the four that keeps a session across requests (`sessionId`), and it sells
+It is the only one of the five that keeps a session across requests (`sessionId`), and it sells
 residential and stealth tiers. Rendering costs ten times a plain request. Binary responses come
 back decoded, so Proxlane does not send images or PDFs here.
 
@@ -45,7 +58,7 @@ SCRAPERAPI_KEY=abc123...
 
 ### ScrapingBee
 
-[scrapingbee.com](https://www.scrapingbee.com), the simplest API of the four.
+[scrapingbee.com](https://www.scrapingbee.com), the simplest API of the five.
 
 Rendering costs five times a plain request. Geotargeting covers a fixed list of regions, and
 which countries you get depends on your plan.
@@ -68,7 +81,7 @@ SCRAPFLY_KEY=abc123...
 
 ## Which to start with
 
-If you render a lot of pages, Bright Data is the cheapest. If you need sessions or a
+If you render a lot of pages, Bright Data and Firecrawl are the cheapest. If you need sessions or a
 residential tier, ScraperAPI. If you want the exact cost of every request, Scrapfly. If you
 want the fewest decisions, ScrapingBee.
 

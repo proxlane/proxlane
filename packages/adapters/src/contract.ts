@@ -241,7 +241,7 @@ export interface ProviderCapabilities {
 	 * the /providers pages all read the same field. A developer learns "orange is ScrapingBee"
 	 * once and it holds across the product.
 	 */
-	readonly line: 1 | 2 | 3 | 4;
+	readonly line: 1 | 2 | 3 | 4 | 5;
 	readonly renderJs: boolean;
 	/**
 	 * Can the renderer be told to wait for an element before it snapshots?

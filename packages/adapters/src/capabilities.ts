@@ -16,6 +16,7 @@
 
 import { capabilities as brightdata } from './brightdata/capabilities.js';
 import type { ProviderCapabilities } from './contract.js';
+import { capabilities as firecrawl } from './firecrawl/capabilities.js';
 import { capabilities as scraperapi } from './scraperapi/capabilities.js';
 import { capabilities as scrapfly } from './scrapfly/capabilities.js';
 import { capabilities as scrapingbee } from './scrapingbee/capabilities.js';
@@ -26,6 +27,7 @@ export const CAPABILITIES: readonly ProviderCapabilities[] = [
 	scrapingbee,
 	scrapfly,
 	brightdata,
+	firecrawl,
 ].sort((a, b) => a.line - b.line);
 
 /** One provider's capabilities, or undefined. */

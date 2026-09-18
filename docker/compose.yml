@@ -45,6 +45,7 @@ services:
       SCRAPINGBEE_KEY: ${SCRAPINGBEE_KEY:-}
       SCRAPFLY_KEY: ${SCRAPFLY_KEY:-}
       BRIGHTDATA_KEY: ${BRIGHTDATA_KEY:-}
+      FIRECRAWL_KEY: ${FIRECRAWL_KEY:-}
       # A second key that can never spend; see .env.example. Empty means no sandbox.
       PROXLANE_SANDBOX_KEY: ${PROXLANE_SANDBOX_KEY:-}
       PROXLANE_DEADLINE_MS: ${PROXLANE_DEADLINE_MS:-120000}

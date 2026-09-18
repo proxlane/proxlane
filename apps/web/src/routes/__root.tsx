@@ -22,7 +22,7 @@ const SITE = STRUCTURED_SITE;
 // Provider names stay, and stay early. They are the terms people search for, and a truncation
 // that loses them would cost more than one that loses the tail.
 const DESCRIPTION =
-	'One endpoint in front of ScraperAPI, ScrapingBee, Scrapfly and Bright Data. ' +
+	'One endpoint in front of ScraperAPI, ScrapingBee, Scrapfly, Bright Data and Firecrawl. ' +
 	'Automatic failover, honest block detection, per-request cost. AGPL, self-hosted.';
 const TITLE = 'Proxlane: one endpoint in front of every scraping API';
 

@@ -131,8 +131,11 @@ describe('the static list mirrors the registry', () => {
 		// feature the product is named for. A chain of one is not a chain.
 		const canPost = CAPABILITIES.filter((c) => c.post);
 		expect(canPost.length, 'a POST still has no failover').toBeGreaterThan(1);
-		// And it is most of them, not a lucky pair: every launch provider documents POST.
-		expect(canPost.length).toBe(CAPABILITIES.length);
+		// And it is all of them but one. Every launch provider documents POST; Firecrawl's scrape
+		// endpoint fetches the target itself and takes no method, so it is the one adapter that
+		// cannot, and its `translate()` refuses rather than silently sending a GET.
+		const cannot = CAPABILITIES.filter((c) => !c.post).map((c) => c.id);
+		expect(cannot).toEqual(['firecrawl']);
 	});
 
 	it('claims sessions only where translate() sends one', () => {

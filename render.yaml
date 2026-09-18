@@ -45,3 +45,5 @@ services:
         sync: false
       - key: BRIGHTDATA_KEY
         sync: false
+      - key: FIRECRAWL_KEY
+        sync: false

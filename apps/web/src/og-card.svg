@@ -104,7 +104,7 @@
       <text x="150" y="1128">
         <tspan fill="#14171a" font-weight="600">BYOK</tspan><tspan dx="14">free forever</tspan
         ><tspan dx="52" fill="#14171a" font-weight="600">AGPL</tspan><tspan dx="14"
-        >self-hostable</tspan><tspan dx="52" fill="#14171a" font-weight="600">4</tspan><tspan
+        >self-hostable</tspan><tspan dx="52" fill="#14171a" font-weight="600">5</tspan><tspan
         dx="14">providers</tspan>
       </text>
       <text x="2250" y="1128" text-anchor="end">github.com/proxlane/proxlane</text>

@@ -19,7 +19,7 @@ export const Route = createFileRoute('/scraping-api-comparison')({
 	head: () =>
 		docHead(
 			'Scraping API comparison',
-			'What ScraperAPI, ScrapingBee, Scrapfly and Bright Data charge for the same request. Pick your request shape and see the multiplier each one applies, from their own published rates.',
+			'What ScraperAPI, ScrapingBee, Scrapfly, Bright Data and Firecrawl charge for the same request. Pick your request shape and see the multiplier each one applies, from their own published rates.',
 			'/scraping-api-comparison',
 		),
 	component: Page,

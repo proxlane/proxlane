@@ -8,4 +8,5 @@ export const REGISTRY: Record<string, () => Promise<Adapter>> = {
 	scrapingbee: () => import('./scrapingbee/index.js').then((m) => m.ScrapingbeeAdapter),
 	scrapfly: () => import('./scrapfly/index.js').then((m) => m.ScrapflyAdapter),
 	brightdata: () => import('./brightdata/index.js').then((m) => m.BrightdataAdapter),
+	firecrawl: () => import('./firecrawl/index.js').then((m) => m.FirecrawlAdapter),
 };

@@ -174,6 +174,7 @@ const SPEC_TO_TOKEN: Record<string, string> = {
 	'line-2': 'color-line-2',
 	'line-3': 'color-line-3',
 	'line-4': 'color-line-4',
+	'line-5': 'color-line-5',
 	accent: 'color-accent',
 	surface: 'color-surface',
 };
@@ -202,6 +203,7 @@ const ROLES: ReadonlyArray<readonly [string, number, string]> = [
 	['color-line-2', 3, 'diagram stroke'],
 	['color-line-3', 3, 'diagram stroke'],
 	['color-line-4', 3, 'diagram stroke'],
+	['color-line-5', 3, 'diagram stroke'],
 	// Type, fills and the focus ring — never a stroke on the map — so it is held to the text
 	// floor rather than the graphical one.
 	['color-accent', 4.5, 'accent text and focus ring'],
