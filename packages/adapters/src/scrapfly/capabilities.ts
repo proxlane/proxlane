@@ -69,6 +69,7 @@ export const capabilities: ProviderCapabilities = {
 	premiumTiers: new Set(['none', 'residential', 'stealth']),
 	// They support sessions; translate() does not wire one yet, and under-routing is safe.
 	sessions: false,
+	targetStatus: true,
 	// 50s, DELIBERATELY BELOW the other two adapters' 70s, and measured rather than chosen.
 	//
 	// Scrapfly does not time out cleanly. Against a target that is too slow for it, the

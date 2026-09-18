@@ -25,7 +25,12 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { Adapter, GatewayRequest } from '@proxlane/adapters';
+import {
+	type Adapter,
+	expectedOutcome,
+	type GatewayRequest,
+	type Outcome,
+} from '@proxlane/adapters';
 import { createFetchTransport } from '@proxlane/shared/transport';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -81,7 +86,7 @@ export interface Target {
 	 * recording. `provider-dependent` means there is no single right answer across providers
 	 * and the comparison is skipped rather than reported as a mismatch forever.
 	 */
-	readonly expect: string;
+	readonly expect: Outcome | 'provider-dependent';
 	/**
 	 * Only recorded when `--timeout-ms` forces our own deadline. A normal run skips it: no
 	 * public target stays open longer than a provider's own budget, so without the flag this
@@ -997,6 +1002,17 @@ if (import.meta.filename === process.argv[1]) {
 			skipped.push(target.category);
 			continue;
 		}
+		if (target.method === 'POST' && !adapter.capabilities.post) {
+			// The adapter refuses in translate(), by contract, and the recorder used to crash on
+			// the throw. An adapter that cannot forward a POST has no POST fixture to record, and
+			// conformance does not require one; it is reported here so the gap is a decision and
+			// not a hole in the corpus. Firecrawl is the first adapter this applied to.
+			process.stdout.write(
+				`  ${target.category.padEnd(18)} skipped — this adapter declares post: false\n`,
+			);
+			skipped.push(target.category);
+			continue;
+		}
 		if (target.needsDeadline === true && timeoutOverride === undefined) {
 			// Not a failure: without the flag this category can only record something that is
 			// not a deadline, which is how the old `timeout` fixture came to hold a 422.
@@ -1169,7 +1185,10 @@ if (import.meta.filename === process.argv[1]) {
 		} catch (err) {
 			parseError = err instanceof Error ? err.message : String(err);
 		}
-		const file = fixtureFileFor(target.category, target.expect, parsedOutcome, diff);
+		// What THIS adapter owes for the category, which is the matrix's expectation unless the
+		// provider cannot report the target's status. Same helper conformance uses.
+		const expect = expectedOutcome(adapter.capabilities, target.expect);
+		const file = fixtureFileFor(target.category, expect, parsedOutcome, diff);
 		// The FIRST refusal of a run, not the last: after it every category gets the same answer,
 		// and overwriting it would only swap which interrupted target the file names.
 		if (file === QUOTA_FIXTURE && !quotaKept) {
@@ -1188,9 +1207,9 @@ if (import.meta.filename === process.argv[1]) {
 		if (parsedOutcome === undefined) {
 			verdict = `? parse() threw: ${parseError}`;
 			unparsed.push(target.category);
-		} else if (target.expect === 'provider-dependent') {
+		} else if (expect === 'provider-dependent') {
 			verdict = `~ ${parsedOutcome} (provider-dependent, not asserted)`;
-		} else if (parsedOutcome === target.expect) {
+		} else if (parsedOutcome === expect) {
 			verdict = `= ${parsedOutcome}`;
 		} else if (parsedOutcome === 'RATE_LIMITED' || parsedOutcome === 'QUOTA_EXHAUSTED') {
 			// The wallet, not the provider. Separated here rather than in reportDiff so the

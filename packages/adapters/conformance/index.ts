@@ -17,6 +17,7 @@ import {
 	type Adapter,
 	carriesBody,
 	costOf,
+	expectedOutcome,
 	type GatewayRequest,
 	OUTCOMES,
 	type Outcome,
@@ -483,13 +484,20 @@ export async function conformOne(
 		const why = FORBIDDEN.get(result.outcome);
 		if (why !== undefined) fail('parse', `${category}: returned ${result.outcome} — ${why}`);
 
-		const expected = EXPECTED[category];
+		// Per adapter, not per category alone: a provider that never reports the target's status
+		// owes TARGET_ERROR where the matrix asks for a finer target fact. `expectedOutcome` is
+		// the one place that rule lives, shared with the recorder.
+		const raw = EXPECTED[category];
+		const expected = raw === undefined ? undefined : expectedOutcome(adapter.capabilities, raw);
 		if (
 			expected !== undefined &&
 			expected !== 'provider-dependent' &&
 			result.outcome !== expected
 		)
-			fail('parse', `${category}: expected ${expected}, got ${result.outcome}`);
+			fail(
+				'parse',
+				`${category}: expected ${expected}${raw !== expected ? ` (${raw}, but targetStatus is false)` : ''}, got ${result.outcome}`,
+			);
 
 		// THE `binary` CLAIM, ASSERTED THROUGH parse() AND IN BOTH DIRECTIONS.
 		//

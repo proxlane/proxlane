@@ -49,6 +49,7 @@ export const capabilities: ProviderCapabilities = {
 	countryCodes: new Set<string>(),
 	premiumTiers: new Set(['none']),
 	sessions: false,
+	targetStatus: true,
 	// Measured, not guessed: cold fetches of a JS-heavy page ran several seconds.
 	maxTimeoutMs: 60_000,
 	fastTimeoutMs: 25_000,

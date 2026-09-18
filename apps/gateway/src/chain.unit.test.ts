@@ -22,6 +22,7 @@ function caps(over: Partial<ProviderCapabilities> & { id: string }): ProviderCap
 		countryCodes: 'all',
 		premiumTiers: new Set(['none']),
 		sessions: false,
+		targetStatus: true,
 		post: false,
 		binary: false,
 		maxTimeoutMs: 70_000,

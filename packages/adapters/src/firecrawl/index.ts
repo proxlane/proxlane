@@ -51,6 +51,9 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 		storeInCache: false,
 		blockAds: false,
 		mobile: false,
+		// Their sample request sends `parsers: ["pdf"]`, which turns a PDF into extracted text.
+		// Empty, so a PDF arrives as the bytes it is and `binary` stays true of every body.
+		parsers: [],
 		// Their default. Pinned because a scraping provider that started verifying certificates
 		// would fail targets the other three fetch, and the change would otherwise be silent.
 		skipTlsVerification: true,
@@ -93,6 +96,23 @@ function outcomeForTarget(status: number): Outcome {
 	return 'TARGET_ERROR';
 }
 
+/**
+ * Their structured failure codes, which say more than the status they arrive on.
+ *
+ * Only codes seen in a recording are listed. Anything else falls through to the status, because
+ * a mapping for a code nobody has observed is a fabricated outcome.
+ */
+function outcomeForCode(code: string): Outcome | undefined {
+	// HTTP 200, recorded 2026-09-18 against `not-a-real-host.invalid`. "DNS is a fact about the
+	// target": the taxonomy's own definition of TARGET_ERROR.
+	if (code === 'SCRAPE_DNS_RESOLUTION_ERROR') return 'TARGET_ERROR';
+	// HTTP 500, recorded for a target 404, 503, 429 and a stall alike. The target did not serve;
+	// which way, Firecrawl does not say. See `capabilities.targetStatus` for why this is not
+	// PROVIDER_ERROR and not a guess at the finer outcome.
+	if (code === 'SCRAPE_ALL_ENGINES_FAILED') return 'TARGET_ERROR';
+	return undefined;
+}
+
 /** Firecrawl never reached the target: a fact about them or about our account. */
 function outcomeForProvider(status: number): Outcome {
 	if (status === 400) return 'INVALID_REQUEST';
@@ -108,10 +128,10 @@ function outcomeForProvider(status: number): Outcome {
 }
 
 function parse(res: ProviderHttpResponse): ParsedResult {
+	// The estimate, for paths where they report nothing: every failure, and any success whose
+	// metadata omits `creditsUsed`.
 	const cost = {
 		microcredits: cheapestCost(capabilities.costTable),
-		// The scrape response carries no charge figure. Their table is one credit per page
-		// whatever happened, so the estimate is exact in every case but the ones they refund.
 		source: 'estimated' as const,
 	};
 
@@ -123,11 +143,18 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		return { outcome: 'PROVIDER_DRIFT', cost };
 	}
 
-	if (res.status !== 200) {
-		// The status is the whole signal. The body is validated so a reshaped error is drift,
-		// but its text is never read for control flow: a reworded message must not move a 402.
+	// `success: false` CAN ARRIVE ON A 200. A dead host did, in the recording beside this file,
+	// so the flag is read before the status is. The code is the signal where one is present;
+	// the status is the fallback; the message is never read for control flow.
+	const isFailure =
+		typeof json === 'object' &&
+		json !== null &&
+		(json as { success?: unknown }).success === false;
+	if (isFailure || res.status !== 200) {
 		const err = FirecrawlError.safeParse(json);
 		if (!err.success) return { outcome: 'PROVIDER_DRIFT', cost };
+		const named = err.data.code === undefined ? undefined : outcomeForCode(err.data.code);
+		if (named !== undefined) return { outcome: named, cost };
 		return { outcome: outcomeForProvider(res.status), cost };
 	}
 
@@ -137,6 +164,14 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	const { data } = env.data;
 	const outcome = outcomeForTarget(data.metadata.statusCode);
 	const contentType = data.metadata.contentType;
+	// Their own figure when they give one. `creditsUsed: 1` was on every recorded success.
+	const reported =
+		data.metadata.creditsUsed === undefined
+			? cost
+			: {
+					microcredits: Math.round(data.metadata.creditsUsed * 1_000_000),
+					source: 'reported' as const,
+				};
 
 	// BYTES WHERE THEY EXIST. `rawBase64` round-trips the wire body exactly, so the charset is
 	// whatever the page declared and is left for the gateway to resolve from the body and the
@@ -149,7 +184,7 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 			body: Uint8Array.from(Buffer.from(data.rawBase64, 'base64')),
 			...(contentType === undefined ? {} : { contentType }),
 			upstreamStatusCode: data.metadata.statusCode,
-			cost,
+			cost: reported,
 		};
 	}
 	if (typeof data.rawHtml === 'string') {
@@ -159,7 +194,7 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 			charset: 'utf-8',
 			...(contentType === undefined ? {} : { contentType }),
 			upstreamStatusCode: data.metadata.statusCode,
-			cost,
+			cost: reported,
 		};
 	}
 	// A success envelope with neither format we asked for is not a page. Drift, so somebody

@@ -102,6 +102,10 @@ export interface ProviderCapabilities {
   countryCodes: ReadonlySet<string> | 'all';
   premiumTiers: ReadonlySet<PremiumTier>;
   sessions: boolean;
+  targetStatus: boolean;          // does a failed fetch carry the target's status? Firecrawl
+                                  // measured false 2026-09-18: 404, 503, 429 and a stall all
+                                  // arrive as one 500, so every target failure is TARGET_ERROR
+                                  // there and the chain moves on. expectedOutcome() applies it
   maxTimeoutMs: number;           // budget on the LAST hop, e.g. scraperapi: 75_000
   fastTimeoutMs: number;          // budget on a non-terminal hop, e.g. scraperapi: 22_000
   post: boolean;

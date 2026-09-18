@@ -82,6 +82,7 @@ export const capabilities: ProviderCapabilities = {
 	countryCodes: 'all',
 	premiumTiers: new Set(['none', 'residential', 'stealth']),
 	sessions: true,
+	targetStatus: true,
 	/**
 	 * Sessions and premium proxies are mutually exclusive here, which no independent field could
 	 * say. Their parameter table, verbatim: `session_number` "(Can not be combined with

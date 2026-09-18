@@ -89,6 +89,15 @@ export const capabilities: ProviderCapabilities = {
 	// `basic` only, until `enhanced` has a published price. See the cost table.
 	premiumTiers: new Set(['none']),
 	sessions: false,
+	/**
+	 * MEASURED FALSE, 2026-09-18, against the recorder's own matrix: `/status/404`, `/status/503`,
+	 * `/status/429` and a 30-second delay each came back HTTP 500 `SCRAPE_ALL_ENGINES_FAILED`
+	 * with the same message. Their API reference says a target 404 arrives as `success: true`
+	 * with `metadata.statusCode`; the fixtures beside this file say otherwise. Every target
+	 * failure is therefore `TARGET_ERROR` here, and the chain moves on to a provider that can
+	 * say what it was. See `ProviderCapabilities.targetStatus`.
+	 */
+	targetStatus: false,
 	// Their `timeout` accepts 1 000 to 300 000 ms and defaults to 60 000. Bounded to ours.
 	maxTimeoutMs: 90_000,
 	fastTimeoutMs: 30_000,

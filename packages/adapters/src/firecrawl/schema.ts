@@ -23,6 +23,12 @@ export const FirecrawlEnvelope = z.object({
 			sourceURL: z.string().optional(),
 			url: z.string().optional(),
 			error: z.string().nullable().optional(),
+			// Recorded 2026-09-18 on every success: `creditsUsed: 1`, `proxyUsed: "basic"`. Neither
+			// is in the API reference's response schema, and both are what makes the cost
+			// `reported` rather than our estimate. Optional, so their absence is a cheaper cost
+			// figure and not drift.
+			creditsUsed: z.number().nonnegative().optional(),
+			proxyUsed: z.string().optional(),
 		}),
 		warning: z.string().nullable().optional(),
 	}),
@@ -30,9 +36,13 @@ export const FirecrawlEnvelope = z.object({
 export type FirecrawlEnvelope = z.infer<typeof FirecrawlEnvelope>;
 
 /**
- * Their error body. `error` is the message; `code` is present on some paths (`UNKNOWN_ERROR`
- * on a 500) and absent on others (402, 429). Both optional, because the STATUS decides the
- * outcome and a reworded message must not turn a clear 402 into drift.
+ * Their failure body, ON ANY STATUS. Recorded 2026-09-18: a dead host is HTTP 200 with
+ * `success: false, code: "SCRAPE_DNS_RESOLUTION_ERROR"`, and every target failure is HTTP 500
+ * with `code: "SCRAPE_ALL_ENGINES_FAILED"`. So `success` is read before the status is, and
+ * `code` is what parse() branches on. `error` is prose and never read for control flow.
+ *
+ * All optional: 402 and 429 bodies are `{"error": …}` with no `success` and no `code`, and the
+ * STATUS decides those.
  */
 export const FirecrawlError = z.object({
 	success: z.literal(false).optional(),

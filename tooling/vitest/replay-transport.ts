@@ -193,11 +193,13 @@ function safeHost(url: string): string {
 }
 
 function matchesRenderJs(where: string, recordedRenderJs: boolean): boolean {
-	// Two spellings, because a query string says `render=true` and a JSON body says
-	// `"render":true`. Matching only the first read every POST-body request as non-rendered,
-	// so a rendered recording could never be served to the request that asked for it.
+	// Three spellings. A query string says `render=true`, a JSON body says `"render":true`, and
+	// Firecrawl has no render flag at all: asking for `rawHtml` is asking for the rendered DOM,
+	// and `rawBase64` is the wire bytes. Matching only the first read every POST-body request as
+	// non-rendered, so a rendered recording could never be served to the request that asked.
 	const asked =
 		/(?:render_js|render|renderJs)=true/i.test(where) ||
-		/"(?:render_js|render|renderJs)"\s*:\s*true/i.test(where);
+		/"(?:render_js|render|renderJs)"\s*:\s*true/i.test(where) ||
+		/"formats"\s*:\s*\[\s*"rawHtml"\s*\]/.test(where);
 	return asked === recordedRenderJs;
 }
