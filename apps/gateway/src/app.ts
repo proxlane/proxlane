@@ -12,6 +12,7 @@ import {
 	type Adapter,
 	carriesBody,
 	type GatewayRequest,
+	type Outcome,
 	outcomeClass,
 	policyFor,
 } from '@proxlane/adapters';
@@ -33,6 +34,7 @@ import type { HealthStore } from './health-store.js';
 import { InflightLimiter, retryAfterSeconds } from './inflight.js';
 import { accountOnlyChain, hostOf, type RequestLine, timings } from './log.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
+import { parseSimulate, SIMULATE_HEADER, simulate } from './simulate.js';
 import { VERSION } from './version.js';
 
 export interface AppDeps {
@@ -41,6 +43,12 @@ export interface AppDeps {
 	readonly candidates: ReadonlyArray<{ adapter: Adapter; key: string }>;
 	/** The gateway's own key. Callers present this; provider keys never leave the server. */
 	readonly apiKey: string;
+	/**
+	 * A second key class that can never spend. A request authenticated with it is answered by
+	 * `simulate()` from the outcome table and no provider is called; `X-Proxlane-Simulate`
+	 * picks the outcome, and OK is the default. Omit to run without a sandbox. See `simulate.ts`.
+	 */
+	readonly sandboxKey?: string;
 	readonly maxBodyBytes: number;
 	readonly defaultDeadlineMs: number;
 	/**
@@ -644,7 +652,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	const limiter =
 		deps.maxInflight === undefined ? undefined : new InflightLimiter(deps.maxInflight);
 
-	const served = async (c: Context<Vars>) => {
+	const served = async (c: Context<Vars>, sandbox: boolean) => {
 		const url = c.req.query('url');
 		if (url === undefined || url === '') {
 			return errorWith(c, 400, {
@@ -812,22 +820,52 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			}
 		}
 
-		const result = await runChain(req, {
-			transport: deps.transport,
-			candidates,
-			maxBodyBytes: deps.maxBodyBytes,
-			// THE CLIENT'S SIGNAL, WHICH NOTHING READ. `c.req.raw.signal` has always been here
-			// and was never threaded anywhere, so a caller that hung up at 5s left the chain
-			// walking every provider for the full deadline — 120s by default — paying each hop
-			// and discarding the response. The in-flight slot was held for all of it, so the
-			// gateway shed real traffic at `maxInflight` to protect a request nobody was waiting
-			// for.
-			clientSignal: c.req.raw.signal,
-			...(deps.health === undefined ? {} : { health: deps.health }),
-			...(deps.cooldowns === undefined ? {} : { cooldowns: deps.cooldowns }),
-			...(deps.orgId === undefined ? {} : { orgId: deps.orgId }),
-			...(deps.terminalRetries === undefined ? {} : { terminalRetries: deps.terminalRetries }),
-		});
+		// THE SANDBOX ANSWERS HERE, after every validation above and before any provider. A
+		// sandbox request with a bad `url` or `premium` gets the same 400 a live one would, so a
+		// caller's test suite exercises our validation for free; only the provider call is
+		// replaced. The header was validated at auth time, so a bad value never reaches this.
+		let simulated: Outcome | undefined;
+		if (sandbox) {
+			const parsed = parseSimulate(c.req.header(SIMULATE_HEADER));
+			if ('error' in parsed) {
+				return errorWith(c, 400, {
+					code: 'BAD_REQUEST',
+					message: parsed.error,
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
+			simulated = parsed.outcome;
+		}
+		const result: ChainResult =
+			simulated !== undefined
+				? simulate(
+						simulated,
+						candidates.map((x) => x.adapter.capabilities.id),
+						req,
+					)
+				: await runChain(req, {
+						transport: deps.transport,
+						candidates,
+						maxBodyBytes: deps.maxBodyBytes,
+						// THE CLIENT'S SIGNAL, WHICH NOTHING READ. `c.req.raw.signal` has always been here
+						// and was never threaded anywhere, so a caller that hung up at 5s left the chain
+						// walking every provider for the full deadline — 120s by default — paying each hop
+						// and discarding the response. The in-flight slot was held for all of it, so the
+						// gateway shed real traffic at `maxInflight` to protect a request nobody was waiting
+						// for.
+						clientSignal: c.req.raw.signal,
+						...(deps.health === undefined ? {} : { health: deps.health }),
+						...(deps.cooldowns === undefined ? {} : { cooldowns: deps.cooldowns }),
+						...(deps.orgId === undefined ? {} : { orgId: deps.orgId }),
+						...(deps.terminalRetries === undefined
+							? {}
+							: { terminalRetries: deps.terminalRetries }),
+					});
+
+		// Named on every sandbox response, so a simulated 200 that leaks into a real pipeline is
+		// caught by the first thing that reads headers rather than by a customer.
+		const simulatedHeader =
+			simulated === undefined ? {} : { 'X-Proxlane-Simulated': simulated };
 
 		const policy = policyFor(result.outcome);
 		// 'upstream' means pass the TARGET's status through — the drop-in promise: a caller
@@ -842,6 +880,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			const contentType = result.result.contentType ?? 'application/octet-stream';
 			return c.body(result.result.body as unknown as ArrayBuffer, status as 200, {
 				...headersFor(result, performance.now() - c.get('startedAt')),
+				...simulatedHeader,
 				'Content-Type': contentType,
 			});
 		}
@@ -862,18 +901,36 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
 			}),
 			status as 502,
-			headersFor(result, performance.now() - c.get('startedAt')),
+			{ ...headersFor(result, performance.now() - c.get('startedAt')), ...simulatedHeader },
 		);
 	};
 
 	const handler = async (c: Context<Vars>) => {
-		if (!keyMatches(presentedKey(c), deps.apiKey)) {
+		const presented = presentedKey(c);
+		// The sandbox key is a KEY CLASS, not a flag on the live key. Which class a request
+		// belongs to is decided once, here, by the credential it carries — never by the header,
+		// which anyone can send.
+		const sandbox = deps.sandboxKey !== undefined && keyMatches(presented, deps.sandboxKey);
+		if (!sandbox && !keyMatches(presented, deps.apiKey)) {
 			// NOT an Outcome. The taxonomy describes what happened to a scrape; this request
 			// never became one. Reusing AUTH_FAILED here would put gateway auth failures into
 			// the provider health statistics.
 			return errorWith(c, 401, {
 				code: 'UNAUTHORIZED',
 				message: 'api_key missing or incorrect',
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
+		}
+		// LOUD, NEVER IGNORED. A live key carrying the simulate header is a caller who believes
+		// they are in a sandbox. Running the request anyway would spend real credits on a test,
+		// and dropping the header silently would let the test pass against the wrong thing.
+		// Refusing is the only answer that cannot cost them money or teach them a falsehood.
+		if (!sandbox && c.req.header(SIMULATE_HEADER) !== undefined) {
+			return errorWith(c, 400, {
+				code: 'BAD_REQUEST',
+				message:
+					'X-Proxlane-Simulate is honoured only for the sandbox key (PROXLANE_SANDBOX_KEY). ' +
+					'This key would have spent real credits, so the request was refused rather than run',
 				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
 			});
 		}
@@ -912,7 +969,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		}
 
 		try {
-			return await served(c);
+			return await served(c, sandbox);
 		} finally {
 			// FINALLY, not the success path. A throw that skipped this leaks a slot for the
 			// lifetime of the process, and enough of them wedge the gateway at a ceiling it

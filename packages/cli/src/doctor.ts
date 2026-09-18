@@ -229,6 +229,7 @@ function routingChecks(): Check[] {
 		backpressureCheck(),
 		terminalRetryCheck(),
 		loggingCheck(),
+		sandboxCheck(),
 	];
 }
 
@@ -240,6 +241,38 @@ function routingChecks(): Check[] {
  * line will and will not contain, because the second question is always whether the log is safe
  * to paste into an issue.
  */
+/**
+ * The sandbox key, and the one way it can be set wrong.
+ *
+ * A new subsystem ships with its doctor check in the same PR (CLAUDE.md), and this one has a
+ * single misconfiguration worth catching: equal to the live key. The gateway refuses to boot on
+ * that, so here it reads as a diagnosis of why the container is restarting rather than a
+ * warning nobody sees.
+ */
+function sandboxCheck(): Check {
+	const sandbox = env('PROXLANE_SANDBOX_KEY');
+	const live = env('PROXLANE_API_KEY');
+	if (sandbox === undefined || sandbox === '') {
+		return {
+			name: 'sandbox',
+			ok: true,
+			detail:
+				'off. Set PROXLANE_SANDBOX_KEY for a key that answers /v1 from the outcome table and calls no provider',
+		};
+	}
+	const same = live !== undefined && sandbox === live;
+	return {
+		name: 'sandbox',
+		ok: !same,
+		detail: same
+			? 'PROXLANE_SANDBOX_KEY equals PROXLANE_API_KEY. The gateway refuses to boot this way: every request would be a sandbox request'
+			: 'on. X-Proxlane-Simulate with the sandbox key answers from the outcome table and calls no provider',
+		...(same
+			? { fix: 'set PROXLANE_SANDBOX_KEY to a different value: openssl rand -hex 32' }
+			: {}),
+	};
+}
+
 function loggingCheck(): Check {
 	const on = (env('PROXLANE_LOG') ?? 'on') !== 'off';
 	const urls = (env('PROXLANE_LOG_URLS') ?? 'off') === 'on';

@@ -226,6 +226,43 @@ happened to a scrape, and a request rejected at the door never became one.
 `attempts` lists what was tried and what each provider said. That is the grain you need when
 debugging a failover.
 
+## Sandbox
+
+Set `PROXLANE_SANDBOX_KEY` on the gateway and you have a second key that can never spend. A
+request authenticated with it is answered from the outcome table, with the real headers, and
+no provider is called:
+
+```bash
+curl "http://localhost:8787/v1?url=https://example.com" \
+  -H "Authorization: Bearer $PROXLANE_SANDBOX_KEY" \
+  -H "X-Proxlane-Simulate: SOFT_BLOCK"
+```
+
+```
+HTTP/1.1 502
+X-Outcome: SOFT_BLOCK
+X-Outcome-Class: blocked
+X-Attempts: 3
+X-Chain: scraperapi:SOFT_BLOCK>scrapfly:SOFT_BLOCK>scrapingbee:SOFT_BLOCK
+X-Detect-Rule: cf-challenge
+X-Proxlane-Simulated: SOFT_BLOCK
+X-Cost-Estimate: 0.000000
+```
+
+`X-Proxlane-Simulate` names any [outcome](/docs/outcomes); leave it out and you get `OK`. The
+status, the attempt count and whether a body comes back are all read from the same table the
+router uses, so a simulated `PROVIDER_TIMEOUT` walks every configured provider and answers 504
+exactly as the real one would. Every sandbox response carries `X-Proxlane-Simulated`.
+
+The request is still validated first: a bad `url` or `premium` gets the same 400 it would live.
+
+**With the live key, the header is refused.** A caller who sends `X-Proxlane-Simulate` believes
+they are testing, so the gateway answers 400 `BAD_REQUEST` rather than spend real credits or
+silently drop the header. That is the only way it cannot cost you money or tell you a test
+passed against the wrong thing.
+
+The sandbox key opens `/v1` only. `/health/*` still wants the live key.
+
 ## Backpressure
 
 Past its concurrency ceiling the gateway returns **429 `GATEWAY_BUSY`** with `Retry-After`.
