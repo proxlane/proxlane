@@ -21,6 +21,7 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 - [Migrate from ScraperAPI](https://proxlane.dev/migrate/scraperapi): scraperapi drop-in replacement
 - [Migrate from ScrapingBee](https://proxlane.dev/migrate/scrapingbee): scrapingbee alternative open source
 - [Quickstart](https://proxlane.dev/docs/quickstart): Make your first request in about a minute.
+- [Getting provider keys](https://proxlane.dev/docs/providers): Which provider to start with, where to get a key, and what to set.
 - [Hosting](https://proxlane.dev/docs/hosting): Where the gateway runs well, where it runs badly, and why.
 - [API reference](https://proxlane.dev/docs/api): Every endpoint, parameter and header the gateway implements.
 - [Outcomes](https://proxlane.dev/docs/outcomes): What every result means, what it returns, and whether to retry.

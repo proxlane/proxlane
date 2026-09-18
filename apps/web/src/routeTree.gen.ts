@@ -22,6 +22,7 @@ import { Route as DocsFailoverRouteImport } from './routes/docs/failover'
 import { Route as DocsFaqRouteImport } from './routes/docs/faq'
 import { Route as DocsHostingRouteImport } from './routes/docs/hosting'
 import { Route as DocsOutcomesRouteImport } from './routes/docs/outcomes'
+import { Route as DocsProvidersRouteImport } from './routes/docs/providers'
 import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
 import { Route as DocsUseCasesRouteImport } from './routes/docs/use-cases'
 import { Route as MigrateIndexRouteImport } from './routes/migrate/index'
@@ -99,6 +100,11 @@ const DocsOutcomesRoute = DocsOutcomesRouteImport.update({
   path: '/docs/outcomes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsProvidersRoute = DocsProvidersRouteImport.update({
+  id: '/docs/providers',
+  path: '/docs/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsQuickstartRoute = DocsQuickstartRouteImport.update({
   id: '/docs/quickstart',
   path: '/docs/quickstart',
@@ -171,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/docs/faq': typeof DocsFaqRoute
   '/docs/hosting': typeof DocsHostingRoute
   '/docs/outcomes': typeof DocsOutcomesRoute
+  '/docs/providers': typeof DocsProvidersRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
@@ -197,6 +204,7 @@ export interface FileRoutesByTo {
   '/docs/faq': typeof DocsFaqRoute
   '/docs/hosting': typeof DocsHostingRoute
   '/docs/outcomes': typeof DocsOutcomesRoute
+  '/docs/providers': typeof DocsProvidersRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/docs/faq': typeof DocsFaqRoute
   '/docs/hosting': typeof DocsHostingRoute
   '/docs/outcomes': typeof DocsOutcomesRoute
+  '/docs/providers': typeof DocsProvidersRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
@@ -252,6 +261,7 @@ export interface FileRouteTypes {
     | '/docs/faq'
     | '/docs/hosting'
     | '/docs/outcomes'
+    | '/docs/providers'
     | '/docs/quickstart'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
@@ -278,6 +288,7 @@ export interface FileRouteTypes {
     | '/docs/faq'
     | '/docs/hosting'
     | '/docs/outcomes'
+    | '/docs/providers'
     | '/docs/quickstart'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
@@ -304,6 +315,7 @@ export interface FileRouteTypes {
     | '/docs/faq'
     | '/docs/hosting'
     | '/docs/outcomes'
+    | '/docs/providers'
     | '/docs/quickstart'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
@@ -331,6 +343,7 @@ export interface RootRouteChildren {
   DocsFaqRoute: typeof DocsFaqRoute
   DocsHostingRoute: typeof DocsHostingRoute
   DocsOutcomesRoute: typeof DocsOutcomesRoute
+  DocsProvidersRoute: typeof DocsProvidersRoute
   DocsQuickstartRoute: typeof DocsQuickstartRoute
   DocsUseCasesRoute: typeof DocsUseCasesRoute
   MigrateScraperapiRoute: typeof MigrateScraperapiRoute
@@ -438,6 +451,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsOutcomesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/providers': {
+      id: '/docs/providers'
+      path: '/docs/providers'
+      fullPath: '/docs/providers'
+      preLoaderRoute: typeof DocsProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs/quickstart': {
       id: '/docs/quickstart'
       path: '/docs/quickstart'
@@ -531,6 +551,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsFaqRoute: DocsFaqRoute,
   DocsHostingRoute: DocsHostingRoute,
   DocsOutcomesRoute: DocsOutcomesRoute,
+  DocsProvidersRoute: DocsProvidersRoute,
   DocsQuickstartRoute: DocsQuickstartRoute,
   DocsUseCasesRoute: DocsUseCasesRoute,
   MigrateScraperapiRoute: MigrateScraperapiRoute,

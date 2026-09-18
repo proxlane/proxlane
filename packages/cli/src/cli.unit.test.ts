@@ -257,6 +257,11 @@ describe('doctor', () => {
 			expect(agg, 'no aggregate providers check').toBeDefined();
 			expect(agg.ok).toBe(false);
 			expect(agg.fix, 'a failing check must say what to do').toBeTruthy();
+			// Somebody with no keys at all usually has no provider ACCOUNT either, so the
+			// variable names alone are not an answer. The page is the only place referral
+			// links live (`plan.md` §14), which is also why the terminal names it rather
+			// than linking the providers.
+			expect(agg.fix).toContain('https://proxlane.dev/docs/providers');
 		} finally {
 			for (const [k, v] of saved) if (v !== undefined) process.env[k] = v;
 		}

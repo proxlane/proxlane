@@ -22,6 +22,7 @@ export const DOC_NAV: readonly DocNavItem[] = [
 	{ to: '/docs', title: 'Overview' },
 	{ to: '/docs/faq', title: 'FAQ' },
 	{ to: '/docs/quickstart', title: 'Quickstart' },
+	{ to: '/docs/providers', title: 'Getting provider keys' },
 	{ to: '/docs/hosting', title: 'Hosting' },
 	{ to: '/docs/api', title: 'API reference' },
 	{ to: '/docs/outcomes', title: 'Outcomes' },
