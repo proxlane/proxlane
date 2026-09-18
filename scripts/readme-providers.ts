@@ -37,7 +37,7 @@ export const END = '<!-- /generated:providers -->';
  * this list is only ever the remainder. A name that gains an adapter must be deleted here, and
  * the assertion below catches it if it is not.
  */
-const PLANNED = ['Zyte', 'Oxylabs Web Scraper API', 'ScrapingAnt', 'Firecrawl'] as const;
+const PLANNED = ['Zyte', 'Oxylabs Web Scraper API', 'ScrapingAnt'] as const;
 
 /**
  * Display names, because `brightdata` is not what Bright Data calls itself.
@@ -52,6 +52,7 @@ export const NAMES: Record<string, string> = {
 	scrapingbee: 'ScrapingBee',
 	scrapfly: 'Scrapfly',
 	brightdata: 'Bright Data Web Unlocker',
+	firecrawl: 'Firecrawl',
 };
 
 /**
@@ -67,6 +68,7 @@ export const PROSE: Record<string, string> = {
 	scrapingbee: 'ScrapingBee',
 	scrapfly: 'Scrapfly',
 	brightdata: 'Bright Data',
+	firecrawl: 'Firecrawl',
 };
 
 interface Row {

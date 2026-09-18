@@ -49,7 +49,7 @@ function Home() {
 					title="No signup, nothing to paste"
 					lead={[
 						'One hostname, and the chain is running.',
-						'The keys already in your environment are found without configuration. This is the gateway: four providers, failover, and the detector, in the first command you type.',
+						'The keys already in your environment are found without configuration. This is the gateway: five providers, failover, and the detector, in the first command you type.',
 					]}
 				>
 					<Quickstart />
@@ -103,7 +103,7 @@ function Home() {
 				</Station>
 				<Station
 					label="lines"
-					title="Four providers, four lines"
+					title="Five providers, five lines"
 					lead={['They are not interchangeable, which is the point.', linesLead()]}
 				>
 					<Lines />

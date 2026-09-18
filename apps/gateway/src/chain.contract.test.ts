@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { type Adapter, REGISTRY } from '@proxlane/adapters';
+import { type Adapter, expectedOutcome, REGISTRY } from '@proxlane/adapters';
 import type { HttpTransport } from '@proxlane/shared/transport';
 import {
 	createReplayTransport,
@@ -68,7 +68,11 @@ describe.each(IDS)('%s, through the full chain against its own recordings', (id)
 		['target-error', 'TARGET_ERROR'],
 	] as const;
 
-	for (const [category, expected] of cases) {
+	for (const [category, matrix] of cases) {
+		// Per adapter: a provider that never reports the target's status owes TARGET_ERROR
+		// where the matrix asks for a finer target fact. The same helper conformance and the
+		// recorder use, so all three agree on what a recording should say.
+		const expected = expectedOutcome((adapters.get(id) as Adapter).capabilities, matrix);
 		it(`${category} → ${expected}`, async () => {
 			const target = targetOf(id, category);
 			const { deps } = chainOver(fixtures(id), [id]);

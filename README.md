@@ -184,10 +184,10 @@ you configured and the URL you asked for.
 | ScrapingBee | **shipped** | yes | 42 regions | — | yes | 5× |
 | Scrapfly | **shipped** | yes | all | — | yes | 6× |
 | Bright Data Web Unlocker | **shipped** | yes | all | — | yes | 1× |
+| Firecrawl | **shipped** | yes | 26 regions | — | — | 1× |
 | Zyte | planned | | | | | |
 | Oxylabs Web Scraper API | planned | | | | | |
 | ScrapingAnt | planned | | | | | |
-| Firecrawl | planned | | | | | |
 <!-- /generated:providers -->
 
 Want one that is not here? [Open an issue](https://github.com/proxlane/proxlane/issues),
@@ -262,7 +262,7 @@ That is the whole contribution bar. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 **Works today**, and every line of it is covered by a command you can run:
 
-- **Four adapters** — ScraperAPI, ScrapingBee, Scrapfly, Bright Data — each recorded against
+- **Five adapters**, ScraperAPI, ScrapingBee, Scrapfly, Bright Data and Firecrawl, each recorded against
   its live API, with `pnpm conformance` asserting purity, capability honesty and the outcome
   mapping. The table above is generated from the registry, so it cannot lag behind this line.
 - **The failover chain**: capability filtering, per-hop budgets that reserve time for the

@@ -34,6 +34,8 @@ const DEVICE_PARAM: Record<string, string | null> = {
 	scrapingbee: 'device',
 	scrapfly: 'os',
 	brightdata: null,
+	// `mobile`, a boolean in the JSON body rather than a query parameter, pinned false.
+	firecrawl: 'mobile',
 };
 
 const req: GatewayRequest = {
@@ -45,7 +47,9 @@ const req: GatewayRequest = {
 };
 
 /**
- * Query parameters for a GET adapter; a POST adapter's body is not searched here.
+ * The parameters an adapter sends: the query string for a GET adapter, the top-level keys of
+ * the JSON body for one that POSTs its request. Firecrawl is the second kind, and pins
+ * `mobile` in the body rather than the URL.
  *
  * `REGISTRY` holds lazy loaders rather than adapters, which is what makes registering one the
  * single act that enrols it in conformance. Awaited here for the same reason.
@@ -54,8 +58,14 @@ async function sentParams(id: string): Promise<URLSearchParams | undefined> {
 	const load = REGISTRY[id];
 	if (load === undefined) return undefined;
 	const out = (await load()).translate(req, 'K');
-	if (out.method !== 'GET') return undefined;
-	return new URL(out.url).searchParams;
+	if (out.method === 'GET') return new URL(out.url).searchParams;
+	if (out.body === undefined) return undefined;
+	const json = JSON.parse(out.body) as Record<string, unknown>;
+	const p = new URLSearchParams();
+	for (const [k, v] of Object.entries(json)) {
+		if (v !== undefined && v !== null && typeof v !== 'object') p.set(k, String(v));
+	}
+	return p;
 }
 
 describe('the device dimension is pinned wherever it exists', () => {

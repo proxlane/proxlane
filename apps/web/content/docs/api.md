@@ -143,7 +143,7 @@ carries `X-Outcome-Class`, `X-Attempts: 0` and `X-Cost-Estimate: 0.000000`. It h
 `X-Outcome`, because the taxonomy describes what happened to a scrape and that request never
 became one. This is the reason to branch on the class.
 
-**`X-Cost-Source` tells you whose number it is.** Three of the four providers report what they
+**`X-Cost-Source` tells you whose number it is.** Three of the five providers report what they
 charged on the response itself, and the adapter passes that straight through. `estimated` means
 they said nothing and we applied our own table for that provider, a figure worth treating with
 more suspicion than a reported one, because it is our model of their pricing rather than their

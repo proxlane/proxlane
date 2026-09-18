@@ -1,0 +1,34 @@
+{
+	"kind": "exchange",
+	"category": "dead-host",
+	"recordedAt": "2026-09-18T14:08:04.236Z",
+	"adapter": "firecrawl",
+	"target": {
+		"url": "https://not-a-real-host.invalid/",
+		"renderJs": false
+	},
+	"expect": "TARGET_ERROR",
+	"request": {
+		"method": "POST",
+		"url": "https://api.firecrawl.dev/v2/scrape",
+		"headers": {
+			"authorization": "REDACTED",
+			"content-type": "application/json",
+			"accept": "application/json"
+		},
+		"body": "{\"url\":\"https://not-a-real-host.invalid/\",\"formats\":[\"rawBase64\"],\"onlyMainContent\":false,\"onlyCleanContent\":false,\"maxAge\":0,\"storeInCache\":false,\"blockAds\":true,\"mobile\":false,\"parsers\":[],\"skipTlsVerification\":false,\"proxy\":\"basic\",\"waitFor\":0,\"timeout\":90000}"
+	},
+	"response": {
+		"status": 200,
+		"headers": {
+			"access-control-allow-origin": "*",
+			"content-length": "493",
+			"content-type": "application/json; charset=utf-8",
+			"date": "VOLATILE",
+			"etag": "W/\"1ed-wPW7uB+u2aBq/XwrLBsT/bJikKY\"",
+			"x-response-time": "208.790ms"
+		},
+		"bodyBase64": "eyJzdWNjZXNzIjpmYWxzZSwiY29kZSI6IlNDUkFQRV9ETlNfUkVTT0xVVElPTl9FUlJPUiIsImVycm9yIjoiRE5TIHJlc29sdXRpb24gZmFpbGVkIGZvciBob3N0bmFtZSBcIm5vdC1hLXJlYWwtaG9zdC5pbnZhbGlkXCIuIFRoaXMgbWVhbnMgdGhlIGRvbWFpbiBuYW1lIGNvdWxkIG5vdCBiZSB0cmFuc2xhdGVkIHRvIGFuIElQIGFkZHJlc3MuIFBvc3NpYmxlIGNhdXNlczogKDEpIFRoZSBkb21haW4gbmFtZSBpcyBtaXNzcGVsbGVkIChjaGVjayBmb3IgdHlwb3MpLCAoMikgVGhlIGRvbWFpbiBkb2VzIG5vdCBleGlzdCBvciBoYXMgZXhwaXJlZCwgKDMpIFRoZSBETlMgc2VydmVycyBhcmUgdGVtcG9yYXJpbHkgdW5hdmFpbGFibGUsIG9yICg0KSBUaGUgZG9tYWluIHdhcyByZWNlbnRseSByZWdpc3RlcmVkIGFuZCBETlMgaGFzIG5vdCBwcm9wYWdhdGVkIHlldC4gUGxlYXNlIHZlcmlmeSB0aGUgVVJMIGlzIGNvcnJlY3QgYW5kIHRoZSB3ZWJzaXRlIGV4aXN0cy4ifQ==",
+		"bodyBytes": 493
+	}
+}

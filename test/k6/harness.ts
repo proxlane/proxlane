@@ -48,6 +48,7 @@ function mockAdapter(endpoint: string, line: 1 | 2 | 3, id: string): Adapter {
 			renderJs: true,
 			waitForSelector: true,
 			countryCodes: 'all',
+			targetStatus: true,
 			premiumTiers: new Set(['none', 'residential', 'stealth']),
 			sessions: true,
 			// Short, deliberately. A soak that inherits ScraperAPI's 75-second terminal budget

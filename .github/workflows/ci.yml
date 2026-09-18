@@ -124,6 +124,12 @@ jobs:
             || { echo "::error::gitleaks ${VERSION} downloaded but its checksum does not match the pin. The download succeeded, so this is the artifact having changed. Verify against the release's checksums.txt before touching the pin."; exit 1; }
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           /tmp/gitleaks detect --source . --redact --no-banner --exit-code 1
+          # A SECOND PASS OVER THE WORKING TREE, because the first cannot see a fixture.
+          # `.gitattributes` marks `**/fixtures/**` as `-diff`, so in git's own view every
+          # fixture is "Binary files differ" and a history scan never reads the bytes — which
+          # are the one place a provider key would land if the recorder's sanitiser missed.
+          # Found in review of the fifth adapter, the first to add nine fixtures in one PR.
+          /tmp/gitleaks detect --source . --no-git --redact --no-banner --exit-code 1
 
   # Not "no infrastructure in the diff" as a habit — as a check. The repo is going public
   # and a CI grep cannot see anything already at HEAD, so this only holds the line forward.

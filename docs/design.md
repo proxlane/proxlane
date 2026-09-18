@@ -54,6 +54,7 @@ left over.
 --map-line-2     #E8590C   provider line, orange
 --map-line-3     #5F3DC4   provider line, violet
 --map-line-4     #2B8A3E   provider line, green
+--map-line-5     #5C940D   provider line, lime
 --map-accent     #C2255C   the product's own colour: links, focus, selected state
 --map-surface    #FFFFFF   panels and code, laid on the paper
 ```

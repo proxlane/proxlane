@@ -48,12 +48,13 @@ jobs:
           SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
           SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
           BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
+          FIRECRAWL_KEY: ${{ secrets.FIRECRAWL_KEY }}
         run: |
-          if [ -n "$SCRAPERAPI_KEY" ] || [ -n "$SCRAPINGBEE_KEY" ] || [ -n "$SCRAPFLY_KEY" ] || [ -n "$BRIGHTDATA_KEY" ]; then
+          if [ -n "$SCRAPERAPI_KEY" ] || [ -n "$SCRAPINGBEE_KEY" ] || [ -n "$SCRAPFLY_KEY" ] || [ -n "$BRIGHTDATA_KEY" ] || [ -n "$FIRECRAWL_KEY" ]; then
             echo "yes=true" >> "$GITHUB_OUTPUT"
           else
             echo "yes=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=canary::No provider key secrets are set, so the canary is dormant. The three-week launch gate clock has NOT started. Add SCRAPERAPI_KEY, SCRAPINGBEE_KEY, SCRAPFLY_KEY or BRIGHTDATA_KEY."
+            echo "::warning title=canary::No provider key secrets are set, so the canary is dormant. The three-week launch gate clock has NOT started. Add SCRAPERAPI_KEY, SCRAPINGBEE_KEY, SCRAPFLY_KEY, BRIGHTDATA_KEY or FIRECRAWL_KEY."
           fi
       - id: run
         if: steps.implemented.outputs.yes == 'true' && steps.keyed.outputs.yes == 'true'
@@ -68,6 +69,7 @@ jobs:
           # The fourth adapter. Without it `test:live` generated zero tests for Bright Data
           # and the canary went green anyway — a blind spot the size of a whole provider.
           BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
+          FIRECRAWL_KEY: ${{ secrets.FIRECRAWL_KEY }}
         run: pnpm test:live
       - if: steps.keyed.outputs.yes == 'true' && steps.run.outcome == 'failure'
         shell: bash
@@ -173,6 +175,8 @@ jobs:
             secret: SCRAPFLY_KEY
           - adapter: brightdata
             secret: BRIGHTDATA_KEY
+          - adapter: firecrawl
+            secret: FIRECRAWL_KEY
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup
@@ -196,6 +200,7 @@ jobs:
           SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
           SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
           BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
+          FIRECRAWL_KEY: ${{ secrets.FIRECRAWL_KEY }}
         id: diff
         # `shell: bash`, which GitHub runs as `bash -eo pipefail`. The implicit default is
         # `bash -e` with NO pipefail, so `record ... | tee` exited with tee's 0 and this step went
@@ -222,6 +227,7 @@ jobs:
           SCRAPINGBEE_KEY: ${{ secrets.SCRAPINGBEE_KEY }}
           SCRAPFLY_KEY: ${{ secrets.SCRAPFLY_KEY }}
           BRIGHTDATA_KEY: ${{ secrets.BRIGHTDATA_KEY }}
+          FIRECRAWL_KEY: ${{ secrets.FIRECRAWL_KEY }}
         # pipefail, for the reason on the step above.
         shell: bash
         run: pnpm record --diff --adapter=${{ matrix.adapter }} --only=deadline --timeout-ms=5000 2>&1 | tee /tmp/diff-deadline.txt

@@ -17,9 +17,9 @@ awesome-selfhosted from **12-12**. First migration page live 09-14. **55 views, 
 projects found six defects in five days. That is not §9's "one stranger runs it", which stays open
 and is still the item every question here waits on. **Health is off unless `PROXLANE_HEALTH=on`.**
 
-**The canary gate CLOSED on 2026-08-31** (08-17, 08-24, 08-31; the third ~7h late, which is why
-the gate counts *scheduled* runs, not Mondays). **All four keys in CI since 09-02**; a spent plan
-reads UNCHECKED, not red. Free tiers are ~1,000 credits, one recording session from blocked. *Yours.*
+**The canary gate CLOSED on 2026-08-31** (08-17, 08-24, 08-31; the third counts *scheduled* runs).
+**Four keys in CI since 09-02**; a spent plan reads UNCHECKED. **Firecrawl shipped 09-18 (#328);
+`FIRECRAWL_KEY` is not an Actions secret yet**, so the canary skips it until it is. *Yours.*
 
 ## Blocked on
 

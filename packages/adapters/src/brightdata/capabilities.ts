@@ -90,6 +90,7 @@ export const capabilities: ProviderCapabilities = {
 	 * would have the router hand it exactly the work it cannot do.
 	 */
 	sessions: false,
+	targetStatus: true,
 	/**
 	 * Generous, deliberately. Unblocking includes captcha solving and retries inside the
 	 * provider, so a request that a plain fetch would fail in two seconds can legitimately

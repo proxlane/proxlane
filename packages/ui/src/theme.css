@@ -54,6 +54,13 @@
 	 * — and there are no semantic colour tokens here, so green cannot be misread as "the
 	 * successful one". Same Open Color family as its three siblings. */
 	--color-line-4: #2b8a3e;
+	/* The fifth adapter, Firecrawl. Lime: the hues left after teal, orange, violet, green and the
+	 * raspberry accent are yellow, lime, indigo and red, and lime is the one that reads apart
+	 * from all five on both grounds without being a warning colour. Open Color lime-9 here,
+	 * lime-4 on the ink ground. It sits nearest green, which is Bright Data; the diagram never
+	 * draws adjacent hops in adjacent hues by design, so a failover between the two still shows
+	 * as a colour change. */
+	--color-line-5: #5c940d;
 
 	/* THE PRODUCT'S OWN COLOUR, and it is a correction rather than a decoration.
 	 *
@@ -206,6 +213,7 @@
 	--color-line-2: #ff922b; /* 8.05:1 */
 	--color-line-3: #9775fa; /* 5.35:1 */
 	--color-line-4: #51cf66; /* 8.97:1 */
+	--color-line-5: #a9e34b; /* 10.9:1 */
 
 	/* #c2255c is 2.6:1 on the ink ground. Lifted, same identity. */
 	--glow-line: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
@@ -275,6 +283,7 @@
 		--color-line-2: #ff922b;
 		--color-line-3: #9775fa;
 		--color-line-4: #51cf66;
+		--color-line-5: #a9e34b;
 		--color-accent: #f06595;
 		--color-surface: #1a1e23;
 		--color-brand-render: #b878ff;

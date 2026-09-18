@@ -95,6 +95,10 @@ export const capabilities: ProviderCapabilities = {
 	countryCodes: 'all',
 	premiumTiers: new Set(['none']),
 	sessions: false,
+	// Does a failed fetch come back with the TARGET's status? True for a provider that reports
+	// it in a header or an envelope. False means every target failure parses to TARGET_ERROR;
+	// record the matrix and read the fixtures before deciding. See ProviderCapabilities.
+	targetStatus: true,
 	// maxTimeoutMs is the budget on the LAST hop; fastTimeoutMs on a non-terminal one.
 	// Get these from the provider's own documented timeout, not from a guess — the failover
 	// chain's budget arithmetic depends on them.

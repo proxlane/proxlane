@@ -1,0 +1,34 @@
+{
+	"kind": "exchange",
+	"category": "success-json",
+	"recordedAt": "2026-09-18T14:08:02.008Z",
+	"adapter": "firecrawl",
+	"target": {
+		"url": "https://httpbin.dev/json",
+		"renderJs": false
+	},
+	"expect": "OK",
+	"request": {
+		"method": "POST",
+		"url": "https://api.firecrawl.dev/v2/scrape",
+		"headers": {
+			"authorization": "REDACTED",
+			"content-type": "application/json",
+			"accept": "application/json"
+		},
+		"body": "{\"url\":\"https://httpbin.dev/json\",\"formats\":[\"rawBase64\"],\"onlyMainContent\":false,\"onlyCleanContent\":false,\"maxAge\":0,\"storeInCache\":false,\"blockAds\":true,\"mobile\":false,\"parsers\":[],\"skipTlsVerification\":false,\"proxy\":\"basic\",\"waitFor\":0,\"timeout\":90000}"
+	},
+	"response": {
+		"status": 200,
+		"headers": {
+			"access-control-allow-origin": "*",
+			"content-length": "848",
+			"content-type": "application/json; charset=utf-8",
+			"date": "VOLATILE",
+			"etag": "W/\"350-kpaQrsvn98uZ72c82IzuNYB6Y1w\"",
+			"x-response-time": "616.198ms"
+		},
+		"bodyBase64": "eyJzdWNjZXNzIjp0cnVlLCJkYXRhIjp7InJhd0Jhc2U2NCI6ImV3b2dJQ0p6Ykdsa1pYTm9iM2NpT2lCN0NpQWdJQ0FpWVhWMGFHOXlJam9nSWxsdmRYSnpJRlJ5ZFd4NUlpd0tJQ0FnSUNKa1lYUmxJam9nSW1SaGRHVWdiMllnY0hWaWJHbGpZWFJwYjI0aUxBb2dJQ0FnSW5Oc2FXUmxjeUk2SUZzS0lDQWdJQ0FnZXdvZ0lDQWdJQ0FnSUNKMGFYUnNaU0k2SUNKWFlXdGxJSFZ3SUhSdklGZHZibVJsY2xkcFpHZGxkSE1oSWl3S0lDQWdJQ0FnSUNBaWRIbHdaU0k2SUNKaGJHd2lDaUFnSUNBZ0lIMHNDaUFnSUNBZ0lIc0tJQ0FnSUNBZ0lDQWlhWFJsYlhNaU9pQmJDaUFnSUNBZ0lDQWdJQ0FpVjJoNUlEeGxiVDVYYjI1a1pYSlhhV1JuWlhSelBDOWxiVDRnWVhKbElHZHlaV0YwSWl3S0lDQWdJQ0FnSUNBZ0lDSlhhRzhnUEdWdFBtSjFlWE04TDJWdFBpQlhiMjVrWlhKWGFXUm5aWFJ6SWdvZ0lDQWdJQ0FnSUYwc0NpQWdJQ0FnSUNBZ0luUnBkR3hsSWpvZ0lrOTJaWEoyYVdWM0lpd0tJQ0FnSUNBZ0lDQWlkSGx3WlNJNklDSmhiR3dpQ2lBZ0lDQWdJSDBLSUNBZ0lGMHNDaUFnSUNBaWRHbDBiR1VpT2lBaVUyRnRjR3hsSUZOc2FXUmxJRk5vYjNjaUNpQWdmUXA5Q2c9PSIsIm1ldGFkYXRhIjp7InNvdXJjZVVSTCI6Imh0dHBzOi8vaHR0cGJpbi5kZXYvanNvbiIsInVybCI6Imh0dHBzOi8vaHR0cGJpbi5kZXYvanNvbiIsInN0YXR1c0NvZGUiOjIwMCwiY29udGVudFR5cGUiOiJhcHBsaWNhdGlvbi9qc29uOyBlbmNvZGluZz11dGYtOCIsInRpbWV6b25lIjoiQW1lcmljYS9OZXdfWW9yayIsInByb3h5VXNlZCI6ImJhc2ljIiwiY3JlZGl0c1VzZWQiOjEsImNvbmN1cnJlbmN5TGltaXRlZCI6ZmFsc2V9fX0=",
+		"bodyBytes": 848
+	}
+}

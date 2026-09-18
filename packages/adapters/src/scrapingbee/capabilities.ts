@@ -111,6 +111,7 @@ export const capabilities: ProviderCapabilities = {
 	// ScrapingBee does offer sessions. Declared false because translate() does not wire
 	// session_id yet, and under-routing beats advertising a parameter we never send.
 	sessions: false,
+	targetStatus: true,
 	maxTimeoutMs: 70_000,
 	fastTimeoutMs: 22_000,
 	post: true,

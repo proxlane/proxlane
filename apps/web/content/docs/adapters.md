@@ -3,7 +3,7 @@ title: Bring your own provider
 summary: Add a provider Proxlane has never heard of, and it joins the chain.
 ---
 
-Proxlane ships four providers. It is not limited to them.
+Proxlane ships five providers. It is not limited to them.
 
 An adapter is two pure functions and a table of what the provider can do. Write one and that
 provider joins the chain with failover, cooldowns, cost reporting and block detection already

@@ -17,7 +17,7 @@
 import { providerKeyFromEnv } from '@proxlane/shared';
 import { createFetchTransport, DEFAULT_BODY_CAP_BYTES } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
-import { type Adapter, REGISTRY } from './index.js';
+import { type Adapter, expectedOutcome, REGISTRY } from './index.js';
 
 /**
  * A page whose visible text exists ONLY after JavaScript runs.
@@ -233,7 +233,11 @@ describe.each(configured)('%s, against the live API', (id) => {
 		// answered AUTH_FAILED for every provider, so this target had never been exercised there.
 		const { parsed } = await attempt(id, 'https://httpbin.dev/nonexistent-page-xyz', false);
 		if (accountStoppedUs(id, parsed.outcome)) return;
-		expect(parsed.outcome).toBe('TARGET_NOT_FOUND');
+		// TARGET_ERROR, not TARGET_NOT_FOUND, for a provider that never reports the target's
+		// status: Firecrawl answers a 404 with the same error as a 503. What this still pins is
+		// that a dead link never reads as the PROVIDER's failure, which is the demotion bug.
+		const adapter: Adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
+		expect(parsed.outcome).toBe(expectedOutcome(adapter.capabilities, 'TARGET_NOT_FOUND'));
 	}, 120_000);
 
 	it('renders JavaScript when it says it can', async () => {

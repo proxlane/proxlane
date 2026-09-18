@@ -152,6 +152,29 @@ export interface CostRow {
  * this is the path taken when a provider stays silent — and the result carries
  * `source: 'estimated'` so nothing downstream mistakes it for a fact.
  */
+/**
+ * The outcome a fixture category must parse to FOR THIS ADAPTER.
+ *
+ * The matrix expects a target fact per category. An adapter whose provider never reports the
+ * target's status cannot produce one, and the honest outcome for all of them is
+ * `TARGET_ERROR`; see `ProviderCapabilities.targetStatus`. One function, used by conformance
+ * and by `pnpm record`, so the two cannot disagree about what a recording should have said.
+ */
+export function expectedOutcome(
+	caps: Pick<ProviderCapabilities, 'targetStatus'>,
+	expect: Outcome | 'provider-dependent',
+): Outcome | 'provider-dependent' {
+	if (caps.targetStatus) return expect;
+	if (
+		expect === 'TARGET_NOT_FOUND' ||
+		expect === 'TARGET_RATE_LIMITED' ||
+		expect === 'TARGET_ERROR'
+	) {
+		return 'TARGET_ERROR';
+	}
+	return expect;
+}
+
 export function cheapestCost(table: CostTable): Microcredits {
 	const cells = Object.values(table.matrix).flatMap((r) =>
 		[r.plain, r.rendered].filter((n): n is Microcredits => n !== null),
@@ -241,7 +264,7 @@ export interface ProviderCapabilities {
 	 * the /providers pages all read the same field. A developer learns "orange is ScrapingBee"
 	 * once and it holds across the product.
 	 */
-	readonly line: 1 | 2 | 3 | 4;
+	readonly line: 1 | 2 | 3 | 4 | 5;
 	readonly renderJs: boolean;
 	/**
 	 * Can the renderer be told to wait for an element before it snapshots?
@@ -322,6 +345,24 @@ export interface ProviderCapabilities {
 	 * and a capability flip in the same commit.
 	 */
 	readonly sessions: boolean;
+	/**
+	 * Does a failed fetch come back with the TARGET's status, so `parse()` can say 404 from
+	 * 503 from a block page?
+	 *
+	 * Four launch providers answer yes: ScrapingBee in a header, Scrapfly and Bright Data in an
+	 * envelope, ScraperAPI in a header on the paths it reaches the target. Firecrawl answers no,
+	 * MEASURED 2026-09-18: a target 404, a 503, a 429 and a 30-second stall all came back as
+	 * one HTTP 500 `SCRAPE_ALL_ENGINES_FAILED`, whose message lists "the page doesn't exist
+	 * (404)", "blocking automated access" and "down or unreachable" as equally likely.
+	 *
+	 * When this is false the adapter reports every such failure as `TARGET_ERROR`: the target
+	 * did not serve, which is true, and the chain fails over once so the next provider says
+	 * which. Not `PROVIDER_ERROR`, which would put a site's 404 into the provider's failure
+	 * term and demote a healthy provider for every org. `TARGET_NOT_FOUND` on a guess would be
+	 * worse still: it never fails over, so a block page misread as a 404 stops the chain.
+	 * Conformance and the recorder read this field through `expectedOutcome()`.
+	 */
+	readonly targetStatus: boolean;
 	/** Budget on the LAST hop, e.g. scraperapi 75_000. */
 	readonly maxTimeoutMs: number;
 	/** Budget on a non-terminal hop, e.g. scraperapi 22_000. */
