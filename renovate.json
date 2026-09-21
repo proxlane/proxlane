@@ -39,8 +39,8 @@
 	"commitMessageTopic": "{{depName}}",
 	"packageRules": [
 		{
-			"description": "Patch updates automerge. GitHub Actions are exempted by the NEXT rule rather than by an exclusion here: `excludeManagers` is not a Renovate option and never was, and it is the second half of why this config was rejected. Later packageRules override earlier ones, so the github-actions rule below turns automerge back off for that manager — which is what the exclusion was reaching for, expressed in a way the schema accepts.",
-			"matchUpdateTypes": ["patch"],
+			"description": "Patch AND minor updates automerge once CI is green. CI is the review: 1,000-odd unit tests, contract replays over recorded provider bytes, e2e over a socket, and repo:check holding the catalog to the CLAUDE.md toolchain table, so a bump that changes a pinned range fails assertion 6 and never automerges. Majors stay manual; each needs a toolchain row and a reason. GitHub Actions are exempted by the NEXT rule rather than by an exclusion here: `excludeManagers` is not a Renovate option and never was, and it is the second half of why this config was rejected. Later packageRules override earlier ones, so the github-actions rule below turns automerge back off for that manager.",
+			"matchUpdateTypes": ["patch", "minor"],
 			"automerge": true
 		},
 		{
