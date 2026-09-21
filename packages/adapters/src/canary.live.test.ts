@@ -154,6 +154,11 @@ describe('the canary has something to run against', () => {
 async function attempt(id: string, url: string, renderJs: boolean, waitFor?: string) {
 	const first = await attemptOnce(id, url, renderJs, waitFor);
 	if (first.parsed.outcome !== 'TARGET_ERROR') return first;
+	// NO RETRY for a provider that cannot report the target's status. For Firecrawl every target
+	// failure IS TARGET_ERROR, including the 404 this canary asks for on purpose, so the retry
+	// below would spend a credit re-fetching a page that is meant not to exist, every week.
+	const adapter: Adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
+	if (!adapter.capabilities.targetStatus) return first;
 	process.stdout.write(
 		`\n  RETRY: ${id} got TARGET_ERROR from ${new URL(url).host} — the target failed, not the ` +
 			`provider. Trying once more.\n`,
