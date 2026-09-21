@@ -33,7 +33,19 @@
 		"run, each falling behind main as the previous one merged, which meant thirteen update-branch",
 		"rounds and a notification for every step. Majors stay separate because each needs a CLAUDE.md",
 		"toolchain row and a reason, not a merge. `prConcurrentLimit` and `prHourlyLimit` bound the",
-		"rest: two open at a time is one to review and one warming up."
+		"rest: two open at a time is one to review and one warming up.",
+		"",
+		"Two of the pins live in CLAUDE.md's toolchain table as well as in their files, and repo:check",
+		"assertion 7 holds them equal. The first grouped PR on 2026-09-21 bumped `.nvmrc` and the",
+		"Dockerfile to a new Node minor, left the table row at the old one, and sat red. The two regex",
+		"`customManagers` below teach Renovate the Node and pnpm rows, so a runtime bump carries its",
+		"table row in the same commit. `docs/self-hosting.md` and the hosting page no longer name the",
+		"version at all: they point at `.nvmrc` and `packageManager`, which cannot drift.",
+		"",
+		"The same PR bumped tsdown `^0.22` to `^0.23.0`. A caret on 0.x does not cover the next minor,",
+		"so Renovate rewrites the catalog range, assertion 6 sees a pin the table does not, and the",
+		"whole group is blocked. A 0.x minor is a major in every way that matters here: it needs a",
+		"table row and a reason. The rule below takes them out of the group and out of automerge."
 	],
 	"commitMessageAction": "bump",
 	"commitMessageTopic": "{{depName}}",
@@ -58,8 +70,42 @@
 			"description": "@types/node must stay major-matched to the Node pin or it types the wrong runtime.",
 			"matchPackageNames": ["@types/node"],
 			"allowedVersions": "<25"
+		},
+		{
+			"description": "pnpm stays on 10. pnpm 11.0.x reimplemented publish natively and broke the OIDC exchange; see the Why column in CLAUDE.md and operating.md B8 before lifting this.",
+			"matchPackageNames": ["pnpm"],
+			"allowedVersions": "<11"
+		},
+		{
+			"description": "A minor bump of a 0.x package (tsdown, drizzle-orm, drizzle-kit, libsodium-wrappers) rewrites the caret range in the catalog, which is a pin change the toolchain table has to carry with a reason. Treated like a major: its own PR, never automerged, out of the all-non-major group so it cannot hold the rest red. `groupName: null` clears the name the preset set; a later packageRule wins.",
+			"matchUpdateTypes": ["minor"],
+			"matchCurrentVersion": "/^[~^]?0\\./",
+			"groupName": null,
+			"automerge": false
 		}
 	],
 	"prConcurrentLimit": 2,
-	"prHourlyLimit": 2
+	"prHourlyLimit": 2,
+	"customManagers": [
+		{
+			"customType": "regex",
+			"description": "The Node row of CLAUDE.md's toolchain table. Same depName and datasource as the .nvmrc manager, so the two land in one branch.",
+			"managerFilePatterns": ["/^CLAUDE\\.md$/"],
+			"matchStrings": [
+				"\\| Node \\| runtime \\| `node` \\| `(?<currentValue>\\d+\\.\\d+\\.\\d+)` \\|"
+			],
+			"depNameTemplate": "node",
+			"datasourceTemplate": "node-version"
+		},
+		{
+			"customType": "regex",
+			"description": "The pnpm row of the same table. The npm manager updates `packageManager` in package.json, hash included; this keeps the table on the same version.",
+			"managerFilePatterns": ["/^CLAUDE\\.md$/"],
+			"matchStrings": [
+				"\\| Package manager \\| runtime \\| `pnpm` \\| `(?<currentValue>\\d+\\.\\d+\\.\\d+)` \\|"
+			],
+			"depNameTemplate": "pnpm",
+			"datasourceTemplate": "npm"
+		}
+	]
 }

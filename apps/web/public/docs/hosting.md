@@ -23,8 +23,8 @@ To **build from source or contribute**, the toolchain is pinned:
 
 | | Version | Notes |
 |---|---|---|
-| Node | 24.19.0 | Pinned exactly in `.nvmrc`. Node 22 is in maintenance |
-| pnpm | 10.34.5 | Pinned in `packageManager`. Not pnpm 11 |
+| Node | 24 | Exact version in `.nvmrc`. Node 22 is in maintenance |
+| pnpm | 10 | Exact version in `packageManager`. Not pnpm 11 |
 | Docker | any current release | Needed for the test containers |
 
 `pnpm bootstrap` checks all three against the pins and tells you which one is wrong before

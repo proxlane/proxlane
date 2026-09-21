@@ -5,7 +5,7 @@ does not work, this says so rather than describing what ought to happen.
 
 ## What you are deploying
 
-**One container.** The gateway, on port 8787, built from `node:24.19.0-alpine`, running as a
+**One container.** The gateway, on port 8787, built from the Node 24 Alpine image the Dockerfile pins, running as a
 non-root `proxlane` user. The image is about 244 MB.
 
 There is no database, no queue, no dashboard and no worker, because none of them exist yet.
