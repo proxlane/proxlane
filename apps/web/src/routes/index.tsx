@@ -637,6 +637,15 @@ function Hero({
 			<p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
 				<Link
 					className="text-[color:var(--color-ink)] underline decoration-[color:var(--color-rule)] underline-offset-4 transition-colors duration-200 ease-(--ease-lane) hover:decoration-[color:var(--color-accent)]"
+					to="/docs/try"
+				>
+					Try it in 60 seconds, no provider account
+				</Link>
+				<span aria-hidden="true" className="text-[color:var(--color-rule)]">
+					&middot;
+				</span>
+				<Link
+					className="text-[color:var(--color-ink)] underline decoration-[color:var(--color-rule)] underline-offset-4 transition-colors duration-200 ease-(--ease-lane) hover:decoration-[color:var(--color-accent)]"
 					to="/docs"
 				>
 					Bring your own keys

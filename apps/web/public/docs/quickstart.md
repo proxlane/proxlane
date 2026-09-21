@@ -116,6 +116,7 @@ providers Proxlane replaces accept. But query strings end up in access logs, pro
 
 ## Next
 
+- [Try it in 60 seconds](/docs/try) to see a failover and a caught block page with no provider key.
 - [API reference](/docs/api) for every parameter and header.
 - [Outcomes](/docs/outcomes) for what each result means and whether you should retry.
 - [Self-hosting](https://github.com/proxlane/proxlane/blob/main/docs/self-hosting.md) for
