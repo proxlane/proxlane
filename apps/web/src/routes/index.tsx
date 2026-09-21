@@ -3,6 +3,7 @@ import { describeRoute, type RouteAttempt, RouteDiagram } from '@proxlane/route-
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { type Block, Panel, Transcript } from '../components/artifacts.js';
+import { Cta } from '../components/cta.js';
 import { DeployRow } from '../components/deploy.js';
 
 export const Route = createFileRoute('/')({
@@ -621,7 +622,16 @@ function Hero({
 			    source" the same weight as the primary action, and the two carrying prices hung
 			    a caption below the row while the other two did not, so the row had a ragged
 			    bottom edge. Deploying is the action; docs and source are where you go instead. */}
+			{/* BEFORE THE DEPLOY BUTTONS, and quiet. A deploy asks for a provider key; the sandbox
+			    asks for nothing, and a sceptic should be offered the free check before the
+			    commitment. Quiet tone so it does not compete with the two priced buttons below,
+			    which are still the action. */}
 			<div className="mt-8">
+				<Cta to="/docs/try" tone="quiet" size="sm">
+					Try it in 60 seconds, no provider account
+				</Cta>
+			</div>
+			<div className="mt-4">
 				<DeployRow />
 			</div>
 			<p className="mt-5 text-[color:var(--color-slate)] text-sm">
@@ -635,15 +645,6 @@ function Hero({
 				.
 			</p>
 			<p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-				<Link
-					className="text-[color:var(--color-ink)] underline decoration-[color:var(--color-rule)] underline-offset-4 transition-colors duration-200 ease-(--ease-lane) hover:decoration-[color:var(--color-accent)]"
-					to="/docs/try"
-				>
-					Try it in 60 seconds, no provider account
-				</Link>
-				<span aria-hidden="true" className="text-[color:var(--color-rule)]">
-					&middot;
-				</span>
 				<Link
 					className="text-[color:var(--color-ink)] underline decoration-[color:var(--color-rule)] underline-offset-4 transition-colors duration-200 ease-(--ease-lane) hover:decoration-[color:var(--color-accent)]"
 					to="/docs"
