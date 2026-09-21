@@ -5,7 +5,7 @@
 # as a syntax error in production.
 
 # ---------------------------------------------------------------- build
-FROM node:24.19.0-alpine AS build
+FROM node:24.21.0-alpine AS build
 RUN corepack enable
 WORKDIR /app
 
@@ -26,7 +26,7 @@ RUN pnpm exec turbo run build --filter=@proxlane/gateway
 RUN pnpm --filter @proxlane/gateway deploy --prod --legacy /out
 
 # ---------------------------------------------------------------- runtime
-FROM node:24.19.0-alpine AS runtime
+FROM node:24.21.0-alpine AS runtime
 WORKDIR /app
 
 # Not root. The gateway fetches URLs a stranger chose; if anything ever goes wrong in that
