@@ -13,6 +13,7 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 
 ## Docs
 
+- [Try it in 60 seconds](https://proxlane.dev/docs/try): See a failover and a caught block page, with no provider account and nothing spent.
 - [FAQ](https://proxlane.dev/docs/faq): what it does, what it costs, what happens to your keys.
 - [Scraper returns 403](https://proxlane.dev/symptoms/403-while-scraping): why does my scraper get 403
 - [200 response with a captcha page](https://proxlane.dev/symptoms/200-captcha-body): scraper returns 200 but body is a captcha

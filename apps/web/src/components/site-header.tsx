@@ -45,6 +45,8 @@ const NAV_LINK =
  * question, which was not this label: the next three links have somewhere to go.
  */
 const NAV: readonly { readonly to: string; readonly label: string }[] = [
+	// First, because it is the one link that costs a visitor nothing: no account, no key.
+	{ to: '/docs/try', label: 'try it' },
 	{ to: '/docs', label: 'docs' },
 	{ to: '/scraping-api-comparison', label: 'compare' },
 	{ to: '/block-page-detector', label: 'detector' },
