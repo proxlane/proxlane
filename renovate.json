@@ -77,7 +77,7 @@
 			"allowedVersions": "<11"
 		},
 		{
-			"description": "A minor bump of a 0.x package (tsdown, drizzle-orm, drizzle-kit, libsodium-wrappers) rewrites the caret range in the catalog, which is a pin change the toolchain table has to carry with a reason. Treated like a major: its own PR, never automerged, out of the all-non-major group so it cannot hold the rest red. `groupName: null` clears the name the preset set; a later packageRule wins.",
+			"description": "A minor bump of a 0.x package (tsdown, drizzle-orm, drizzle-kit) rewrites the caret range in the catalog, which is a pin change the toolchain table has to carry with a reason. Treated like a major: its own PR, never automerged, out of the all-non-major group so it cannot hold the rest red. `groupName: null` clears the name the preset set; a later packageRule wins.",
 			"matchUpdateTypes": ["minor"],
 			"matchCurrentVersion": "/^[~^]?0\\./",
 			"groupName": null,
