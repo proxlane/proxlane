@@ -24,6 +24,7 @@ import { Route as DocsHostingRouteImport } from './routes/docs/hosting'
 import { Route as DocsOutcomesRouteImport } from './routes/docs/outcomes'
 import { Route as DocsProvidersRouteImport } from './routes/docs/providers'
 import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
+import { Route as DocsTryRouteImport } from './routes/docs/try'
 import { Route as DocsUseCasesRouteImport } from './routes/docs/use-cases'
 import { Route as MigrateIndexRouteImport } from './routes/migrate/index'
 import { Route as MigrateScraperapiRouteImport } from './routes/migrate/scraperapi'
@@ -110,6 +111,11 @@ const DocsQuickstartRoute = DocsQuickstartRouteImport.update({
   path: '/docs/quickstart',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsTryRoute = DocsTryRouteImport.update({
+  id: '/docs/try',
+  path: '/docs/try',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsUseCasesRoute = DocsUseCasesRouteImport.update({
   id: '/docs/use-cases',
   path: '/docs/use-cases',
@@ -179,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/providers': typeof DocsProvidersRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/try': typeof DocsTryRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
   '/migrate/scrapingbee': typeof MigrateScrapingbeeRoute
@@ -206,6 +213,7 @@ export interface FileRoutesByTo {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/providers': typeof DocsProvidersRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/try': typeof DocsTryRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
   '/migrate/scrapingbee': typeof MigrateScrapingbeeRoute
@@ -234,6 +242,7 @@ export interface FileRoutesById {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/providers': typeof DocsProvidersRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/try': typeof DocsTryRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
   '/migrate/scrapingbee': typeof MigrateScrapingbeeRoute
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/providers'
     | '/docs/quickstart'
+    | '/docs/try'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
     | '/migrate/scrapingbee'
@@ -290,6 +300,7 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/providers'
     | '/docs/quickstart'
+    | '/docs/try'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
     | '/migrate/scrapingbee'
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/providers'
     | '/docs/quickstart'
+    | '/docs/try'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
     | '/migrate/scrapingbee'
@@ -345,6 +357,7 @@ export interface RootRouteChildren {
   DocsOutcomesRoute: typeof DocsOutcomesRoute
   DocsProvidersRoute: typeof DocsProvidersRoute
   DocsQuickstartRoute: typeof DocsQuickstartRoute
+  DocsTryRoute: typeof DocsTryRoute
   DocsUseCasesRoute: typeof DocsUseCasesRoute
   MigrateScraperapiRoute: typeof MigrateScraperapiRoute
   MigrateScrapingbeeRoute: typeof MigrateScrapingbeeRoute
@@ -465,6 +478,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsQuickstartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/try': {
+      id: '/docs/try'
+      path: '/docs/try'
+      fullPath: '/docs/try'
+      preLoaderRoute: typeof DocsTryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs/use-cases': {
       id: '/docs/use-cases'
       path: '/docs/use-cases'
@@ -553,6 +573,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsOutcomesRoute: DocsOutcomesRoute,
   DocsProvidersRoute: DocsProvidersRoute,
   DocsQuickstartRoute: DocsQuickstartRoute,
+  DocsTryRoute: DocsTryRoute,
   DocsUseCasesRoute: DocsUseCasesRoute,
   MigrateScraperapiRoute: MigrateScraperapiRoute,
   MigrateScrapingbeeRoute: MigrateScrapingbeeRoute,
