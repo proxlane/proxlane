@@ -1,5 +1,11 @@
 # @proxlane/gateway
 
+## 0.19.1
+
+### Patch Changes
+
+- [#348](https://github.com/proxlane/proxlane/pull/348) [`f4c9be7`](https://github.com/proxlane/proxlane/commit/f4c9be775f7961714c3e77ba98547dd609caa309) Thanks [@scarsam](https://github.com/scarsam)! - Request parsing moved into its own module. No change in what the gateway accepts or answers.
+
 ## 0.19.0
 
 ### Minor Changes

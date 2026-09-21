@@ -1,5 +1,11 @@
 # @proxlane/web
 
+## 0.11.2
+
+### Patch Changes
+
+- [#350](https://github.com/proxlane/proxlane/pull/350) [`e8c9e75`](https://github.com/proxlane/proxlane/commit/e8c9e75ed96af33b9ae238fda829a3ac1a80ef2d) Thanks [@scarsam](https://github.com/scarsam)! - A "Try it in 60 seconds" docs page: a sandbox gateway, a simulated success and a simulated block, with no provider account. Linked from the landing page.
+
 ## 0.11.1
 
 ### Patch Changes
