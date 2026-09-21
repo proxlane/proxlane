@@ -1,5 +1,11 @@
 # @proxlane/web
 
+## 0.11.3
+
+### Patch Changes
+
+- [#354](https://github.com/proxlane/proxlane/pull/354) [`4b5df47`](https://github.com/proxlane/proxlane/commit/4b5df476d3221c9f4caf0c95e977c8f39fcfd2af) Thanks [@scarsam](https://github.com/scarsam)! - The hosting page names the Node and pnpm majors and points at `.nvmrc` and `packageManager` for the exact versions, instead of repeating a number that drifts.
+
 ## 0.11.2
 
 ### Patch Changes
