@@ -1,11 +1,11 @@
 {
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
-	"extends": ["config:recommended", ":semanticCommits"],
+	"extends": ["config:recommended", ":semanticCommits", "group:allNonMajor"],
 	"schedule": ["before 6am on monday"],
 	"description": [
 		"THIS FILE ONLY WORKS IF THE RENOVATE GITHUB APP IS INSTALLED ON THE ORG. It is not a",
-		"workflow and nothing in CI runs it. As of 2026-08-13 the App had never run here \u2014 no",
-		"pull request, no dependency dashboard issue, no branch \u2014 which is why the GitHub Actions",
+		"workflow and nothing in CI runs it. As of 2026-08-13 the App had never run here — no",
+		"pull request, no dependency dashboard issue, no branch — which is why the GitHub Actions",
 		"below sat two majors behind until they were bumped by hand, and why the Node 20",
 		"deprecation warning appeared on every run.",
 		"",
@@ -14,7 +14,7 @@
 		"`description`, NOT `//`. Renovate validates every key and rejects unknown ones, so a `//`",
 		"comment key does not document the file, it stops the bot: Renovate refused this config",
 		"on 2026-08-14 and opened no dependency pull request for the twelve days after. The lesson",
-		"is the one `tooling/lighthouse/lighthouserc.json` already carries in its own header \u2014 JSON",
+		"is the one `tooling/lighthouse/lighthouserc.json` already carries in its own header — JSON",
 		"has no comments, and inventing one breaks whichever tool parses the file.",
 		"",
 		"`commitMessageTopic` drops Renovate's default word `dependency` from every subject. The",
@@ -26,18 +26,25 @@
 		"characters shorter than `update`, which is what puts the longest name in the tree,",
 		"`@fontsource-variable/hanken-grotesk`, inside the budget at a normal version. Measured,",
 		"not guessed: the five longest subjects the tree can produce were computed before this",
-		"landed, and that one was the only one over."
+		"landed, and that one was the only one over.",
+		"",
+		"`group:allNonMajor` puts every minor and patch into ONE pull request per run instead of one",
+		"each. On 2026-09-21 ticking thirteen queued updates opened thirteen PRs, each with its own CI",
+		"run, each falling behind main as the previous one merged, which meant thirteen update-branch",
+		"rounds and a notification for every step. Majors stay separate because each needs a CLAUDE.md",
+		"toolchain row and a reason, not a merge. `prConcurrentLimit` and `prHourlyLimit` bound the",
+		"rest: two open at a time is one to review and one warming up."
 	],
 	"commitMessageAction": "bump",
 	"commitMessageTopic": "{{depName}}",
 	"packageRules": [
 		{
-			"description": "Patch updates automerge. GitHub Actions are exempted by the NEXT rule rather than by an exclusion here: `excludeManagers` is not a Renovate option and never was, and it is the second half of why this config was rejected. Later packageRules override earlier ones, so the github-actions rule below turns automerge back off for that manager \u2014 which is what the exclusion was reaching for, expressed in a way the schema accepts.",
-			"matchUpdateTypes": ["patch"],
+			"description": "Patch AND minor updates automerge once CI is green. CI is the review: 1,000-odd unit tests, contract replays over recorded provider bytes, e2e over a socket, and repo:check holding the catalog to the CLAUDE.md toolchain table, so a bump that changes a pinned range fails assertion 6 and never automerges. Majors stay manual; each needs a toolchain row and a reason. GitHub Actions are exempted by the NEXT rule rather than by an exclusion here: `excludeManagers` is not a Renovate option and never was, and it is the second half of why this config was rejected. Later packageRules override earlier ones, so the github-actions rule below turns automerge back off for that manager.",
+			"matchUpdateTypes": ["patch", "minor"],
 			"automerge": true
 		},
 		{
-			"description": "GitHub Actions are never automerged, and are pinned to a commit SHA. release.yml runs with contents:write, packages:write and id-token:write and mints npm provenance, so a compromised third-party action executes inside the job that signs our releases. The repo already checksums the one gitleaks tarball it downloads, with the comment that piping an unverified download into a shell is a poor look in the job whose purpose is supply-chain hygiene \u2014 the same standard now applies to the code around the publish. repo:check assertion 47 holds it.",
+			"description": "GitHub Actions are never automerged, and are pinned to a commit SHA. release.yml runs with contents:write, packages:write and id-token:write and mints npm provenance, so a compromised third-party action executes inside the job that signs our releases. The repo already checksums the one gitleaks tarball it downloads, with the comment that piping an unverified download into a shell is a poor look in the job whose purpose is supply-chain hygiene — the same standard now applies to the code around the publish. repo:check assertion 47 holds it.",
 			"matchManagers": ["github-actions"],
 			"automerge": false,
 			"pinDigests": true
@@ -52,5 +59,7 @@
 			"matchPackageNames": ["@types/node"],
 			"allowedVersions": "<25"
 		}
-	]
+	],
+	"prConcurrentLimit": 2,
+	"prHourlyLimit": 2
 }
