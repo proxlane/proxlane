@@ -11,7 +11,7 @@ stale file is worse than an empty one. Only what no command can answer: what is 
 days on: zero engagement, zero referrals (r/selfhosted standalone post allowed from **11-10**).
 Directory PRs open, unanswered: lorien/awesome-web-scraping #294, Germey/AwesomeWebScraping #20;
 awesome-selfhosted from **12-12**. First migration page live 09-14. **55 views, 24 uniques, 4 stars.**
-**Outreach from 09-18**: six emails to maintainers with provider code in public repos. Sandbox (#325) is the keyless first minute.
+**Outreach from 09-18**: 12 emails, 4 issues, no replies yet. `scrapy-proxlane` public 09-21, PyPI pending.
 
 **Public since 2026-08-10**, ruleset on `main`. Dogfooding it against another of the maintainer's
 projects found six defects in five days. That is not §9's "one stranger runs it", which stays open
@@ -40,7 +40,7 @@ Owner decisions and external answers. None is unblocked by writing code.
   **Bright Data 09-01: BYOK is not reselling, but pooling users behind one account or selling access
   as a product needs written approval** — naming hosted credits, not just keyless. **ScrapingBee is
   ambiguous, not a yes**: their AI cited non-transferable terms and declined, a human said it should
-  be fine if nothing is stored. Scrapfly closed email 08-29, ScraperAPI silent. *External.*
+  be fine if nothing is stored. Scrapfly closed 08-29, ScraperAPI silent, Jina asked 09-21. *External.*
 - **Provider money: decided 09-17**, `plan.md` §14. Referral links only where there is no key,
   all four listed alphabetically; no testing credits, no preview. Applied 09-17: ScraperAPI
   approved, ScrapingBee and Bright Data pending, Scrapfly asked (no public program). Nothing is
