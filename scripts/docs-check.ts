@@ -30,6 +30,8 @@ const COPY_TSX = join(ROOT, 'apps/web/src/components/copy-code.tsx');
 const DOCS_PLUGIN = join(ROOT, 'apps/web/vite-plugin-docs.ts');
 const OPENAPI = join(ROOT, 'apps/web/public/openapi.json');
 const GATEWAY_APP = join(ROOT, 'apps/gateway/src/app.ts');
+// Request parsing lives beside the handler; assertion 12 reads both as one source.
+const GATEWAY_REQUEST = join(ROOT, 'apps/gateway/src/request.ts');
 const API_DOC = join(CONTENT, 'api.md');
 
 const failures: string[] = [];
@@ -459,7 +461,7 @@ const read = (p: string) => readFileSync(p, 'utf8');
 			paths: Record<string, Record<string, { parameters?: { name: string }[] }>>;
 			components: { headers: Record<string, unknown> };
 		};
-		const src = read(GATEWAY_APP);
+		const src = read(GATEWAY_APP) + (existsSync(GATEWAY_REQUEST) ? read(GATEWAY_REQUEST) : '');
 		const described = new Set((spec.paths['/v1']?.get?.parameters ?? []).map((p) => p.name));
 		const read_ = [
 			...new Set([...src.matchAll(/c\.req\.query\('([a-z_]+)'\)/g)].map((m) => m[1] as string)),

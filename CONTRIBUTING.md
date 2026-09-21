@@ -12,6 +12,10 @@ pnpm check        # before you push — everything CI will run
 
 **Those three are the whole surface.** There are twenty-odd other commands; each is one role's exit criterion, and CI runs them. `pnpm check` derives its list from `scripts/commands.json`, so it is always exactly what CI will run — you cannot pass locally and fail on a check you did not know about.
 
+## The comments are the design record
+
+About one line in four in the gateway and the adapters is a comment, and nearly all of them say *why*: what was measured, what broke, which provider disagreed with its own docs. There is no separate decisions log. Read the comments around the code you are changing before changing it, and when you learn something the hard way, write it down where the next person will trip over it. A comment that restates the code is noise; one that records a measurement with a date is the thing this repo is made of.
+
 ## The one thing that will look broken and is not
 
 The live canary cannot run on a fork PR. GitHub does not expose secrets to forks, so the job that hits real provider APIs is skipped on your branch. **That is expected, not a failure you caused.** A maintainer runs it on house keys before merging.
