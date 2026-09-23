@@ -26,6 +26,7 @@ export const DOC_NAV: readonly DocNavItem[] = [
 	{ to: '/docs/providers', title: 'Getting provider keys' },
 	{ to: '/docs/hosting', title: 'Hosting' },
 	{ to: '/docs/api', title: 'API reference' },
+	{ to: '/docs/scrapy', title: 'Scrapy' },
 	{ to: '/docs/outcomes', title: 'Outcomes' },
 	{ to: '/docs/failover', title: 'How failover works' },
 	{ to: '/docs/adapters', title: 'Bring your own provider' },
