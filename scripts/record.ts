@@ -134,7 +134,13 @@ export const TARGETS: readonly Target[] = [
 		category: 'post',
 		url: 'https://httpbin.dev/post',
 		method: 'POST',
-		body: '{"proxlane":"post-fixture"}',
+		// NOT `{"proxlane": …}`, and the reason is the redaction rather than taste. Our own
+		// Bright Data zone is the string `proxlane`, `secretsFor()` makes every key component
+		// a needle, and a needle is replaced wherever it appears — so that payload would have
+		// recorded as `{"REDACTED":"post-fixture"}` and the fixture would prove the opposite
+		// of what its `why` claims. Fixtures are `-diff` in `.gitattributes`, so nobody would
+		// have seen it in review either.
+		body: '{"echo-marker":"post-fixture"}',
 		renderJs: false,
 		expect: 'OK',
 		why: 'a POST body reaching the target, which three adapters used to refuse outright',
@@ -441,11 +447,75 @@ export function sanitizeBody(bytes: Uint8Array, secrets: readonly string[]): Uin
 	const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
 	if (text.includes('\u0000')) return bytes;
 
-	let out = sanitize(text, secrets);
-	for (const field of IDENTIFYING_FIELDS) {
+	const out = redactIdentifyingFields(sanitize(text, secrets));
+	return out === text ? bytes : new TextEncoder().encode(out);
+}
+
+/**
+ * Fields that only ever appear in a request WE construct, so redacting them there is safe in a
+ * way redacting them everywhere is not.
+ *
+ * `zone` is Bright Data's account-side name for the proxy pool, sent as its own JSON field
+ * because the key is `<zone>:<token>`. It is also an ordinary English word, so putting it in
+ * `IDENTIFYING_FIELDS` would rewrite it inside any RESPONSE body that happened to use it —
+ * silently changing a recording, in files that are `-diff` in `.gitattributes` and therefore
+ * invisible in review. Here it applies only to what we sent.
+ */
+const REQUEST_ONLY_FIELDS = ['zone'];
+
+/**
+ * Replace the value of every named field in a JSON-ish string.
+ *
+ * Split out of `sanitizeBody()` so the REQUEST body gets it too. A request body used to see
+ * `sanitize()` alone, which matches whole needles and nothing else — so Bright Data's `zone`,
+ * when its value is too short for the length floor, was neither replaced nor visible in review.
+ */
+export function redactIdentifyingFields(
+	text: string,
+	fields: readonly string[] = IDENTIFYING_FIELDS,
+): string {
+	let out = text;
+	for (const field of fields) {
 		out = out.replace(new RegExp(`("${field}"\\s*:\\s*)"[^"]*"`, 'g'), `$1"${REDACTED}"`);
 	}
-	return out === text ? bytes : new TextEncoder().encode(out);
+	return out;
+}
+
+/**
+ * Below this, a needle is a word rather than a secret and replacing it corrupts prose.
+ * `cat` in "the cat sat" is the test that pins it.
+ */
+export const MIN_SECRET_LENGTH = 8;
+
+/**
+ * Every string that must not survive into a fixture, given one provider key.
+ *
+ * NOT just the key. A provider key is not always atomic: Bright Data's is `<zone>:<token>`,
+ * and `brightdata/index.ts` splits it and sends the zone as its own JSON field, so the whole
+ * key never appears on the wire and a whole-key needle matches nothing. The zone reached
+ * `slow-target.json` in cleartext that way and sat in a public repo until a security pass
+ * found it. Ours is named after the project and authenticates nothing, which is luck rather
+ * than design — the next composite key could carry an account id in the same position.
+ *
+ * Longest first, so the whole key is replaced before its parts and a fixture never ends up
+ * with `REDACTED:REDACTED` where one REDACTED belongs.
+ *
+ * A part shorter than `MIN_SECRET_LENGTH` is returned anyway. `sanitize()` will skip it, and
+ * the caller warns rather than staying silent, because "too short to redact safely" is a fact
+ * the person recording needs before they commit the fixture, not after.
+ */
+export function secretsFor(key: string): readonly string[] {
+	if (key === '') return [];
+	// TWO SPLITTINGS, because the adapter's is not this one. `brightdata/index.ts` splits at
+	// the FIRST colon, so a key `a:b:c` goes on the wire as zone `a` and token `b:c` — and a
+	// naive split on every colon lists `a`, `b`, `c` and never the token that was actually
+	// sent. Every-colon covers a key whose parts are each used separately; first-colon covers
+	// the shape one shipped adapter really uses. Both, then deduplicated.
+	const everyColon = key.split(':');
+	const at = key.indexOf(':');
+	const firstColon = at > 0 ? [key.slice(0, at), key.slice(at + 1)] : [];
+	const parts = [...everyColon, ...firstColon].filter((p) => p !== '' && p !== key);
+	return [...new Set([key, ...parts])].sort((a, b) => b.length - a.length);
 }
 
 /**
@@ -457,7 +527,7 @@ export function sanitizeBody(bytes: Uint8Array, secrets: readonly string[]): Uin
 export function sanitize(text: string, secrets: readonly string[]): string {
 	let out = text;
 	for (const s of secrets) {
-		if (s.length < 8) continue; // too short to replace safely
+		if (s.length < MIN_SECRET_LENGTH) continue; // too short to replace safely
 		out = out.split(s).join(REDACTED);
 	}
 	return out;
@@ -973,7 +1043,17 @@ if (import.meta.filename === process.argv[1]) {
 	// translate() is documented to treat as "send no credential" — but it must never reach
 	// sanitize(), where an empty needle would match at every position.
 	const providerKey = key ?? '';
-	const secrets = providerKey === '' ? [] : [providerKey];
+	const secrets = secretsFor(providerKey);
+	// A component too short to replace safely is a hole in exactly the redaction this step
+	// exists for, and silence about it is how the Bright Data zone reached a public fixture.
+	for (const s of secrets) {
+		if (s.length >= MIN_SECRET_LENGTH) continue;
+		process.stderr.write(
+			`\n  WARNING: one component of ${envVar} is ${s.length} characters, below the ` +
+				`${MIN_SECRET_LENGTH}-character floor, so it will NOT be redacted.\n` +
+				'  Read the recorded fixtures before committing them.\n\n',
+		);
+	}
 
 	// A dev adapter's fixtures must not land beside the real ones. Writing them to
 	// packages/adapters/src/<id>/ produces a directory indistinguishable from a supported
@@ -1123,7 +1203,14 @@ if (import.meta.filename === process.argv[1]) {
 				// JSON payload — and then the fixture showed a request with the target url nowhere
 				// in it. Absent rather than empty for a GET: "no body" and "an empty body" are not
 				// the same request.
-				...(wire.body === undefined ? {} : { body: sanitize(wire.body, secrets) }),
+				...(wire.body === undefined
+					? {}
+					: {
+							body: redactIdentifyingFields(sanitize(wire.body, secrets), [
+								...IDENTIFYING_FIELDS,
+								...REQUEST_ONLY_FIELDS,
+							]),
+						}),
 			},
 			response: {
 				status: res.status,
@@ -1157,9 +1244,25 @@ if (import.meta.filename === process.argv[1]) {
 			failed++;
 			continue;
 		}
-		if (providerKey !== '' && scannable.includes(providerKey)) {
+		// EVERY NEEDLE, not just the joined key. This gate read `providerKey` alone, which is
+		// exactly the blindness that let the Bright Data zone through: the joined key never
+		// reaches the wire for that adapter, so scanning for it could not fail.
+		//
+		// THE FLOOR APPLIES TO COMPONENTS ONLY, and the asymmetry is deliberate. A short
+		// COMPONENT is excluded because `sanitize()` skips it too and a two-character needle
+		// matches everything, so the operator is warned about those before the first request
+		// instead. The joined KEY stays unconditional, exactly as it was before this function
+		// existed: it is one exact string, it was always in this scan, and a gate that starts
+		// waving through a short key would be this change making the check weaker than it
+		// found it.
+		const survived = secrets.filter(
+			(needle) =>
+				(needle === providerKey || needle.length >= MIN_SECRET_LENGTH) &&
+				scannable.includes(needle),
+		);
+		if (survived.length > 0) {
 			process.stderr.write(
-				`\n  REFUSING TO WRITE ${target.category}: the key survived sanitization.\n` +
+				`\n  REFUSING TO WRITE ${target.category}: ${survived.length === 1 ? 'a key component' : `${survived.length} key components`} survived sanitization.\n` +
 					'  This is a bug in sanitize(); fix it before recording again.\n',
 			);
 			failed++;
