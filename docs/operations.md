@@ -464,6 +464,12 @@ the feature list genuinely matches and it will be proposed again.
 spend caps. Never in the repo, never in fixtures. The record script sanitizes
 automatically and CI fails if a fixture matches a key-shaped pattern.
 
+They are not the only credential in CI any more, and the other one is worth more. The release
+App's installation token can merge to `main`, where the ruleset requires no approving review,
+and `release.yml` runs on a push to `main` and publishes. `release.yml` holds it, and so does
+the weekly `fixture-dates` job. That job exists in its own right precisely so the token is not
+live in the job that installs packages and calls providers; see `operating.md` B6.
+
 **Abuse of the hosted tier.** Domain denylist (known illegal targets), volume
 anomaly detection, and a documented process for provider complaints. Our master
 accounts are the asset at risk: one abuse incident that gets a Bright Data account

@@ -152,8 +152,12 @@ jobs:
     if: github.event.schedule == '29 6 * * 3' || inputs.job == 'record-diff'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      # READ, not write. This job runs `pnpm install` lifecycle scripts and `pnpm record`
+      # against live provider APIs, and writes third-party response bodies to disk. It has no
+      # business holding a credential that can write to the repository: the renewed fixtures
+      # travel to `fixture-dates` below as an artifact, and the push happens there, in a job
+      # that runs no workspace code and talks to no provider.
+      contents: read
       # A JOB-LEVEL BLOCK REPLACES THE WORKFLOW-LEVEL ONE, it does not extend it. The
       # `issues: write` at the top of this file does not reach here, so the drift issue this
       # job now opens would have 403'd — silently turning the reporting step into the same
@@ -178,7 +182,11 @@ jobs:
           - adapter: firecrawl
             secret: FIRECRAWL_KEY
     steps:
+      # `persist-credentials: false`, so no credential is left in the workspace `.git/config`
+      # for `pnpm install` or a provider response to reach. Nothing here pushes.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       # Dormant rather than red when a key is absent, the same call the canary makes above and
       # for the same reason: a weekly failure nobody can act on is how a real one stops being
@@ -271,20 +279,184 @@ jobs:
       # this opens a pull request roughly monthly rather than weekly. Without it the renewal is
       # discarded with the runner and `repo:check`'s freshness assertion ages out fixtures that
       # were in fact confirmed days earlier.
-      - if: steps.keyed.outputs.yes == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
+      # The renewal travels as an artifact, because the job that pushes it must not be this
+      # one. `--diff` writes fresh recordings to a temp dir and touches the repository in
+      # exactly one place: `recordedAt` on a fixture that re-recorded byte-identically.
+      - id: renewed
+        if: always() && steps.keyed.outputs.yes == 'true'
+        shell: bash
         run: |
-          git diff --quiet && exit 0
-          BRANCH="chore/fixture-dates-${{ matrix.adapter }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
-          git commit -am "chore(adapters): renew ${{ matrix.adapter }} fixture dates"
-          git push -f origin "$BRANCH"
-          gh pr view "$BRANCH" >/dev/null 2>&1 || gh pr create --base main --head "$BRANCH" \
-            --title "chore(adapters): renew ${{ matrix.adapter }} fixture dates" \
-            --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job."
+          FIXTURES="packages/adapters/src/${{ matrix.adapter }}/fixtures"
+          if git diff --quiet -- "$FIXTURES"; then
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          fi
+      # `always()`, so a drift failure above does not also discard a renewal that did happen.
+      - if: always() && steps.renewed.outputs.yes == 'true'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: fixtures-${{ matrix.adapter }}
+          path: packages/adapters/src/${{ matrix.adapter }}/fixtures
+          if-no-files-found: error
+          retention-days: 7
+
+  # The half that writes. Separated from the recording deliberately: this job runs no
+  # workspace code, installs nothing, and talks to no provider, so the only thing its token
+  # can be reached by is this file.
+  #
+  # WHY A TOKEN AT ALL. GitHub starts no workflow run for anything `GITHUB_TOKEN` does, so a
+  # branch pushed and a pull request opened with it arrive with no CI, and `main`'s ruleset
+  # requires the checks with no bypass actor. #358 sat at "no checks reported" until somebody
+  # made the checks exist by hand. `release.yml` hit this first; this is its fix, its App, and
+  # no second credential.
+  fixture-dates:
+    needs: record-diff
+    # `always()`, for the reason the upload above has it: drift on one adapter must not
+    # discard another's renewal. `needs` still guarantees the recording finished.
+    if: always() && needs.record-diff.result != 'skipped'
+    runs-on: ubuntu-latest
+    env:
+      # `secrets` cannot be read in a step `if:`, so the presence test is hoisted to `env`.
+      HAS_APP: ${{ (secrets.RELEASE_APP_CLIENT_ID != '' || secrets.RELEASE_APP_ID != '') && secrets.RELEASE_APP_PRIVATE_KEY != '' }}
+      HAS_CLIENT_ID: ${{ secrets.RELEASE_APP_CLIENT_ID != '' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # MINTED BEFORE THE CHECKOUT, because the checkout is what decides the push identity.
+      # `actions/checkout` persists its token as an `http.extraheader` in the workspace
+      # `.git/config`, and that header is sent on every push to github.com whatever the remote
+      # URL says, so a credential smuggled into the URL at push time loses to it silently and
+      # the push stays `github-actions[bot]`. `release.yml` says the same in its own words:
+      # push and pull request must agree, or the run is still suppressed.
+      #
+      # `permission-*` narrows the installation token to the two permissions this job uses.
+      # The App also holds `packages: write` for ghcr, which has no business being live here.
+      #
+      # TWO STEPS, ONE OF WHICH RUNS. `client-id` and `app-id` take different values, not two
+      # spellings of one; the comment in `release.yml` has the detail.
+      - name: mint a token that is not the Actions token
+        id: app_client
+        if: env.HAS_APP == 'true' && env.HAS_CLIENT_ID == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: mint a token that is not the Actions token (legacy app id)
+        id: app_legacy
+        if: env.HAS_APP == 'true' && env.HAS_CLIENT_ID != 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          token: ${{ steps.app_client.outputs.token || steps.app_legacy.outputs.token || secrets.GITHUB_TOKEN }}
+      # `continue-on-error`, because renewing nothing is the normal week: the fixtures are
+      # re-recorded weekly and only renew their date after 30 days. A failed download and an
+      # empty one are not distinguished here, which is why the step below reports what it
+      # found rather than assuming the artifacts are the reason it did nothing.
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        id: renewals
+        continue-on-error: true
+        with:
+          pattern: fixtures-*
+          path: /tmp/renewed
+      # THE GUARD IS THE TOKEN, NOT THE CONFIGURATION. `HAS_APP` says the secrets are set;
+      # what decides whether CI will run is which token the checkout above actually used, and
+      # those are two different facts joined by a `||`. The day they disagree — an empty mint
+      # output, a `continue-on-error` added later, a third mint path — a `HAS_APP` guard would
+      # suppress the warning on exactly the run that needed it, which is the inert fix this
+      # job exists to avoid, with its alarm turned off.
+      - if: steps.renewals.outcome == 'success'
+        env:
+          APP_TOKEN: ${{ steps.app_client.outputs.token || steps.app_legacy.outputs.token }}
+          APP_SLUG: ${{ steps.app_client.outputs.app-slug || steps.app_legacy.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app_client.outputs.token || steps.app_legacy.outputs.token || github.token }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+
+          # The commit is authored by whoever pushes it. `main`'s ruleset sets
+          # `require_extra_approval_for_unattributed_changes`, so a commit authored by one bot
+          # and pushed by another is the shape that asks for a human. Attribute both to the
+          # same identity.
+          # `|| true`, because this is one API call standing in front of a week of renewals for
+          # every adapter, under `set -e`. A hiccup here should cost the attribution, not the
+          # work — so a failed lookup falls back to the Actions bot identity rather than
+          # aborting before the loop starts.
+          BOT_ID=""
+          if [ -n "$APP_TOKEN" ]; then
+            BOT_ID="$(gh api "users/${APP_SLUG}[bot]" --jq .id 2>/dev/null || true)"
+          fi
+          if [ -n "$BOT_ID" ]; then
+            git config user.name "${APP_SLUG}[bot]"
+            git config user.email "${BOT_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          fi
+
+          FOUND=0
+          for dir in /tmp/renewed/fixtures-*; do
+            FOUND=$((FOUND + 1))
+            ADAPTER="${dir##*/fixtures-}"
+            FIXTURES="packages/adapters/src/$ADAPTER/fixtures"
+            [ -d "$FIXTURES" ] || { echo "::warning::no fixtures directory for $ADAPTER"; continue; }
+
+            # `-f`, and two statements rather than `&&`. Joined, a failure of the reset would
+            # silently skip the branch switch and the next adapter's commit would stack onto
+            # the previous adapter's branch.
+            git checkout -f main
+            cp "$dir"/* "$FIXTURES"/
+            git diff --quiet -- "$FIXTURES" && continue
+
+            BRANCH="chore/fixture-dates-$ADAPTER"
+            git checkout -B "$BRANCH"
+            # Scoped, not `-a`. These pull requests merge with no approving review required,
+            # so "every modified tracked file" is the wrong blast radius for a robot commit.
+            git commit -m "chore(adapters): renew $ADAPTER fixture dates" -- "$FIXTURES"
+            git push -f origin "$BRANCH"
+
+            # `gh pr list --state open`, NOT `gh pr view`. The branch name is stable per
+            # adapter and this force-pushes it every month, and `gh pr view` resolves a branch
+            # to a MERGED pull request too: after #358 merged, `gh pr view
+            # chore/fixture-dates-brightdata` still exits 0. The old guard would have pushed
+            # the branch, found the merged pull request, skipped `gh pr create` and exited
+            # green having opened nothing. That state was unreachable while these pull
+            # requests could not merge; fixing the merge is what arms it.
+            OPEN="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+            [ -n "$OPEN" ] && continue
+
+            NOTE=""
+            if [ -z "$APP_TOKEN" ]; then
+              NOTE=$'\n\n**No CI will run on this pull request.** It was opened with the Actions token, and GitHub starts no workflow for what that token does. Close it and reopen it — `ci.yml` lists `reopened` among its triggers — or install the release App so this job stops producing unmergeable pull requests.'
+              echo "::warning title=fixture-dates::No App token, so the $ADAPTER pull request opens without CI and cannot merge until somebody closes and reopens it."
+            fi
+
+            # THE FALLBACK IS NOT DECORATION. That an App installation token can open a pull
+            # request whose creation starts CI is proven in this repository: `release.yml`
+            # opens the release pull request as this App and those arrive with checks. What is
+            # NOT proven is `gh` as the client for it rather than octokit, which is what
+            # `release.yml` uses. So a failure here retries with the Actions token and says
+            # what it did, instead of losing the renewal to an unproven assumption.
+            if ! gh pr create --base main --head "$BRANCH" \
+              --title "chore(adapters): renew $ADAPTER fixture dates" \
+              --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job.$NOTE"; then
+              echo "::warning title=fixture-dates::gh could not open the $ADAPTER pull request with the App token. Retrying with the Actions token; the pull request will need closing and reopening before CI runs on it."
+              RETRY_BODY=$'These fixtures re-recorded byte-identically, so only `recordedAt` moved. Opened by the weekly `record-diff` job.\n\n**No CI will run on this pull request.** `gh` could not open it with the App token, so it was opened with the Actions token, and GitHub starts no workflow for what that token does. Close it and reopen it to make the checks run.'
+              GH_TOKEN="${{ github.token }}" gh pr create --base main --head "$BRANCH" \
+                --title "chore(adapters): renew $ADAPTER fixture dates" \
+                --body "$RETRY_BODY"
+            fi
+          done
+
+          echo "adapters with a renewal this run: $FOUND"
 
   # Provenance for the published health figures.
   #
