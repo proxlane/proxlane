@@ -1,0 +1,55 @@
+# TEMPORARY. Proves `gh` works with a GitHub App installation token before `fixture-dates`
+# depends on it. Deleted in this same pull request once it has run.
+name: tmp-app-token-probe
+
+on: workflow_dispatch
+
+permissions: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        id: app
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          token: ${{ steps.app.outputs.token }}
+      - env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        shell: bash
+        run: |
+          echo "app-slug: $APP_SLUG"
+          BOT_ID="$(gh api "users/${APP_SLUG}[bot]" --jq .id)"
+          echo "bot id: $BOT_ID"
+          echo "gh pr list:"
+          gh pr list --state open --json number,title --jq '.[] | "  #\(.number) \(.title)"' || echo "  (none)"
+
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${BOT_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
+          BRANCH="chore/app-token-probe"
+          git checkout -B "$BRANCH"
+          date -u +%FT%TZ > .app-token-probe
+          git add .app-token-probe
+          git commit -m "chore: app token probe, deleted immediately"
+          git push -f origin "$BRANCH"
+
+          N="$(gh pr create --base main --head "$BRANCH" \
+            --title "chore: app token probe" \
+            --body "Probe for #362. Proves a GitHub App installation token can push and open a pull request so CI runs on it. Closed automatically by the same job." \
+            --json number --jq .number 2>/dev/null || gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')"
+          echo "opened #$N"
+          sleep 20
+          echo "checks on it:"
+          gh pr checks "$N" 2>&1 | head -5 || true
+          gh pr close "$N" --delete-branch --comment "Probe done. See #362."
+          echo "closed #$N"
