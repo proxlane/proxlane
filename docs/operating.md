@@ -280,8 +280,10 @@ Scheduled:
 **Why a robot cannot use the Actions token here.** GitHub starts no workflow run for anything
 `GITHUB_TOKEN` does, so a branch pushed and a pull request opened by a job arrive with no CI at
 all. `main`'s ruleset requires the blocking checks and has no bypass actor, so such a pull
-request can never merge: #358 sat at "no checks reported" until somebody made the checks exist
-by hand. `release.yml` hit this first and its fix is the one `record-diff` now copies, App and
+request cannot merge while it has no checks at all: #358 sat at "no checks reported" until
+somebody made the checks exist by hand. Note what that does and does not buy. The checks are
+the barrier; the ruleset asks for no approving review, so anything that can make them pass can
+merge. `release.yml` hit this first and its fix is the one `record-diff` now copies, App and
 all, rather than adding a second credential.
 
 **The identity is set by the checkout, not by the push.** `actions/checkout` persists its token
@@ -291,10 +293,19 @@ to it silently, and the push stays `github-actions[bot]`. Check out with the tok
 push with.
 
 **What the App can do, stated plainly.** Its installation token lives one hour, and the only
-thing at rest is the private key. Within that hour it can merge to `main`, because the ruleset
-requires zero approving reviews, and `release.yml` runs on a push to `main`. It can also move
-or delete tags and releases. Withholding workflow scope does not change either of those. The
-reason to prefer it over a standing PAT is the hour and the revocability, not a smaller reach.
+thing at rest is the private key. Within that hour, the blocking checks are the only barrier
+between it and `main`: the ruleset requires zero approving reviews, so no human stands in that
+path, and `release.yml` runs on a push to `main` and publishes. CI is not a person. It can also
+move or delete tags and releases, which no ruleset here covers. Withholding workflow scope
+changes none of that. The reason to prefer it over a standing PAT is the hour and the
+revocability, not a smaller reach.
+
+**So the job that holds it does nothing else.** `record-diff` installs packages, runs their
+lifecycle scripts, calls live provider APIs and writes third-party bodies to disk; it holds
+`contents: read` and checks out with `persist-credentials: false`. The renewed fixtures travel
+to `fixture-dates` as an artifact, and that job runs no workspace code and talks to no provider.
+The token is also narrowed at mint time to contents and pull requests, away from the App's ghcr
+access.
 
 Absent the App, the job still opens the pull request and says in its body and in an annotation
 that the pull request must be closed and reopened to make CI run. `gh pr update-branch` is not
