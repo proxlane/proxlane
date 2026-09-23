@@ -1,5 +1,11 @@
 # @proxlane/web
 
+## 0.11.4
+
+### Patch Changes
+
+- [#359](https://github.com/proxlane/proxlane/pull/359) [`fc033f9`](https://github.com/proxlane/proxlane/commit/fc033f9229337da806cfc47b844776a52ed89009) Thanks [@scarsam](https://github.com/scarsam)! - A Scrapy page in the docs, covering the `scrapy-proxlane` middleware: settings, the verdict in `response.meta`, per-request options and sandbox testing.
+
 ## 0.11.3
 
 ### Patch Changes
