@@ -423,9 +423,22 @@ jobs:
               echo "::warning title=fixture-dates::No App token, so the $ADAPTER pull request opens without CI and cannot merge until somebody closes and reopens it."
             fi
 
-            gh pr create --base main --head "$BRANCH" \
+            # THE FALLBACK IS NOT DECORATION. That an App installation token can open a pull
+            # request whose creation starts CI is proven in this repository: `release.yml`
+            # opens the release pull request as this App and those arrive with checks. What is
+            # NOT proven is `gh` as the client for it rather than octokit, which is what
+            # `release.yml` uses. So a failure here retries with the Actions token and says
+            # what it did, instead of losing the renewal to an unproven assumption.
+            if ! gh pr create --base main --head "$BRANCH" \
               --title "chore(adapters): renew $ADAPTER fixture dates" \
-              --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job.$NOTE"
+              --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job.$NOTE"; then
+              echo "::warning title=fixture-dates::gh could not open the $ADAPTER pull request with the App token. Retrying with the Actions token; the pull request will need closing and reopening before CI runs on it."
+              GH_TOKEN="${{ github.token }}" gh pr create --base main --head "$BRANCH" \
+                --title "chore(adapters): renew $ADAPTER fixture dates" \
+                --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job.
+
+            **No CI will run on this pull request.** \`gh\` could not open it with the App token, so it was opened with the Actions token, and GitHub starts no workflow for what that token does. Close it and reopen it to make the checks run."
+            fi
           done
 
   # Provenance for the published health figures.
