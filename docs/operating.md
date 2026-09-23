@@ -274,17 +274,31 @@ Scheduled:
 |---|---|---|
 | `canary:live` | **weekly at launch, nightly once revenue exists.** This is the one definition of canary cadence; every other doc references it | opens a `flag:provider-drift` issue, and fails the run if it cannot — the label lives in `.github/labels.json`, held there by `repo:check` assertion 40 |
 | `cost-drift` | weekly | issue if reported cost diverges from our table by >10% |
-| `record:diff` | weekly | uploads a diff artifact when recorded responses change, and opens a fixture-date PR when a re-recording is byte-identical. **That PR needs `FIXTURE_BOT_TOKEN`** — see below |
+| `record:diff` | weekly | uploads a diff artifact when recorded responses change, and opens a fixture-date PR when a re-recording is byte-identical. That PR is opened by the release App, for the reason below |
 | `deps` | Renovate, weekly | auto-merge patch, PR for minor and major |
 
-**`FIXTURE_BOT_TOKEN`, and why a robot cannot use the Actions token here.** GitHub starts no
-workflow run for anything `GITHUB_TOKEN` does, so a branch pushed and a pull request opened by
-a job arrive with no CI at all. `main`'s ruleset requires the blocking checks and has no bypass
-actor, so such a pull request can never merge: #358 sat at "no checks reported" until somebody
-ran `gh pr update-branch` from their own account. The secret is a fine-grained PAT on this
-repository only, Contents and Pull requests read and write, deliberately without workflow
-scope so a compromise of it cannot rewrite the release pipeline. Absent, the job still opens
-the pull request and says in its body and in an annotation that it needs a branch update.
+**Why a robot cannot use the Actions token here.** GitHub starts no workflow run for anything
+`GITHUB_TOKEN` does, so a branch pushed and a pull request opened by a job arrive with no CI at
+all. `main`'s ruleset requires the blocking checks and has no bypass actor, so such a pull
+request can never merge: #358 sat at "no checks reported" until somebody made the checks exist
+by hand. `release.yml` hit this first and its fix is the one `record-diff` now copies, App and
+all, rather than adding a second credential.
+
+**The identity is set by the checkout, not by the push.** `actions/checkout` persists its token
+as an `http.extraheader` in the workspace `.git/config`, and that header goes out on every push
+to github.com whatever the remote URL says. A credential passed in the push URL therefore loses
+to it silently, and the push stays `github-actions[bot]`. Check out with the token you intend to
+push with.
+
+**What the App can do, stated plainly.** Its installation token lives one hour, and the only
+thing at rest is the private key. Within that hour it can merge to `main`, because the ruleset
+requires zero approving reviews, and `release.yml` runs on a push to `main`. It can also move
+or delete tags and releases. Withholding workflow scope does not change either of those. The
+reason to prefer it over a standing PAT is the hour and the revocability, not a smaller reach.
+
+Absent the App, the job still opens the pull request and says in its body and in an annotation
+that the pull request must be closed and reopened to make CI run. `gh pr update-branch` is not
+the advice: it only works when the head is behind base, and returns 422 on a freshly cut branch.
 
 CI must stay under ten minutes or people stop running it locally and start pushing to
 see what happens.

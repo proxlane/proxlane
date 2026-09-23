@@ -151,6 +151,13 @@ jobs:
   record-diff:
     if: github.event.schedule == '29 6 * * 3' || inputs.job == 'record-diff'
     runs-on: ubuntu-latest
+    env:
+      # `secrets` cannot be read in a step `if:`, so the presence test is hoisted to `env`.
+      # Same two variables, same reason, as `release.yml` — and the SAME App, because the
+      # problem is identical: a branch pushed or a pull request opened by the Actions token
+      # starts no workflow run, and `main`'s ruleset requires the checks with no bypass actor.
+      HAS_APP: ${{ (secrets.RELEASE_APP_CLIENT_ID != '' || secrets.RELEASE_APP_ID != '') && secrets.RELEASE_APP_PRIVATE_KEY != '' }}
+      HAS_CLIENT_ID: ${{ secrets.RELEASE_APP_CLIENT_ID != '' }}
     permissions:
       contents: write
       pull-requests: write
@@ -178,7 +185,36 @@ jobs:
           - adapter: firecrawl
             secret: FIRECRAWL_KEY
     steps:
+      # MINTED BEFORE THE CHECKOUT, because the checkout is what decides the push identity.
+      # `actions/checkout` persists its token as an `http.extraheader` in the workspace
+      # `.git/config`, and that header is sent on every push to github.com whatever the remote
+      # URL says — so a credential smuggled into the URL at push time loses to it, silently,
+      # and the push stays `github-actions[bot]`. `release.yml` already says this in its own
+      # words: push and pull request must agree, or the run is still suppressed.
+      #
+      # An App token rather than a PAT, for `release.yml`'s reason: it lives one hour, and the
+      # only thing at rest is the App's private key. A PAT would be a standing credential that
+      # can merge to `main`, where no approving review is required.
+      #
+      # TWO STEPS, ONE OF WHICH RUNS. `client-id` and `app-id` take different values, not two
+      # spellings of one; the comment in `release.yml` has the detail.
+      - name: mint a token that is not the Actions token
+        id: app_client
+        if: env.HAS_APP == 'true' && env.HAS_CLIENT_ID == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      - name: mint a token that is not the Actions token (legacy app id)
+        id: app_legacy
+        if: env.HAS_APP == 'true' && env.HAS_CLIENT_ID != 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          token: ${{ steps.app_client.outputs.token || steps.app_legacy.outputs.token || secrets.GITHUB_TOKEN }}
       - uses: ./.github/actions/setup
       # Dormant rather than red when a key is absent, the same call the canary makes above and
       # for the same reason: a weekly failure nobody can act on is how a real one stops being
@@ -272,47 +308,49 @@ jobs:
       # discarded with the runner and `repo:check`'s freshness assertion ages out fixtures that
       # were in fact confirmed days earlier.
       #
-      # THE TOKEN IS NOT `github.token`, AND THAT IS THE WHOLE POINT OF THIS STEP'S SHAPE.
-      # GitHub does not start a workflow run for anything the Actions token does, so a branch
-      # pushed and a pull request opened with it arrive with NO CI AT ALL. `main`'s ruleset
-      # requires the blocking checks and has no bypass actor, so the pull request this job
-      # opened could never merge: on 2026-09-23 #358 sat at "no checks reported" until a human
-      # ran `gh pr update-branch` from their own account to make the checks exist. A weekly
-      # robot that files work nobody can merge without a manual nudge is worse than no robot.
+      # THE IDENTITY IS DECIDED BY THE CHECKOUT ABOVE, not here. With the App installed this
+      # push and this pull request come from it, so CI runs on them; without it they come from
+      # the Actions token, GitHub starts no run, and `main`'s ruleset rejects the result. #358
+      # sat at "no checks reported" until somebody made the checks exist by hand, and a weekly
+      # robot that files unmergeable work is worse than no robot.
       #
-      # `FIXTURE_BOT_TOKEN` is a fine-grained PAT on this repository only, Contents: read and
-      # write plus Pull requests: read and write. A push and a pull request from it are ordinary
-      # events, so CI runs. It is deliberately NOT given workflow scope: this job must never be
-      # able to edit `.github/workflows`, or a compromise of it rewrites the release pipeline.
+      # `gh pr list --state open`, NOT `gh pr view`. The branch name is stable per adapter and
+      # this step force-pushes it every month, and `gh pr view` resolves a branch to a MERGED
+      # pull request too: after #358 merged, `gh pr view chore/fixture-dates-brightdata` still
+      # exits 0. The old guard would therefore have pushed the branch, found the merged pull
+      # request, skipped creating a new one and exited green having opened nothing. That state
+      # was unreachable while these pull requests could not merge; fixing the merge is what
+      # arms it.
       #
-      # Absent, the step still opens the pull request the old way rather than dropping the
-      # renewal on the floor, and says plainly in the annotation and in the body that it will
-      # need a branch update before it can merge.
+      # THE COMMIT IS SCOPED TO THE FIXTURES, not `-a`. These pull requests now merge with no
+      # approving review required, so "every modified tracked file" is the wrong blast radius
+      # for a robot commit.
       - if: steps.keyed.outputs.yes == 'true'
         env:
-          BOT_TOKEN: ${{ secrets.FIXTURE_BOT_TOKEN }}
-          GH_TOKEN: ${{ secrets.FIXTURE_BOT_TOKEN || github.token }}
+          GH_TOKEN: ${{ steps.app_client.outputs.token || steps.app_legacy.outputs.token || github.token }}
         shell: bash
         run: |
-          git diff --quiet && exit 0
+          FIXTURES="packages/adapters/src/${{ matrix.adapter }}/fixtures"
+          git diff --quiet -- "$FIXTURES" && exit 0
           BRANCH="chore/fixture-dates-${{ matrix.adapter }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git commit -am "chore(adapters): renew ${{ matrix.adapter }} fixture dates"
+          git commit -m "chore(adapters): renew ${{ matrix.adapter }} fixture dates" -- "$FIXTURES"
+          git push -f origin "$BRANCH"
 
           NOTE=""
-          if [ -n "$BOT_TOKEN" ]; then
-            git push -f "https://x-access-token:$BOT_TOKEN@github.com/${{ github.repository }}" "$BRANCH"
-          else
-            git push -f origin "$BRANCH"
-            NOTE=$'\n\n**No CI will run on this pull request.** It was pushed with the Actions token, and GitHub starts no workflow for what that token does. Run `gh pr update-branch` on it from an account with write access, or set the `FIXTURE_BOT_TOKEN` secret so this job stops producing unmergeable pull requests.'
-            echo "::warning title=record-diff::FIXTURE_BOT_TOKEN is not set, so this fixture-date pull request opens without CI and cannot merge until somebody updates its branch by hand."
+          if [ "$HAS_APP" != 'true' ]; then
+            NOTE=$'\n\n**No CI will run on this pull request.** It was opened with the Actions token, and GitHub starts no workflow for what that token does. Close it and reopen it — `ci.yml` lists `reopened` among its triggers — or install the release App so this job stops producing unmergeable pull requests.'
+            echo "::warning title=record-diff::No App token, so this fixture-date pull request opens without CI and cannot merge until somebody closes and reopens it."
           fi
 
-          gh pr view "$BRANCH" >/dev/null 2>&1 || gh pr create --base main --head "$BRANCH" \
-            --title "chore(adapters): renew ${{ matrix.adapter }} fixture dates" \
-            --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job.$NOTE"
+          OPEN="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$OPEN" ]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "chore(adapters): renew ${{ matrix.adapter }} fixture dates" \
+              --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job.$NOTE"
+          fi
 
   # Provenance for the published health figures.
   #
