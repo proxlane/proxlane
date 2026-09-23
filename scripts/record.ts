@@ -449,6 +449,35 @@ export function sanitizeBody(bytes: Uint8Array, secrets: readonly string[]): Uin
 }
 
 /**
+ * Below this, a needle is a word rather than a secret and replacing it corrupts prose.
+ * `cat` in "the cat sat" is the test that pins it.
+ */
+export const MIN_SECRET_LENGTH = 8;
+
+/**
+ * Every string that must not survive into a fixture, given one provider key.
+ *
+ * NOT just the key. A provider key is not always atomic: Bright Data's is `<zone>:<token>`,
+ * and `brightdata/index.ts` splits it and sends the zone as its own JSON field, so the whole
+ * key never appears on the wire and a whole-key needle matches nothing. The zone reached
+ * `slow-target.json` in cleartext that way and sat in a public repo until a security pass
+ * found it. Ours is named after the project and authenticates nothing, which is luck rather
+ * than design — the next composite key could carry an account id in the same position.
+ *
+ * Longest first, so the whole key is replaced before its parts and a fixture never ends up
+ * with `REDACTED:REDACTED` where one REDACTED belongs.
+ *
+ * A part shorter than `MIN_SECRET_LENGTH` is returned anyway. `sanitize()` will skip it, and
+ * the caller warns rather than staying silent, because "too short to redact safely" is a fact
+ * the person recording needs before they commit the fixture, not after.
+ */
+export function secretsFor(key: string): readonly string[] {
+	if (key === '') return [];
+	const parts = key.split(':').filter((p) => p !== '' && p !== key);
+	return [key, ...parts].sort((a, b) => b.length - a.length);
+}
+
+/**
  * Remove the key from anywhere it can appear: query string, headers, body.
  *
  * Deliberately blunt — a global replace of the literal secret rather than knowledge of
@@ -457,7 +486,7 @@ export function sanitizeBody(bytes: Uint8Array, secrets: readonly string[]): Uin
 export function sanitize(text: string, secrets: readonly string[]): string {
 	let out = text;
 	for (const s of secrets) {
-		if (s.length < 8) continue; // too short to replace safely
+		if (s.length < MIN_SECRET_LENGTH) continue; // too short to replace safely
 		out = out.split(s).join(REDACTED);
 	}
 	return out;
@@ -973,7 +1002,17 @@ if (import.meta.filename === process.argv[1]) {
 	// translate() is documented to treat as "send no credential" — but it must never reach
 	// sanitize(), where an empty needle would match at every position.
 	const providerKey = key ?? '';
-	const secrets = providerKey === '' ? [] : [providerKey];
+	const secrets = secretsFor(providerKey);
+	// A component too short to replace safely is a hole in exactly the redaction this step
+	// exists for, and silence about it is how the Bright Data zone reached a public fixture.
+	for (const s of secrets) {
+		if (s.length >= MIN_SECRET_LENGTH) continue;
+		process.stderr.write(
+			`\n  WARNING: one component of ${envVar} is ${s.length} characters, below the ` +
+				`${MIN_SECRET_LENGTH}-character floor, so it will NOT be redacted.\n` +
+				'  Read the recorded fixtures before committing them.\n\n',
+		);
+	}
 
 	// A dev adapter's fixtures must not land beside the real ones. Writing them to
 	// packages/adapters/src/<id>/ produces a directory indistinguishable from a supported
