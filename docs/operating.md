@@ -274,8 +274,17 @@ Scheduled:
 |---|---|---|
 | `canary:live` | **weekly at launch, nightly once revenue exists.** This is the one definition of canary cadence; every other doc references it | opens a `flag:provider-drift` issue, and fails the run if it cannot — the label lives in `.github/labels.json`, held there by `repo:check` assertion 40 |
 | `cost-drift` | weekly | issue if reported cost diverges from our table by >10% |
-| `record:diff` | weekly | uploads a diff artifact when recorded responses change |
+| `record:diff` | weekly | uploads a diff artifact when recorded responses change, and opens a fixture-date PR when a re-recording is byte-identical. **That PR needs `FIXTURE_BOT_TOKEN`** — see below |
 | `deps` | Renovate, weekly | auto-merge patch, PR for minor and major |
+
+**`FIXTURE_BOT_TOKEN`, and why a robot cannot use the Actions token here.** GitHub starts no
+workflow run for anything `GITHUB_TOKEN` does, so a branch pushed and a pull request opened by
+a job arrive with no CI at all. `main`'s ruleset requires the blocking checks and has no bypass
+actor, so such a pull request can never merge: #358 sat at "no checks reported" until somebody
+ran `gh pr update-branch` from their own account. The secret is a fine-grained PAT on this
+repository only, Contents and Pull requests read and write, deliberately without workflow
+scope so a compromise of it cannot rewrite the release pipeline. Absent, the job still opens
+the pull request and says in its body and in an annotation that it needs a branch update.
 
 CI must stay under ten minutes or people stop running it locally and start pushing to
 see what happens.

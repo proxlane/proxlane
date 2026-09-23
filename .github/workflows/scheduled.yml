@@ -271,9 +271,28 @@ jobs:
       # this opens a pull request roughly monthly rather than weekly. Without it the renewal is
       # discarded with the runner and `repo:check`'s freshness assertion ages out fixtures that
       # were in fact confirmed days earlier.
+      #
+      # THE TOKEN IS NOT `github.token`, AND THAT IS THE WHOLE POINT OF THIS STEP'S SHAPE.
+      # GitHub does not start a workflow run for anything the Actions token does, so a branch
+      # pushed and a pull request opened with it arrive with NO CI AT ALL. `main`'s ruleset
+      # requires the blocking checks and has no bypass actor, so the pull request this job
+      # opened could never merge: on 2026-09-23 #358 sat at "no checks reported" until a human
+      # ran `gh pr update-branch` from their own account to make the checks exist. A weekly
+      # robot that files work nobody can merge without a manual nudge is worse than no robot.
+      #
+      # `FIXTURE_BOT_TOKEN` is a fine-grained PAT on this repository only, Contents: read and
+      # write plus Pull requests: read and write. A push and a pull request from it are ordinary
+      # events, so CI runs. It is deliberately NOT given workflow scope: this job must never be
+      # able to edit `.github/workflows`, or a compromise of it rewrites the release pipeline.
+      #
+      # Absent, the step still opens the pull request the old way rather than dropping the
+      # renewal on the floor, and says plainly in the annotation and in the body that it will
+      # need a branch update before it can merge.
       - if: steps.keyed.outputs.yes == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          BOT_TOKEN: ${{ secrets.FIXTURE_BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FIXTURE_BOT_TOKEN || github.token }}
+        shell: bash
         run: |
           git diff --quiet && exit 0
           BRANCH="chore/fixture-dates-${{ matrix.adapter }}"
@@ -281,10 +300,19 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git commit -am "chore(adapters): renew ${{ matrix.adapter }} fixture dates"
-          git push -f origin "$BRANCH"
+
+          NOTE=""
+          if [ -n "$BOT_TOKEN" ]; then
+            git push -f "https://x-access-token:$BOT_TOKEN@github.com/${{ github.repository }}" "$BRANCH"
+          else
+            git push -f origin "$BRANCH"
+            NOTE=$'\n\n**No CI will run on this pull request.** It was pushed with the Actions token, and GitHub starts no workflow for what that token does. Run `gh pr update-branch` on it from an account with write access, or set the `FIXTURE_BOT_TOKEN` secret so this job stops producing unmergeable pull requests.'
+            echo "::warning title=record-diff::FIXTURE_BOT_TOKEN is not set, so this fixture-date pull request opens without CI and cannot merge until somebody updates its branch by hand."
+          fi
+
           gh pr view "$BRANCH" >/dev/null 2>&1 || gh pr create --base main --head "$BRANCH" \
             --title "chore(adapters): renew ${{ matrix.adapter }} fixture dates" \
-            --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job."
+            --body "These fixtures re-recorded byte-identically, so only \`recordedAt\` moved. Opened by the weekly \`record-diff\` job.$NOTE"
 
   # Provenance for the published health figures.
   #
