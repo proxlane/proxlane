@@ -422,11 +422,6 @@ const NOT_SECRET = new Set(['x-usage-tokens', 'x-token-count']);
  */
 export const IDENTIFYING_FIELDS = [
 	'client_ip',
-	// Bright Data's account-side name for the proxy pool, sent as its own JSON field because
-	// the key is `<zone>:<token>`. Listed here as well as being a `secretsFor()` needle, so a
-	// zone too short for the length floor is REFUSED rather than merely warned about — the
-	// floor is the only thing standing between a short component and a public fixture.
-	'zone',
 	// Firecrawl's per-job handle. A timestamp-derived UUID rather than an account id, and useless
 	// without the key, but it is the provider's identifier for OUR request and nothing reads it.
 	'scrapeId',
@@ -457,16 +452,30 @@ export function sanitizeBody(bytes: Uint8Array, secrets: readonly string[]): Uin
 }
 
 /**
- * Replace the value of every `IDENTIFYING_FIELDS` key in a JSON-ish string.
+ * Fields that only ever appear in a request WE construct, so redacting them there is safe in a
+ * way redacting them everywhere is not.
+ *
+ * `zone` is Bright Data's account-side name for the proxy pool, sent as its own JSON field
+ * because the key is `<zone>:<token>`. It is also an ordinary English word, so putting it in
+ * `IDENTIFYING_FIELDS` would rewrite it inside any RESPONSE body that happened to use it —
+ * silently changing a recording, in files that are `-diff` in `.gitattributes` and therefore
+ * invisible in review. Here it applies only to what we sent.
+ */
+const REQUEST_ONLY_FIELDS = ['zone'];
+
+/**
+ * Replace the value of every named field in a JSON-ish string.
  *
  * Split out of `sanitizeBody()` so the REQUEST body gets it too. A request body used to see
- * `sanitize()` alone, which matches whole needles and nothing else — so a field like Bright
- * Data's `zone`, when its value is too short for the length floor, was neither replaced there
- * nor visible in review, because fixtures are `-diff` in `.gitattributes`.
+ * `sanitize()` alone, which matches whole needles and nothing else — so Bright Data's `zone`,
+ * when its value is too short for the length floor, was neither replaced nor visible in review.
  */
-export function redactIdentifyingFields(text: string): string {
+export function redactIdentifyingFields(
+	text: string,
+	fields: readonly string[] = IDENTIFYING_FIELDS,
+): string {
 	let out = text;
-	for (const field of IDENTIFYING_FIELDS) {
+	for (const field of fields) {
 		out = out.replace(new RegExp(`("${field}"\\s*:\\s*)"[^"]*"`, 'g'), `$1"${REDACTED}"`);
 	}
 	return out;
@@ -1196,7 +1205,12 @@ if (import.meta.filename === process.argv[1]) {
 				// the same request.
 				...(wire.body === undefined
 					? {}
-					: { body: redactIdentifyingFields(sanitize(wire.body, secrets)) }),
+					: {
+							body: redactIdentifyingFields(sanitize(wire.body, secrets), [
+								...IDENTIFYING_FIELDS,
+								...REQUEST_ONLY_FIELDS,
+							]),
+						}),
 			},
 			response: {
 				status: res.status,
@@ -1232,12 +1246,19 @@ if (import.meta.filename === process.argv[1]) {
 		}
 		// EVERY NEEDLE, not just the joined key. This gate read `providerKey` alone, which is
 		// exactly the blindness that let the Bright Data zone through: the joined key never
-		// reaches the wire for that adapter, so scanning for it could not fail. Components
-		// below the floor are excluded because `sanitize()` does not replace them either, and
-		// a two-character needle matches everything; the operator is warned about those before
-		// the first request instead.
+		// reaches the wire for that adapter, so scanning for it could not fail.
+		//
+		// THE FLOOR APPLIES TO COMPONENTS ONLY, and the asymmetry is deliberate. A short
+		// COMPONENT is excluded because `sanitize()` skips it too and a two-character needle
+		// matches everything, so the operator is warned about those before the first request
+		// instead. The joined KEY stays unconditional, exactly as it was before this function
+		// existed: it is one exact string, it was always in this scan, and a gate that starts
+		// waving through a short key would be this change making the check weaker than it
+		// found it.
 		const survived = secrets.filter(
-			(needle) => needle.length >= MIN_SECRET_LENGTH && scannable.includes(needle),
+			(needle) =>
+				(needle === providerKey || needle.length >= MIN_SECRET_LENGTH) &&
+				scannable.includes(needle),
 		);
 		if (survived.length > 0) {
 			process.stderr.write(

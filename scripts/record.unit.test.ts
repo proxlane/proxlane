@@ -128,9 +128,17 @@ describe('redactIdentifyingFields', () => {
 	it('redacts a zone too short for the length floor, which sanitize cannot touch', () => {
 		const body = '{"zone":"ab","url":"https://httpbin.dev/delay/30"}';
 		expect(sanitize(body, secretsFor('ab:a-token-long-enough'))).toContain('"zone":"ab"');
-		expect(redactIdentifyingFields(body)).toBe(
+		expect(redactIdentifyingFields(body, ['zone'])).toBe(
 			'{"zone":"REDACTED","url":"https://httpbin.dev/delay/30"}',
 		);
+	});
+
+	it('leaves zone alone by default, because a response may use the word', () => {
+		// `zone` is ours in a request we construct and an ordinary word anywhere else. In the
+		// default set it would rewrite a recorded response, in files that are `-diff` and so
+		// invisible in review.
+		const response = '{"zone":"europe-west","status":"ok"}';
+		expect(redactIdentifyingFields(response)).toBe(response);
 	});
 
 	it('leaves everything else alone', () => {
