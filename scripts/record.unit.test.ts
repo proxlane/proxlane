@@ -14,9 +14,11 @@ import {
 	MAX_FIXTURE_BYTES,
 	partitionByOnly,
 	QUOTA_FIXTURE,
+	redactIdentifyingFields,
 	reportDiff,
 	sanitize,
 	sanitizeHeaders,
+	secretsFor,
 	shapeOf,
 	TARGETS,
 } from './record.ts';
@@ -46,6 +48,104 @@ function run(args: string[], env: Record<string, string> = {}) {
 		return { code: e.status ?? -1, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
 	}
 }
+
+describe('secretsFor', () => {
+	// Bright Data's key is `<zone>:<token>`, split by the adapter and sent as two separate
+	// fields, so the whole key never reaches the wire and a whole-key needle matches nothing.
+	// That is how the zone name reached `slow-target.json` in a public repo.
+	const ZONE = 'zone-name-long-enough';
+	const TOKEN = 'token-part-long-enough';
+
+	it('returns nothing for a keyless adapter', () => {
+		expect(secretsFor('')).toEqual([]);
+	});
+
+	it('returns the key alone when it has no separator', () => {
+		expect(secretsFor('plain-key-with-no-colon')).toEqual(['plain-key-with-no-colon']);
+	});
+
+	it('adds each component of a composite key', () => {
+		const out = secretsFor(`${ZONE}:${TOKEN}`);
+		expect(out).toContain(`${ZONE}:${TOKEN}`);
+		expect(out).toContain(ZONE);
+		expect(out).toContain(TOKEN);
+	});
+
+	it('orders longest first, so the whole key is replaced before its parts', () => {
+		const out = secretsFor(`${ZONE}:${TOKEN}`);
+		expect(out[0]).toBe(`${ZONE}:${TOKEN}`);
+		expect([...out]).toEqual([...out].sort((a, b) => b.length - a.length));
+	});
+
+	it('redacts a composite key that only ever appears split', () => {
+		// The exact shape of the leak: the adapter sends `{"zone":"<zone>","..."}` and never
+		// the joined key, so sanitising with the key alone leaves the zone in the fixture.
+		const body = `{"zone":"${ZONE}","url":"https://httpbin.dev/delay/30"}`;
+		expect(sanitize(body, [`${ZONE}:${TOKEN}`])).toContain(ZONE);
+		expect(sanitize(body, secretsFor(`${ZONE}:${TOKEN}`))).not.toContain(ZONE);
+	});
+
+	it('keeps an empty component out, so an empty needle never reaches sanitize', () => {
+		expect(secretsFor(':token-part-long-enough')).not.toContain('');
+		expect(secretsFor('zone-name-long-enough:')).not.toContain('');
+	});
+
+	it('mirrors the adapter split, not only the naive one', () => {
+		// brightdata/index.ts splits at the FIRST colon, so `a:b:c` goes on the wire as zone
+		// `a` and token `b:c`. Splitting on every colon alone never lists the token that was
+		// actually sent, and would rewrite it as REDACTED:REDACTED if both halves cleared the
+		// floor — corrupting a fixture instead of protecting it.
+		const out = secretsFor(`${ZONE}:first-half-long:second-half-long`);
+		expect(out).toContain('first-half-long:second-half-long');
+		expect(out).toContain('first-half-long');
+		expect(out).toContain(ZONE);
+	});
+
+	it('does not repeat a component', () => {
+		expect(secretsFor(`${ZONE}:${TOKEN}`).filter((x) => x === ZONE)).toHaveLength(1);
+	});
+
+	it('replaces a key component wherever it appears, which is why a zone must not be a word', () => {
+		// The blunt replace has no idea what it is looking at. The floor stops `cat`; nothing
+		// stops an eight-character component that happens to be a word in a response body.
+		// This is pinned rather than fixed: the mitigation is not naming a zone after
+		// something a page would say, and `TARGETS`' POST payload no longer collides with ours.
+		const innocent = '{"proxlane":"an ordinary body that happens to say it"}';
+		expect(sanitize(innocent, secretsFor('proxlane:a-token-long-enough'))).toBe(
+			'{"REDACTED":"an ordinary body that happens to say it"}',
+		);
+	});
+
+	it('still returns a component below the length floor, for the caller to warn about', () => {
+		// sanitize() skips it either way. Dropping it here would hide the fact that a key
+		// component is going to survive into the fixture.
+		expect(secretsFor(`ab:${TOKEN}`)).toContain('ab');
+		expect(sanitize('ab', secretsFor(`ab:${TOKEN}`))).toBe('ab');
+	});
+});
+
+describe('redactIdentifyingFields', () => {
+	it('redacts a zone too short for the length floor, which sanitize cannot touch', () => {
+		const body = '{"zone":"ab","url":"https://httpbin.dev/delay/30"}';
+		expect(sanitize(body, secretsFor('ab:a-token-long-enough'))).toContain('"zone":"ab"');
+		expect(redactIdentifyingFields(body, ['zone'])).toBe(
+			'{"zone":"REDACTED","url":"https://httpbin.dev/delay/30"}',
+		);
+	});
+
+	it('leaves zone alone by default, because a response may use the word', () => {
+		// `zone` is ours in a request we construct and an ordinary word anywhere else. In the
+		// default set it would rewrite a recorded response, in files that are `-diff` and so
+		// invisible in review.
+		const response = '{"zone":"europe-west","status":"ok"}';
+		expect(redactIdentifyingFields(response)).toBe(response);
+	});
+
+	it('leaves everything else alone', () => {
+		const body = '{"url":"https://example.com","format":"raw"}';
+		expect(redactIdentifyingFields(body)).toBe(body);
+	});
+});
 
 describe('sanitize', () => {
 	// Deliberately not shaped like any real vendor's key. An earlier version used an
