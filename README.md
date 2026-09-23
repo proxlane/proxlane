@@ -152,6 +152,17 @@ const html = await res.text();
 Full parameter reference: [proxlane.dev/docs/api](https://proxlane.dev/docs/api). Every
 outcome, and what to do about each: [proxlane.dev/docs/outcomes](https://proxlane.dev/docs/outcomes).
 
+Scrapy:
+
+```bash
+pip install scrapy-proxlane
+```
+
+One downloader middleware, and each response carries the gateway's verdict in
+`response.meta["proxlane"]`. Settings and per-request options:
+[proxlane.dev/docs/scrapy](https://proxlane.dev/docs/scrapy). Source:
+[proxlane/scrapy-proxlane](https://github.com/proxlane/scrapy-proxlane).
+
 ## Self-hosting
 
 ```bash

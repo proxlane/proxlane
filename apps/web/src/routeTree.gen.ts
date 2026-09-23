@@ -24,6 +24,7 @@ import { Route as DocsHostingRouteImport } from './routes/docs/hosting'
 import { Route as DocsOutcomesRouteImport } from './routes/docs/outcomes'
 import { Route as DocsProvidersRouteImport } from './routes/docs/providers'
 import { Route as DocsQuickstartRouteImport } from './routes/docs/quickstart'
+import { Route as DocsScrapyRouteImport } from './routes/docs/scrapy'
 import { Route as DocsTryRouteImport } from './routes/docs/try'
 import { Route as DocsUseCasesRouteImport } from './routes/docs/use-cases'
 import { Route as MigrateIndexRouteImport } from './routes/migrate/index'
@@ -111,6 +112,11 @@ const DocsQuickstartRoute = DocsQuickstartRouteImport.update({
   path: '/docs/quickstart',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsScrapyRoute = DocsScrapyRouteImport.update({
+  id: '/docs/scrapy',
+  path: '/docs/scrapy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsTryRoute = DocsTryRouteImport.update({
   id: '/docs/try',
   path: '/docs/try',
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/providers': typeof DocsProvidersRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/scrapy': typeof DocsScrapyRoute
   '/docs/try': typeof DocsTryRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
@@ -213,6 +220,7 @@ export interface FileRoutesByTo {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/providers': typeof DocsProvidersRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/scrapy': typeof DocsScrapyRoute
   '/docs/try': typeof DocsTryRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
@@ -242,6 +250,7 @@ export interface FileRoutesById {
   '/docs/outcomes': typeof DocsOutcomesRoute
   '/docs/providers': typeof DocsProvidersRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/scrapy': typeof DocsScrapyRoute
   '/docs/try': typeof DocsTryRoute
   '/docs/use-cases': typeof DocsUseCasesRoute
   '/migrate/scraperapi': typeof MigrateScraperapiRoute
@@ -272,6 +281,7 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/providers'
     | '/docs/quickstart'
+    | '/docs/scrapy'
     | '/docs/try'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
@@ -300,6 +310,7 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/providers'
     | '/docs/quickstart'
+    | '/docs/scrapy'
     | '/docs/try'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
@@ -328,6 +339,7 @@ export interface FileRouteTypes {
     | '/docs/outcomes'
     | '/docs/providers'
     | '/docs/quickstart'
+    | '/docs/scrapy'
     | '/docs/try'
     | '/docs/use-cases'
     | '/migrate/scraperapi'
@@ -357,6 +369,7 @@ export interface RootRouteChildren {
   DocsOutcomesRoute: typeof DocsOutcomesRoute
   DocsProvidersRoute: typeof DocsProvidersRoute
   DocsQuickstartRoute: typeof DocsQuickstartRoute
+  DocsScrapyRoute: typeof DocsScrapyRoute
   DocsTryRoute: typeof DocsTryRoute
   DocsUseCasesRoute: typeof DocsUseCasesRoute
   MigrateScraperapiRoute: typeof MigrateScraperapiRoute
@@ -478,6 +491,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsQuickstartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/scrapy': {
+      id: '/docs/scrapy'
+      path: '/docs/scrapy'
+      fullPath: '/docs/scrapy'
+      preLoaderRoute: typeof DocsScrapyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs/try': {
       id: '/docs/try'
       path: '/docs/try'
@@ -573,6 +593,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsOutcomesRoute: DocsOutcomesRoute,
   DocsProvidersRoute: DocsProvidersRoute,
   DocsQuickstartRoute: DocsQuickstartRoute,
+  DocsScrapyRoute: DocsScrapyRoute,
   DocsTryRoute: DocsTryRoute,
   DocsUseCasesRoute: DocsUseCasesRoute,
   MigrateScraperapiRoute: MigrateScraperapiRoute,

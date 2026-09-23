@@ -25,6 +25,7 @@ The header to branch on is `X-Outcome-Class`. It has six values and never grows.
 - [Getting provider keys](https://proxlane.dev/docs/providers): Which provider to start with, where to get a key, and what to set.
 - [Hosting](https://proxlane.dev/docs/hosting): Where the gateway runs well, where it runs badly, and why.
 - [API reference](https://proxlane.dev/docs/api): Every endpoint, parameter and header the gateway implements.
+- [Scrapy](https://proxlane.dev/docs/scrapy): Route a Scrapy spider through the gateway with one downloader middleware.
 - [Outcomes](https://proxlane.dev/docs/outcomes): What every result means, what it returns, and whether to retry.
 - [How failover works](https://proxlane.dev/docs/failover): Chains, detection, cooldowns and deadlines.
 - [Bring your own provider](https://proxlane.dev/docs/adapters): Add a provider Proxlane has never heard of, and it joins the chain.
