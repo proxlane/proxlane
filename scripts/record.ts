@@ -134,7 +134,13 @@ export const TARGETS: readonly Target[] = [
 		category: 'post',
 		url: 'https://httpbin.dev/post',
 		method: 'POST',
-		body: '{"proxlane":"post-fixture"}',
+		// NOT `{"proxlane": …}`, and the reason is the redaction rather than taste. Our own
+		// Bright Data zone is the string `proxlane`, `secretsFor()` makes every key component
+		// a needle, and a needle is replaced wherever it appears — so that payload would have
+		// recorded as `{"REDACTED":"post-fixture"}` and the fixture would prove the opposite
+		// of what its `why` claims. Fixtures are `-diff` in `.gitattributes`, so nobody would
+		// have seen it in review either.
+		body: '{"echo-marker":"post-fixture"}',
 		renderJs: false,
 		expect: 'OK',
 		why: 'a POST body reaching the target, which three adapters used to refuse outright',
@@ -416,6 +422,11 @@ const NOT_SECRET = new Set(['x-usage-tokens', 'x-token-count']);
  */
 export const IDENTIFYING_FIELDS = [
 	'client_ip',
+	// Bright Data's account-side name for the proxy pool, sent as its own JSON field because
+	// the key is `<zone>:<token>`. Listed here as well as being a `secretsFor()` needle, so a
+	// zone too short for the length floor is REFUSED rather than merely warned about — the
+	// floor is the only thing standing between a short component and a public fixture.
+	'zone',
 	// Firecrawl's per-job handle. A timestamp-derived UUID rather than an account id, and useless
 	// without the key, but it is the provider's identifier for OUR request and nothing reads it.
 	'scrapeId',
@@ -441,11 +452,24 @@ export function sanitizeBody(bytes: Uint8Array, secrets: readonly string[]): Uin
 	const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
 	if (text.includes('\u0000')) return bytes;
 
-	let out = sanitize(text, secrets);
+	const out = redactIdentifyingFields(sanitize(text, secrets));
+	return out === text ? bytes : new TextEncoder().encode(out);
+}
+
+/**
+ * Replace the value of every `IDENTIFYING_FIELDS` key in a JSON-ish string.
+ *
+ * Split out of `sanitizeBody()` so the REQUEST body gets it too. A request body used to see
+ * `sanitize()` alone, which matches whole needles and nothing else — so a field like Bright
+ * Data's `zone`, when its value is too short for the length floor, was neither replaced there
+ * nor visible in review, because fixtures are `-diff` in `.gitattributes`.
+ */
+export function redactIdentifyingFields(text: string): string {
+	let out = text;
 	for (const field of IDENTIFYING_FIELDS) {
 		out = out.replace(new RegExp(`("${field}"\\s*:\\s*)"[^"]*"`, 'g'), `$1"${REDACTED}"`);
 	}
-	return out === text ? bytes : new TextEncoder().encode(out);
+	return out;
 }
 
 /**
@@ -473,8 +497,16 @@ export const MIN_SECRET_LENGTH = 8;
  */
 export function secretsFor(key: string): readonly string[] {
 	if (key === '') return [];
-	const parts = key.split(':').filter((p) => p !== '' && p !== key);
-	return [key, ...parts].sort((a, b) => b.length - a.length);
+	// TWO SPLITTINGS, because the adapter's is not this one. `brightdata/index.ts` splits at
+	// the FIRST colon, so a key `a:b:c` goes on the wire as zone `a` and token `b:c` — and a
+	// naive split on every colon lists `a`, `b`, `c` and never the token that was actually
+	// sent. Every-colon covers a key whose parts are each used separately; first-colon covers
+	// the shape one shipped adapter really uses. Both, then deduplicated.
+	const everyColon = key.split(':');
+	const at = key.indexOf(':');
+	const firstColon = at > 0 ? [key.slice(0, at), key.slice(at + 1)] : [];
+	const parts = [...everyColon, ...firstColon].filter((p) => p !== '' && p !== key);
+	return [...new Set([key, ...parts])].sort((a, b) => b.length - a.length);
 }
 
 /**
@@ -1162,7 +1194,9 @@ if (import.meta.filename === process.argv[1]) {
 				// JSON payload — and then the fixture showed a request with the target url nowhere
 				// in it. Absent rather than empty for a GET: "no body" and "an empty body" are not
 				// the same request.
-				...(wire.body === undefined ? {} : { body: sanitize(wire.body, secrets) }),
+				...(wire.body === undefined
+					? {}
+					: { body: redactIdentifyingFields(sanitize(wire.body, secrets)) }),
 			},
 			response: {
 				status: res.status,
@@ -1196,9 +1230,18 @@ if (import.meta.filename === process.argv[1]) {
 			failed++;
 			continue;
 		}
-		if (providerKey !== '' && scannable.includes(providerKey)) {
+		// EVERY NEEDLE, not just the joined key. This gate read `providerKey` alone, which is
+		// exactly the blindness that let the Bright Data zone through: the joined key never
+		// reaches the wire for that adapter, so scanning for it could not fail. Components
+		// below the floor are excluded because `sanitize()` does not replace them either, and
+		// a two-character needle matches everything; the operator is warned about those before
+		// the first request instead.
+		const survived = secrets.filter(
+			(needle) => needle.length >= MIN_SECRET_LENGTH && scannable.includes(needle),
+		);
+		if (survived.length > 0) {
 			process.stderr.write(
-				`\n  REFUSING TO WRITE ${target.category}: the key survived sanitization.\n` +
+				`\n  REFUSING TO WRITE ${target.category}: ${survived.length === 1 ? 'a key component' : `${survived.length} key components`} survived sanitization.\n` +
 					'  This is a bug in sanitize(); fix it before recording again.\n',
 			);
 			failed++;

@@ -14,6 +14,7 @@ import {
 	MAX_FIXTURE_BYTES,
 	partitionByOnly,
 	QUOTA_FIXTURE,
+	redactIdentifyingFields,
 	reportDiff,
 	sanitize,
 	sanitizeHeaders,
@@ -89,11 +90,52 @@ describe('secretsFor', () => {
 		expect(secretsFor('zone-name-long-enough:')).not.toContain('');
 	});
 
+	it('mirrors the adapter split, not only the naive one', () => {
+		// brightdata/index.ts splits at the FIRST colon, so `a:b:c` goes on the wire as zone
+		// `a` and token `b:c`. Splitting on every colon alone never lists the token that was
+		// actually sent, and would rewrite it as REDACTED:REDACTED if both halves cleared the
+		// floor — corrupting a fixture instead of protecting it.
+		const out = secretsFor(`${ZONE}:first-half-long:second-half-long`);
+		expect(out).toContain('first-half-long:second-half-long');
+		expect(out).toContain('first-half-long');
+		expect(out).toContain(ZONE);
+	});
+
+	it('does not repeat a component', () => {
+		expect(secretsFor(`${ZONE}:${TOKEN}`).filter((x) => x === ZONE)).toHaveLength(1);
+	});
+
+	it('replaces a key component wherever it appears, which is why a zone must not be a word', () => {
+		// The blunt replace has no idea what it is looking at. The floor stops `cat`; nothing
+		// stops an eight-character component that happens to be a word in a response body.
+		// This is pinned rather than fixed: the mitigation is not naming a zone after
+		// something a page would say, and `TARGETS`' POST payload no longer collides with ours.
+		const innocent = '{"proxlane":"an ordinary body that happens to say it"}';
+		expect(sanitize(innocent, secretsFor('proxlane:a-token-long-enough'))).toBe(
+			'{"REDACTED":"an ordinary body that happens to say it"}',
+		);
+	});
+
 	it('still returns a component below the length floor, for the caller to warn about', () => {
 		// sanitize() skips it either way. Dropping it here would hide the fact that a key
 		// component is going to survive into the fixture.
 		expect(secretsFor(`ab:${TOKEN}`)).toContain('ab');
 		expect(sanitize('ab', secretsFor(`ab:${TOKEN}`))).toBe('ab');
+	});
+});
+
+describe('redactIdentifyingFields', () => {
+	it('redacts a zone too short for the length floor, which sanitize cannot touch', () => {
+		const body = '{"zone":"ab","url":"https://httpbin.dev/delay/30"}';
+		expect(sanitize(body, secretsFor('ab:a-token-long-enough'))).toContain('"zone":"ab"');
+		expect(redactIdentifyingFields(body)).toBe(
+			'{"zone":"REDACTED","url":"https://httpbin.dev/delay/30"}',
+		);
+	});
+
+	it('leaves everything else alone', () => {
+		const body = '{"url":"https://example.com","format":"raw"}';
+		expect(redactIdentifyingFields(body)).toBe(body);
 	});
 });
 
