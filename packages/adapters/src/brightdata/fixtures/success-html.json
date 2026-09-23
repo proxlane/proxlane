@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "success-html",
-	"recordedAt": "2026-08-19T09:33:16.657Z",
+	"recordedAt": "2026-09-23T12:00:25.833Z",
 	"adapter": "brightdata",
 	"target": {
 		"url": "https://httpbin.dev/html",
