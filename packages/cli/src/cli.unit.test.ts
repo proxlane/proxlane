@@ -281,6 +281,69 @@ describe('doctor', () => {
 		}
 	});
 
+	describe('the gateway key, judged the way the gateway boots', () => {
+		const run = async (live: string | undefined, sandbox?: string) => {
+			const saved = [process.env.PROXLANE_API_KEY, process.env.PROXLANE_SANDBOX_KEY] as const;
+			if (live === undefined) delete process.env.PROXLANE_API_KEY;
+			else process.env.PROXLANE_API_KEY = live;
+			if (sandbox === undefined) delete process.env.PROXLANE_SANDBOX_KEY;
+			else process.env.PROXLANE_SANDBOX_KEY = sandbox;
+			try {
+				const [, out] = await capture(() => doctor(true));
+				const checks = JSON.parse(out).data.checks as {
+					name: string;
+					ok: boolean;
+					detail: string;
+					fix?: string;
+				}[];
+				return {
+					out,
+					key: checks.find((c) => c.name === 'gateway key'),
+					sandbox: checks.find((c) => c.name === 'sandbox'),
+				};
+			} finally {
+				if (saved[0] === undefined) delete process.env.PROXLANE_API_KEY;
+				else process.env.PROXLANE_API_KEY = saved[0];
+				if (saved[1] === undefined) delete process.env.PROXLANE_SANDBOX_KEY;
+				else process.env.PROXLANE_SANDBOX_KEY = saved[1];
+			}
+		};
+
+		it('fails with no key, and says how to make one', async () => {
+			const { key } = await run(undefined);
+			expect(key?.ok).toBe(false);
+			expect(key?.detail).toContain('not set');
+			expect(key?.fix).toContain('openssl rand');
+		});
+
+		it('fails on a published key without printing it', async () => {
+			const { key, out } = await run('changeme');
+			expect(key?.ok).toBe(false);
+			expect(key?.detail).toContain('published');
+			expect(out).not.toContain('changeme');
+		});
+
+		it('passes a good key, reporting its length only', async () => {
+			const good = 'k'.repeat(64);
+			const { key, out } = await run(good);
+			expect(key?.ok).toBe(true);
+			expect(key?.detail).toContain('64 chars');
+			expect(out).not.toContain(good);
+		});
+
+		it('passes a short key but says the gateway will warn', async () => {
+			const { key } = await run('short-but-private');
+			expect(key?.ok).toBe(true);
+			expect(key?.detail).toContain('warns');
+		});
+
+		it('flags a published sandbox key without failing it', async () => {
+			const { sandbox } = await run('k'.repeat(64), 'sandbox');
+			expect(sandbox?.ok).toBe(true);
+			expect(sandbox?.detail).toContain('PUBLISHED');
+		});
+	});
+
 	it('treats a missing BYOK key as information, not failure', async () => {
 		// Reporting it as broken trains people to ignore the output, which is how a
 		// diagnostic stops being read. Nobody is expected to hold all three keys.

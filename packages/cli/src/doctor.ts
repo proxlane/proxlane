@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { REGISTRY } from '@proxlane/adapters';
-import { assessMemory, describeSource, readMemoryLimit } from '@proxlane/shared';
+import {
+	assessMemory,
+	checkKeys,
+	describeSource,
+	isPublishedKey,
+	readMemoryLimit,
+	SHORT_KEY_WARNING_LENGTH,
+} from '@proxlane/shared';
 import { DEFAULT_BODY_CAP_MB } from '@proxlane/shared/transport';
 import { EXIT, emit, style } from './output.js';
 
@@ -229,6 +236,7 @@ function routingChecks(): Check[] {
 		backpressureCheck(),
 		terminalRetryCheck(),
 		loggingCheck(),
+		gatewayKeyCheck(),
 		sandboxCheck(),
 	];
 }
@@ -241,6 +249,42 @@ function routingChecks(): Check[] {
  * line will and will not contain, because the second question is always whether the log is safe
  * to paste into an issue.
  */
+/**
+ * The gateway's own key, judged by the same function the gateway boots with.
+ *
+ * The gateway refuses to start with no key, or with a placeholder or published one, and says so
+ * once in a container log that restarts faster than anyone reads it. This is where that refusal
+ * gets explained. `checkKeys` from `@proxlane/shared` decides, so doctor and the boot can never
+ * disagree about which keys are refused. Length only, never the key: the same rule as every
+ * provider key above.
+ */
+function gatewayKeyCheck(): Check {
+	const live = env('PROXLANE_API_KEY');
+	const verdict = checkKeys(live, undefined);
+	const generate = 'export PROXLANE_API_KEY=$(openssl rand -hex 32)';
+	if (!verdict.ok) {
+		const missing = live === undefined || live.trim() === '';
+		return {
+			name: 'gateway key',
+			ok: false,
+			detail: missing
+				? 'PROXLANE_API_KEY not set. The gateway refuses to boot without it'
+				: `PROXLANE_API_KEY set (${live.length} chars), but it is a placeholder or a value ` +
+					'published in an example or CI workflow. The gateway refuses to boot with it',
+			fix: generate,
+		};
+	}
+	return {
+		name: 'gateway key',
+		ok: true,
+		detail:
+			verdict.apiKey.length < SHORT_KEY_WARNING_LENGTH
+				? `PROXLANE_API_KEY set (${verdict.apiKey.length} chars). Under ${SHORT_KEY_WARNING_LENGTH}: ` +
+					`the gateway starts, but warns. Consider ${generate}`
+				: `PROXLANE_API_KEY set (${verdict.apiKey.length} chars)`,
+	};
+}
+
 /**
  * The sandbox key, and the one way it can be set wrong.
  *
@@ -261,12 +305,17 @@ function sandboxCheck(): Check {
 		};
 	}
 	const same = live !== undefined && sandbox === live;
+	// A published sandbox key cannot spend, so the gateway only warns: fine on localhost, where
+	// the try page uses one, but on a reachable server anyone can hold in-flight slots with it.
+	const published = !same && isPublishedKey(sandbox);
 	return {
 		name: 'sandbox',
 		ok: !same,
 		detail: same
 			? 'PROXLANE_SANDBOX_KEY equals PROXLANE_API_KEY. The gateway refuses to boot this way: every request would be a sandbox request'
-			: 'on. X-Proxlane-Simulate with the sandbox key answers from the outcome table and calls no provider',
+			: published
+				? 'on, with a PUBLISHED sandbox key. It cannot spend, but on a reachable server anyone can use it to fill the in-flight ceiling and push live callers into GATEWAY_BUSY. Fine on localhost; elsewhere, export PROXLANE_SANDBOX_KEY=$(openssl rand -hex 32)'
+				: 'on. X-Proxlane-Simulate with the sandbox key answers from the outcome table and calls no provider',
 		...(same
 			? { fix: 'set PROXLANE_SANDBOX_KEY to a different value: openssl rand -hex 32' }
 			: {}),

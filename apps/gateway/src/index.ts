@@ -9,6 +9,7 @@ import { serve } from '@hono/node-server';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
 import {
 	assessMemory,
+	checkKeys,
 	describeSource,
 	overBudgetMessage,
 	providerKeyFromEnv,
@@ -19,7 +20,6 @@ import { Redis } from 'ioredis';
 import { createApp } from './app.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
 import { assertSingleWriter, type HealthStore, InMemoryHealthStore } from './health-store.js';
-import { checkKeys } from './keys.js';
 import { createLogger } from './log.js';
 import { Prober } from './prober.js';
 import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
@@ -184,7 +184,7 @@ if (VALKEY_URL === undefined) {
  */
 const sandboxKey = env('PROXLANE_SANDBOX_KEY');
 
-// Every refusal about the keys lives in `keys.ts`, pure and unit-tested: no key, a key that has
+// Every refusal about the keys lives in `@proxlane/shared`'s gateway-keys, pure and unit-tested, and shared with `proxlane doctor`: no key, a key that has
 // been published somewhere, and a sandbox key equal to the live one. They were inline here with
 // `process.exit` and nothing exercised them.
 const keys = checkKeys(env('PROXLANE_API_KEY'), sandboxKey);

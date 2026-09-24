@@ -263,8 +263,8 @@ most:
 
 | Variable | Default | Notes |
 |---|---|---|
-| `PROXLANE_API_KEY` | none | **Required.** Refuses to boot without it, or with a placeholder or a key that has appeared in a published example (the list is `PUBLISHED_LIVE_KEYS` in `apps/gateway/src/keys.ts`). Under 24 characters starts with a warning |
-| `PROXLANE_SANDBOX_KEY` | unset | A second key that can never spend: `/v1` answers from the outcome table and calls no provider. Must differ from the live key |
+| `PROXLANE_API_KEY` | none | **Required.** Refuses to boot without it, or with a placeholder or a key that has appeared in a published example (the list is `PUBLISHED_KEYS` in `packages/shared/src/gateway-keys.ts`, shared with `proxlane doctor`). Under 24 characters starts with a warning |
+| `PROXLANE_SANDBOX_KEY` | unset | A second key that can never spend: `/v1` answers from the outcome table and calls no provider. Must differ from the live key. A published value warns at boot: on a reachable server anyone could use it to fill the in-flight ceiling |
 | `SCRAPERAPI_KEY` `SCRAPINGBEE_KEY` `SCRAPFLY_KEY` `BRIGHTDATA_KEY` `FIRECRAWL_KEY` | none | BYOK. All optional. Bright Data's is `<zone>:<token>` |
 | `PORT` | `8787` | |
 | `PROXLANE_DEADLINE_MS` | `120000` | Global per-request deadline |

@@ -79,6 +79,13 @@ const REASONS = {
 	REQUEST_ID: 'request identity: minted once by the gateway',
 	/** Not API. */
 	NOT_API: 'package identity, not API',
+	/**
+	 * The gateway's OWN keys, the ones callers present to it. An adapter is handed a provider key
+	 * and nothing else, and has no business knowing which gateway keys are refused at boot. The
+	 * list lives in shared only so the gateway and `proxlane doctor` read the same one.
+	 */
+	GATEWAY_KEYS:
+		'the gateway authenticating its callers: boot and doctor only, never an adapter',
 } as const;
 
 /**
@@ -90,6 +97,17 @@ const REASONS = {
  */
 const EXCLUSIONS: ReadonlyArray<readonly [reason: string, names: readonly string[]]> = [
 	[REASONS.NOT_API, ['PACKAGE_NAME']],
+	[
+		REASONS.GATEWAY_KEYS,
+		[
+			'PUBLISHED_KEYS',
+			'normalizeKey',
+			'isPublishedKey',
+			'SHORT_KEY_WARNING_LENGTH',
+			'checkKeys',
+			'KeyCheck',
+		],
+	],
 	[
 		REASONS.ROUTER_STATE,
 		[

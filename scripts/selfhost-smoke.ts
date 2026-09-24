@@ -23,7 +23,7 @@ const COMPOSE = ['compose', '-f', 'docker/compose.yml', '-p', 'proxlane-smoke'];
 const BUDGET_MS = 5 * 60 * 1000;
 const PORT = 8799;
 // Random per run. A literal here is published the moment it is committed, and the gateway
-// refuses any key that has been (apps/gateway/src/keys.ts).
+// refuses any key that has been (packages/shared/src/gateway-keys.ts).
 const API_KEY = randomBytes(32).toString('hex');
 
 const started = Date.now();
