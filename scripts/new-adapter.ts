@@ -184,7 +184,8 @@ writeFileSync(
 	join(dir, 'fixtures', 'README.md'),
 	`# ${id} fixtures
 
-Empty until \`pnpm record --adapter=${id}\` runs against a trial key.
+Empty until \`pnpm record --adapter=${id}\` runs against a trial key. Once it has, replace this
+line: it will be false from the first recording on.
 
 **Never hand-write a fixture.** CI cannot tell a recording from a fabrication — that check
 does not exist and cannot be built — so this one is on you. A fabricated fixture makes the

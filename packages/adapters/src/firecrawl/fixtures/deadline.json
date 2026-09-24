@@ -1,0 +1,13 @@
+{
+	"kind": "deadline",
+	"category": "deadline",
+	"recordedAt": "2026-09-24T20:49:17.581Z",
+	"adapter": "firecrawl",
+	"target": {
+		"url": "https://httpbin.dev/delay/30",
+		"renderJs": false
+	},
+	"expect": "PROVIDER_TIMEOUT",
+	"transportError": "aborted-by-deadline",
+	"timeoutMs": 5000
+}
