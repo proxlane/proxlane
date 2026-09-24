@@ -79,15 +79,23 @@ export const SHORT_KEY_WARNING_LENGTH = 24;
 
 /** On success, the key itself, so the caller has it as a `string` rather than re-checking. */
 export type KeyCheck =
-	| { ok: true; apiKey: string; warnings: string[] }
+	| { ok: true; apiKey: string; sandboxKey: string | undefined; warnings: string[] }
 	| { ok: false; message: string };
 
 const GENERATE = 'export PROXLANE_API_KEY=$(openssl rand -hex 32)';
 
 export function checkKeys(
 	apiKey: string | undefined,
-	sandboxKey: string | undefined,
+	rawSandboxKey: string | undefined,
 ): KeyCheck {
+	// An empty sandbox key is no sandbox key. Left as '', it would match the empty key a request
+	// with no key at all presents, and every keyless request would become a sandbox request: the
+	// same "correct only because the caller filters it" gap as the live key, closed the same way.
+	// The effective value is handed back, so the gateway uses this decision rather than its own.
+	const sandboxKey =
+		rawSandboxKey === undefined || normalizeKey(rawSandboxKey) === ''
+			? undefined
+			: rawSandboxKey;
 	// EMPTY IS MISSING, here and not only in the caller. An empty configured key would compare
 	// equal to the empty key a request with no key at all presents, which is an open proxy. The
 	// gateway's `env()` happens to turn '' into undefined first, but a check that is correct only
@@ -152,5 +160,5 @@ export function checkKeys(
 				'PROXLANE_SANDBOX_KEY=$(openssl rand -hex 32)',
 		);
 	}
-	return { ok: true, apiKey, warnings };
+	return { ok: true, apiKey, sandboxKey, warnings };
 }

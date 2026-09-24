@@ -5,6 +5,7 @@ import {
 	checkKeys,
 	describeSource,
 	isPublishedKey,
+	normalizeKey,
 	readMemoryLimit,
 	SHORT_KEY_WARNING_LENGTH,
 } from '@proxlane/shared';
@@ -263,7 +264,9 @@ function gatewayKeyCheck(): Check {
 	const verdict = checkKeys(live, undefined);
 	const generate = 'export PROXLANE_API_KEY=$(openssl rand -hex 32)';
 	if (!verdict.ok) {
-		const missing = live === undefined || live.trim() === '';
+		// normalizeKey, not trim: the same notion of "empty" the gateway boots with, so a key of
+		// `""` or a lone zero-width space reads as not set here too, as it does there.
+		const missing = live === undefined || normalizeKey(live) === '';
 		return {
 			name: 'gateway key',
 			ok: false,

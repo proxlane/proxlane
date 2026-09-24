@@ -58,7 +58,7 @@ describe('checkKeys: the live key', () => {
 
 	it('starts with a good key and no warnings, and hands the key back', () => {
 		const r = checkKeys(GOOD, undefined);
-		expect(r).toEqual({ ok: true, apiKey: GOOD, warnings: [] });
+		expect(r).toEqual({ ok: true, apiKey: GOOD, sandboxKey: undefined, warnings: [] });
 	});
 
 	it('warns about a short key but still starts, so an upgrade cannot stop a running box', () => {
@@ -80,6 +80,22 @@ describe('checkKeys: the sandbox key', () => {
 		const warnings = started(checkKeys(GOOD, 'sandbox'));
 		expect(warnings).toHaveLength(1);
 		expect(warnings[0]).toContain('GATEWAY_BUSY');
+	});
+
+	it.each(['', '  ', '\u200B', '""'])(
+		'treats an empty sandbox key %j as no sandbox at all',
+		(sandbox) => {
+			// Otherwise it would match the empty key a keyless request presents.
+			const r = checkKeys(GOOD, sandbox);
+			expect(r.ok).toBe(true);
+			expect(r.ok ? r.sandboxKey : 'refused').toBeUndefined();
+			expect(started(r)).toEqual([]);
+		},
+	);
+
+	it('hands back the sandbox key it accepted, for the gateway to use', () => {
+		const r = checkKeys(GOOD, OTHER);
+		expect(r.ok ? r.sandboxKey : 'refused').toBe(OTHER);
 	});
 
 	it('starts quietly with a private sandbox key', () => {

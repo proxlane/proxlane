@@ -194,6 +194,8 @@ if (!keys.ok) {
 }
 for (const w of keys.warnings) process.stderr.write(`\n  WARNING: ${w}\n`);
 const apiKey = keys.apiKey;
+// The sandbox key as the check decided it, so an empty one is off here exactly as it is there.
+const sandbox = keys.sandboxKey;
 
 // BYOK: provider keys come from the environment and never leave this process. A provider
 // with no key is not a broken configuration, it is a provider you have not signed up for,
@@ -340,7 +342,7 @@ const app = createApp({
 	...(LOG === undefined ? {} : { log: LOG }),
 	logUrls: (env('PROXLANE_LOG_URLS') ?? 'off') === 'on',
 	terminalRetries: TERMINAL_RETRIES,
-	...(sandboxKey === undefined ? {} : { sandboxKey }),
+	...(sandbox === undefined ? {} : { sandboxKey: sandbox }),
 	...(health === undefined ? {} : { health }),
 	...(cooldowns === undefined ? {} : { cooldowns }),
 });
@@ -357,7 +359,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  log:       ${LOG === undefined ? 'OFF (PROXLANE_LOG=off) — nothing is recorded' : 'one line per request to stdout'}\n` +
 			`  memory:    ${MEMORY_NOTE}\n` +
 			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
-			`  sandbox:   ${sandboxKey === undefined ? 'off; PROXLANE_SANDBOX_KEY to enable' : 'on — X-Proxlane-Simulate with the sandbox key calls no provider'}\n` +
+			`  sandbox:   ${sandbox === undefined ? 'off; PROXLANE_SANDBOX_KEY to enable' : 'on — X-Proxlane-Simulate with the sandbox key calls no provider'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);
 });
