@@ -921,12 +921,17 @@ describe('one line per request, covering every exit', () => {
 		return lines;
 	};
 
-	it('logs what was ignored and what it was probably meant to be (#282)', async () => {
+	it('logs how many were ignored and what the near misses meant, never the other names (#282)', async () => {
+		// A credential pasted as a parameter name fits the header's naming rule. The header hands
+		// it back to the caller who sent it; the log would persist it, so the log gets a count.
+		const pasted = 'a'.repeat(32);
 		const [line] = await capture(
-			`/v1?api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&providers=scrapfly&autoparse=1`,
+			`/v1?api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&providers=scrapfly&autoparse=1&${pasted}=1`,
 		);
-		expect(line?.ignored).toEqual(['autoparse', 'providers']);
+		expect(line?.ignored).toBe(3);
 		expect(line?.near_miss).toEqual({ providers: 'provider' });
+		expect(JSON.stringify(line)).not.toContain(pasted);
+		expect(JSON.stringify(line)).not.toContain('autoparse');
 	});
 
 	it('leaves both fields off a clean request', async () => {

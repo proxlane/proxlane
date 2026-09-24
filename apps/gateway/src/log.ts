@@ -51,11 +51,15 @@ export interface RequestLine {
 	 */
 	readonly sim?: string;
 	/**
-	 * Query parameters the gateway does not read, as `X-Ignored-Params` reports them, and the
-	 * ones that are almost certainly a typo of ours with the name we read (#282). Names only,
-	 * never values: the same rule as the header, for the same reason.
+	 * How many query parameters the gateway did not read: a COUNT, never the names. The log is
+	 * where caller-supplied text would be persisted, and a credential pasted as a parameter
+	 * name fits the header's naming rule. The response header still names them, to the caller.
 	 */
-	readonly ignored?: readonly string[];
+	readonly ignored?: number;
+	/**
+	 * The ignored names that are almost certainly a typo of ours, with the name we read (#282).
+	 * Safe to persist: each is one edit from, or an alias of, a parameter of ours.
+	 */
 	readonly near_miss?: Readonly<Record<string, string>>;
 }
 

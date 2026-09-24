@@ -58,6 +58,12 @@ const REPORTABLE = /^[A-Za-z0-9_.-]{1,40}$/;
 /** At most this many names, so a junk query cannot produce a header of unbounded length. */
 const MAX_REPORTED = 10;
 
+/**
+ * At most this many distinct names are examined for a near miss. Enough for any real request,
+ * which sends a handful; a query built to cost CPU stops being read here.
+ */
+export const MAX_EXAMINED = 32;
+
 /** Longest accepted `wait_for` selector. Generous — real selectors are nowhere near it. */
 const MAX_WAIT_FOR = 256;
 
@@ -104,17 +110,19 @@ export function ignoredParams(qs: string): string[] {
  * one changes what a request does while returning 200, which is the failure the hint exists for.
  * Several are other providers' own names; the hint says what ours is, and that holds either way.
  */
-const OUR_OTHER_SPELLINGS: Readonly<Record<string, string>> = {
-	render_js: 'render',
-	js_render: 'render',
-	js: 'render',
-	timeout_ms: 'timeout',
-	country: 'country_code',
-	countrycode: 'country_code',
-	premium_proxy: 'premium',
-	wait_for_selector: 'wait_for',
-	waitfor: 'wait_for',
-};
+// A Map, not an object literal: `?constructor=1` looked up on a plain object finds
+// Object.prototype.constructor, and emitted `constructor=function Object() { [native code] }`.
+const OUR_OTHER_SPELLINGS: ReadonlyMap<string, string> = new Map([
+	['render_js', 'render'],
+	['js_render', 'render'],
+	['js', 'render'],
+	['timeout_ms', 'timeout'],
+	['country', 'country_code'],
+	['countrycode', 'country_code'],
+	['premium_proxy', 'premium'],
+	['wait_for_selector', 'wait_for'],
+	['waitfor', 'wait_for'],
+]);
 
 /** Optimal string alignment distance: insertions, deletions, substitutions and adjacent swaps. */
 function editDistance(a: string, b: string): number {
@@ -154,10 +162,19 @@ function editDistance(a: string, b: string): number {
  */
 export function nearMisses(qs: string): [ignored: string, ours: string][] {
 	const out = new Map<string, string>();
+	const examined = new Set<string>();
 	for (const [k] of new URLSearchParams(qs)) {
-		if (KNOWN_PARAMS.includes(k) || out.has(k) || !REPORTABLE.test(k)) continue;
+		// BOUNDED WORK, because this runs on every request before authentication. A security
+		// review measured the first version at ~46 ms of CPU for one 16 KB query of distinct
+		// names, run twice per /v1 request: a keyless caller could hold a core. So each name is
+		// examined once, at most MAX_EXAMINED distinct names are examined at all, and a name
+		// whose length rules out distance one is never compared.
+		if (examined.has(k)) continue;
+		if (examined.size >= MAX_EXAMINED) break;
+		examined.add(k);
+		if (KNOWN_PARAMS.includes(k) || !REPORTABLE.test(k)) continue;
 		const lower = k.toLowerCase();
-		const aliased = OUR_OTHER_SPELLINGS[lower];
+		const aliased = OUR_OTHER_SPELLINGS.get(lower);
 		if (aliased !== undefined) {
 			out.set(k, aliased);
 			continue;
@@ -165,7 +182,9 @@ export function nearMisses(qs: string): [ignored: string, ours: string][] {
 		// Distance 1 only, and never for a name of two characters or fewer: at that length
 		// everything is one edit from something, and a hint that is usually wrong is noise.
 		if (lower.length <= 2) continue;
-		const close = KNOWN_PARAMS.filter((p) => editDistance(lower, p) <= 1);
+		const close = KNOWN_PARAMS.filter(
+			(p) => Math.abs(p.length - lower.length) <= 1 && editDistance(lower, p) <= 1,
+		);
 		// Exactly one candidate, or it is a guess dressed as a fact.
 		if (close.length === 1) out.set(k, close[0] as string);
 	}

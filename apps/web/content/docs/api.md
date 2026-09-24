@@ -142,8 +142,9 @@ When an ignored name is one character off one of ours, or another provider's spe
 `X-Ignored-Params-Hint` says which parameter it probably meant. `providers=brightdata` pins
 nothing: the request runs the normal chain and answers from whichever provider served, so
 without the hint it reads as a successful test of Bright Data. The hint is a separate header so
-that `X-Ignored-Params` stays a plain list of names. The request log carries both, as `ignored`
-and `near_miss`.
+that `X-Ignored-Params` stays a plain list of names. The request log records how many parameters
+were ignored, as `ignored`, and the near misses, as `near_miss`. It never records the other
+names: something pasted into a query by mistake, a key included, would otherwise land in a log.
 
 Two of those are easy to misread.
 

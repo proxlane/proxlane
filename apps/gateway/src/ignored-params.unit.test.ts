@@ -10,7 +10,8 @@
 // whole product is built on refusing to serve one silently.
 
 import { describe, expect, it } from 'vitest';
-import { ignoredParams, nearMisses } from './app.js';
+import { ignoredCount, ignoredParams, nearMisses } from './app.js';
+import { MAX_EXAMINED } from './request.js';
 
 describe('ignoredParams', () => {
 	it('names the other providers’ spellings of render', () => {
@@ -151,5 +152,49 @@ describe('nearMisses (#282)', () => {
 
 	it('reports each name once however often it is repeated', () => {
 		expect(nearMisses('?url=x&providers=a&providers=b')).toEqual([['providers', 'provider']]);
+	});
+});
+
+describe('nearMisses: what a hostile query cannot do (#371 review)', () => {
+	it('never reads an object prototype as a hint', () => {
+		// A plain-object lookup found Object.prototype.constructor and emitted
+		// `constructor=function Object() { [native code] }`, breaking the sent=ours grammar.
+		for (const name of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) {
+			expect(nearMisses(`?url=x&${name}=1`), name).toEqual([]);
+		}
+	});
+
+	it('does bounded work on a 16 KB query of distinct names, which runs before authentication', () => {
+		// 16 KB is Node's default header limit. The first version spent ~46 ms of CPU on this,
+		// twice per /v1 request, for a caller holding no key.
+		const names = Array.from({ length: 2000 }, (_, i) => `n${i.toString(36).padStart(5, '0')}`);
+		const qs = `?${names.map((n) => `${n}=1`).join('&')}`.slice(0, 16 * 1024);
+		const t0 = performance.now();
+		for (let i = 0; i < 10; i++) nearMisses(qs);
+		const perCall = (performance.now() - t0) / 10;
+		// A wide margin over the measured ~0.5 ms, so this fails on a regression, not on a slow runner.
+		expect(perCall).toBeLessThan(15);
+	});
+
+	it('stops examining after MAX_EXAMINED distinct names', () => {
+		// A hint that would have been found past the cap is not: that is the price of the bound,
+		// and no real request sends this many parameters.
+		const junk = Array.from({ length: MAX_EXAMINED }, (_, i) => `junk${i}=1`).join('&');
+		expect(nearMisses(`?${junk}&providers=x`)).toEqual([]);
+		expect(nearMisses(`?providers=x&${junk}`)).toEqual([['providers', 'provider']]);
+	});
+
+	it('examines a repeated name once', () => {
+		const repeated = Array.from({ length: 500 }, () => 'providers=x').join('&');
+		expect(nearMisses(`?${repeated}`)).toEqual([['providers', 'provider']]);
+	});
+});
+
+describe('ignoredCount', () => {
+	it('counts the names, and a trailing +N as N more', () => {
+		expect(ignoredCount([])).toBe(0);
+		expect(ignoredCount(['a', 'b'])).toBe(2);
+		expect(ignoredCount(['a', 'b', '+3'])).toBe(5);
+		expect(ignoredCount(['+4'])).toBe(4);
 	});
 });
