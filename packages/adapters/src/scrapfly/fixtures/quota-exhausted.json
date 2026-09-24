@@ -1,0 +1,48 @@
+{
+	"kind": "exchange",
+	"category": "quota-exhausted",
+	"recordedAt": "2026-09-24T21:11:59.344Z",
+	"adapter": "scrapfly",
+	"target": {
+		"url": "https://httpbin.dev/post",
+		"renderJs": false
+	},
+	"expect": "QUOTA_EXHAUSTED",
+	"request": {
+		"method": "POST",
+		"url": "https://api.scrapfly.io/scrape?key=REDACTED&url=https%3A%2F%2Fhttpbin.dev%2Fpost&render_js=false&asp=false&proxy_pool=public_datacenter_pool&retry=false&cache=false&timeout=50000&os=win11&format=raw",
+		"headers": {
+			"accept": "application/json"
+		},
+		"body": "{\"echo-marker\":\"post-fixture\"}"
+	},
+	"response": {
+		"status": 429,
+		"headers": {
+			"content-encoding": "gzip",
+			"content-length": "1482",
+			"content-type": "application/json; charset=utf-8",
+			"date": "VOLATILE",
+			"strict-transport-security": "max-age=31536000; includeSubDomains",
+			"vary": "Accept-Encoding",
+			"x-content-type-options": "nosniff",
+			"x-request-id": "VOLATILE",
+			"x-scrapfly-account-concurrent-usage": "0",
+			"x-scrapfly-account-remaining-concurrent-usage": "5",
+			"x-scrapfly-api-cost": "0",
+			"x-scrapfly-project-concurrent-usage": "0",
+			"x-scrapfly-project-remaining-concurrent-usage": "5",
+			"x-scrapfly-reject-code": "ERR::SCRAPE::QUOTA_LIMIT_REACHED",
+			"x-scrapfly-reject-description": "The account quota is consumed - you need to upgrade to continue to use the service -",
+			"x-scrapfly-reject-doc": "https://scrapfly.io/docs/scrape-api/error/ERR::SCRAPE::QUOTA_LIMIT_REACHED,https://scrapfly.io/docs/project,https://scrapfly.io/docs/billing#change_plan",
+			"x-scrapfly-reject-http-code": "429",
+			"x-scrapfly-reject-id": "f2cb96a0-ad8f-40d5-a320-c5fe41014f0c",
+			"x-scrapfly-reject-retryable": "false",
+			"x-scrapfly-remaining-api-credit": "0",
+			"x-scrapfly-remaining-scrape": "0",
+			"x-scrapfly-response-time": "0.000000"
+		},
+		"bodyBase64": "eyJjb25maWciOnsiYXNwIjpmYWxzZSwiYXV0b19zY3JvbGwiOmZhbHNlLCJib2R5Ijoie1wiZWNoby1tYXJrZXJcIjpcInBvc3QtZml4dHVyZVwifSIsImJvZHlfZW5jb2RpbmciOiJ0ZXh0IiwiYnJvd3Nlcl9icmFuZCI6bnVsbCwiY2FjaGUiOmZhbHNlLCJjYWNoZV9jbGVhciI6ZmFsc2UsImNhY2hlX3R0bCI6ODY0MDAsImNvbXBsaWFuY2UiOnsiY2xpZW50X2lwIjoiUkVEQUNURUQiLCJjbGllbnRfdXNlcl9hZ2VudCI6Im5vZGUiLCJoaXBhYSI6ZmFsc2V9LCJjb3JyZWxhdGlvbl9pZCI6bnVsbCwiY29zdF9idWRnZXQiOm51bGwsImNvdW50cnkiOm51bGwsImRlYnVnIjpmYWxzZSwiZG5zIjpmYWxzZSwiZW5hYmxlX2JhY2tlbmRfcHJvZmlsZSI6ZmFsc2UsImVuYWJsZV9jZHBfdHJhY2UiOmZhbHNlLCJlbnYiOiJMSVZFIiwiZXh0cmFjdCI6bnVsbCwiZXh0cmFjdGlvbl9tb2RlbCI6bnVsbCwiZXh0cmFjdGlvbl9tb2RlbF9jdXN0b21fc2NoZW1hIjpudWxsLCJleHRyYWN0aW9uX3Byb21wdCI6bnVsbCwiZXh0cmFjdGlvbl90ZW1wbGF0ZSI6bnVsbCwiZmluZ2VycHJpbnRfdXVpZCI6bnVsbCwiZm9ybWF0IjoicmF3IiwiZ2VvbG9jYXRpb24iOm51bGwsImhlYWRlcnMiOnsiY29udGVudC10eXBlIjpbImFwcGxpY2F0aW9uL2pzb24iXX0sImpvYl91dWlkIjpudWxsLCJqcyI6bnVsbCwianNfc2NlbmFyaW8iOm51bGwsImxhbmciOm51bGwsImxvZ19ldmljdGlvbl9kYXRlIjoiMjAyNi0xMC0wMSAyMToxMTo1OSIsIm1ldGhvZCI6IlBPU1QiLCJvcmlnaW4iOiJXRUJfU0NSQVBJTkdfQVBJIiwib3JpZ2luYWxfYXBpX3F1ZXJ5X3BhcmFtcyI6ImFzcD1mYWxzZVx1MDAyNmNhY2hlPWZhbHNlXHUwMDI2Zm9ybWF0PXJhd1x1MDAyNmtleT1SRURBQ1RFRFx1MDAyNm9zPXdpbjExXHUwMDI2cHJveHlfcG9vbD1wdWJsaWNfZGF0YWNlbnRlcl9wb29sXHUwMDI2cmVuZGVyX2pzPWZhbHNlXHUwMDI2cmV0cnk9ZmFsc2VcdTAwMjZ0aW1lb3V0PTUwMDAwXHUwMDI2dXJsPWh0dHBzJTNBJTJGJTJGaHR0cGJpbi5kZXYlMkZwb3N0Iiwib3MiOiJ3aW4xMSIsInByb2RfbW9kZSI6ZmFsc2UsInByb2plY3QiOiJkZWZhdWx0IiwicHJvamVjdF91dWlkIjoiUkVEQUNURUQiLCJwcm94eV9wb29sIjoicHVibGljX2RhdGFjZW50ZXJfcG9vbCIsInJlbmRlcl9qcyI6ZmFsc2UsInJlbmRlcmluZ19zdGFnZSI6IiIsInJlbmRlcmluZ193YWl0IjowLCJyZXRyeSI6ZmFsc2UsInNjaGVkdWxlX25hbWUiOm51bGwsInNjcmVlbnNob3RfYXBpX2Nvc3QiOjYwLCJzY3JlZW5zaG90X2ZsYWdzIjpudWxsLCJzY3JlZW5zaG90X3Jlc29sdXRpb24iOm51bGwsInNjcmVlbnNob3RzIjpudWxsLCJzZXNzaW9uIjpudWxsLCJzZXNzaW9uX3N0aWNreV9wcm94eSI6dHJ1ZSwic3NsIjpmYWxzZSwidGFncyI6bnVsbCwidGltZW91dCI6NTAwMDAsInVybCI6Imh0dHBzOi8vaHR0cGJpbi5kZXYvcG9zdCIsInVzZXJfdXVpZCI6IlJFREFDVEVEIiwidXVpZCI6IjAxTTNBTTVKSFpGU1hINDVSSjNNQVRNNFY4IiwidmlzaW9uX2RlZmljaWVuY3kiOm51bGwsIndhaXRfZm9yX3NlbGVjdG9yIjpudWxsLCJ3ZWJob29rX25hbWUiOm51bGx9LCJjb250ZXh0Ijp7ImFzcCI6bnVsbCwiY2FjaGUiOm51bGwsImNvb2tpZXMiOltdLCJjb3N0Ijp7ImRldGFpbHMiOnt9LCJ0b3RhbCI6MH0sImNyZWF0ZWRfYXQiOiIyMDI2LTA5LTI0IDIxOjExOjU5IiwiZGVidWciOm51bGwsImVudiI6IkxJVkUiLCJmaW5nZXJwcmludCI6IiIsImlzX3htbF9odHRwX3JlcXVlc3QiOm51bGwsInByb2plY3QiOiJkZWZhdWx0IiwicHJveHkiOm51bGwsInJlZGlyZWN0cyI6e30sInJldHJ5IjpmYWxzZSwic2NoZWR1bGUiOm51bGwsInNlc3Npb24iOm51bGwsInNwaWRlciI6bnVsbCwidGhyb3R0bGVyIjpudWxsLCJ1cmkiOnsiYmFzZV91cmwiOiJodHRwczovL2h0dHBiaW4uZGV2IiwiZnJhZ21lbnQiOm51bGwsImhvc3QiOiJodHRwYmluLmRldiIsInBhcmFtcyI6e30sInBvcnQiOiIiLCJxdWVyeSI6bnVsbCwicm9vdF9kb21haW4iOiJodHRwYmluLmRldiIsInNjaGVtZSI6Imh0dHBzIn0sInVybCI6Imh0dHBzOi8vaHR0cGJpbi5kZXYvcG9zdCIsIndlYmhvb2siOm51bGx9LCJyZXN1bHQiOnsiYXNwIjpudWxsLCJicm93c2VyX2RhdGEiOnsiamF2YXNjcmlwdF9ldmFsdWF0aW9uX3Jlc3VsdCI6W10sImpzX3NjZW5hcmlvIjpudWxsLCJsb2NhbF9zdG9yYWdlX2RhdGEiOltdLCJzZXNzaW9uX3N0b3JhZ2VfZGF0YSI6W10sIndlYnNvY2tldHMiOltdLCJ4aHJfY2FsbCI6W119LCJjb250ZW50IjoiIiwiY29udGVudF9lbmNvZGluZyI6InV0Zi04IiwiY29udGVudF9mb3JtYXQiOiJyYXciLCJjb250ZW50X3R5cGUiOiJ0ZXh0L3BsYWluIiwiY29va2llIjpbXSwiZHVyYXRpb24iOjAsImVycm9yIjp7ImNvZGUiOiJFUlI6OlNDUkFQRTo6UVVPVEFfTElNSVRfUkVBQ0hFRCIsImh0dHBfY29kZSI6NDI5LCJsaW5rcyI6eyJQcm9qZWN0IFF1b3RhIEFuZCBVc2FnZSI6Imh0dHBzOi8vc2NyYXBmbHkuaW8vZG9jcy9wcm9qZWN0IiwiUmVsYXRlZCBFcnJvciBEb2MiOiJodHRwczovL3NjcmFwZmx5LmlvL2RvY3Mvc2NyYXBlLWFwaS9lcnJvci9FUlI6OlNDUkFQRTo6UVVPVEFfTElNSVRfUkVBQ0hFRCIsIlVwZ3JhZGUgeW91IHN1YnNjcmlwdGlvbiI6Imh0dHBzOi8vc2NyYXBmbHkuaW8vZG9jcy9iaWxsaW5nI2NoYW5nZV9wbGFuIn0sIm1lc3NhZ2UiOiJUaGUgYWNjb3VudCBxdW90YSBpcyBjb25zdW1lZCAtIHlvdSBuZWVkIHRvIHVwZ3JhZGUgdG8gY29udGludWUgdG8gdXNlIHRoZSBzZXJ2aWNlIC0gIiwicmV0cnlhYmxlIjpmYWxzZX0sImV4dHJhY3RlZF9kYXRhIjpudWxsLCJmb3JtYXQiOiJ0ZXh0IiwiaWZyYW1lcyI6e30sImxvZ191cmwiOiJSRURBQ1RFRCIsInJlYXNvbiI6bnVsbCwicmVxdWVzdF9oZWFkZXJzIjp7fSwicmVzcG9uc2VfaGVhZGVycyI6e30sInNjcmVlbnNob3RzIjpudWxsLCJzaXplIjowLCJzdGF0dXMiOiJET05FIiwic3RhdHVzX2NvZGUiOm51bGwsInN1Y2Nlc3MiOm51bGwsInVybCI6Imh0dHBzOi8vaHR0cGJpbi5kZXYvcG9zdCJ9fQ==",
+		"bodyBytes": 3055
+	}
+}
