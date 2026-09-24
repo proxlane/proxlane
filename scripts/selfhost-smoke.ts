@@ -13,6 +13,7 @@
 // If a key IS present it additionally does one real scrape.
 
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,7 +22,9 @@ const COMPOSE = ['compose', '-f', 'docker/compose.yml', '-p', 'proxlane-smoke'];
 /** plan.md's claim, in milliseconds. Failing this is a real failure, not a slow machine. */
 const BUDGET_MS = 5 * 60 * 1000;
 const PORT = 8799;
-const API_KEY = 'smoke-only-not-a-real-key';
+// Random per run. A literal here is published the moment it is committed, and the gateway
+// refuses any key that has been (packages/shared/src/gateway-keys.ts).
+const API_KEY = randomBytes(32).toString('hex');
 
 const started = Date.now();
 const elapsed = () => `${((Date.now() - started) / 1000).toFixed(1)}s`;

@@ -442,8 +442,10 @@ jobs:
         run: |
           set -euo pipefail
           WANT='${{ needs.release.outputs.gatewayVersion }}'
+          # A fresh key: the gateway refuses published ones, and this line is published.
+          TAGCHECK_KEY="$(openssl rand -hex 32)"
           docker run -d --name tagcheck -p 8787:8787 \
-            -e PROXLANE_API_KEY=manifest-check \
+            -e PROXLANE_API_KEY="$TAGCHECK_KEY" \
             ghcr.io/proxlane/gateway:"$WANT"
           for i in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8787/health >/dev/null 2>&1 && break
