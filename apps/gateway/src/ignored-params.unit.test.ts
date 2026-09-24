@@ -10,7 +10,7 @@
 // whole product is built on refusing to serve one silently.
 
 import { describe, expect, it } from 'vitest';
-import { ignoredParams } from './app.js';
+import { ignoredParams, nearMisses } from './app.js';
 
 describe('ignoredParams', () => {
 	it('names the other providers’ spellings of render', () => {
@@ -98,5 +98,58 @@ describe('ignoredParams', () => {
 
 	it('counts a name that is merely too long, rather than printing it', () => {
 		expect(ignoredParams(`?${'x'.repeat(200)}=1`)).toEqual(['+1']);
+	});
+});
+
+describe('nearMisses (#282)', () => {
+	// A caller sent `providers=brightdata`, got `scraperapi:OK`, and believed they had tested
+	// Bright Data. `X-Ignored-Params: providers` was there; nothing said "you meant provider".
+	it('names the parameter a one-character miss was meant to be', () => {
+		expect(nearMisses('?url=x&providers=brightdata')).toEqual([['providers', 'provider']]);
+		expect(nearMisses('?url=x&timout=9000')).toEqual([['timout', 'timeout']]);
+		expect(nearMisses('?url=x&binray=true')).toEqual([['binray', 'binary']]); // adjacent swap
+		expect(nearMisses('?url=x&wait-for=%23a')).toEqual([['wait-for', 'wait_for']]);
+		expect(nearMisses('?url=x&apikey=k')).toEqual([['apikey', 'api_key']]);
+	});
+
+	it('knows the other spellings that are too far away for edit distance', () => {
+		expect(nearMisses('?url=x&render_js=true')).toEqual([['render_js', 'render']]);
+		expect(nearMisses('?url=x&js_render=true&js=true')).toEqual([
+			['js', 'render'],
+			['js_render', 'render'],
+		]);
+		expect(nearMisses('?url=x&country=de')).toEqual([['country', 'country_code']]);
+		expect(nearMisses('?url=x&timeout_ms=9000')).toEqual([['timeout_ms', 'timeout']]);
+	});
+
+	it('is case-insensitive about the miss, and reports the name as sent', () => {
+		expect(nearMisses('?url=x&Render_JS=true')).toEqual([['Render_JS', 'render']]);
+		expect(nearMisses('?url=x&Provider=scrapfly')).toEqual([['Provider', 'provider']]);
+	});
+
+	it('says nothing about a parameter that is not close to one of ours', () => {
+		// A foreign provider's parameter is reported by X-Ignored-Params, not guessed at here.
+		expect(nearMisses('?url=x&autoparse=true&session_number=3')).toEqual([]);
+	});
+
+	it('never guesses for a name so short that everything is one edit away', () => {
+		expect(nearMisses('?url=x&ur=1&xy=2')).toEqual([]);
+	});
+
+	it('says nothing when every parameter is one we read', () => {
+		expect(nearMisses('?url=x&render=true&provider=scrapfly&timeout=9000')).toEqual([]);
+	});
+
+	it('skips an unreportable name, which could carry CR/LF into the header', () => {
+		expect(nearMisses('?url=x&provider%0d%0a=1')).toEqual([]);
+	});
+
+	it('caps the list, so a junk query cannot produce an unbounded header', () => {
+		const qs = `?${Array.from({ length: 30 }, (_, i) => `providers${'s'.repeat(i)}=1`).join('&')}`;
+		expect(nearMisses(qs).length).toBeLessThanOrEqual(10);
+	});
+
+	it('reports each name once however often it is repeated', () => {
+		expect(nearMisses('?url=x&providers=a&providers=b')).toEqual([['providers', 'provider']]);
 	});
 });

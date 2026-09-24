@@ -556,6 +556,25 @@ describe('query parsing, where a default leaks most easily', () => {
 		expect(r.headers.get('x-ignored-params')).toBe('js,js_render');
 	});
 
+	it('hints at the parameter a typo was meant to be, in a second header (#282)', async () => {
+		// The first header's contract is unchanged: sorted names, nothing else. The hint is
+		// additive and only present when there is one.
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&providers=scrapfly&render_js=true`,
+		);
+		expect(r.status).toBe(200);
+		expect(r.headers.get('x-ignored-params')).toBe('providers,render_js');
+		expect(r.headers.get('x-ignored-params-hint')).toBe('providers=provider,render_js=render');
+	});
+
+	it('gives no hint for a foreign parameter that is not close to one of ours', async () => {
+		const r = await get(
+			`api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&autoparse=true`,
+		);
+		expect(r.headers.get('x-ignored-params')).toBe('autoparse');
+		expect(r.headers.get('x-ignored-params-hint')).toBeNull();
+	});
+
 	it('says nothing when every parameter is one it reads', async () => {
 		// Absent, not empty. A header present on every response is noise.
 		const r = await get(
@@ -901,6 +920,22 @@ describe('one line per request, covering every exit', () => {
 		}
 		return lines;
 	};
+
+	it('logs what was ignored and what it was probably meant to be (#282)', async () => {
+		const [line] = await capture(
+			`/v1?api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}&providers=scrapfly&autoparse=1`,
+		);
+		expect(line?.ignored).toEqual(['autoparse', 'providers']);
+		expect(line?.near_miss).toEqual({ providers: 'provider' });
+	});
+
+	it('leaves both fields off a clean request', async () => {
+		const [line] = await capture(
+			`/v1?api_key=${API_KEY}&url=${encodeURIComponent(target('success-html'))}`,
+		);
+		expect(line?.ignored).toBeUndefined();
+		expect(line?.near_miss).toBeUndefined();
+	});
 
 	it('logs a served request with the provider, attempts and cost', async () => {
 		const [line] = await capture(

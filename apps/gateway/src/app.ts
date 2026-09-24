@@ -31,7 +31,7 @@ import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
 import { InflightLimiter, retryAfterSeconds } from './inflight.js';
 import { accountOnlyChain, hostOf, type RequestLine, timings } from './log.js';
-import { ignoredParams, parseScrapeRequest } from './request.js';
+import { ignoredParams, nearMisses, parseScrapeRequest } from './request.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
 import { parseSimulate, SIMULATE_HEADER, simulate } from './simulate.js';
 import { VERSION } from './version.js';
@@ -288,7 +288,12 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
 }
 
 // Re-exported so existing tests keep their import path; the implementations moved to request.ts.
-export { ignoredParams, readRequestBodyCapped, requestedDeadline } from './request.js';
+export {
+	ignoredParams,
+	nearMisses,
+	readRequestBodyCapped,
+	requestedDeadline,
+} from './request.js';
 
 export function createApp(deps: AppDeps): Hono<Vars> {
 	const app = new Hono<Vars>();
@@ -313,8 +318,16 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		// In the middleware, so it lands on errors too. A caller who typos a parameter AND gets a
 		// 400 for an unrelated reason should still be told about the typo — that is the request
 		// they are already looking at.
-		const ignored = ignoredParams(new URL(c.req.url).search);
+		const search = new URL(c.req.url).search;
+		const ignored = ignoredParams(search);
 		if (ignored.length > 0) c.header('X-Ignored-Params', ignored.join(','));
+		// A SECOND HEADER, not more text in the first. `X-Ignored-Params` is documented as sorted,
+		// comma-separated names, and callers parse it; prose in it would break them. This one is
+		// only present when a hint exists, so a parser of the first is unaffected (#282).
+		const hints = nearMisses(search);
+		if (hints.length > 0) {
+			c.header('X-Ignored-Params-Hint', hints.map(([k, v]) => `${k}=${v}`).join(','));
+		}
 	});
 
 	// Health is "this process is up and serving", not "fully configured". A gateway with no
@@ -748,6 +761,11 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 					} finally {
 						const h = (n: string): string | undefined => res?.headers.get(n) ?? undefined;
 						const attempts = h('X-Attempts');
+						// Computed here, not read back from the response: the middleware sets those
+						// headers after this handler returns, so they are not on `res` yet.
+						const search = new URL(c.req.url).search;
+						const ignored = ignoredParams(search);
+						const hints = nearMisses(search);
 						const target = c.req.query('url');
 						const host = hostOf(target);
 						log({
@@ -783,6 +801,8 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 							...(h('X-Detect-Rule') === undefined
 								? {}
 								: { detect: h('X-Detect-Rule') as string }),
+							...(ignored.length === 0 ? {} : { ignored }),
+							...(hints.length === 0 ? {} : { near_miss: Object.fromEntries(hints) }),
 							// A SANDBOX LINE SAYS SO. Without this a sandbox holder could write
 							// `AUTH_FAILED` lines naming real providers with `legs: account` — the
 							// zero-capacity signature from #276 — and nothing in the log could tell

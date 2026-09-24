@@ -50,6 +50,13 @@ export interface RequestLine {
 	 * grep for.
 	 */
 	readonly sim?: string;
+	/**
+	 * Query parameters the gateway does not read, as `X-Ignored-Params` reports them, and the
+	 * ones that are almost certainly a typo of ours with the name we read (#282). Names only,
+	 * never values: the same rule as the header, for the same reason.
+	 */
+	readonly ignored?: readonly string[];
+	readonly near_miss?: Readonly<Record<string, string>>;
 }
 
 /**
