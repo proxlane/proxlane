@@ -1,6 +1,7 @@
 # brightdata fixtures
 
-Empty until `pnpm record --adapter=brightdata` runs against a trial key.
+Recorded by `pnpm record --adapter=brightdata` against a trial key, and re-recorded the same way when
+the weekly drift check reports the provider changed.
 
 **Never hand-write a fixture.** CI cannot tell a recording from a fabrication — that check
 does not exist and cannot be built — so this one is on you. A fabricated fixture makes the
