@@ -4,19 +4,30 @@
 // Everything here runs without a provider key and without spending anything.
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
+	fixtureCarriesEchoedAddress,
 	fixtureFileFor,
+	hasEchoedAddress,
 	MAX_FIXTURE_BYTES,
 	partitionByOnly,
 	QUOTA_FIXTURE,
+	redactEchoedAddresses,
 	redactIdentifyingFields,
 	reportDiff,
 	sanitize,
+	sanitizeBody,
 	sanitizeHeaders,
 	secretsFor,
 	shapeOf,
@@ -121,6 +132,132 @@ describe('secretsFor', () => {
 		// component is going to survive into the fixture.
 		expect(secretsFor(`ab:${TOKEN}`)).toContain('ab');
 		expect(sanitize('ab', secretsFor(`ab:${TOKEN}`))).toBe('ab');
+	});
+});
+
+describe('redactEchoedAddresses', () => {
+	// Every shape below was found in a committed fixture by decoding all of them (#364).
+	it('redacts httpbin origin, the provider exit address', () => {
+		expect(redactEchoedAddresses('{"origin": "203.0.113.7", "url": "x"}')).toBe(
+			'{"origin": "REDACTED", "url": "x"}',
+		);
+	});
+
+	it('redacts every address in a comma-separated forwarding chain, keeping its shape', () => {
+		expect(redactEchoedAddresses('{"origin": "203.0.113.7, 198.51.100.2"}')).toBe(
+			'{"origin": "REDACTED, REDACTED"}',
+		);
+	});
+
+	// Each of these was LEFT UNREDACTED by the first version, found by the security review (#369).
+	it.each([
+		['every element of an array', '{"X-Forwarded-For": [ "203.0.113.7", "198.51.100.2" ]}'],
+		['a port', '{"origin": "203.0.113.7:4321"}'],
+		['a bracketed IPv6 with a port', '{"X-Forwarded-For": "[2001:db8::1]:443"}'],
+		['a v4-mapped IPv6', '{"origin": "::ffff:203.0.113.7"}'],
+		['an IPv6 zone', '{"origin": "fe80::1%en0"}'],
+		[
+			'a chain with a non-address entry',
+			'{"X-Forwarded-For": "203.0.113.7, unknown, 198.51.100.2:80"}',
+		],
+		['a CGI-style key', '{"HTTP_X_FORWARDED_FOR": "203.0.113.7"}'],
+		['an underscore key', '{"x_forwarded_for": "203.0.113.7"}'],
+		['RFC 7239 Forwarded', '{"Forwarded": "for=203.0.113.7;proto=https;by=198.51.100.2"}'],
+		['remote_addr', '{"remote_addr": "203.0.113.7"}'],
+		[
+			'an escaped, pretty-printed array, as Scrapfly carries httpbin',
+			String.raw`{"c":"{\n \"X-Forwarded-For\": [\n      \"203.0.113.7\"\n    ]\n}"}`,
+		],
+		['a double-escaped value', String.raw`{"c":"{\\\"origin\\\": \\\"203.0.113.7\\\"}"}`],
+		['an HTML-escaped value', '<pre>{&quot;origin&quot;: &quot;203.0.113.7&quot;}</pre>'],
+	])('redacts %s', (_why, body) => {
+		const out = redactEchoedAddresses(body);
+		expect(out).not.toMatch(/203\.0\.113\.7|198\.51\.100\.2|2001:db8|fe80/);
+		expect(out).toContain('REDACTED');
+	});
+
+	it('keeps a non-address entry in a chain', () => {
+		expect(redactEchoedAddresses('{"X-Forwarded-For": "203.0.113.7, unknown"}')).toBe(
+			'{"X-Forwarded-For": "REDACTED, unknown"}',
+		);
+	});
+
+	it('redacts an echoed forwarded-for header, in the array form httpbin uses', () => {
+		// Bright Data's X-Brd-Api-Forwarded-For is the address of the machine that called its
+		// API: the recorder, which can be the maintainer's own connection.
+		expect(redactEchoedAddresses('{"X-Brd-Api-Forwarded-For": [ "203.0.113.7" ]}')).toBe(
+			'{"X-Brd-Api-Forwarded-For": [ "REDACTED" ]}',
+		);
+		expect(redactEchoedAddresses('{"X-Real-Ip": "203.0.113.7"}')).toBe(
+			'{"X-Real-Ip": "REDACTED"}',
+		);
+	});
+
+	it('redacts inside an escaped JSON string, which is how Scrapfly carries the page', () => {
+		const escaped = String.raw`{"content":"{\n \"origin\": \"203.0.113.7\",\n \"url\": \"x\"}"}`;
+		const out = redactEchoedAddresses(escaped);
+		expect(out).not.toContain('203.0.113.7');
+		expect(out).toContain(String.raw`\"origin\": \"REDACTED\"`);
+	});
+
+	it('redacts an IPv6 origin', () => {
+		expect(redactEchoedAddresses('{"origin": "2001:db8::1"}')).toBe('{"origin": "REDACTED"}');
+	});
+
+	it("leaves Scrapfly's origin enum alone, because it is not an address", () => {
+		const envelope = '{"origin":"WEB_SCRAPING_API","os":"win11"}';
+		expect(redactEchoedAddresses(envelope)).toBe(envelope);
+	});
+
+	it("leaves the target's DNS resolution alone, because it is public and not in the request path", () => {
+		const dns = '{"dns":{"resolved":[{"entries":[{"ip":"203.0.113.9","type":"A"}]}]}}';
+		expect(redactEchoedAddresses(dns)).toBe(dns);
+	});
+
+	it('the gate is structural, so it catches shapes a textual pass would miss', () => {
+		// Independent of the redaction: it parses the JSON, including JSON inside strings.
+		expect(hasEchoedAddress('{"X-Forwarded-For": ["REDACTED", "198.51.100.2"]}')).toBe(true);
+		expect(
+			hasEchoedAddress(JSON.stringify({ content: JSON.stringify({ origin: '203.0.113.7' }) })),
+		).toBe(true);
+		expect(hasEchoedAddress('{"a": {"b": {"remote_addr": "[2001:db8::1]:443"}}}')).toBe(true);
+		// Genuine double encoding: a JSON string holding a JSON-encoded string holding JSON.
+		const doubled = JSON.stringify({
+			c: JSON.stringify(JSON.stringify({ origin: '203.0.113.7' })),
+		});
+		expect(hasEchoedAddress(doubled)).toBe(true);
+		expect(hasEchoedAddress(redactEchoedAddresses(doubled))).toBe(false);
+		// ...and leaves the values that are not an echoed address alone.
+		expect(hasEchoedAddress('{"dns":{"resolved":[{"entries":[{"ip":"203.0.113.9"}]}]}}')).toBe(
+			false,
+		);
+		expect(hasEchoedAddress('<html>not json</html>')).toBe(false);
+	});
+
+	it('the recorder checks the body and the fixture separately, never joined', () => {
+		const body = '{"origin": "203.0.113.7"}';
+		const serialized = JSON.stringify({ kind: 'exchange', response: { status: 200 } });
+		// The trap this pins: joined, the text is not JSON, so a structural check parses nothing.
+		expect(hasEchoedAddress(`${serialized}\n${body}`)).toBe(false);
+		expect(fixtureCarriesEchoedAddress(serialized, body)).toBe(true);
+		expect(fixtureCarriesEchoedAddress(serialized, '{"origin": "REDACTED"}')).toBe(false);
+	});
+
+	it('the refusal gate sees exactly what the redaction misses', () => {
+		expect(hasEchoedAddress('{"origin": "203.0.113.7"}')).toBe(true);
+		expect(hasEchoedAddress(redactEchoedAddresses('{"origin": "203.0.113.7"}'))).toBe(false);
+		expect(hasEchoedAddress('{"origin":"WEB_SCRAPING_API"}')).toBe(false);
+		// Called twice in a row: a global regex keeps lastIndex between calls, and a gate that
+		// alternated between true and false on the same input would pass half the time.
+		expect(hasEchoedAddress('{"origin": "203.0.113.7"}')).toBe(true);
+		expect(hasEchoedAddress('{"origin": "203.0.113.7"}')).toBe(true);
+	});
+
+	it('runs as part of sanitizeBody', () => {
+		const out = new TextDecoder().decode(
+			sanitizeBody(new TextEncoder().encode('{"origin": "203.0.113.7"}'), []),
+		);
+		expect(out).toBe('{"origin": "REDACTED"}');
 	});
 });
 
@@ -561,5 +698,38 @@ describe('a spent plan does not overwrite the fixture it interrupted', () => {
 		} finally {
 			q.restore();
 		}
+	});
+});
+
+describe('committed fixtures carry no echoed address (#364)', () => {
+	// Run over every fixture in the repository, not a sample. KNOWN is the list of fixtures that
+	// still carry one only because their account is out of credit and a fixture is re-recorded,
+	// never edited. It can only shrink: an entry that no longer carries one fails too, so the
+	// re-recording that fixes it also has to remove it from here.
+	const KNOWN = ['scraperapi/post.json', 'scrapfly/post.json'];
+
+	const root = new URL('../packages/adapters/src/', import.meta.url);
+	const carriers: string[] = [];
+	for (const adapter of readdirSync(root)) {
+		const dir = new URL(`${adapter}/fixtures/`, root);
+		if (!existsSync(dir)) continue;
+		for (const f of readdirSync(dir).filter((n) => n.endsWith('.json'))) {
+			const doc = JSON.parse(readFileSync(new URL(f, dir), 'utf8'));
+			const b64 = doc?.response?.bodyBase64;
+			if (typeof b64 !== 'string') continue;
+			if (hasEchoedAddress(Buffer.from(b64, 'base64').toString('utf8')))
+				carriers.push(`${adapter}/${f}`);
+		}
+	}
+
+	it('none beyond the known list', () => {
+		expect(carriers.filter((c) => !KNOWN.includes(c))).toEqual([]);
+	});
+
+	it('the known list names only fixtures that still need re-recording', () => {
+		expect(
+			KNOWN.filter((k) => !carriers.includes(k)),
+			'remove these from KNOWN',
+		).toEqual([]);
 	});
 });
