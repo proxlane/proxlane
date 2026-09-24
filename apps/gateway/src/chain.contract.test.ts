@@ -167,22 +167,39 @@ describe('the failover walk, over real recorded bytes', () => {
 });
 
 describe('a deadline recording replays as a deadline', () => {
-	it('becomes PROVIDER_TIMEOUT, an outcome no adapter can produce', async () => {
-		// scrapfly is the one adapter with a recorded deadline: it needed --timeout-ms,
-		// because no public target stays open longer than a provider's own budget.
-		const withDeadline = IDS.filter((id) =>
-			fixtures(id).some((e) => e.recording.kind === 'deadline'),
-		);
-		expect(withDeadline.length, 'no deadline fixture exists to replay').toBeGreaterThan(0);
-		const id = withDeadline[0] as string;
-		const target = targetOf(id, 'deadline');
-		const { deps } = chainOver(fixtures(id), [id]);
-		const r = await runChain(
-			{ url: target.url, method: 'GET', renderJs: false, premium: 'none', deadlineMs: 90_000 },
-			deps,
-		);
-		expect(r.outcome).toBe('PROVIDER_TIMEOUT');
+	// EVERY ADAPTER, not the first one found. This used to replay `withDeadline[0]` alone, and its
+	// comment said scrapfly was the only adapter with a recorded deadline when four had one. So a
+	// fifth adapter could ship without the fixture (firecrawl did, found as #357 by the weekly job
+	// rather than at review), and a broken one on any adapter but the first would never be read.
+	const withDeadline = IDS.filter((id) =>
+		fixtures(id).some((e) => e.recording.kind === 'deadline'),
+	);
+
+	it('exists for every adapter', () => {
+		// Recorded with `pnpm record --adapter=<id> --only=deadline --timeout-ms=5000`: it needs
+		// our own deadline, because no public target stays open longer than a provider's budget.
+		const missing = IDS.filter((id) => !withDeadline.includes(id));
+		expect(missing, 'adapters with no recorded deadline fixture').toEqual([]);
 	});
+
+	it.each(withDeadline)(
+		'%s: becomes PROVIDER_TIMEOUT, an outcome no adapter can produce',
+		async (id) => {
+			const target = targetOf(id, 'deadline');
+			const { deps } = chainOver(fixtures(id), [id]);
+			const r = await runChain(
+				{
+					url: target.url,
+					method: 'GET',
+					renderJs: false,
+					premium: 'none',
+					deadlineMs: 90_000,
+				},
+				deps,
+			);
+			expect(r.outcome).toBe('PROVIDER_TIMEOUT');
+		},
+	);
 });
 
 describe('a miss is fatal, never a plausible answer', () => {
