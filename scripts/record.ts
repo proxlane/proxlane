@@ -754,6 +754,22 @@ export function strayAddresses(
 	return found;
 }
 
+/**
+ * Every host address in a text, redacted, under any key or none: for a block-page capture, never
+ * a recording. A block page prints the VISITOR's address (a footer's "your IP is"), which is the
+ * exit node or, for a capture taken from a home network, the maintainer's own connection, and it
+ * sits in HTML where no echo key marks it. Recordings keep the narrower rule because their bodies
+ * carry addresses that are the point of the fixture. The DNS resolutions the gate exempts stay.
+ */
+export function redactAddresses(text: string): string {
+	const exempt = dnsResolutions(text);
+	return text.replace(new RegExp(STRICT_ADDRESS_SRC, 'gi'), (m) => {
+		const core = coreAddress(m);
+		const key = core.toLowerCase();
+		return isHostAddress(key) && !exempt.has(key) ? m.replace(core, REDACTED) : m;
+	});
+}
+
 export function hasEchoedAddress(text: string): boolean {
 	return strayAddresses(text).length > 0;
 }
