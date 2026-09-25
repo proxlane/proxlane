@@ -447,8 +447,135 @@ export function sanitizeBody(bytes: Uint8Array, secrets: readonly string[]): Uin
 	const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
 	if (text.includes('\u0000')) return bytes;
 
-	const out = redactIdentifyingFields(sanitize(text, secrets));
+	const out = redactEchoedAddresses(redactIdentifyingFields(sanitize(text, secrets)));
 	return out === text ? bytes : new TextEncoder().encode(out);
+}
+
+/**
+ * Addresses of a party IN THE REQUEST PATH, echoed back by the target: httpbin's `origin`, and
+ * any forwarding header it reflects (#364).
+ *
+ * Whose address is it? `origin` is the provider's exit node. But Bright Data's
+ * `X-Brd-Api-Forwarded-For` is the address of whatever called Bright Data's API, which is the
+ * machine running the recorder: on another day, the maintainer's own connection, which CLAUDE.md
+ * bans from this repository.
+ *
+ * VALUE-SHAPED, NOT KEY-SHAPED. Redacting every `origin` would rewrite Scrapfly's
+ * `"origin":"WEB_SCRAPING_API"`, an enum in its own envelope; redacting every `ip` would rewrite
+ * Scrapfly's DNS resolution of the target, which is the target's public address. Only an
+ * address-shaped token inside the value of an echo key is replaced.
+ *
+ * TWO TECHNIQUES, ON PURPOSE. Redaction is textual, because the bytes are written as they came.
+ * The refusal gate (`hasEchoedAddress`) is STRUCTURAL: it parses the JSON, and the JSON inside
+ * its strings, and inspects the values under echo keys. The first version of the gate reused
+ * the redaction's own expression over the redacted bytes, so it could never catch what the
+ * redaction missed, and a security review found several shapes it did miss.
+ */
+
+/** An address, with the forms a forwarding header carries: ports, brackets, zones, mapped v4. */
+const IPV4 = String.raw`\d{1,3}(?:\.\d{1,3}){3}`;
+const IPV6 = String.raw`(?:[0-9a-f]{0,4}:){2,7}(?:[0-9a-f]{0,4}|${IPV4})(?:%[\w.]+)?`;
+const ADDRESS_SRC = String.raw`(?<![\w.:])(?:\[${IPV6}\](?::\d{1,5})?|${IPV6}|${IPV4}(?::\d{1,5})?)(?![\w.])`;
+const ADDRESS = new RegExp(ADDRESS_SRC, 'gi');
+
+/**
+ * Keys whose value is an address in the request path. `_` and `-` both, because the same header
+ * arrives as `X-Forwarded-For`, `x_forwarded_for` or CGI's `HTTP_X_FORWARDED_FOR`.
+ */
+const ECHO_KEY_SRC =
+	'(?:origin|forwarded|via|remote[-_]?addr|(?:[a-z0-9]+[-_])*(?:forwarded[-_]for|real[-_]ip|client[-_]ip|connecting[-_]ip))';
+const ECHO_KEY = new RegExp(`^${ECHO_KEY_SRC}$`, 'i');
+
+/**
+ * A quote in any of the encodings a body carries one in: plain, JSON-escaped once (Scrapfly
+ * returns the page as a JSON string inside its own JSON), escaped twice, or HTML-escaped.
+ * Longest first, so `\\\"` is not read as `\"` preceded by a stray backslash.
+ */
+const QUOTE_SRC = String.raw`(\\\\\\"|\\"|&quot;|")`;
+/** Whitespace, including the escaped `\n` of a pretty-printed body inside a JSON string. */
+const GAP = String.raw`(?:\s|\\[nrt])*`;
+const KEY_AT = new RegExp(`${QUOTE_SRC}${ECHO_KEY_SRC}\\1${GAP}:${GAP}`, 'gi');
+
+/** Where the value that starts at `from` ends: the array's `]`, or the matching quote. */
+function valueEnd(text: string, from: number, quote: string): number {
+	if (text[from] === '[') {
+		const close = text.indexOf(']', from);
+		return close === -1 ? -1 : close + 1;
+	}
+	if (!text.startsWith(quote, from)) return -1;
+	const close = text.indexOf(quote, from + quote.length);
+	return close === -1 ? -1 : close + quote.length;
+}
+
+export function redactEchoedAddresses(text: string): string {
+	let out = '';
+	let last = 0;
+	KEY_AT.lastIndex = 0;
+	for (let m = KEY_AT.exec(text); m !== null; m = KEY_AT.exec(text)) {
+		const start = m.index + m[0].length;
+		const end = valueEnd(text, start, m[1] as string);
+		if (end === -1 || end < last) continue;
+		out += text.slice(last, start) + text.slice(start, end).replace(ADDRESS, REDACTED);
+		last = end;
+		KEY_AT.lastIndex = end;
+	}
+	return out + text.slice(last);
+}
+
+/** Every string an echo key's value holds: the string itself, or each element of an array. */
+function valueStrings(v: unknown): string[] {
+	if (typeof v === 'string') return [v];
+	if (Array.isArray(v)) return v.flatMap(valueStrings);
+	return [];
+}
+
+function parseJson(s: string): unknown {
+	const t = s.trim();
+	// `"` too: a JSON-encoded STRING that holds JSON is how double encoding looks once the outer
+	// layer is parsed, and the walk recurses into the string it yields.
+	if (!(t.startsWith('{') || t.startsWith('[') || t.startsWith('"'))) return undefined;
+	try {
+		return JSON.parse(t);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Whether an address survived under an echo key: the refusal gate's half of the rule.
+ *
+ * Structural, so it is independent of the textual redaction above. It walks the parsed body and,
+ * to a bounded depth, any string that is itself JSON, which is how Scrapfly carries the page and
+ * how double escaping unwraps. A body that is not JSON has no keys to inspect and passes; the
+ * redaction still runs over it.
+ */
+export function hasEchoedAddress(text: string): boolean {
+	const probe = new RegExp(ADDRESS_SRC, 'i');
+	const walk = (node: unknown, depth: number): boolean => {
+		if (typeof node === 'string') {
+			const inner = depth < 3 ? parseJson(node) : undefined;
+			return inner !== undefined && walk(inner, depth + 1);
+		}
+		if (Array.isArray(node)) return node.some((n) => walk(n, depth));
+		if (node === null || typeof node !== 'object') return false;
+		for (const [k, v] of Object.entries(node)) {
+			if (ECHO_KEY.test(k) && valueStrings(v).some((s) => probe.test(s))) return true;
+			if (walk(v, depth)) return true;
+		}
+		return false;
+	};
+	const doc = parseJson(text);
+	return doc !== undefined && walk(doc, 0);
+}
+
+/**
+ * The gate as the recorder applies it: the decoded body and the serialized fixture, EACH PARSED
+ * ON ITS OWN. `hasEchoedAddress` parses JSON, and the `scannable` string the other checks use is
+ * the two joined by a newline, which is not JSON: handed that, it parsed nothing and passed
+ * every fixture. The serialized half is checked too, because the request body lives there.
+ */
+export function fixtureCarriesEchoedAddress(serialized: string, bodyText: string): boolean {
+	return hasEchoedAddress(bodyText) || hasEchoedAddress(serialized);
 }
 
 /**
@@ -1226,7 +1353,8 @@ if (import.meta.filename === process.argv[1]) {
 		// Decode the body back out before scanning. The old check ran over the SERIALIZED
 		// fixture, where the body is base64 — so it could never see a secret in a body, in
 		// the one place nothing else was looking either.
-		const scannable = `${serialized}\n${new TextDecoder('utf-8', { fatal: false }).decode(bytes)}`;
+		const bodyText = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+		const scannable = `${serialized}\n${bodyText}`;
 		// COLLECTED, THEN ACTED ON. This used to `failed++` inside the loop and fall straight
 		// through to `writeFileSync` — so a fixture whose `client_ip` survived redaction (the
 		// maintainer's egress address, which CLAUDE.md bans from this repo outright) was
@@ -1236,6 +1364,8 @@ if (import.meta.filename === process.argv[1]) {
 		const leaked = IDENTIFYING_FIELDS.filter((field) =>
 			new RegExp(`"${field}"\\s*:\\s*"(?!${REDACTED})`).test(scannable),
 		);
+		if (fixtureCarriesEchoedAddress(serialized, bodyText))
+			leaked.push('an echoed request-path address (origin, X-Forwarded-For)');
 		if (leaked.length > 0) {
 			process.stderr.write(
 				`\n  REFUSING TO WRITE ${target.category}: ${leaked.map((f) => `"${f}"`).join(', ')} survived redaction.\n` +
