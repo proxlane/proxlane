@@ -98,9 +98,10 @@ quietly hand you a gateway five versions old.
 Three commands, and the first one invents a key. There is no hosted endpoint to curl — the
 `localhost` below is not standing in for one, it is where Proxlane runs.
 
-`PROXLANE_API_KEY` is the key **you** will present to your own gateway. Make one up; nothing
-registers it anywhere. The gateway refuses to boot without it, because a gateway started open is
-a proxy funded by whoever deployed it.
+`PROXLANE_API_KEY` is the key **you** will present to your own gateway. Generate one, as below;
+nothing registers it anywhere. The gateway refuses to boot without it, because a gateway started
+open is a proxy funded by whoever deployed it, and refuses a placeholder such as `changeme` or any
+key that has appeared in a published example, for the same reason.
 
 ```bash
 export PROXLANE_API_KEY=$(openssl rand -hex 16)

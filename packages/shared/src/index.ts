@@ -5,6 +5,7 @@ export * from './cooldown.js';
 export * from './edge-guard.js';
 export * from './env.js';
 export * from './error-body.js';
+export * from './gateway-keys.js';
 export * from './health.js';
 export * from './id.js';
 export * from './memory.js';

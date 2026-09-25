@@ -21,7 +21,8 @@ second when you want failover to have somewhere to go.
 
 The gateway will not start without `PROXLANE_API_KEY`. It is the key **you** present to your
 own gateway, it registers nowhere, and without it anyone who can reach the port can spend your
-provider credits.
+provider credits. It also refuses a placeholder such as `changeme`, or a key copied from any
+published example, since everyone who read the same page has it too. Generate one.
 
 Your gateway is now on `http://localhost:8787`. There is no hosted endpoint to call instead.
 

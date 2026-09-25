@@ -11,12 +11,18 @@ provider key, and test your own client against every outcome without paying for 
 ## Start a gateway
 
 ```bash
-docker run --rm -p 8787:8787 \
-  -e PROXLANE_API_KEY="$(openssl rand -hex 32)" \
-  -e PROXLANE_SANDBOX_KEY=sandbox \
+export PROXLANE_API_KEY=$(openssl rand -hex 32)
+export PROXLANE_SANDBOX_KEY=$(openssl rand -hex 16)
+docker run -d --rm --pull always --name proxlane-try -p 8787:8787 \
+  -e PROXLANE_API_KEY -e PROXLANE_SANDBOX_KEY \
   -e SCRAPERAPI_KEY=x -e SCRAPFLY_KEY=x -e SCRAPINGBEE_KEY=x \
   ghcr.io/proxlane/gateway:latest
 ```
+
+`-d` runs it in the background, so the same terminal can make the requests below. `--pull always`
+because Docker otherwise reuses any `latest` it pulled before, however old. The sandbox
+key is generated rather than printed here: it cannot spend, but a published one on a reachable
+server would let anyone fill the gateway's request slots.
 
 The provider keys are placeholders. The sandbox never sends them anywhere; they only exist so
 the chain has three providers to walk. Leave them out and it walks one.
@@ -25,7 +31,7 @@ the chain has three providers to walk. Leave them out and it walks one.
 
 ```bash
 curl -sD - -o /dev/null "http://localhost:8787/v1?url=https://example.com" \
-  -H "Authorization: Bearer sandbox"
+  -H "Authorization: Bearer $PROXLANE_SANDBOX_KEY"
 ```
 
 ```
@@ -46,7 +52,7 @@ simulated 200 can never be mistaken for a real one.
 
 ```bash
 curl -sD - -o /dev/null "http://localhost:8787/v1?url=https://example.com" \
-  -H "Authorization: Bearer sandbox" \
+  -H "Authorization: Bearer $PROXLANE_SANDBOX_KEY" \
   -H "X-Proxlane-Simulate: SOFT_BLOCK"
 ```
 
@@ -67,7 +73,8 @@ the [outcomes page](/docs/outcomes) works the same way: put its name in the head
 
 ## Then with a real key
 
-Stop the container, replace a placeholder with a real provider key, drop the sandbox key and
-the header, and the same request goes to the provider. Nothing else about the request changes.
+Stop the container with `docker stop proxlane-try`, replace a placeholder with a real provider
+key, drop the sandbox key and the header, and the same request goes to the provider. Nothing else
+about the request changes.
 The [quickstart](/docs/quickstart) has the rest, and the [providers page](/docs/providers) says
 where to get a key and which to start with.
