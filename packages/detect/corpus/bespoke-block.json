@@ -1,6 +1,6 @@
 {
 	"source": "https://web-scraping.dev/blocked",
-	"why": "Scrapfly's purpose-built scraping test site. It exists to be scraped, so capturing it breaks no terms and names no commercial target — which plan.md section 19 bars. Captured, never hand-written.",
+	"why": "Scrapfly's purpose-built scraping test site. It exists to be scraped, so capturing it breaks no terms and names no commercial target \u2014 which plan.md section 19 bars. Captured, never hand-written.",
 	"capturedAt": "2026-08-10",
 	"status": 200,
 	"contentType": "text/html; charset=utf-8",

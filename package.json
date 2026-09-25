@@ -9,7 +9,7 @@
 	"scripts": {
 		"bootstrap": "node scripts/bootstrap.ts",
 		"build": "turbo run build",
-		"capture-block": "node scripts/capture-block.ts",
+		"capture-block": "turbo run build --filter=@proxlane/detect && node scripts/capture-block.ts",
 		"changeset": "changeset",
 		"check": "node scripts/check.ts",
 		"conformance": "turbo run build --filter=@proxlane/adapters && node scripts/conformance.ts",

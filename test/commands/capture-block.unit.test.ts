@@ -322,6 +322,30 @@ describe('a capture carries no network address', () => {
 		expect(Buffer.from(c.bodyBase64, 'base64').equals(bytes)).toBe(true);
 	});
 
+	it('keeps a legacy charset byte for byte while redacting', () => {
+		// Latin-1 `caf\xe9` is not UTF-8; a UTF-8 round trip would store U+FFFD in its place.
+		const bytes = Buffer.concat([
+			Buffer.from('<p>caf'),
+			Buffer.from([0xe9]),
+			Buffer.from(' 203.0.113.7</p>'),
+		]);
+		const c = buildCapture(
+			{ url: 'https://web-scraping.dev/x', status: 403, bodyBase64: bytes.toString('base64') },
+			opts,
+			[],
+		);
+		const out = Buffer.from(c.bodyBase64, 'base64');
+		expect(
+			out.equals(
+				Buffer.concat([
+					Buffer.from('<p>caf'),
+					Buffer.from([0xe9]),
+					Buffer.from(' REDACTED</p>'),
+				]),
+			),
+		).toBe(true);
+	});
+
 	it('every committed capture passes the gate the script now applies', () => {
 		const dir = join(HERE, '..', '..', 'packages', 'detect', 'corpus');
 		const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
