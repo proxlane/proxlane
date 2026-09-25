@@ -264,10 +264,13 @@ describe('redactEchoedAddresses', () => {
 describe("a provider's handle for our request", () => {
 	// Found in review of the Scrapfly quota-exhausted fixture (#370): the envelope's uuid and the
 	// reject id survived, while Firecrawl's equivalent scrapeId was already redacted.
-	it('redacts the body uuid', () => {
-		expect(redactIdentifyingFields('{"config":{"uuid":"01M3AM5JHZFSXH45RJ3MATM4V8"}}')).toBe(
-			'{"config":{"uuid":"REDACTED"}}',
-		);
+	it('redacts the body uuid, in the envelope and in its config', () => {
+		// Scrapfly carries two: a top-level `uuid`, the one its schema declares, and `config.uuid`.
+		expect(
+			redactIdentifyingFields(
+				'{"uuid":"01M3AM5JHZFSXH45RJ3MATM4V8","config":{"uuid":"01M3AM5JHZFSXH45RJ3MATM4V9"}}',
+			),
+		).toBe('{"uuid":"REDACTED","config":{"uuid":"REDACTED"}}');
 	});
 
 	it('normalises the reject id header like any request id', () => {
