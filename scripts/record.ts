@@ -386,7 +386,9 @@ const VOLATILE_HEADERS = new Set([
  * target rather than per request and are real data.
  */
 const VOLATILE_PATTERN =
-	/^(traceparent|tracestate)$|^x-b3-|(^|-)(trace|request|correlation)[-_]?(id|context)$/i;
+	// `reject`, because Scrapfly names the handle for a refused request `x-scrapfly-reject-id`:
+	// the same per-request identifier as a request id, spelled after the event it records.
+	/^(traceparent|tracestate)$|^x-b3-|(^|-)(trace|request|correlation|reject)[-_]?(id|context)$/i;
 const VOLATILE = 'VOLATILE';
 
 function isVolatile(name: string): boolean {
@@ -425,6 +427,11 @@ export const IDENTIFYING_FIELDS = [
 	// Firecrawl's per-job handle. A timestamp-derived UUID rather than an account id, and useless
 	// without the key, but it is the provider's identifier for OUR request and nothing reads it.
 	'scrapeId',
+	// Scrapfly's handle for the same thing, in its request envelope's `config.uuid`. Useless
+	// without the key, like `scrapeId`, but it is the provider's identifier for OUR request and
+	// nothing reads it. A body field named `uuid` in a target's own content would be redacted
+	// too; in a recorded fixture that costs nothing.
+	'uuid',
 	'project_uuid',
 	'user_uuid',
 	'account_id',

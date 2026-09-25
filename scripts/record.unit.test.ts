@@ -261,6 +261,35 @@ describe('redactEchoedAddresses', () => {
 	});
 });
 
+describe("a provider's handle for our request", () => {
+	// Found in review of the Scrapfly quota-exhausted fixture (#370): the envelope's uuid and the
+	// reject id survived, while Firecrawl's equivalent scrapeId was already redacted.
+	it('redacts the body uuid, in the envelope and in its config', () => {
+		// Scrapfly carries two: a top-level `uuid`, the one its schema declares, and `config.uuid`.
+		expect(
+			redactIdentifyingFields(
+				'{"uuid":"01M3AM5JHZFSXH45RJ3MATM4V8","config":{"uuid":"01M3AM5JHZFSXH45RJ3MATM4V9"}}',
+			),
+		).toBe('{"uuid":"REDACTED","config":{"uuid":"REDACTED"}}');
+	});
+
+	it('normalises the reject id header like any request id', () => {
+		const out = sanitizeHeaders(
+			{ 'x-scrapfly-reject-id': 'f2cb96a0-aaaa-bbbb-cccc-000000000000' },
+			[],
+		);
+		expect(out['x-scrapfly-reject-id']).toBe('VOLATILE');
+	});
+
+	it('leaves the reject CODE alone, which is the data', () => {
+		const out = sanitizeHeaders(
+			{ 'x-scrapfly-reject-code': 'ERR::SCRAPE::QUOTA_LIMIT_REACHED' },
+			[],
+		);
+		expect(out['x-scrapfly-reject-code']).toBe('ERR::SCRAPE::QUOTA_LIMIT_REACHED');
+	});
+});
+
 describe('redactIdentifyingFields', () => {
 	it('redacts a zone too short for the length floor, which sanitize cannot touch', () => {
 		const body = '{"zone":"ab","url":"https://httpbin.dev/delay/30"}';
