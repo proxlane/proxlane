@@ -851,6 +851,25 @@ describe('echoed addresses: what the second security review found (#369)', () =>
 		expect(strayAddresses(deep)).toHaveLength(1);
 	});
 
+	it('survives nesting under an echo key too', () => {
+		const deep = `{"origin":${'['.repeat(100000)}"203.0.113.7"${']'.repeat(100000)}}`;
+		expect(() => redactEchoedAddresses(deep)).not.toThrow();
+		expect(strayAddresses(deep).length).toBeGreaterThan(0);
+	});
+
+	it('undoes escapes in linear time, however long the backslash run', () => {
+		const run = `a${'\\'.repeat(200000)}x 203.0.113.7`;
+		const t0 = performance.now();
+		expect(strayAddresses(run)).toHaveLength(1);
+		expect(performance.now() - t0).toBeLessThan(250);
+	});
+
+	it('redacts an address a word runs into, keeping the bracket', () => {
+		const out = redactEchoedAddresses('{"origin":"2001:db8::1","x":"a[2001:db8::1]"}');
+		expect(out).toBe('{"origin":"REDACTED","x":"a[REDACTED]"}');
+		expect(strayAddresses(out)).toEqual([]);
+	});
+
 	it('redacts a forwarding header in the RESPONSE, which used to be gated but kept', () => {
 		const out = sanitizeHeaders(
 			{ 'x-forwarded-for': '203.0.113.7, 198.51.100.2', via: '1.1 vegur' },

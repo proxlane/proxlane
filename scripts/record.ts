@@ -500,7 +500,8 @@ const STRICT_ADDRESS_SRC = String.raw`(?:(?<![\w.:])\[?${IPV6_STRICT}\]?|(?<![\w
 
 /** The address without brackets or a port: the literal that recurs however a layer escapes it. */
 function coreAddress(token: string): string {
-	const bracketed = /^\[([^\]]+)\](?::\d+)?$/.exec(token);
+	// A lone bracket too: `a[2001:db8::1]` cannot start at the `[`, so the match keeps only its `]`.
+	const bracketed = /^\[?([^[\]]+)\](?::\d+)?$/.exec(token) ?? /^\[([^[\]]+)$/.exec(token);
 	if (bracketed) return bracketed[1] as string;
 	return /^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(token) ? (token.split(':')[0] as string) : token;
 }
@@ -609,11 +610,16 @@ export function redactEchoedAddresses(text: string): string {
 	});
 }
 
-/** Every string an echo key's value holds: a string, an array's elements, an object's values. */
-function valueStrings(v: unknown): string[] {
+/**
+ * Every string an echo key's value holds: a string, an array's elements, an object's values. Bounded
+ * like the walk that calls it, or `{"origin":[[[[…` overflows here instead.
+ */
+function valueStrings(v: unknown, nesting = 0): string[] {
+	if (nesting > MAX_NESTING) return [];
 	if (typeof v === 'string') return [v];
-	if (Array.isArray(v)) return v.flatMap(valueStrings);
-	if (v !== null && typeof v === 'object') return Object.values(v).flatMap(valueStrings);
+	if (Array.isArray(v)) return v.flatMap((x) => valueStrings(x, nesting + 1));
+	if (v !== null && typeof v === 'object')
+		return Object.values(v).flatMap((x) => valueStrings(x, nesting + 1));
 	return [];
 }
 
@@ -716,7 +722,7 @@ function unhide(text: string): string {
 	let t = text.replaceAll('\0', '');
 	for (let i = 0; i < 3 && /%25/i.test(t); i++) t = t.replace(/%25/gi, '%');
 	return t
-		.replace(/\\+u00(2e|3a|5b|5d)/gi, fromHex)
+		.replace(/(?<!\\)\\+u00(2e|3a|5b|5d)/gi, fromHex)
 		.replace(/%(2e|3a|5b|5d)/gi, fromHex)
 		.replace(/&#x0*(2e|3a|5b|5d);?/gi, fromHex)
 		.replace(/&#0*(46|58|91|93);?/g, (_, d: string) => String.fromCharCode(Number(d)))
@@ -724,7 +730,7 @@ function unhide(text: string): string {
 			/&(period|colon|lsqb|rsqb|lbrack|rbrack);/gi,
 			(e, n: string) => ENTITIES[n.toLowerCase()] ?? e,
 		)
-		.replace(/\\+[nrtbf]/g, ' ');
+		.replace(/(?<!\\)\\+[nrtbf]/g, ' ');
 }
 
 /**
