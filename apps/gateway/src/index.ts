@@ -9,6 +9,7 @@ import { serve } from '@hono/node-server';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
 import {
 	assessMemory,
+	checkKeys,
 	describeSource,
 	overBudgetMessage,
 	providerKeyFromEnv,
@@ -177,42 +178,24 @@ if (VALKEY_URL === undefined) {
 			: `~${budget.needMb} MB of ${budget.limit.limitMb} MB (${describeSource(budget.limit.source)})`;
 }
 
-const apiKey = env('PROXLANE_API_KEY');
-if (apiKey === undefined) {
-	// REFUSE TO BOOT rather than run open.
-	//
-	// This gateway fetches an arbitrary URL a caller chooses, on provider credentials that
-	// cost money. Started without a key it is an open proxy funded by whoever deployed it,
-	// and an open proxy is the failure you cannot take back — the credits are gone and the
-	// abuse is already in someone's logs. Defaulting to "no auth in development" is how that
-	// reaches production, because the default is what gets copied.
-	process.stderr.write(
-		'\nPROXLANE_API_KEY is not set, and this server will not start without one.\n\n' +
-			'  It authenticates callers TO the gateway. Without it anyone who can reach this\n' +
-			'  port can spend your provider credits on any URL they like.\n\n' +
-			`  Generate one:  export PROXLANE_API_KEY=$(openssl rand -hex 32)\n\n`,
-	);
-	process.exit(2);
-}
-
 /**
  * The sandbox key, optional. A request carrying it is answered from the outcome table and
  * never reaches a provider — `integrations.md` section 6, `X-Proxlane-Simulate`.
- *
- * MUST DIFFER FROM THE LIVE KEY, and the boot checks it rather than the docs asking. Equal keys
- * would make every caller a sandbox caller: the class is decided by which key matched, and the
- * sandbox is checked first because it is the one that cannot spend.
  */
 const sandboxKey = env('PROXLANE_SANDBOX_KEY');
-if (sandboxKey !== undefined && sandboxKey === apiKey) {
-	process.stderr.write(
-		'\nPROXLANE_SANDBOX_KEY equals PROXLANE_API_KEY, and this server will not start that way.\n\n' +
-			'  The sandbox key is the one that can never spend. If it matched the live key, every\n' +
-			'  request would be a sandbox request and nothing would ever reach a provider.\n\n' +
-			`  Generate a different one:  export PROXLANE_SANDBOX_KEY=$(openssl rand -hex 32)\n\n`,
-	);
+
+// Every refusal about the keys lives in `@proxlane/shared`'s gateway-keys, pure and unit-tested, and shared with `proxlane doctor`: no key, a key that has
+// been published somewhere, and a sandbox key equal to the live one. They were inline here with
+// `process.exit` and nothing exercised them.
+const keys = checkKeys(env('PROXLANE_API_KEY'), sandboxKey);
+if (!keys.ok) {
+	process.stderr.write(`\n${keys.message}\n\n`);
 	process.exit(2);
 }
+for (const w of keys.warnings) process.stderr.write(`\n  WARNING: ${w}\n`);
+const apiKey = keys.apiKey;
+// The sandbox key as the check decided it, so an empty one is off here exactly as it is there.
+const sandbox = keys.sandboxKey;
 
 // BYOK: provider keys come from the environment and never leave this process. A provider
 // with no key is not a broken configuration, it is a provider you have not signed up for,
@@ -359,7 +342,7 @@ const app = createApp({
 	...(LOG === undefined ? {} : { log: LOG }),
 	logUrls: (env('PROXLANE_LOG_URLS') ?? 'off') === 'on',
 	terminalRetries: TERMINAL_RETRIES,
-	...(sandboxKey === undefined ? {} : { sandboxKey }),
+	...(sandbox === undefined ? {} : { sandboxKey: sandbox }),
 	...(health === undefined ? {} : { health }),
 	...(cooldowns === undefined ? {} : { cooldowns }),
 });
@@ -376,7 +359,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  log:       ${LOG === undefined ? 'OFF (PROXLANE_LOG=off) — nothing is recorded' : 'one line per request to stdout'}\n` +
 			`  memory:    ${MEMORY_NOTE}\n` +
 			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
-			`  sandbox:   ${sandboxKey === undefined ? 'off; PROXLANE_SANDBOX_KEY to enable' : 'on — X-Proxlane-Simulate with the sandbox key calls no provider'}\n` +
+			`  sandbox:   ${sandbox === undefined ? 'off; PROXLANE_SANDBOX_KEY to enable' : 'on — X-Proxlane-Simulate with the sandbox key calls no provider'}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);
 });
