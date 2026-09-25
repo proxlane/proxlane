@@ -222,9 +222,9 @@ describe('redactEchoedAddresses', () => {
 		expect(hasEchoedAddress(doubled)).toBe(true);
 		expect(hasEchoedAddress(redactEchoedAddresses(doubled))).toBe(false);
 		// ...and leaves the values that are not an echoed address alone.
-		expect(hasEchoedAddress('{"dns":{"resolved":[{"entries":[{"ip":"203.0.113.9"}]}]}}')).toBe(
-			false,
-		);
+		expect(
+			hasEchoedAddress('{"result":{"dns":{"resolved":[{"entries":[{"ip":"203.0.113.9"}]}]}}}'),
+		).toBe(false);
 		expect(hasEchoedAddress('<html>not json</html>')).toBe(false);
 	});
 
@@ -763,15 +763,92 @@ describe('echoed addresses: what the second security review found (#369)', () =>
 
 	it('passes what fixtures legitimately carry', () => {
 		// Established by running the gate over every committed fixture.
-		expect(strayAddresses('{"dns":{"resolved":[{"entries":[{"ip":"203.0.113.9"}]}]}}')).toEqual(
-			[],
-		);
+		expect(
+			strayAddresses('{"result":{"dns":{"resolved":[{"entries":[{"ip":"203.0.113.9"}]}]}}}'),
+		).toEqual([]);
 		expect(
 			strayAddresses('{"User-Agent": ["Mozilla/5.0 Chrome/152.0.0.0 Safari/537.36"]}'),
 		).toEqual([]);
 		expect(strayAddresses('{"created_at": "2026-09-24 21:11:59"}')).toEqual([]);
 		expect(strayAddresses('{"origin": "WEB_SCRAPING_API"}')).toEqual([]);
 		expect(strayAddresses('<html>no addresses</html>')).toEqual([]);
+	});
+
+	const utf16 = [...'origin 203.0.113.7'].join('\u0000');
+	it.each([
+		['a trailing period', 'Your IP address is 203.0.113.7.'],
+		['an IPv6 with a trailing period', 'Your IP address is 2001:db8::1.'],
+		['a colon before it', 'remote_addr:203.0.113.7'],
+		['a gRPC peer', 'peer ipv4:203.0.113.7:443'],
+		['a full mapped IPv6', '0:0:0:0:0:ffff:203.0.113.7'],
+		['an escaped newline before it, in text', String.raw`<pre>seen\n203.0.113.7</pre>`],
+		['an object key', '{"203.0.113.7": {"hits": 1}}'],
+		['an object key inside a JSON string', JSON.stringify({ c: '{"203.0.113.7":1}' })],
+		['the losing half of a duplicate key', '{"note":"203.0.113.7","note":"x"}'],
+		["a target's own dns.ip", '{"dns":{"ip":"203.0.113.7"}}'],
+		[
+			"Scrapfly's DNS shape, but inside the target's page",
+			JSON.stringify({
+				result: {
+					content: JSON.stringify({
+						dns: { resolved: [{ entries: [{ ip: '203.0.113.7' }] }] },
+					}),
+				},
+			}),
+		],
+		['percent-encoded IPv4', 'ip=203%2E0%2E113%2E7'],
+		['percent-encoded IPv6', 'ip=2001%3Adb8%3A%3A1'],
+		['doubly percent-encoded', 'ip=203%252E0%252E113%252E7'],
+		['decimal entities', '<b>203&#46;0&#46;113&#46;7</b>'],
+		['hex entities', '<b>203&#x2e;0&#x2E;113&#46;7</b>'],
+		['named entities', '<b>2001&colon;db8&colon;&colon;1</b>'],
+		['a JSON unicode escape', String.raw`{"a":"203\u002e0\u002e113\u002e7"}`],
+		['UTF-16 text', utf16],
+	])('the gate refuses %s', (_why, text) => {
+		expect(strayAddresses(text).length).toBeGreaterThan(0);
+	});
+
+	it.each([
+		['a version with a fifth part', 'lib 1.2.3.4.5'],
+		['an octet above 255', 'build 999.1.1.1'],
+		["a script's slice", 'a[::2]'],
+		['loopback, one hex group', 'bind ::1'],
+		['a CSS pseudo-element', 'a::before { content: "" }'],
+	])('the gate passes %s', (_why, text) => {
+		expect(strayAddresses(text)).toEqual([]);
+	});
+
+	it('keeps redacting past a null, where pass two cannot help', () => {
+		// HTML-escaped JSON does not parse, so only pass one sees it. It used to stop at `null`.
+		const body =
+			'<pre>{&quot;via&quot;: null, &quot;origin&quot;: &quot;203.0.113.7&quot;}</pre>';
+		expect(redactEchoedAddresses(body)).toBe(
+			'<pre>{&quot;via&quot;: null, &quot;origin&quot;: &quot;REDACTED&quot;}</pre>',
+		);
+	});
+
+	it('redacts every copy of an echoed address, whatever its case or spelling', () => {
+		// Pass one erases the echo value first; the copies are found from the original text.
+		const body =
+			'{"origin":"2001:DB8::1, 203.0.113.7","seen":"2001:db8::1","peer":"::ffff:203.0.113.7"}';
+		const out = redactEchoedAddresses(body);
+		expect(out).toBe(
+			'{"origin":"REDACTED, REDACTED","seen":"REDACTED","peer":"::ffff:REDACTED"}',
+		);
+		expect(strayAddresses(out)).toEqual([]);
+	});
+
+	it('does not rewrite an address that merely contains the literal', () => {
+		const body = '{"origin":"1.2.3.4","a":"11.2.3.45","b":"1.2.3.4.5","c":"v1.2.3.4"}';
+		expect(redactEchoedAddresses(body)).toBe(
+			'{"origin":"REDACTED","a":"11.2.3.45","b":"1.2.3.4.5","c":"v1.2.3.4"}',
+		);
+	});
+
+	it('survives nesting deep enough to overflow a recursive walk', () => {
+		const deep = `${'['.repeat(20000)}"203.0.113.7"${']'.repeat(20000)}`;
+		expect(() => redactEchoedAddresses(deep)).not.toThrow();
+		expect(strayAddresses(deep)).toHaveLength(1);
 	});
 
 	it('redacts a forwarding header in the RESPONSE, which used to be gated but kept', () => {
