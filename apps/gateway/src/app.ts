@@ -31,7 +31,7 @@ import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
 import { InflightLimiter, retryAfterSeconds } from './inflight.js';
 import { accountOnlyChain, hostOf, type RequestLine, timings } from './log.js';
-import { ignoredParams, parseScrapeRequest } from './request.js';
+import { ignoredParams, nearMisses, parseScrapeRequest } from './request.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
 import { parseSimulate, SIMULATE_HEADER, simulate } from './simulate.js';
 import { VERSION } from './version.js';
@@ -139,7 +139,9 @@ function keyMatches(presented: string, expected: string): boolean {
  * unhandled throw. Threading it through handlers by hand would miss exactly those, and those
  * are the ones people open issues about.
  */
-type Vars = { Variables: { requestId: string; startedAt: number } };
+/** What the query asked for that the gateway does not read: computed once, used twice. */
+type QueryReport = { ignored: string[]; hints: [string, string][] };
+type Vars = { Variables: { requestId: string; startedAt: number; queryReport: QueryReport } };
 
 /** `reported` if every charged attempt was the provider's own figure, `estimated` if none was. */
 function costSource(
@@ -288,7 +290,19 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
 }
 
 // Re-exported so existing tests keep their import path; the implementations moved to request.ts.
-export { ignoredParams, readRequestBodyCapped, requestedDeadline } from './request.js';
+export {
+	ignoredParams,
+	nearMisses,
+	readRequestBodyCapped,
+	requestedDeadline,
+} from './request.js';
+
+/** How many names `ignoredParams` stands for: its list, with a trailing `+N` counted as N. */
+export function ignoredCount(ignored: readonly string[]): number {
+	const last = ignored[ignored.length - 1];
+	const more = last?.startsWith('+') ? Number(last.slice(1)) : 0;
+	return ignored.length - (more > 0 ? 1 : 0) + more;
+}
 
 export function createApp(deps: AppDeps): Hono<Vars> {
 	const app = new Hono<Vars>();
@@ -308,13 +322,25 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		// edge guard too. Timing only the chain would exclude the gateway work most likely to
 		// regress, and the whole point of the number is that it is ours.
 		c.set('startedAt', performance.now());
+		// ONCE, before the handler, so the request log reads the same result rather than
+		// computing it a second time: a security review found the pair costing a keyless
+		// caller twice the CPU of one.
+		const search = new URL(c.req.url).search;
+		const report: QueryReport = { ignored: ignoredParams(search), hints: nearMisses(search) };
+		c.set('queryReport', report);
 		await next();
 		c.header('X-Request-Id', id);
 		// In the middleware, so it lands on errors too. A caller who typos a parameter AND gets a
 		// 400 for an unrelated reason should still be told about the typo — that is the request
 		// they are already looking at.
-		const ignored = ignoredParams(new URL(c.req.url).search);
+		const { ignored, hints } = report;
 		if (ignored.length > 0) c.header('X-Ignored-Params', ignored.join(','));
+		// A SECOND HEADER, not more text in the first. `X-Ignored-Params` is documented as sorted,
+		// comma-separated names, and callers parse it; prose in it would break them. This one is
+		// only present when a hint exists, so a parser of the first is unaffected (#282).
+		if (hints.length > 0) {
+			c.header('X-Ignored-Params-Hint', hints.map(([k, v]) => `${k}=${v}`).join(','));
+		}
 	});
 
 	// Health is "this process is up and serving", not "fully configured". A gateway with no
@@ -748,6 +774,9 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 					} finally {
 						const h = (n: string): string | undefined => res?.headers.get(n) ?? undefined;
 						const attempts = h('X-Attempts');
+						// From the middleware's report, not read back from the response: the middleware
+						// sets those headers after this handler returns, so they are not on `res` yet.
+						const { ignored, hints } = c.get('queryReport');
 						const target = c.req.query('url');
 						const host = hostOf(target);
 						log({
@@ -783,6 +812,12 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 							...(h('X-Detect-Rule') === undefined
 								? {}
 								: { detect: h('X-Detect-Rule') as string }),
+							// A COUNT of the ignored names, never the names. The log is the first place
+							// caller-supplied query text would be PERSISTED, and a credential pasted as
+							// a parameter name is 32 characters and fits the header's rule. The hinted
+							// names are safe to keep: each is one edit from a parameter of ours.
+							...(ignored.length === 0 ? {} : { ignored: ignoredCount(ignored) }),
+							...(hints.length === 0 ? {} : { near_miss: Object.fromEntries(hints) }),
 							// A SANDBOX LINE SAYS SO. Without this a sandbox holder could write
 							// `AUTH_FAILED` lines naming real providers with `legs: account` — the
 							// zero-capacity signature from #276 — and nothing in the log could tell

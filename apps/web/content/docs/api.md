@@ -118,6 +118,7 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Detect-Rule` | when a rule fired | Which block-page rule matched. On a `SOFT_BLOCK` it is what produced the outcome; on a `HARD_BLOCK` the provider already said blocked and this names the vendor that did it |
 | `X-Provider-Health` | when health is on, or when a floor fired | `demoted-forced`: every provider was demoted and the least bad was used. `cooling-forced`: every provider was cooling and one was tried anyway, rather than take the domain off the air |
 | `X-Ignored-Params` | when you sent one we don't read | The query parameters we threw away, sorted and comma-separated |
+| `X-Ignored-Params-Hint` | when one of those looks like ours | What each probably meant: `providers=provider,render_js=render` |
 | `Retry-After` | when known | Seconds, rounded up |
 | `X-Proxlane-Simulated` | sandbox only | The simulated outcome. See [Sandbox](#sandbox) |
 | `X-Content-Type-Options` | sandbox only | `nosniff`. A simulated page is ours, served from the gateway's origin, so it gets the header a page of our own would |
@@ -133,8 +134,17 @@ real page, and no JavaScript, at about a fifth of the cost. The cost is the tell
 
 ```
 X-Ignored-Params: js_render
+X-Ignored-Params-Hint: js_render=render
 X-Cost-Estimate: 1.000000     # rendered, this would be ~5
 ```
+
+When an ignored name is one character off one of ours, or another provider's spelling of one,
+`X-Ignored-Params-Hint` says which parameter it probably meant. `providers=brightdata` pins
+nothing: the request runs the normal chain and answers from whichever provider served, so
+without the hint it reads as a successful test of Bright Data. The hint is a separate header so
+that `X-Ignored-Params` stays a plain list of names. The request log records how many parameters
+were ignored, as `ignored`, and the near misses, as `near_miss`. It never records the other
+names: something pasted into a query by mistake, a key included, would otherwise land in a log.
 
 Two of those are easy to misread.
 

@@ -58,6 +58,12 @@ const REPORTABLE = /^[A-Za-z0-9_.-]{1,40}$/;
 /** At most this many names, so a junk query cannot produce a header of unbounded length. */
 const MAX_REPORTED = 10;
 
+/**
+ * At most this many distinct names are examined for a near miss. Enough for any real request,
+ * which sends a handful; a query built to cost CPU stops being read here.
+ */
+export const MAX_EXAMINED = 32;
+
 /** Longest accepted `wait_for` selector. Generous — real selectors are nowhere near it. */
 const MAX_WAIT_FOR = 256;
 
@@ -94,6 +100,95 @@ export function ignoredParams(qs: string): string[] {
 	const shown = named.slice(0, MAX_REPORTED);
 	const hidden = seen.size - shown.length;
 	return hidden === 0 ? shown : [...shown, `+${hidden}`];
+}
+
+/**
+ * Other spellings of OUR parameters, mapped to the one we read. #282.
+ *
+ * Edit distance alone does not find these: `render_js` is five edits from `render`, and it is
+ * the most likely thing a caller migrating from ScrapingBee sends. They are listed because each
+ * one changes what a request does while returning 200, which is the failure the hint exists for.
+ * Several are other providers' own names; the hint says what ours is, and that holds either way.
+ */
+// A Map, not an object literal: `?constructor=1` looked up on a plain object finds
+// Object.prototype.constructor, and emitted `constructor=function Object() { [native code] }`.
+const OUR_OTHER_SPELLINGS: ReadonlyMap<string, string> = new Map([
+	['render_js', 'render'],
+	['js_render', 'render'],
+	['js', 'render'],
+	['timeout_ms', 'timeout'],
+	['country', 'country_code'],
+	['countrycode', 'country_code'],
+	['premium_proxy', 'premium'],
+	['wait_for_selector', 'wait_for'],
+	['waitfor', 'wait_for'],
+]);
+
+/** Optimal string alignment distance: insertions, deletions, substitutions and adjacent swaps. */
+function editDistance(a: string, b: string): number {
+	const d = Array.from({ length: a.length + 1 }, (_, i) =>
+		Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+	);
+	for (let i = 1; i <= a.length; i++) {
+		for (let j = 1; j <= b.length; j++) {
+			const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+			const row = d[i] as number[];
+			const prev = d[i - 1] as number[];
+			row[j] = Math.min(
+				(prev[j] as number) + 1,
+				(row[j - 1] as number) + 1,
+				(prev[j - 1] as number) + cost,
+			);
+			if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+				row[j] = Math.min(row[j] as number, ((d[i - 2] as number[])[j - 2] as number) + 1);
+			}
+		}
+	}
+	return (d[a.length] as number[])[b.length] as number;
+}
+
+/**
+ * The ignored parameters that are almost certainly a typo of one we read, each with the name we
+ * read. `providers` → `provider`, `render_js` → `render`, `timout` → `timeout`.
+ *
+ * A foreign provider's parameter and a one-character miss of ours are different signals, and
+ * `X-Ignored-Params` reports both the same way. A caller sent `providers=brightdata`, got
+ * `scraperapi:OK`, and believed they had tested Bright Data: the header was there and said
+ * `providers`, and nothing said "you meant provider". Never a 400: ScraperAPI accepts a dozen
+ * parameters we do not, and rejecting them would break the hostname-change migration.
+ *
+ * Same safety rules as `ignoredParams`: only reportable names, at most MAX_REPORTED, and case
+ * compared insensitively because `Render=true` is the same mistake as `render_js=true`.
+ */
+export function nearMisses(qs: string): [ignored: string, ours: string][] {
+	const out = new Map<string, string>();
+	const examined = new Set<string>();
+	for (const [k] of new URLSearchParams(qs)) {
+		// BOUNDED WORK, because this runs on every request before authentication. A security
+		// review measured the first version at ~46 ms of CPU for one 16 KB query of distinct
+		// names, run twice per /v1 request: a keyless caller could hold a core. So each name is
+		// examined once, at most MAX_EXAMINED distinct names are examined at all, and a name
+		// whose length rules out distance one is never compared.
+		if (examined.has(k)) continue;
+		if (examined.size >= MAX_EXAMINED) break;
+		examined.add(k);
+		if (KNOWN_PARAMS.includes(k) || !REPORTABLE.test(k)) continue;
+		const lower = k.toLowerCase();
+		const aliased = OUR_OTHER_SPELLINGS.get(lower);
+		if (aliased !== undefined) {
+			out.set(k, aliased);
+			continue;
+		}
+		// Distance 1 only, and never for a name of two characters or fewer: at that length
+		// everything is one edit from something, and a hint that is usually wrong is noise.
+		if (lower.length <= 2) continue;
+		const close = KNOWN_PARAMS.filter(
+			(p) => Math.abs(p.length - lower.length) <= 1 && editDistance(lower, p) <= 1,
+		);
+		// Exactly one candidate, or it is a guess dressed as a fact.
+		if (close.length === 1) out.set(k, close[0] as string);
+	}
+	return [...out].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).slice(0, MAX_REPORTED);
 }
 
 /**
