@@ -29,7 +29,14 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { IDENTIFYING_FIELDS, REDACTED, sanitizeBody, sanitizeHeaders } from './record.ts';
+import {
+	fixtureCarriesEchoedAddress,
+	IDENTIFYING_FIELDS,
+	REDACTED,
+	redactAddresses,
+	sanitizeBody,
+	sanitizeHeaders,
+} from './record.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC_CORPUS = join(ROOT, 'packages/detect/corpus');
@@ -169,6 +176,13 @@ interface Exchange {
 	readonly bodyBase64?: string;
 }
 
+/** The body as given: `bodyBase64` when present, else the text form. */
+function inputBytes(ex: Exchange): Uint8Array {
+	return ex.bodyBase64 !== undefined
+		? new Uint8Array(Buffer.from(ex.bodyBase64, 'base64'))
+		: new TextEncoder().encode(ex.body ?? '');
+}
+
 export function buildCapture(
 	ex: Exchange,
 	opts: { readonly rule: string; readonly targetClass: string; readonly now: string },
@@ -177,7 +191,9 @@ export function buildCapture(
 	const headers = Object.fromEntries(
 		Object.entries(sanitizeHeaders(ex.headers ?? {}, secrets)).map(([k, v]) => [
 			k,
-			Buffer.from(scrubHost(new TextEncoder().encode(v), ex.url)).toString('utf8'),
+			Buffer.from(scrubHost(new TextEncoder().encode(redactAddresses(v)), ex.url)).toString(
+				'utf8',
+			),
 		]),
 	);
 	// BOTH PATHS THROUGH ONE SANITISER. `bodyBase64` is the documented preferred input — bytes
@@ -188,14 +204,19 @@ export function buildCapture(
 	// function exists. A capture is a real response from real traffic, so it is MORE likely to
 	// carry an egress address than a recording against a fixed test target, and this one had no
 	// redaction at all.
-	const raw =
-		ex.bodyBase64 !== undefined
-			? new Uint8Array(Buffer.from(ex.bodyBase64, 'base64'))
-			: new TextEncoder().encode(ex.body ?? '');
+	const raw = inputBytes(ex);
 	// SECRETS FIRST, THEN THE NAME. Two different rules: `sanitizeBody` redacts credentials and
 	// identifying fields, `scrubHost` removes what section 19 bars — the target's name. Neither
 	// covers the other, and the file's own docstring promised the second one before it existed.
-	const bodyBase64 = Buffer.from(scrubHost(sanitizeBody(raw, secrets), ex.url)).toString(
+	// THEN EVERY ADDRESS, not only the echoed ones `sanitizeBody` knows by key: see
+	// `redactAddresses`. Through Latin-1, as `scrubHost` does: an address is ASCII, and every other
+	// byte survives unchanged, where a UTF-8 round trip would turn a legacy charset into U+FFFD.
+	const sanitized = sanitizeBody(raw, secrets);
+	const text = Buffer.from(sanitized).toString('latin1');
+	const unaddressed = text.includes('\0')
+		? sanitized
+		: Buffer.from(redactAddresses(text), 'latin1');
+	const bodyBase64 = Buffer.from(scrubHost(new Uint8Array(unaddressed), ex.url)).toString(
 		'base64',
 	);
 	return {
@@ -293,7 +314,10 @@ if (import.meta.filename === process.argv[1]) {
 	// SCANNED OVER THE DECODED BODY, not the serialized capture. The body is stored base64, so
 	// a scan of the JSON is blind to everything in it — which is exactly how `record.ts`'s
 	// first version of this check missed the one place nothing else was looking.
-	const scannable = `${JSON.stringify(capture)}\n${new TextDecoder('utf-8', { fatal: false }).decode(Buffer.from(capture.bodyBase64, 'base64'))}`;
+	const bodyText = new TextDecoder('utf-8', { fatal: false }).decode(
+		Buffer.from(capture.bodyBase64, 'base64'),
+	);
+	const scannable = `${JSON.stringify(capture)}\n${bodyText}`;
 	const leaked = IDENTIFYING_FIELDS.filter((field) =>
 		new RegExp(`"${field}"\\s*:\\s*"(?!${REDACTED})`).test(scannable),
 	);
@@ -311,10 +335,31 @@ if (import.meta.filename === process.argv[1]) {
 			break;
 		}
 	}
+	// AND ANY ADDRESS, by the recorder's own gate, which reads the text after undoing the
+	// encodings a page hides one behind. This script had no address check at all, and writes into
+	// the corpus where a block page's "your IP is" footer lands.
+	if (fixtureCarriesEchoedAddress(JSON.stringify(capture), bodyText))
+		leaked.push(
+			'a network address (redaction does not undo percent-encoding, entities or UTF-16)',
+		);
+	// AND THE SAME VERDICT. Redaction changes lengths, and `detect()` reads a fixed prefix, so a
+	// marker near the limit could cross it and the capture would no longer show what it was taken
+	// to show. Imported here, not at the top: the tests import this file without a built detector.
+	const { detect } = await import('../packages/detect/dist/index.mjs');
+	const before = detect(inputBytes(ex), capture.contentType, undefined);
+	const after = detect(
+		Buffer.from(capture.bodyBase64, 'base64'),
+		capture.contentType,
+		undefined,
+	);
+	if (before.blocked !== after.blocked || before.ruleId !== after.ruleId)
+		leaked.push(
+			`a changed detect verdict (${before.ruleId ?? 'none'} -> ${after.ruleId ?? 'none'})`,
+		);
 	if (leaked.length > 0) {
 		process.stderr.write(
 			`\n  REFUSING TO WRITE: ${leaked.join(', ')} survived redaction.\n` +
-				'  This is a bug in sanitizeBody(); fix it before capturing again.\n\n',
+				'  Take the capture again as plain bytes; if it already is, sanitizeBody() or redactAddresses() missed it.\n\n',
 		);
 		process.exit(1);
 	}

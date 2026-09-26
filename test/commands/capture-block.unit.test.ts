@@ -10,7 +10,7 @@
 // it publishes dated evidence of automated access against somebody's property. A pure function
 // can be held to it.
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -24,6 +24,7 @@ import {
 	registrableHost,
 	scrubHost,
 } from '../../scripts/capture-block.ts';
+import { fixtureCarriesEchoedAddress, strayAddresses } from '../../scripts/record.ts';
 
 const PRIVATE = '/tmp/proxlane-corpus';
 
@@ -259,6 +260,100 @@ describe('a capture carries no name and no secret', () => {
 				`${'body' in ex ? 'body' : 'bodyBase64'} kept the egress address`,
 			).not.toContain('203.0.113.7');
 			expect(body).toContain('REDACTED');
+		}
+	});
+});
+
+describe('a capture carries no network address', () => {
+	// A block page prints the VISITOR's address, in HTML no echo key marks: the exit node, or for a
+	// capture from a home network, the maintainer's own connection. The script had no address
+	// check at all, and writes into a corpus meant to be shared.
+	const page =
+		'<html><p>Ray ID: 8c1f2e3d4a5b6c7d</p>' +
+		'<span id="cf-footer-ip">203.0.113.7</span>' +
+		'<p>Your IP address is 2001:db8::1.</p><p>lib 1.2.3.4.5</p></html>';
+	const opts = { rule: 'cloudflare', targetClass: 'sandbox', now: '2026-09-25T00:00:00.000Z' };
+
+	for (const [path, ex] of [
+		['body', { url: 'https://web-scraping.dev/x', status: 403, body: page }],
+		[
+			'bodyBase64',
+			{
+				url: 'https://web-scraping.dev/x',
+				status: 403,
+				bodyBase64: Buffer.from(page, 'utf8').toString('base64'),
+			},
+		],
+	] as const) {
+		it(`redacts every address in the page, on the ${path} path`, () => {
+			const body = Buffer.from(buildCapture(ex, opts, []).bodyBase64, 'base64').toString(
+				'utf8',
+			);
+			expect(body).not.toContain('203.0.113.7');
+			expect(body).not.toContain('2001:db8::1');
+			// ...and nothing that only looks like one, which a detect rule might match on.
+			expect(body).toContain('Ray ID: 8c1f2e3d4a5b6c7d');
+			expect(body).toContain('lib 1.2.3.4.5');
+			expect(strayAddresses(body)).toEqual([]);
+		});
+	}
+
+	it('redacts an address in a header no echo rule knows', () => {
+		const c = buildCapture(
+			{
+				url: 'https://web-scraping.dev/x',
+				status: 403,
+				headers: { 'x-debug-peer': 'ipv4:203.0.113.7:443' },
+				body: 'blocked',
+			},
+			opts,
+			[],
+		);
+		expect(JSON.stringify(c.headers)).not.toContain('203.0.113.7');
+	});
+
+	it('leaves a body it cannot read as text alone', () => {
+		const bytes = Buffer.from([0x00, 0x32, 0x30, 0x33, 0x2e, 0xff, 0xfe]);
+		const c = buildCapture(
+			{ url: 'https://web-scraping.dev/x', status: 403, bodyBase64: bytes.toString('base64') },
+			opts,
+			[],
+		);
+		expect(Buffer.from(c.bodyBase64, 'base64').equals(bytes)).toBe(true);
+	});
+
+	it('keeps a legacy charset byte for byte while redacting', () => {
+		// Latin-1 `caf\xe9` is not UTF-8; a UTF-8 round trip would store U+FFFD in its place.
+		const bytes = Buffer.concat([
+			Buffer.from('<p>caf'),
+			Buffer.from([0xe9]),
+			Buffer.from(' 203.0.113.7</p>'),
+		]);
+		const c = buildCapture(
+			{ url: 'https://web-scraping.dev/x', status: 403, bodyBase64: bytes.toString('base64') },
+			opts,
+			[],
+		);
+		const out = Buffer.from(c.bodyBase64, 'base64');
+		expect(
+			out.equals(
+				Buffer.concat([
+					Buffer.from('<p>caf'),
+					Buffer.from([0xe9]),
+					Buffer.from(' REDACTED</p>'),
+				]),
+			),
+		).toBe(true);
+	});
+
+	it('every committed capture passes the gate the script now applies', () => {
+		const dir = join(HERE, '..', '..', 'packages', 'detect', 'corpus');
+		const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
+		expect(files.length).toBeGreaterThan(0);
+		for (const f of files) {
+			const raw = readFileSync(join(dir, f), 'utf8');
+			const body = Buffer.from(JSON.parse(raw).bodyBase64, 'base64').toString('utf8');
+			expect(fixtureCarriesEchoedAddress(raw, body), f).toBe(false);
 		}
 	});
 });
