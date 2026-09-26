@@ -1,5 +1,20 @@
 # @proxlane/gateway
 
+## 0.20.0
+
+### Minor Changes
+
+- [#371](https://github.com/proxlane/proxlane/pull/371) [`cf3a207`](https://github.com/proxlane/proxlane/commit/cf3a2078972df4cdb1311d85b8a5400c1116b344) Thanks [@scarsam](https://github.com/scarsam)! - When an ignored query parameter is one character off one the gateway reads, or another provider's spelling of one, the new `X-Ignored-Params-Hint` header names the parameter it probably meant, for example `providers=provider`; the request log records how many parameters were ignored and the near misses, never the other names.
+
+- [#367](https://github.com/proxlane/proxlane/pull/367) [`b000ecb`](https://github.com/proxlane/proxlane/commit/b000ecbb9ece9169add6013aa02e4ef2af138bf6) Thanks [@scarsam](https://github.com/scarsam)! - The gateway now refuses to start when `PROXLANE_API_KEY` is empty, a placeholder such as `changeme`, or a value published in an example or CI workflow: if your running deployment uses one, it will stop starting after this upgrade until you set a generated key. It warns at boot for a key under 24 characters or a published sandbox key, and `proxlane doctor` reports all of these.
+
+### Patch Changes
+
+- Updated dependencies [[`f263045`](https://github.com/proxlane/proxlane/commit/f2630452fe04d9bba7a86229d8ba10a625e421d1), [`0987f18`](https://github.com/proxlane/proxlane/commit/0987f186a26a21c1b63225ed4bd3c7f8014cc714), [`b000ecb`](https://github.com/proxlane/proxlane/commit/b000ecbb9ece9169add6013aa02e4ef2af138bf6), [`5ef2369`](https://github.com/proxlane/proxlane/commit/5ef23692d806831831c4bab4589bd180a9bae5b2), [`9be3f74`](https://github.com/proxlane/proxlane/commit/9be3f745bc67067640b0c7c6df1377d661040042), [`c7d6462`](https://github.com/proxlane/proxlane/commit/c7d6462b4bedad1e363ded61a02df091b6af4b23), [`184e7cb`](https://github.com/proxlane/proxlane/commit/184e7cb623ad4b1c962fc3e4b5fee0b9451bd4bb)]:
+  - @proxlane/detect@0.3.3
+  - @proxlane/adapters@0.12.2
+  - @proxlane/shared@0.14.0
+
 ## 0.19.2
 
 ### Patch Changes

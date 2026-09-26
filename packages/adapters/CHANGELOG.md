@@ -1,5 +1,22 @@
 # @proxlane/adapters
 
+## 0.12.2
+
+### Patch Changes
+
+- [#368](https://github.com/proxlane/proxlane/pull/368) [`0987f18`](https://github.com/proxlane/proxlane/commit/0987f186a26a21c1b63225ed4bd3c7f8014cc714) Thanks [@scarsam](https://github.com/scarsam)! - Firecrawl gains its recorded `deadline` fixture, so the contract tests and the weekly drift check cover the gateway's own deadline firing mid-request for every adapter.
+
+- [#375](https://github.com/proxlane/proxlane/pull/375) [`5ef2369`](https://github.com/proxlane/proxlane/commit/5ef23692d806831831c4bab4589bd180a9bae5b2) Thanks [@scarsam](https://github.com/scarsam)! - The recorder refuses a fixture carrying any address outside a known-public place, wherever it sits in the text, including percent-encoded, entity-escaped or UTF-16, and redacts echoed addresses whatever their escaping, prefix or nesting, including in response headers.
+
+- [#374](https://github.com/proxlane/proxlane/pull/374) [`9be3f74`](https://github.com/proxlane/proxlane/commit/9be3f745bc67067640b0c7c6df1377d661040042) Thanks [@scarsam](https://github.com/scarsam)! - The recorder redacts Scrapfly's per-request identifiers, the envelope's `uuid` and the `x-scrapfly-reject-id` header, as it already did Firecrawl's `scrapeId`.
+
+- [#369](https://github.com/proxlane/proxlane/pull/369) [`c7d6462`](https://github.com/proxlane/proxlane/commit/c7d6462b4bedad1e363ded61a02df091b6af4b23) Thanks [@scarsam](https://github.com/scarsam)! - The recorder redacts request-path addresses a target echoes back, httpbin's `origin` and any forwarded-for header, and refuses to write a fixture that still carries one; four fixtures are re-recorded without them.
+
+- [#370](https://github.com/proxlane/proxlane/pull/370) [`184e7cb`](https://github.com/proxlane/proxlane/commit/184e7cb623ad4b1c962fc3e4b5fee0b9451bd4bb) Thanks [@scarsam](https://github.com/scarsam)! - Scrapfly gains a recorded `quota-exhausted` fixture: a real response from an account whose plan ran out, which conformance now holds to `QUOTA_EXHAUSTED` rather than letting it pass as a provider error.
+
+- Updated dependencies [[`b000ecb`](https://github.com/proxlane/proxlane/commit/b000ecbb9ece9169add6013aa02e4ef2af138bf6)]:
+  - @proxlane/shared@0.14.0
+
 ## 0.12.1
 
 ### Patch Changes

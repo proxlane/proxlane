@@ -1,5 +1,11 @@
 # @proxlane/shared
 
+## 0.14.0
+
+### Minor Changes
+
+- [#367](https://github.com/proxlane/proxlane/pull/367) [`b000ecb`](https://github.com/proxlane/proxlane/commit/b000ecbb9ece9169add6013aa02e4ef2af138bf6) Thanks [@scarsam](https://github.com/scarsam)! - The gateway now refuses to start when `PROXLANE_API_KEY` is empty, a placeholder such as `changeme`, or a value published in an example or CI workflow: if your running deployment uses one, it will stop starting after this upgrade until you set a generated key. It warns at boot for a key under 24 characters or a published sandbox key, and `proxlane doctor` reports all of these.
+
 ## 0.13.0
 
 ### Minor Changes
