@@ -1,5 +1,11 @@
 # @proxlane/detect
 
+## 0.3.3
+
+### Patch Changes
+
+- [#377](https://github.com/proxlane/proxlane/pull/377) [`f263045`](https://github.com/proxlane/proxlane/commit/f2630452fe04d9bba7a86229d8ba10a625e421d1) Thanks [@scarsam](https://github.com/scarsam)! - `pnpm capture-block` redacts every network address in a captured block page and refuses a capture that still carries one.
+
 ## 0.3.2
 
 ### Patch Changes
