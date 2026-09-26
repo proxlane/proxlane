@@ -472,11 +472,10 @@ export function sanitizeBody(bytes: Uint8Array, secrets: readonly string[]): Uin
  * Scrapfly's DNS resolution of the target, which is the target's public address. Only an
  * address-shaped token inside the value of an echo key is replaced.
  *
- * TWO TECHNIQUES, ON PURPOSE. Redaction is textual, because the bytes are written as they came.
- * The refusal gate (`hasEchoedAddress`) is STRUCTURAL: it parses the JSON, and the JSON inside
- * its strings, and inspects the values under echo keys. The first version of the gate reused
- * the redaction's own expression over the redacted bytes, so it could never catch what the
- * redaction missed, and a security review found several shapes it did miss.
+ * TWO TECHNIQUES, ON PURPOSE. Redaction is key-anchored: textual, then structural. The refusal
+ * gate (`strayAddresses`) reads every address in the text, whoever's key it sits under. The first
+ * version of the gate reused the redaction's own expression over the redacted bytes, so it could
+ * never catch what the redaction missed, and two security reviews found shapes it did miss.
  */
 
 /** An address, with the forms a forwarding header carries: ports, brackets, zones, mapped v4. */
@@ -486,11 +485,51 @@ const ADDRESS_SRC = String.raw`(?<![\w.:])(?:\[${IPV6}\](?::\d{1,5})?|${IPV6}|${
 const ADDRESS = new RegExp(ADDRESS_SRC, 'gi');
 
 /**
+ * A STRICT address, for the two places that look beyond an echo key's value: the literal pass in
+ * `redactEchoedAddresses` and the refusal gate. The loose IPv6 form above also matches a
+ * timestamp's `21:11:59`, which is harmless inside a forwarding header and everywhere outside
+ * one; so beyond an echo key an IPv6 address must contain `::` or all eight groups.
+ *
+ * PROSE-SHAPED BOUNDARIES. The first strict form refused a `.` or `:` on either side, so
+ * `Your IP is 203.0.113.7.`, `ipv4:203.0.113.7:443` and `0:0:0:0:0:ffff:203.0.113.7` all passed
+ * the gate. A trailing `.` now ends an address unless a digit follows it, and a `:` may precede
+ * an IPv4. What this adds in false positives ends in a refusal, which is the safe direction.
+ */
+const IPV6_STRICT = `(?:(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|(?:[0-9a-f]{1,4}:){6}${IPV4}|(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{0,4}::(?:[0-9a-f]{1,4}:){0,6}(?:[0-9a-f]{1,4}|${IPV4})?)`;
+const STRICT_ADDRESS_SRC = String.raw`(?:(?<![\w.:])\[?${IPV6_STRICT}\]?|(?<![\w.])${IPV4})(?::\d{1,5})?(?!\w|\.\d)`;
+
+/** The address without brackets or a port: the literal that recurs however a layer escapes it. */
+function coreAddress(token: string): string {
+	// A lone bracket too: `a[2001:db8::1]` cannot start at the `[`, so the match keeps only its `]`.
+	const bracketed = /^\[?([^[\]]+)\](?::\d+)?$/.exec(token) ?? /^\[([^[\]]+)$/.exec(token);
+	if (bracketed) return bracketed[1] as string;
+	return /^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(token) ? (token.split(':')[0] as string) : token;
+}
+
+/** An IPv4 address a mapped IPv6 one ends in, so either spelling redacts the other. */
+function ipv4Tail(core: string): string | undefined {
+	return /\d{1,3}(?:\.\d{1,3}){3}$/.exec(core)?.[0];
+}
+
+/**
+ * Whether a strict match is an address a host could hold. Not `152.0.0.0`, which is how a user
+ * agent spells a major version; not an octet above 255; and not an IPv6 form with fewer than two
+ * hex groups, so a script's `a[::2]` is not an address.
+ */
+function isHostAddress(core: string): boolean {
+	const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(core);
+	if (v4) return v4.slice(1).every((o) => Number(o) <= 255) && !/\.0\.0\.0$/.test(core);
+	return (core.match(/[0-9a-f]{1,4}/gi) ?? []).length >= 2;
+}
+
+/**
  * Keys whose value is an address in the request path. `_` and `-` both, because the same header
  * arrives as `X-Forwarded-For`, `x_forwarded_for` or CGI's `HTTP_X_FORWARDED_FOR`.
  */
 const ECHO_KEY_SRC =
-	'(?:origin|forwarded|via|remote[-_]?addr|(?:[a-z0-9]+[-_])*(?:forwarded[-_]for|real[-_]ip|client[-_]ip|connecting[-_]ip))';
+	// Any prefix on EVERY term, not only the `-for` and `-ip` ones: ScrapingBee relays target
+	// headers as `spb-via`, and CGI spells `Forwarded` as `HTTP_FORWARDED`.
+	'(?:[a-z0-9]+[-_])*(?:origin|forwarded|via|forwarded[-_]for|real[-_]ip|client[-_]ip|connecting[-_]ip|remote[-_]?(?:addr|ip)|originating[-_]?ip)';
 const ECHO_KEY = new RegExp(`^${ECHO_KEY_SRC}$`, 'i');
 
 /**
@@ -503,37 +542,123 @@ const QUOTE_SRC = String.raw`(\\\\\\"|\\"|&quot;|")`;
 const GAP = String.raw`(?:\s|\\[nrt])*`;
 const KEY_AT = new RegExp(`${QUOTE_SRC}${ECHO_KEY_SRC}\\1${GAP}:${GAP}`, 'gi');
 
-/** Where the value that starts at `from` ends: the array's `]`, or the matching quote. */
-function valueEnd(text: string, from: number, quote: string): number {
+/**
+ * Where the value that starts at `from` ends: the array's `]`, or the matching quote. `null` when
+ * no string or array starts there (a `null`, a number, an object), `-1` when one starts and never
+ * ends. Only the second is a reason to stop scanning.
+ */
+function valueEnd(text: string, from: number, quote: string): number | null {
 	if (text[from] === '[') {
 		const close = text.indexOf(']', from);
 		return close === -1 ? -1 : close + 1;
 	}
-	if (!text.startsWith(quote, from)) return -1;
+	if (!text.startsWith(quote, from)) return null;
 	const close = text.indexOf(quote, from + quote.length);
 	return close === -1 ? -1 : close + quote.length;
 }
 
 export function redactEchoedAddresses(text: string): string {
+	// PASS ONE, textual and key-anchored, for any body: redact inside each echo key's value.
 	let out = '';
 	let last = 0;
 	KEY_AT.lastIndex = 0;
 	for (let m = KEY_AT.exec(text); m !== null; m = KEY_AT.exec(text)) {
 		const start = m.index + m[0].length;
 		const end = valueEnd(text, start, m[1] as string);
-		if (end === -1 || end < last) continue;
+		// A `null` or an object is skipped, not a reason to stop: stopping there left every
+		// later echo key in a body pass two cannot parse unredacted.
+		if (end === null) continue;
+		// STOP at the first value that never ends. Continuing re-scanned to the end of the body
+		// for every later key, O(keys x length) on a malformed tail. Pass two still covers JSON.
+		if (end === -1) break;
+		if (end < last) continue;
 		out += text.slice(last, start) + text.slice(start, end).replace(ADDRESS, REDACTED);
 		last = end;
 		KEY_AT.lastIndex = end;
 	}
-	return out + text.slice(last);
+	out += text.slice(last);
+
+	// PASS TWO, structural, for JSON: collect every address under an echo key at any depth of
+	// nesting or escaping, and replace that LITERAL wherever it appears. An address is spelled the
+	// same in every JSON escape layer, so this is immune to the ambiguity that makes "where does
+	// this value end" hard to answer textually: an RFC 7239 value with escaped inner quotes, or a
+	// bracketed IPv6 closing an array early, both of which a security review found pass one missed.
+	// Collected from the ORIGINAL text: pass one has already erased the values it handled, and a
+	// copy of one elsewhere in the body is exactly what this pass is for.
+	const literals = new Set<string>();
+	const strict = new RegExp(STRICT_ADDRESS_SRC, 'gi');
+	walkJson(text, (key, value) => {
+		if (!ECHO_KEY.test(key)) return;
+		for (const s of valueStrings(value)) {
+			for (const m of s.matchAll(strict)) {
+				const core = coreAddress(m[0]).toLowerCase();
+				if (!isHostAddress(core)) continue;
+				literals.add(core);
+				const tail = ipv4Tail(core);
+				if (tail !== undefined) literals.add(tail);
+			}
+		}
+	});
+	if (literals.size === 0) return out;
+	// ONE PASS over the body, whatever the number of literals, and case-insensitive: the gate is,
+	// so an IPv6 literal spelled in capitals elsewhere would otherwise survive to be refused.
+	return out.replace(strict, (m) => {
+		const core = coreAddress(m);
+		if (literals.has(core.toLowerCase())) return m.replace(core, REDACTED);
+		const tail = ipv4Tail(core);
+		return tail !== undefined && literals.has(tail) ? m.replace(tail, REDACTED) : m;
+	});
 }
 
-/** Every string an echo key's value holds: the string itself, or each element of an array. */
-function valueStrings(v: unknown): string[] {
+/**
+ * Every string an echo key's value holds: a string, an array's elements, an object's values. Bounded
+ * like the walk that calls it, or `{"origin":[[[[…` overflows here instead.
+ */
+function valueStrings(v: unknown, nesting = 0): string[] {
+	if (nesting > MAX_NESTING) return [];
 	if (typeof v === 'string') return [v];
-	if (Array.isArray(v)) return v.flatMap(valueStrings);
+	if (Array.isArray(v)) return v.flatMap((x) => valueStrings(x, nesting + 1));
+	if (v !== null && typeof v === 'object')
+		return Object.values(v).flatMap((x) => valueStrings(x, nesting + 1));
 	return [];
+}
+
+/**
+ * How deep a walk goes. `[[[[…` ten thousand levels deep overflowed the stack, and the RangeError
+ * aborted the whole recording run. What lies deeper goes unredacted, and the gate, which reads the
+ * text rather than the tree, refuses it.
+ */
+const MAX_NESTING = 256;
+
+/**
+ * Visit every key and value in a JSON text, and in any string that is itself JSON, to a bounded
+ * depth: how Scrapfly carries a page, and how double encoding unwraps. `path` is the keys above.
+ */
+function walkJson(
+	text: string,
+	visit: (key: string, value: unknown, path: readonly string[]) => void,
+): boolean {
+	const walk = (node: unknown, path: string[], depth: number, nesting: number): void => {
+		if (nesting > MAX_NESTING) return;
+		if (typeof node === 'string') {
+			const inner = depth < 4 ? parseJson(node) : undefined;
+			if (inner !== undefined) walk(inner, path, depth + 1, nesting + 1);
+			return;
+		}
+		if (Array.isArray(node)) {
+			for (const n of node) walk(n, path, depth, nesting + 1);
+			return;
+		}
+		if (node === null || typeof node !== 'object') return;
+		for (const [k, v] of Object.entries(node)) {
+			visit(k, v, path);
+			walk(v, [...path, k], depth, nesting + 1);
+		}
+	};
+	const doc = parseJson(text);
+	if (doc === undefined) return false;
+	walk(doc, [], 0, 0);
+	return true;
 }
 
 function parseJson(s: string): unknown {
@@ -549,40 +674,97 @@ function parseJson(s: string): unknown {
 }
 
 /**
- * Whether an address survived under an echo key: the refusal gate's half of the rule.
- *
- * Structural, so it is independent of the textual redaction above. It walks the parsed body and,
- * to a bounded depth, any string that is itself JSON, which is how Scrapfly carries the page and
- * how double escaping unwraps. A body that is not JSON has no keys to inspect and passes; the
- * redaction still runs over it.
+ * The one place a fixture legitimately carries an address: Scrapfly's own envelope,
+ * `result.dns.resolved[].entries[].ip`, the target's public DNS resolution. ANCHORED to that path
+ * in the outer document, arrays transparent. The first exception was any `ip` under any `dns` at
+ * any depth, which a target's own page (a DNS diagnostic endpoint) could carry.
  */
-export function hasEchoedAddress(text: string): boolean {
-	const probe = new RegExp(ADDRESS_SRC, 'i');
-	const walk = (node: unknown, depth: number): boolean => {
-		if (typeof node === 'string') {
-			const inner = depth < 3 ? parseJson(node) : undefined;
-			return inner !== undefined && walk(inner, depth + 1);
+const DNS_PATH = ['result', 'dns', 'resolved', 'entries', 'ip'] as const;
+
+function dnsResolutions(text: string): Set<string> {
+	const out = new Set<string>();
+	const walk = (node: unknown, i: number, nesting: number): void => {
+		if (nesting > MAX_NESTING) return;
+		if (Array.isArray(node)) {
+			for (const n of node) walk(n, i, nesting + 1);
+			return;
 		}
-		if (Array.isArray(node)) return node.some((n) => walk(n, depth));
-		if (node === null || typeof node !== 'object') return false;
-		for (const [k, v] of Object.entries(node)) {
-			if (ECHO_KEY.test(k) && valueStrings(v).some((s) => probe.test(s))) return true;
-			if (walk(v, depth)) return true;
+		if (i === DNS_PATH.length) {
+			if (typeof node === 'string') out.add(node.toLowerCase());
+			return;
 		}
-		return false;
+		if (node !== null && typeof node === 'object')
+			walk((node as Record<string, unknown>)[DNS_PATH[i] as string], i + 1, nesting + 1);
 	};
 	const doc = parseJson(text);
-	return doc !== undefined && walk(doc, 0);
+	if (doc !== undefined) walk(doc, 0, 0);
+	return out;
+}
+
+const ENTITIES: Readonly<Record<string, string>> = {
+	period: '.',
+	colon: ':',
+	lsqb: '[',
+	rsqb: ']',
+	lbrack: '[',
+	rbrack: ']',
+};
+const fromHex = (_: string, h: string) => String.fromCharCode(Number.parseInt(h, 16));
+
+/**
+ * The spellings an address hides behind, undone for the gate only: UTF-16's interleaved NULs,
+ * percent-encoding (doubled too), JSON's `\u002e`, HTML entities, and an escaped `\n` or `\t`
+ * whose letter would otherwise read as part of a word. The redaction leaves these alone, so a
+ * body that uses one is refused rather than rewritten: a re-recording, never a leak. Base64
+ * inside an envelope is not undone; no target in the recorder returns one.
+ */
+function unhide(text: string): string {
+	let t = text.replaceAll('\0', '');
+	for (let i = 0; i < 3 && /%25/i.test(t); i++) t = t.replace(/%25/gi, '%');
+	return t
+		.replace(/(?<!\\)\\+u00(2e|3a|5b|5d)/gi, fromHex)
+		.replace(/%(2e|3a|5b|5d)/gi, fromHex)
+		.replace(/&#x0*(2e|3a|5b|5d);?/gi, fromHex)
+		.replace(/&#0*(46|58|91|93);?/g, (_, d: string) => String.fromCharCode(Number(d)))
+		.replace(
+			/&(period|colon|lsqb|rsqb|lbrack|rbrack);/gi,
+			(e, n: string) => ENTITIES[n.toLowerCase()] ?? e,
+		)
+		.replace(/(?<!\\)\\+[nrtbf]/g, ' ');
 }
 
 /**
- * The gate as the recorder applies it: the decoded body and the serialized fixture, EACH PARSED
- * ON ITS OWN. `hasEchoedAddress` parses JSON, and the `scannable` string the other checks use is
- * the two joined by a newline, which is not JSON: handed that, it parsed nothing and passed
- * every fixture. The serialized half is checked too, because the request body lives there.
+ * Every address that survived, anywhere but a known-public place: the refusal gate.
+ *
+ * THE TEXT, NOT THE TREE. Deliberately broader than the redaction and a different technique, so a
+ * miss in one is caught by the other. The two structural versions before this one each saw less
+ * than the bytes held: the first only values under echo keys, the second every value but no
+ * object KEY, and neither the losing half of a duplicate key, which `JSON.parse` drops and the
+ * recorder still writes. The tree is used for one thing only, to find the DNS resolutions above.
+ */
+export function strayAddresses(
+	text: string,
+	exempt: ReadonlySet<string> = dnsResolutions(text),
+): string[] {
+	const found: string[] = [];
+	for (const m of unhide(text).matchAll(new RegExp(STRICT_ADDRESS_SRC, 'gi'))) {
+		const core = coreAddress(m[0]).toLowerCase();
+		if (isHostAddress(core) && !exempt.has(core)) found.push(m[0]);
+	}
+	return found;
+}
+
+export function hasEchoedAddress(text: string): boolean {
+	return strayAddresses(text).length > 0;
+}
+
+/**
+ * The gate as the recorder applies it: the decoded body and the serialized fixture, each on its
+ * own. The DNS exception is the body's alone; the serialized half carries the body as base64, so
+ * only the request and the headers are read there, and nothing in them is exempt.
  */
 export function fixtureCarriesEchoedAddress(serialized: string, bodyText: string): boolean {
-	return hasEchoedAddress(bodyText) || hasEchoedAddress(serialized);
+	return hasEchoedAddress(bodyText) || strayAddresses(serialized, new Set()).length > 0;
 }
 
 /**
@@ -689,7 +871,10 @@ export function sanitizeHeaders(
 		}
 		// Volatility is checked AFTER secrecy: a header that is both must be redacted, not
 		// merely marked volatile, or the ordering leaks it.
-		out[k] = isVolatile(lower) ? VOLATILE : sanitize(v, secrets);
+		// A forwarding header in the RESPONSE carries the same addresses a body echoes. It used to
+		// be gated but never redacted, so a provider sending one made the fixture unrecordable.
+		const value = ECHO_KEY.test(lower) ? v.replace(ADDRESS, REDACTED) : v;
+		out[k] = isVolatile(lower) ? VOLATILE : sanitize(value, secrets);
 	}
 	return out;
 }

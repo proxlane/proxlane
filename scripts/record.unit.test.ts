@@ -4,16 +4,9 @@
 // Everything here runs without a provider key and without spending anything.
 
 import { execFileSync } from 'node:child_process';
-import {
-	existsSync,
-	mkdirSync,
-	mkdtempSync,
-	readdirSync,
-	readFileSync,
-	writeFileSync,
-} from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -31,6 +24,7 @@ import {
 	sanitizeHeaders,
 	secretsFor,
 	shapeOf,
+	strayAddresses,
 	TARGETS,
 } from './record.ts';
 
@@ -228,19 +222,20 @@ describe('redactEchoedAddresses', () => {
 		expect(hasEchoedAddress(doubled)).toBe(true);
 		expect(hasEchoedAddress(redactEchoedAddresses(doubled))).toBe(false);
 		// ...and leaves the values that are not an echoed address alone.
-		expect(hasEchoedAddress('{"dns":{"resolved":[{"entries":[{"ip":"203.0.113.9"}]}]}}')).toBe(
-			false,
-		);
+		expect(
+			hasEchoedAddress('{"result":{"dns":{"resolved":[{"entries":[{"ip":"203.0.113.9"}]}]}}}'),
+		).toBe(false);
 		expect(hasEchoedAddress('<html>not json</html>')).toBe(false);
 	});
 
-	it('the recorder checks the body and the fixture separately, never joined', () => {
+	it('the recorder checks the body and the fixture separately, and text is checked too', () => {
 		const body = '{"origin": "203.0.113.7"}';
 		const serialized = JSON.stringify({ kind: 'exchange', response: { status: 200 } });
-		// The trap this pins: joined, the text is not JSON, so a structural check parses nothing.
-		expect(hasEchoedAddress(`${serialized}\n${body}`)).toBe(false);
 		expect(fixtureCarriesEchoedAddress(serialized, body)).toBe(true);
 		expect(fixtureCarriesEchoedAddress(serialized, '{"origin": "REDACTED"}')).toBe(false);
+		// Joined they are not JSON, and a body that is not JSON is now checked as text rather than
+		// passed: the first structural gate passed exactly this, and every non-JSON body.
+		expect(hasEchoedAddress(`${serialized}\n${body}`)).toBe(true);
 	});
 
 	it('the refusal gate sees exactly what the redaction misses', () => {
@@ -730,6 +725,169 @@ describe('a spent plan does not overwrite the fixture it interrupted', () => {
 	});
 });
 
+describe('echoed addresses: what the second security review found (#369)', () => {
+	// Each case below was missed by redaction, the gate, or both, in the version first merged.
+	it.each([
+		[
+			'an RFC 7239 value with escaped inner quotes',
+			String.raw`{"Forwarded": "for=\"[2001:db8::1]:443\""}`,
+		],
+		[
+			'a bracketed IPv6 before another array element',
+			'{"X-Forwarded-For": ["[2001:db8::1]:443", "198.51.100.2"]}',
+		],
+		['a prefixed Forwarded', '{"HTTP_FORWARDED": "for=203.0.113.7"}'],
+		['a prefixed Via, as ScrapingBee relays it', '{"spb-via": "1.1 203.0.113.7"}'],
+		['x-remote-addr', '{"x-remote-addr": "203.0.113.7"}'],
+		['x-originating-ip', '{"x-originating-ip": "203.0.113.7"}'],
+		['remote_ip', '{"remote_ip": "203.0.113.7"}'],
+		['an object under an echo key', '{"origin": {"ip": "203.0.113.7"}}'],
+	])('redacts %s, and the gate agrees', (_why, body) => {
+		const out = redactEchoedAddresses(body);
+		expect(out).not.toMatch(/203\.0\.113\.7|198\.51\.100\.2|2001:db8/);
+		expect(hasEchoedAddress(body)).toBe(true);
+		expect(hasEchoedAddress(out)).toBe(false);
+	});
+
+	it('refuses an address in a body that is not JSON at all', () => {
+		// The first structural gate returned false for anything that did not start like JSON.
+		expect(strayAddresses('<pre>origin: 203.0.113.7</pre>')).toHaveLength(1);
+		expect(strayAddresses('callback({"origin":"203.0.113.7"})')).toHaveLength(1);
+		expect(strayAddresses(')]}\',\n{"origin":"203.0.113.7"}')).toHaveLength(1);
+	});
+
+	it('refuses an address anywhere, not only under a key it recognises', () => {
+		expect(strayAddresses('{"some_new_header": ["203.0.113.7"]}')).toHaveLength(1);
+		expect(strayAddresses('["203.0.113.7"]')).toHaveLength(1);
+	});
+
+	it('passes what fixtures legitimately carry', () => {
+		// Established by running the gate over every committed fixture.
+		expect(
+			strayAddresses('{"result":{"dns":{"resolved":[{"entries":[{"ip":"203.0.113.9"}]}]}}}'),
+		).toEqual([]);
+		expect(
+			strayAddresses('{"User-Agent": ["Mozilla/5.0 Chrome/152.0.0.0 Safari/537.36"]}'),
+		).toEqual([]);
+		expect(strayAddresses('{"created_at": "2026-09-24 21:11:59"}')).toEqual([]);
+		expect(strayAddresses('{"origin": "WEB_SCRAPING_API"}')).toEqual([]);
+		expect(strayAddresses('<html>no addresses</html>')).toEqual([]);
+	});
+
+	const utf16 = [...'origin 203.0.113.7'].join('\u0000');
+	it.each([
+		['a trailing period', 'Your IP address is 203.0.113.7.'],
+		['an IPv6 with a trailing period', 'Your IP address is 2001:db8::1.'],
+		['a colon before it', 'remote_addr:203.0.113.7'],
+		['a gRPC peer', 'peer ipv4:203.0.113.7:443'],
+		['a full mapped IPv6', '0:0:0:0:0:ffff:203.0.113.7'],
+		['an escaped newline before it, in text', String.raw`<pre>seen\n203.0.113.7</pre>`],
+		['an object key', '{"203.0.113.7": {"hits": 1}}'],
+		['an object key inside a JSON string', JSON.stringify({ c: '{"203.0.113.7":1}' })],
+		['the losing half of a duplicate key', '{"note":"203.0.113.7","note":"x"}'],
+		["a target's own dns.ip", '{"dns":{"ip":"203.0.113.7"}}'],
+		[
+			"Scrapfly's DNS shape, but inside the target's page",
+			JSON.stringify({
+				result: {
+					content: JSON.stringify({
+						dns: { resolved: [{ entries: [{ ip: '203.0.113.7' }] }] },
+					}),
+				},
+			}),
+		],
+		['percent-encoded IPv4', 'ip=203%2E0%2E113%2E7'],
+		['percent-encoded IPv6', 'ip=2001%3Adb8%3A%3A1'],
+		['doubly percent-encoded', 'ip=203%252E0%252E113%252E7'],
+		['decimal entities', '<b>203&#46;0&#46;113&#46;7</b>'],
+		['hex entities', '<b>203&#x2e;0&#x2E;113&#46;7</b>'],
+		['named entities', '<b>2001&colon;db8&colon;&colon;1</b>'],
+		['a JSON unicode escape', String.raw`{"a":"203\u002e0\u002e113\u002e7"}`],
+		['UTF-16 text', utf16],
+	])('the gate refuses %s', (_why, text) => {
+		expect(strayAddresses(text).length).toBeGreaterThan(0);
+	});
+
+	it.each([
+		['a version with a fifth part', 'lib 1.2.3.4.5'],
+		['an octet above 255', 'build 999.1.1.1'],
+		["a script's slice", 'a[::2]'],
+		['loopback, one hex group', 'bind ::1'],
+		['a CSS pseudo-element', 'a::before { content: "" }'],
+	])('the gate passes %s', (_why, text) => {
+		expect(strayAddresses(text)).toEqual([]);
+	});
+
+	it('keeps redacting past a null, where pass two cannot help', () => {
+		// HTML-escaped JSON does not parse, so only pass one sees it. It used to stop at `null`.
+		const body =
+			'<pre>{&quot;via&quot;: null, &quot;origin&quot;: &quot;203.0.113.7&quot;}</pre>';
+		expect(redactEchoedAddresses(body)).toBe(
+			'<pre>{&quot;via&quot;: null, &quot;origin&quot;: &quot;REDACTED&quot;}</pre>',
+		);
+	});
+
+	it('redacts every copy of an echoed address, whatever its case or spelling', () => {
+		// Pass one erases the echo value first; the copies are found from the original text.
+		const body =
+			'{"origin":"2001:DB8::1, 203.0.113.7","seen":"2001:db8::1","peer":"::ffff:203.0.113.7"}';
+		const out = redactEchoedAddresses(body);
+		expect(out).toBe(
+			'{"origin":"REDACTED, REDACTED","seen":"REDACTED","peer":"::ffff:REDACTED"}',
+		);
+		expect(strayAddresses(out)).toEqual([]);
+	});
+
+	it('does not rewrite an address that merely contains the literal', () => {
+		const body = '{"origin":"1.2.3.4","a":"11.2.3.45","b":"1.2.3.4.5","c":"v1.2.3.4"}';
+		expect(redactEchoedAddresses(body)).toBe(
+			'{"origin":"REDACTED","a":"11.2.3.45","b":"1.2.3.4.5","c":"v1.2.3.4"}',
+		);
+	});
+
+	it('survives nesting deep enough to overflow a recursive walk', () => {
+		const deep = `${'['.repeat(20000)}"203.0.113.7"${']'.repeat(20000)}`;
+		expect(() => redactEchoedAddresses(deep)).not.toThrow();
+		expect(strayAddresses(deep)).toHaveLength(1);
+	});
+
+	it('survives nesting under an echo key too', () => {
+		const deep = `{"origin":${'['.repeat(100000)}"203.0.113.7"${']'.repeat(100000)}}`;
+		expect(() => redactEchoedAddresses(deep)).not.toThrow();
+		expect(strayAddresses(deep).length).toBeGreaterThan(0);
+	});
+
+	it('undoes escapes in linear time, however long the backslash run', () => {
+		const run = `a${'\\'.repeat(200000)}x 203.0.113.7`;
+		const t0 = performance.now();
+		expect(strayAddresses(run)).toHaveLength(1);
+		expect(performance.now() - t0).toBeLessThan(250);
+	});
+
+	it('redacts an address a word runs into, keeping the bracket', () => {
+		const out = redactEchoedAddresses('{"origin":"2001:db8::1","x":"a[2001:db8::1]"}');
+		expect(out).toBe('{"origin":"REDACTED","x":"a[REDACTED]"}');
+		expect(strayAddresses(out)).toEqual([]);
+	});
+
+	it('redacts a forwarding header in the RESPONSE, which used to be gated but kept', () => {
+		const out = sanitizeHeaders(
+			{ 'x-forwarded-for': '203.0.113.7, 198.51.100.2', via: '1.1 vegur' },
+			[],
+		);
+		expect(out['x-forwarded-for']).toBe('REDACTED, REDACTED');
+		expect(out.via).toBe('1.1 vegur');
+	});
+
+	it('does not re-scan the body for every key after an unterminated value', () => {
+		// A malformed tail used to cost O(keys x length). It stops at the first value with no end.
+		const body = `{"a":"x"${',"via":['.repeat(20000)}`;
+		const t0 = performance.now();
+		redactEchoedAddresses(body);
+		expect(performance.now() - t0).toBeLessThan(250);
+	});
+});
+
 describe('committed fixtures carry no echoed address (#364)', () => {
 	// Run over every fixture in the repository, not a sample. KNOWN is the list of fixtures that
 	// still carry one only because their account is out of credit and a fixture is re-recorded,
@@ -737,19 +895,31 @@ describe('committed fixtures carry no echoed address (#364)', () => {
 	// re-recording that fixes it also has to remove it from here.
 	const KNOWN = ['scraperapi/post.json', 'scrapfly/post.json'];
 
-	const root = new URL('../packages/adapters/src/', import.meta.url);
-	const carriers: string[] = [];
-	for (const adapter of readdirSync(root)) {
-		const dir = new URL(`${adapter}/fixtures/`, root);
-		if (!existsSync(dir)) continue;
-		for (const f of readdirSync(dir).filter((n) => n.endsWith('.json'))) {
-			const doc = JSON.parse(readFileSync(new URL(f, dir), 'utf8'));
-			const b64 = doc?.response?.bodyBase64;
-			if (typeof b64 !== 'string') continue;
-			if (hasEchoedAddress(Buffer.from(b64, 'base64').toString('utf8')))
-				carriers.push(`${adapter}/${f}`);
+	// Every fixture, at any depth (the `_dev` adapters' too), and every part of it: the body, the
+	// request body and the headers. The first sweep read one directory level and bodies only.
+	const root = fileURLToPath(new URL('../packages/adapters/src/', import.meta.url));
+	const files: string[] = [];
+	const collect = (dir: string) => {
+		for (const e of readdirSync(dir, { withFileTypes: true })) {
+			const p = join(dir, e.name);
+			if (e.isDirectory()) collect(p);
+			else if (p.includes(`${sep}fixtures${sep}`) && p.endsWith('.json')) files.push(p);
 		}
+	};
+	collect(root);
+	const carriers: string[] = [];
+	for (const file of files) {
+		const raw = readFileSync(file, 'utf8');
+		const b64 = JSON.parse(raw)?.response?.bodyBase64;
+		const body = typeof b64 === 'string' ? Buffer.from(b64, 'base64').toString('utf8') : '';
+		if (fixtureCarriesEchoedAddress(raw, body))
+			carriers.push(relative(root, file).split(sep).join('/').replace('/fixtures/', '/'));
 	}
+
+	it('sweeps the fixtures it claims to', () => {
+		expect(files.length).toBeGreaterThan(50);
+		expect(files.some((f) => f.includes(`${sep}_dev${sep}`))).toBe(true);
+	});
 
 	it('none beyond the known list', () => {
 		expect(carriers.filter((c) => !KNOWN.includes(c))).toEqual([]);
