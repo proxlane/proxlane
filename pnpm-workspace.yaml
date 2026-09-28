@@ -32,7 +32,7 @@ overrides:
   # (GHSA-g89c-p67h-r497 and its sibling). It is a devDependency chain — wrangler and the
   # Cloudflare Vite plugin under apps/web — so nothing shipped carries it, but Dependabot
   # counts it against the public repo all the same. A patch pin, lifted the day miniflare moves.
-  sharp@<0.35.4: 0.35.4
+  sharp@<0.35.4: 0.35.5
 
 catalog:
   # runtime — the gateway hot path
