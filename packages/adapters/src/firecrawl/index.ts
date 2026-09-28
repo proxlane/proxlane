@@ -68,6 +68,14 @@ function translate(req: GatewayRequest, key: string): ProviderHttpRequest {
 		// escalation we did not ask for is a cost we cannot report.
 		proxy: req.premium === 'stealth' ? 'enhanced' : 'basic',
 		waitFor: 0,
+		// THE CALLER'S FINISH LINE, as a browser action. `waitFor` above is a fixed delay and
+		// stays 0: a guessed number of milliseconds is either too short for a slow page or paid
+		// for on a fast one. Their `wait` action with a `selector` holds the snapshot until the
+		// element exists. Only ever sent rendered: `wait_for` implies `render=true` at the edge,
+		// and actions need a browser.
+		...(req.waitFor === undefined
+			? {}
+			: { actions: [{ type: 'wait', selector: req.waitFor }] }),
 		// Bound to ours. Their default is 60 000 and their ceiling 300 000.
 		timeout: capabilities.maxTimeoutMs,
 		// Their default is US, applied even when nothing was asked. Sent only when the caller

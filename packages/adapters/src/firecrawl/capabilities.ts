@@ -42,12 +42,15 @@ export const capabilities: ProviderCapabilities = {
 	 */
 	renderJs: true,
 	/**
-	 * FALSE UNTIL WATCHED. Their `wait` action documents `milliseconds`, and the API reference
-	 * also lists `selector` on it, but nothing here has seen a selector wait hold a page yet.
-	 * The rule in `contract.ts` is measured, not read: a wait that silently does not happen is
-	 * worse than none. Flip it in the same commit as the live check that shows it working.
+	 * WATCHED HOLDING A PAGE, 2026-09-28, against `/canary/late`, whose marker appears four seconds
+	 * after load: rendered with no wait, 1.9s and the placeholder; `actions: [{type: 'wait',
+	 * selector: '#late'}]`, 5.0s and the marker. The live canary now asserts exactly that.
+	 *
+	 * A selector that never appears is NOT refused: they waited ~10s and answered 200 with the page
+	 * as it was. That is why the gateway checks the element itself (WAIT_FOR_UNMET) rather than
+	 * trusting any provider's success, and why this can be true at all.
 	 */
-	waitForSelector: false,
+	waitForSelector: true,
 	/**
 	 * The 26 countries their proxies page lists for basic proxies, read 2026-09-18. Enhanced
 	 * proxies serve only US and NL, and the contract has one country set rather than one per

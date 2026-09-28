@@ -523,7 +523,7 @@ provider's text, bounded to 300 characters with control characters removed.
 
 A provider this request's parameters ruled out never appears in `attempts`, so a failed chain's
 `error.message` names it and the parameter that excluded it, for example
-`every capable provider is cooling: scrapfly (account); not capable of this request: firecrawl (wait_for)`.
+`every capable provider is cooling: scrapfly (account); not capable of this request: brightdata (wait_for)`.
 Pinning that provider with `provider=` fails the same way, for the same reason.
 
 ## Sandbox
