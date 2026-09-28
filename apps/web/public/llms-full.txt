@@ -296,7 +296,7 @@ generator at it, or open it in any OpenAPI viewer.
 | `POST` | `/v1` | Scrape a URL and forward a request body |
 | `GET` | `/health` | Liveness, the running version, and `usable`: how many of the configured providers are not in an account cooldown right now. Counts only, never names. Needs no key |
 | `GET` | `/health/providers` | Per-provider health. Needs `PROXLANE_HEALTH=on` to be meaningful |
-| `GET` | `/health/cooldowns` | What is cooling now, and what expired recently |
+| `GET` | `/health/cooldowns` | What is cooling now, what expired recently, and the outcome that armed each |
 
 `PUT` and `DELETE` on `/v1` return 404. They are not treated as `GET`.
 
@@ -653,7 +653,15 @@ Cooldowns are scoped, and the scope is the point:
   account and must never affect anyone else.
 
 `GET /health/cooldowns` shows what is cooling and what recently expired. Cooldowns are on by
-default.
+default. Each entry says what armed it in `reason` (the outcome), and in `detail` when the
+provider gave its own words, so an account cooldown reads as out of credit, suspended or rate
+limited rather than just "account":
+
+```json
+{ "scope": "account", "provider": "brightdata", "org": "self", "expiresInMs": 41200,
+  "consecutive": 3, "probeTaken": false, "reason": "AUTH_FAILED",
+  "detail": "Account is suspended. Login to brightdata.com/cp/setting/billing to activate your account" }
+```
 
 ## Deadlines
 

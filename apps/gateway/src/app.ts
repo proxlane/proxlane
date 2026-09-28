@@ -532,6 +532,10 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 				consecutive: e.consecutive,
 				// True means the single post-expiry probe is out with a request right now.
 				probeTaken: e.probeTaken,
+				// The outcome that armed it, and the provider's words when it gave any. "account"
+				// alone could not tell out of credit from suspended from pacing us.
+				...(e.reason === undefined ? {} : { reason: e.reason }),
+				...(e.detail === undefined ? {} : { detail: e.detail }),
 			};
 		};
 		const cooling = entries.filter((e) => now < e.untilMs).map(shape);

@@ -17,7 +17,7 @@ import {
 	observe as observePure,
 } from '@proxlane/shared';
 import { Redis } from 'ioredis';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
 
 const URL = process.env.PROXLANE_VALKEY_URL;
@@ -166,6 +166,34 @@ describe('the cooldown store, where atomicity actually matters', () => {
 		const ttl = await redis.pttl(key);
 		expect(ttl).toBeGreaterThan(0);
 		expect(ttl).toBeLessThanOrEqual(60_000);
+	});
+
+	it('keeps the reason through an arm and an atomic claim, and reads it back', async () => {
+		// The claim is Lua over cjson; a field the script did not know about must survive it.
+		const store = new ValkeyCooldownStore({ redis, rng: () => 0.001 });
+		const key = 'cd:acct:self:why';
+		store.arm(key, 0, undefined, { reason: 'AUTH_FAILED', detail: 'Account is suspended' });
+		await vi.waitFor(async () => expect(await redis.get(key)).not.toBeNull());
+		const armed = JSON.parse((await redis.get(key)) as string) as { untilMs: number };
+		await store.claim(key, armed.untilMs + 1);
+		const [e] = (await store.list(0)).filter((x) => x.key === key);
+		expect(e).toMatchObject({
+			reason: 'AUTH_FAILED',
+			detail: 'Account is suspended',
+			probeTaken: true,
+		});
+	});
+
+	it('reads a mangled reason as absent, never as arbitrary JSON', async () => {
+		const store = new ValkeyCooldownStore({ redis });
+		const key = 'cd:acct:self:mangled';
+		await redis.set(
+			key,
+			JSON.stringify({ untilMs: 1, consecutive: 1, reason: { x: 1 }, detail: 7 }),
+		);
+		const [e] = (await store.list(0)).filter((x) => x.key === key);
+		expect(e).not.toHaveProperty('reason');
+		expect(e).not.toHaveProperty('detail');
 	});
 
 	it('keeps the record after the cooldown lifts, so backoff stays exponential', async () => {

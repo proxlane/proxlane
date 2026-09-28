@@ -837,6 +837,33 @@ describe('/health/cooldowns', () => {
 		expect(acct, 'an account cooldown must not claim a domain').not.toHaveProperty('domain');
 	});
 
+	it("says what armed each cooldown, and the provider's words when it gave any", async () => {
+		// "account" alone read the same for out of credit, suspended and pacing us, and a caller
+		// had to pin each provider by hand to find out which it was.
+		cooldowns.arm('cd:acct:self:brightdata', Date.now(), undefined, {
+			reason: 'AUTH_FAILED',
+			detail: 'Account is suspended',
+		});
+		cooldowns.arm('cd:acct:self:scraperapi', Date.now(), undefined, {
+			reason: 'QUOTA_EXHAUSTED',
+		});
+		const body = (await (
+			await fetch(`${base}/health/cooldowns?api_key=${API_KEY}`)
+		).json()) as {
+			cooling: { scope: string; provider: string; reason?: string; detail?: string }[];
+		};
+		const acct = (p: string) =>
+			body.cooling.find((c) => c.scope === 'account' && c.provider === p);
+		expect(acct('brightdata')).toMatchObject({
+			reason: 'AUTH_FAILED',
+			detail: 'Account is suspended',
+		});
+		expect(acct('scraperapi')).toMatchObject({ reason: 'QUOTA_EXHAUSTED' });
+		expect(acct('scraperapi'), 'no detail was given, so none is invented').not.toHaveProperty(
+			'detail',
+		);
+	});
+
 	it('reports how long is left, not the raw timestamp', async () => {
 		cooldowns.arm('cd:blk:scraperapi:soon.example:none', Date.now());
 		const body = (await (

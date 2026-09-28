@@ -826,6 +826,13 @@ describe("a provider's own words about a refused account reach the attempt, made
 		expect(r.attempts[0]?.providerMessage?.length).toBe(MAX_PROVIDER_MESSAGE);
 	});
 
+	it('never cuts through a surrogate pair, which Valkey cannot store', async () => {
+		const r = await run(saying('😀'.repeat(400)));
+		const m = r.attempts[0]?.providerMessage ?? '';
+		expect(Array.from(m)).toHaveLength(MAX_PROVIDER_MESSAGE);
+		expect(m).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+	});
+
 	it('adds nothing when the provider said nothing', async () => {
 		const r = await run(adapterOf('a', 'AUTH_FAILED'));
 		expect(r.attempts[0] && 'providerMessage' in r.attempts[0]).toBe(false);

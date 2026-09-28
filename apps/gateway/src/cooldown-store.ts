@@ -15,6 +15,7 @@ import {
 	armFor,
 	type CooldownDecision,
 	type CooldownEntry,
+	type CooldownWhy,
 	claimProbe,
 	decide,
 	maxCapForKey,
@@ -51,7 +52,7 @@ export interface CooldownStore {
 	 * Absent more often than present: ScraperAPI strips the header entirely, so every path
 	 * must work without it.
 	 */
-	arm(key: string, now: number, retryAfterMs?: number): void;
+	arm(key: string, now: number, retryAfterMs?: number, why?: CooldownWhy): void;
 
 	/** A provider that just worked is not cooled. Best-effort. */
 	clear(key: string): void;
@@ -82,6 +83,19 @@ export interface CooldownStore {
 	list(now: number): Promise<ReadonlyArray<{ key: string } & CooldownEntry>>;
 }
 
+/**
+ * An armed entry with the reason attached. Only what was given: a re-arm without a reason keeps
+ * none, rather than carrying an older outcome forward as though it had just happened again.
+ */
+export function withWhy(entry: CooldownEntry, why: CooldownWhy | undefined): CooldownEntry {
+	if (why === undefined) return entry;
+	return {
+		...entry,
+		reason: why.reason,
+		...(why.detail === undefined ? {} : { detail: why.detail }),
+	};
+}
+
 /** Process-local cooldowns. Correct for one gateway, wrong for two. */
 export class InMemoryCooldownStore implements CooldownStore {
 	readonly #entries = new Map<string, CooldownEntry>();
@@ -104,14 +118,13 @@ export class InMemoryCooldownStore implements CooldownStore {
 		return Promise.resolve(claimed);
 	}
 
-	arm(key: string, now: number, retryAfterMs?: number): void {
+	arm(key: string, now: number, retryAfterMs?: number, why?: CooldownWhy): void {
 		const prev = this.#entries.get(key);
-		this.#entries.set(
-			key,
+		const armed =
 			retryAfterMs === undefined
 				? arm(prev, now, this.#rng, maxCapForKey(key))
-				: armFor(prev, now, retryAfterMs),
-		);
+				: armFor(prev, now, retryAfterMs);
+		this.#entries.set(key, withWhy(armed, why));
 	}
 
 	clear(key: string): void {
