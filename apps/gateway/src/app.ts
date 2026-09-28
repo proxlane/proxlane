@@ -224,7 +224,13 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
 	// When a chain stayed inside one unit the total is real and is reported with the unit named.
 	// When it crossed units there is no total to give, and inventing one is worse than saying
 	// so — the per-attempt figures are in the response body, each with its own unit.
-	const charged = r.attempts.filter((a) => a.costMicrocredits !== undefined);
+	//
+	// A ZERO IS NOT A CHARGE. A refused account is unbilled, and counting its 0 in cents next to
+	// a credit charge from the provider that served reported `mixed` on every failover away from
+	// a suspended Bright Data account, for a chain that spent in exactly one unit.
+	const charged = r.attempts.filter(
+		(a) => a.costMicrocredits !== undefined && a.costMicrocredits > 0,
+	);
 	const units = new Set(charged.map((a) => a.costUnit ?? 'provider-credits'));
 	const total = charged.reduce((n, a) => n + (a.costMicrocredits ?? 0), 0);
 	const mixed = units.size > 1;

@@ -116,6 +116,9 @@ const COST = {
 	source: 'estimated' as const,
 };
 
+/** A request Bright Data refused before asking any target, which it does not bill. */
+const UNBILLED = { microcredits: 0, source: 'estimated' as const };
+
 function parse(res: ProviderHttpResponse): ParsedResult {
 	// The API's OWN status, before anything about the target. 200 for everything it accepted,
 	// including every kind of target failure; anything else is a request or credential problem.
@@ -124,7 +127,10 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		// facts, which is what AUTH_FAILED means and why it cools per-account rather than
 		// per-domain.
 		if (res.status === 401 || res.status === 403 || res.status === 400) {
-			return { outcome: 'AUTH_FAILED', upstreamStatusCode: res.status, cost: COST };
+			// UNBILLED, like the refusal below: the API turned the request away before any target
+			// was asked. This reported the flat per-request price, overstating spend on every
+			// failover away from a dead key.
+			return { outcome: 'AUTH_FAILED', upstreamStatusCode: res.status, cost: UNBILLED };
 		}
 		if (res.status === 429) {
 			// THE PROVIDER'S OWN WAIT, when it sent one. `retryAfterMs` has been on ParsedResult
@@ -155,19 +161,28 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	// `gateway` ("your account; fall back to your own"), cooled per account, not per domain.
 	// Bright Data's words travel with it, because "rotate the key" is the wrong fix here.
 	// Unbilled: a refused request never reached a target.
+	//
+	// THE WHOLE RECORDED SHAPE, NOT ANY ONE PART OF IT. Raw mode forwards the target's own
+	// headers, and nobody has yet shown that Bright Data strips a TARGET's `x-brd-err-code`. If
+	// it does not, a site could send `x-brd-err-code: client_1` and, on any one signal, take
+	// Bright Data out of rotation for the whole org: AUTH_FAILED cools the account, not the
+	// domain. So all three must hold, as they did in the recording: a `client_*` code, the 407,
+	// and no body. A target forging that must answer 407 with nothing, on purpose. Anything else
+	// in this header family is ignored and the response is read exactly as before, where every
+	// consequence is scoped to the target's own domain. Proving the strip would lift this; the
+	// recording to take is in #383.
 	const refusal = header(res.headers, BRD_REFUSAL_CODE_HEADER);
-	if (refusal !== undefined) {
-		const words = header(res.headers, BRD_REFUSAL_MESSAGE_HEADER) ?? message;
-		const said = words === undefined ? {} : { providerMessage: words };
-		if (refusal.startsWith('client_') || targetStatus === 407) {
-			return {
-				outcome: 'AUTH_FAILED',
-				...said,
-				cost: { microcredits: 0, source: 'estimated' },
-			};
-		}
-		// Another superproxy code. Never OK: whatever it is, the page did not come back.
-		return { outcome: 'PROVIDER_ERROR', ...upstream(targetStatus), ...said, cost: COST };
+	if (
+		refusal?.startsWith('client_') === true &&
+		targetStatus === 407 &&
+		res.body.byteLength === 0
+	) {
+		const words = header(res.headers, BRD_REFUSAL_MESSAGE_HEADER);
+		return {
+			outcome: 'AUTH_FAILED',
+			...(words === undefined ? {} : { providerMessage: words }),
+			cost: UNBILLED,
+		};
 	}
 
 	// NO x-brd-status-code AND NO ERROR is drift. In raw mode that header is how the target's

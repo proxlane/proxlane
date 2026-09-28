@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// Type-only imports, so Node's type stripping loads this file without a build.
+// Straight from source: contract.ts imports only types, so Node's type stripping loads it without a build.
 import { isAccountFixture } from '../packages/adapters/src/contract.ts';
 import { buildCodeowners, parseTable, ticks } from './codeowners.ts';
 import {

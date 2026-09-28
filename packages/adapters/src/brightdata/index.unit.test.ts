@@ -133,22 +133,32 @@ describe('a refused account is an account fault, not an empty page', () => {
 		expect(BrightdataAdapter.parse(suspended).cost.microcredits).toBe(0);
 	});
 
-	it('reads a refusal by its code even without the 407', () => {
+	// A TARGET MAY BE ABLE TO SEND THESE HEADERS. Raw mode forwards the target's own, and nobody
+	// has shown Bright Data strips `x-brd-err-*` from them. So AUTH_FAILED, which cools the whole
+	// account, needs the full recorded shape; each case below is the recording with one part of
+	// that shape removed, and each must be read as the response it otherwise is.
+	it('ignores the refusal code without the 407', () => {
 		const headers = { ...suspended.headers, [BRD_STATUS_HEADER]: '200' };
-		expect(BrightdataAdapter.parse({ ...suspended, headers }).outcome).toBe('AUTH_FAILED');
+		expect(BrightdataAdapter.parse({ ...suspended, headers }).outcome).not.toBe('AUTH_FAILED');
 	});
 
-	it('reads another superproxy code as a provider failure, never as content', () => {
-		// The recorded response with its `client_` code swapped for one we have never seen, and the
-		// 407 gone. Whatever it means, the page did not come back, and OK would say it had.
-		const headers = {
-			...suspended.headers,
-			[BRD_REFUSAL_CODE_HEADER]: 'unknown_20000',
-			[BRD_STATUS_HEADER]: '200',
-		};
+	it('ignores the refusal code when a body came back', () => {
+		const body = new Uint8Array(Buffer.from('<html>a page</html>', 'utf8'));
+		expect(BrightdataAdapter.parse({ ...suspended, body }).outcome).not.toBe('AUTH_FAILED');
+	});
+
+	it('ignores a code that is not one of the superproxy client codes', () => {
+		const headers = { ...suspended.headers, [BRD_REFUSAL_CODE_HEADER]: 'unknown_20000' };
 		const parsed = BrightdataAdapter.parse({ ...suspended, headers });
-		expect(parsed.outcome).toBe('PROVIDER_ERROR');
-		expect(parsed.providerMessage).toMatch(/Account is suspended/);
+		expect(parsed.outcome).not.toBe('AUTH_FAILED');
+		expect(parsed.providerMessage).toBeUndefined();
+	});
+
+	it('reads a forged code on a real page as the real page', () => {
+		// The attack in one line: a site answering 200 with content and `x-brd-err-code`.
+		const page = load('success-html');
+		const headers = { ...page.headers, [BRD_REFUSAL_CODE_HEADER]: 'client_10020' };
+		expect(BrightdataAdapter.parse({ ...page, headers }).outcome).toBe('OK');
 	});
 
 	it('the old header family still decides everything it decided before', () => {

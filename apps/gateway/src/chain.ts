@@ -80,16 +80,22 @@ const RETRYABLE_AT_TERMINAL: ReadonlySet<Outcome> = new Set([
 export const MAX_PROVIDER_MESSAGE = 300;
 
 /**
- * A provider's message made safe to repeat: control characters (a newline would split a log line,
- * a NUL would end a header) become spaces, runs collapse, and the length is bounded.
+ * A provider's message made safe to repeat. Control characters, C0, DEL and C1 (a UTF-8 message
+ * read as latin1 produces C1), become spaces, since a newline would split a log line. Runs
+ * collapse, the length is bounded, and the provider's key is removed: whole, and each `:` part
+ * of it, because Bright Data's is `<zone>:<token>` and a message naming the zone names the account.
  */
-export function boundedProviderMessage(message: string): string {
+export function boundedProviderMessage(message: string, key?: string): string {
 	let visible = '';
 	for (const ch of message) {
 		const code = ch.codePointAt(0) ?? 0;
-		visible += code < 0x20 || code === 0x7f ? ' ' : ch;
+		visible += code < 0x20 || (code >= 0x7f && code <= 0x9f) ? ' ' : ch;
 	}
-	const flat = visible.replace(/\s+/g, ' ').trim();
+	let flat = visible.replace(/\s+/g, ' ').trim();
+	const parts = key === undefined ? [] : [key, ...key.split(':')];
+	for (const part of parts.filter((p) => p.length >= 4).sort((a, b) => b.length - a.length)) {
+		flat = flat.split(part).join('REDACTED');
+	}
 	return flat.length <= MAX_PROVIDER_MESSAGE
 		? flat
 		: `${flat.slice(0, MAX_PROVIDER_MESSAGE - 1)}…`;
@@ -944,7 +950,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				...(res.kind === 'response' ? { latencyMs: res.latencyMs } : {}),
 				...(parsed?.providerMessage === undefined
 					? {}
-					: { providerMessage: boundedProviderMessage(parsed.providerMessage) }),
+					: { providerMessage: boundedProviderMessage(parsed.providerMessage, key) }),
 				...(parsed === undefined
 					? {}
 					: {

@@ -802,6 +802,25 @@ describe("a provider's own words about a refused account reach the attempt, made
 		expect(r.attempts[0]?.providerMessage).toBe('suspended {"forged":true} [31m');
 	});
 
+	it('strips C1 controls too, which a UTF-8 message read as latin1 produces', async () => {
+		const r = await run(saying('a\u0085b\u009bc'));
+		expect(r.attempts[0]?.providerMessage).toBe('a b c');
+	});
+
+	it("removes the provider's key, whole and by part, so a message naming the zone does not", async () => {
+		const adapter = saying(
+			'zone my-zone-1 refused token s3cr3t-token-value, key my-zone-1:s3cr3t-token-value',
+		);
+		const r = await runChain(req(), {
+			transport: transportOf([okResponse]),
+			candidates: [{ adapter, key: 'my-zone-1:s3cr3t-token-value' }],
+			maxBodyBytes: 1_000,
+		});
+		expect(r.attempts[0]?.providerMessage).toBe(
+			'zone REDACTED refused token REDACTED, key REDACTED',
+		);
+	});
+
 	it('bounds the length', async () => {
 		const r = await run(saying('x'.repeat(5_000)));
 		expect(r.attempts[0]?.providerMessage?.length).toBe(MAX_PROVIDER_MESSAGE);

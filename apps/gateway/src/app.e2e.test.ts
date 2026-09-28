@@ -472,6 +472,41 @@ describe('failures reach the caller as a status they can branch on', () => {
 		expect(merged['X-Attempts']).toBe('2');
 	});
 
+	it('does not call a chain mixed because an unbilled refusal was in cents', async () => {
+		// A suspended Bright Data account is refused at zero cost in `usd-cents`; the provider that
+		// served charged credits. One unit was spent, and the header said `mixed` on every failover.
+		const merged = headersFor(
+			{
+				outcome: 'OK',
+				provider: 'scraperapi',
+				attempts: [
+					{
+						provider: 'brightdata',
+						outcome: 'AUTH_FAILED',
+						budgetMs: 1,
+						upstreamMs: 1,
+						costMicrocredits: 0,
+						costUnit: 'usd-cents',
+						costSource: 'estimated',
+					},
+					{
+						provider: 'scraperapi',
+						outcome: 'OK',
+						budgetMs: 1,
+						upstreamMs: 1,
+						costMicrocredits: 1_000_000,
+						costUnit: 'provider-credits',
+						costSource: 'reported',
+					},
+				],
+			},
+			5,
+		);
+		expect(merged['X-Cost-Estimate']).toBe('1.000000');
+		expect(merged['X-Cost-Unit']).toBe('provider-credits');
+		expect(merged['X-Cost-Source']).toBe('reported');
+	});
+
 	it('omits the chain entirely when nothing was tried', async () => {
 		// SHIPPED BROKEN IN 0.7.0, and found by putting the header on the marketing page: a
 		// request refused before a provider is chosen has an empty attempt list, so this emitted
