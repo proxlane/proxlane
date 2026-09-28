@@ -282,3 +282,5 @@ export function unverifiedRules(): readonly string[] {
 export function verificationFor(id: string): VerifiedRule | undefined {
 	return VERIFIED[id];
 }
+
+export { elementPresent, elementPresentIn, parseSimpleSelector } from './selector.js';
