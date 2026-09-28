@@ -1116,7 +1116,7 @@ function Honesty() {
 		],
 		[
 			'The taxonomy can grow without breaking you.',
-			'20 outcomes, 6 classes. Branch on the class, which never grows; read the outcome for detail. Adding an outcome cannot break your switch.',
+			'21 outcomes, 6 classes. Branch on the class, which never grows; read the outcome for detail. Adding an outcome cannot break your switch.',
 		],
 		[
 			'Failed attempts are still billed, and still reported.',

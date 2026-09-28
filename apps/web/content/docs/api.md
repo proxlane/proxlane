@@ -116,6 +116,7 @@ Request bodies use the same size cap as responses. Over it, you get `RESPONSE_TO
 | `X-Request-Id` | always | Quote this in a support thread |
 | `X-Provider-Used` | when one served | Omitted, never empty, if nothing served |
 | `X-Detect-Rule` | when a rule fired | Which block-page rule matched. On a `SOFT_BLOCK` it is what produced the outcome; on a `HARD_BLOCK` the provider already said blocked and this names the vendor that did it |
+| `X-Wait-For` | when `wait_for` was sent and a page came back | `met` when the element is in the page, `unmet` when it is not (the outcome is then `WAIT_FOR_UNMET`). `unverified` when the selector is beyond what the gateway checks (a combinator such as `>` or a pseudo-class such as `:nth-child`) or the body is not HTML. A page without the element is `WAIT_FOR_UNMET`, not a success: tried once more at another provider, then returned as it came, with a 502 |
 | `X-Provider-Health` | when health is on, or when a floor fired | `demoted-forced`: every provider was demoted and the least bad was used. `cooling-forced`: every provider was cooling and one was tried anyway, rather than take the domain off the air |
 | `X-Ignored-Params` | when you sent one we don't read | The query parameters we threw away, sorted and comma-separated |
 | `X-Ignored-Params-Hint` | when one of those looks like ours | What each probably meant: `providers=provider,render_js=render` |

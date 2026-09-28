@@ -108,6 +108,7 @@ describe('the mapping is pinned, because changing it is a breaking change', () =
 		HARD_BLOCK: 'blocked',
 		TARGET_NOT_FOUND: 'target',
 		TARGET_ERROR: 'target',
+		WAIT_FOR_UNMET: 'target',
 		TARGET_RATE_LIMITED: 'target',
 		PROVIDER_TIMEOUT: 'provider',
 		PROVIDER_ERROR: 'provider',

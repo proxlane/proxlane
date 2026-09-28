@@ -87,6 +87,7 @@ export type Outcome =
 	| 'TARGET_NOT_FOUND'
 	| 'TARGET_ERROR'
 	| 'TARGET_RATE_LIMITED'
+	| 'WAIT_FOR_UNMET'
 	| 'PROVIDER_TIMEOUT'
 	| 'PROVIDER_ERROR'
 	| 'RATE_LIMITED'
@@ -109,6 +110,7 @@ export const OUTCOMES = [
 	'TARGET_NOT_FOUND',
 	'TARGET_ERROR',
 	'TARGET_RATE_LIMITED',
+	'WAIT_FOR_UNMET',
 	'PROVIDER_TIMEOUT',
 	'PROVIDER_ERROR',
 	'RATE_LIMITED',
@@ -318,6 +320,34 @@ export const FAILOVER = {
 		cooldown: 'none',
 		pages: false,
 		meaning: 'Genuine 404, unless the provider has retry_404 semantics',
+	},
+	WAIT_FOR_UNMET: {
+		// The page came back without the element `wait_for` named. The renderer ran and the
+		// provider called it a success; the finish line the caller drew was not reached. Measured
+		// 2026-09-28: Firecrawl waited ~10s for a selector that never appeared, then returned the
+		// page as OK, and a caller paid for that shell three times on one page before anything said so.
+		//
+		// `target`, because after the second provider it is a fact about the page (or the selector),
+		// not about a provider: a slow renderer is what the ONE retry is for. `once`, not `true`: a
+		// selector the page never produces, or a typo in it, would otherwise be paid for at every
+		// provider in the chain. No cooldown: a missing element says nothing about a provider or a
+		// domain, and cooling one would refuse the next request that waits for something else.
+		//
+		// Carries the page as it came back, so a caller who can use a partial page still has it.
+		// If the one retry then ends TARGET_ERROR, which carries no body, that partial page is lost:
+		// the last verdict decides, as it does for every outcome.
+		//
+		// HOSTED MUST DECIDE THIS BEFORE IT SHIPS (#383). Not chargeable AND carrying the page means
+		// `wait_for=#never-there` returns a rendered page for free while the operator pays for two
+		// rendered attempts. BYOK is unaffected: the caller's own provider bills them. Either charge
+		// this outcome when it carries a body, or drop the body on hosted keys.
+		class: 'target',
+		httpStatus: 502,
+		chargeable: false,
+		failover: 'once',
+		cooldown: 'none',
+		pages: false,
+		meaning: 'The page came back without the element wait_for named',
 	},
 	TARGET_ERROR: {
 		class: 'target',
@@ -617,6 +647,7 @@ export function carriesBody(outcome: Outcome): boolean {
 		outcome === 'TARGET_NOT_FOUND' ||
 		outcome === 'SOFT_BLOCK' ||
 		outcome === 'HARD_BLOCK' ||
-		outcome === 'TARGET_RATE_LIMITED'
+		outcome === 'TARGET_RATE_LIMITED' ||
+		outcome === 'WAIT_FOR_UNMET'
 	);
 }

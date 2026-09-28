@@ -228,6 +228,7 @@ defined per outcome, centrally, never inside adapters.
 | `TARGET_NOT_FOUND` | `target` | Genuine 404 (unless retry_404 semantics) | 404 | provider-dependent | **no** | no | no |
 | `TARGET_ERROR` | `target` | Target site 5xx / DNS dead | 502 | no | yes, once | no | no |
 | `TARGET_RATE_LIMITED` | `target` | Target returned 429 | 429 + body | no | yes | `blk` | no |
+| `WAIT_FOR_UNMET` | `target` | The page lacks the element `wait_for` named, checked by the gateway | 502 + body | no | yes, once | no | no |
 | `PROVIDER_TIMEOUT` | `provider` | Attempt exceeded per-attempt budget | 504 | no | yes | `acct`, short | no |
 | `PROVIDER_ERROR` | `provider` | Provider 5xx / infra failure | 502 | no | yes | `acct`, short | no |
 | `RATE_LIMITED` | `provider` | Provider 429 / concurrency cap | 429 + `Retry-After` | no | yes | `acct`, respect headers | no |

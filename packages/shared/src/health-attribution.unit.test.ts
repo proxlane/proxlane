@@ -36,6 +36,8 @@ const EXPECTED: Record<Outcome, 'success' | 'failure' | 'ignore'> = {
 	HARD_BLOCK: 'ignore',
 	TARGET_NOT_FOUND: 'ignore',
 	TARGET_ERROR: 'ignore',
+	// The page lacked an element: not a provider's health.
+	WAIT_FOR_UNMET: 'ignore',
 	// A target throttling us says nothing about the provider's infrastructure. Counting it
 	// would let one aggressively rate-limited site demote a provider for every org.
 	TARGET_RATE_LIMITED: 'ignore',

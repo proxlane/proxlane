@@ -184,6 +184,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -246,6 +249,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -320,6 +326,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -382,6 +391,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -446,6 +458,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -508,6 +523,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -572,6 +590,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -594,7 +615,7 @@
 						}
 					},
 					"502": {
-						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. QUOTA_EXHAUSTED: The plan's credits are spent for this billing cycle. AUTH_FAILED: Provider refused the key or the account behind it: wrong, revoked or suspended. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
+						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. WAIT_FOR_UNMET: The page came back without the element wait_for named. PROVIDER_ERROR: Provider 5xx or infrastructure failure. QUOTA_EXHAUSTED: The plan's credits are spent for this billing cycle. AUTH_FAILED: Provider refused the key or the account behind it: wrong, revoked or suspended. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
 						"headers": {
 							"X-Outcome": {
 								"$ref": "#/components/headers/X-Outcome"
@@ -634,6 +655,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -698,6 +722,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -760,6 +787,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -943,6 +973,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -1005,6 +1038,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -1079,6 +1115,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -1141,6 +1180,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -1205,6 +1247,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -1267,6 +1312,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -1331,6 +1379,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -1353,7 +1404,7 @@
 						}
 					},
 					"502": {
-						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. QUOTA_EXHAUSTED: The plan's credits are spent for this billing cycle. AUTH_FAILED: Provider refused the key or the account behind it: wrong, revoked or suspended. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
+						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. WAIT_FOR_UNMET: The page came back without the element wait_for named. PROVIDER_ERROR: Provider 5xx or infrastructure failure. QUOTA_EXHAUSTED: The plan's credits are spent for this billing cycle. AUTH_FAILED: Provider refused the key or the account behind it: wrong, revoked or suspended. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
 						"headers": {
 							"X-Outcome": {
 								"$ref": "#/components/headers/X-Outcome"
@@ -1393,6 +1444,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -1457,6 +1511,9 @@
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
 							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
+							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
 							},
@@ -1519,6 +1576,9 @@
 							},
 							"X-Detect-Rule": {
 								"$ref": "#/components/headers/X-Detect-Rule"
+							},
+							"X-Wait-For": {
+								"$ref": "#/components/headers/X-Wait-For"
 							},
 							"X-Proxlane-Simulated": {
 								"$ref": "#/components/headers/X-Proxlane-Simulated"
@@ -1754,6 +1814,17 @@
 					"type": "string"
 				}
 			},
+			"X-Wait-For": {
+				"description": "Present when the request carried wait_for and a page was served: met when the named element is in it, unmet when it is not (the outcome is then WAIT_FOR_UNMET), unverified when the selector is beyond what the gateway judges (a combinator or pseudo-class) or the body is not HTML. A page without the element is not served as a success: the outcome is WAIT_FOR_UNMET.",
+				"schema": {
+					"type": "string",
+					"enum": [
+						"met",
+						"unverified",
+						"unmet"
+					]
+				}
+			},
 			"X-Proxlane-Simulated": {
 				"description": "Present on every sandbox response, naming the simulated outcome. The sandbox key answers /v1 from the outcome table and calls no provider; this header is what stops a simulated 200 passing as a real one downstream. Never present on a live-key response.",
 				"schema": {
@@ -1791,6 +1862,7 @@
 					"TARGET_NOT_FOUND",
 					"TARGET_ERROR",
 					"TARGET_RATE_LIMITED",
+					"WAIT_FOR_UNMET",
 					"PROVIDER_TIMEOUT",
 					"PROVIDER_ERROR",
 					"RATE_LIMITED",

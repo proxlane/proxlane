@@ -16,7 +16,7 @@ import {
 	type ProviderCapabilities,
 	policyFor,
 } from '@proxlane/adapters';
-import { detect, EMPTY_RESPONSE, isContentFree } from '@proxlane/detect';
+import { detect, EMPTY_RESPONSE, elementPresentIn, isContentFree } from '@proxlane/detect';
 import {
 	COOLDOWN,
 	type CooldownDecision,
@@ -105,6 +105,9 @@ export function boundedProviderMessage(message: string, key?: string): string {
 		: `${points.slice(0, MAX_PROVIDER_MESSAGE - 1).join('')}…`;
 }
 
+/** Whether a `wait_for` element was in the page this attempt returned. */
+export type WaitForCheck = 'met' | 'unmet' | 'unverified';
+
 export interface Attempt {
 	readonly provider: string;
 	readonly outcome: Outcome;
@@ -134,6 +137,12 @@ export interface Attempt {
 	 * unbilled-spend metric in plan.md section 7 exists to watch.
 	 */
 	readonly costMicrocredits?: number;
+	/**
+	 * Set when the request carried `wait_for` and this attempt returned a page: whether the element
+	 * was in it. `unverified` when the selector is beyond what the check judges, or the body is not
+	 * HTML; the attempt then stands on the provider's word, as it always did.
+	 */
+	readonly waitFor?: WaitForCheck;
 	/**
 	 * The provider's own words about an account-level refusal, e.g. "Account is suspended".
 	 * Bounded and stripped of control characters by `boundedProviderMessage`: it is third-party
@@ -188,6 +197,11 @@ export interface ChainResult {
 	readonly provider?: string;
 	/** Every hop, in order. The logged grain is the attempt, not the request. */
 	readonly attempts: readonly Attempt[];
+	/**
+	 * The `wait_for` check of the attempt whose page this result carries. Not the last attempt's:
+	 * a chain that ends on an account refusal still returns an earlier hop's page.
+	 */
+	readonly waitFor?: WaitForCheck;
 	readonly reason?: string;
 	/**
 	 * How long until this request could succeed, when the chain knows. Set only when every
@@ -764,6 +778,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			let parsed: ParsedResult | undefined;
 			let outcome: Outcome;
 			let detectRuleId: string | undefined;
+			let waitFor: WaitForCheck | undefined;
 			switch (res.kind) {
 				case 'response':
 					parsed = adapter.parse(res.response);
@@ -789,6 +804,24 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 								detectRuleId = verdict.ruleId;
 							}
 						}
+					}
+					// AND THE FINISH LINE THE CALLER DREW. A provider that honours `wait_for` holds
+					// its snapshot until the element exists, or until it gives up; Firecrawl gave up
+					// after ~10s and still answered OK. After detection, because a block page is a
+					// block whatever it lacks. Only an HTML page, and only a selector simple enough
+					// to judge: anything else is `unverified`, never guessed.
+					if (outcome === 'OK' && parsed.body !== undefined && req.waitFor !== undefined) {
+						// No content type: judged only if the body starts like markup. A JSON envelope
+						// with no header has no tags, and reading it as HTML would fail it over.
+						const html =
+							parsed.contentType === undefined
+								? /^\s*</.test(new TextDecoder().decode(parsed.body.subarray(0, 64)))
+								: /html|xml/i.test(parsed.contentType);
+						const present = html
+							? elementPresentIn(parsed.body, parsed.charset, req.waitFor)
+							: undefined;
+						waitFor = present === undefined ? 'unverified' : present ? 'met' : 'unmet';
+						if (present === false) outcome = 'WAIT_FOR_UNMET';
 					}
 					// AND A TARGET 5xx, WHICH THE DETECTOR NEVER SAW. Only `OK` was ever re-examined,
 					// so a challenge page served with a 5xx status went out as `TARGET_ERROR` — "the
@@ -977,6 +1010,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				budgetMs: budget.perAttemptMs,
 				upstreamMs,
 				...(res.kind === 'response' ? { latencyMs: res.latencyMs } : {}),
+				...(waitFor === undefined ? {} : { waitFor }),
 				...(parsed?.providerMessage === undefined
 					? {}
 					: { providerMessage: boundedProviderMessage(parsed.providerMessage, key) }),
@@ -1005,6 +1039,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				attempts,
 				provider: adapter.capabilities.id,
 				providerHealth,
+				...(waitFor === undefined ? {} : { waitFor }),
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
 				...(parsed === undefined ? {} : { result: parsed }),
 			};
@@ -1027,6 +1062,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					// provider that had just capped us. `integrations.md` section 3 has specified
 					// `429 + Retry-After` for RATE_LIMITED since the taxonomy was written.
 					...(parsed?.retryAfterMs === undefined ? {} : { retryAfterMs: parsed.retryAfterMs }),
+					...(waitFor === undefined ? {} : { waitFor }),
 					...(detectRuleId === undefined ? {} : { detectRuleId }),
 					...(parsed === undefined ? {} : { result: parsed }),
 				};
@@ -1040,6 +1076,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 						attempts,
 						provider: adapter.capabilities.id,
 						providerHealth,
+						...(waitFor === undefined ? {} : { waitFor }),
 						...(detectRuleId === undefined ? {} : { detectRuleId }),
 						...(parsed === undefined ? {} : { result: parsed }),
 					};
@@ -1134,6 +1171,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					attempts,
 					provider: adapter.capabilities.id,
 					providerHealth,
+					...(waitFor === undefined ? {} : { waitFor }),
 					...(detectRuleId === undefined ? {} : { detectRuleId }),
 					...(parsed === undefined ? {} : { result: parsed }),
 					...saidOut(outcome),

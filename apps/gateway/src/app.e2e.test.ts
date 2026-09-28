@@ -513,6 +513,36 @@ describe('failures reach the caller as a status they can branch on', () => {
 		expect(merged['X-Cost-Source']).toBe('reported');
 	});
 
+	it('says whether the served page held the wait_for element, from the result not the last attempt', async () => {
+		const merged = headersFor(
+			{
+				outcome: 'OK',
+				provider: 'b',
+				waitFor: 'met',
+				attempts: [
+					{
+						provider: 'a',
+						outcome: 'WAIT_FOR_UNMET',
+						budgetMs: 1,
+						upstreamMs: 1,
+						waitFor: 'unmet',
+					},
+					{ provider: 'b', outcome: 'OK', budgetMs: 1, upstreamMs: 1, waitFor: 'met' },
+				],
+			},
+			5,
+		);
+		expect(merged['X-Wait-For']).toBe('met');
+		const plain = headersFor(
+			{
+				outcome: 'OK',
+				attempts: [{ provider: 'a', outcome: 'OK', budgetMs: 1, upstreamMs: 1 }],
+			},
+			5,
+		);
+		expect(plain).not.toHaveProperty('X-Wait-For');
+	});
+
 	it('omits the chain entirely when nothing was tried', async () => {
 		// SHIPPED BROKEN IN 0.7.0, and found by putting the header on the marketing page: a
 		// request refused before a provider is chosen has an empty attempt list, so this emitted
