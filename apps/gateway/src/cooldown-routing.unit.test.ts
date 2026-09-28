@@ -452,6 +452,8 @@ describe('a refusal names the providers the request ruled out, not only the cool
 	it('adds nothing when every provider was capable', async () => {
 		const r = await chain(undefined, [['a', 'PROVIDER_ERROR']]);
 		expect(r.reason).toBeUndefined();
+	});
+});
 
 describe('a cooldown records what armed it', () => {
 	const acctKey = (provider: string) =>
