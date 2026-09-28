@@ -44,6 +44,22 @@ export interface CooldownEntry {
 	readonly consecutive: number;
 	/** Set once the single post-expiry probe has been handed out. */
 	readonly probeTaken: boolean;
+	/**
+	 * The outcome that last armed it: `QUOTA_EXHAUSTED`, `AUTH_FAILED`, `SOFT_BLOCK`. Absent on
+	 * an entry written before it was recorded, and on the forced-probe key, which no outcome arms.
+	 *
+	 * The endpoint said "account" and stopped, so "out of credit", "suspended" and "pacing us" all
+	 * read the same, and a caller had to pin each provider by hand to find out which it was.
+	 */
+	readonly reason?: string;
+	/** The provider's own words when it gave any, e.g. "Account is suspended". Bounded upstream. */
+	readonly detail?: string;
+}
+
+/** Why a key is being armed: what the store records beside the timing. */
+export interface CooldownWhy {
+	readonly reason: string;
+	readonly detail?: string;
 }
 
 export const COOLDOWN = {

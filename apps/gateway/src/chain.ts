@@ -96,9 +96,13 @@ export function boundedProviderMessage(message: string, key?: string): string {
 	for (const part of parts.filter((p) => p.length >= 4).sort((a, b) => b.length - a.length)) {
 		flat = flat.split(part).join('REDACTED');
 	}
-	return flat.length <= MAX_PROVIDER_MESSAGE
+	// BY CODE POINT, never by UTF-16 unit. A cut through a surrogate pair leaves a lone half,
+	// which lua-cjson refuses to decode, and the cooldown CLAIM script treats an undecodable
+	// record as claimable: every concurrent request would take the one probe.
+	const points = Array.from(flat);
+	return points.length <= MAX_PROVIDER_MESSAGE
 		? flat
-		: `${flat.slice(0, MAX_PROVIDER_MESSAGE - 1)}…`;
+		: `${points.slice(0, MAX_PROVIDER_MESSAGE - 1).join('')}…`;
 }
 
 export interface Attempt {
@@ -911,11 +915,22 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				// introduced by the fix for the account-clear bug, which is the shape to watch:
 				// a correct change to one branch invalidating an assumption in another.
 				let wroteKey: string | undefined;
+				// WHY, stored beside the timing, so /health/cooldowns can say "out of credit" or
+				// "suspended" rather than only "account".
+				//
+				// THE WORDS ONLY ON AN ACCOUNT KEY. `cd:blk` is shared across orgs, and a provider's
+				// text is about the account that sent the request; on a shared key one org's refusal
+				// would be read out to another. The outcome alone is safe anywhere.
+				const said =
+					parsed?.providerMessage === undefined || scope !== 'acct'
+						? undefined
+						: boundedProviderMessage(parsed.providerMessage, key);
+				const why = { reason: outcome, ...(said === undefined ? {} : { detail: said }) };
 				if (cdKey !== null) {
 					// The TARGET's Retry-After, when the provider exposed it. Better than any
 					// curve we can invent: a jittered first draw averages 15s, and a site asking
 					// for 120 would be hit eight times too early.
-					deps.cooldowns?.arm(cdKey, now(), parsed?.retryAfterMs);
+					deps.cooldowns?.arm(cdKey, now(), parsed?.retryAfterMs, why);
 					wroteKey = cdKey;
 					// AND EVERY WEAKER TIER, for a block. The implication runs one way: if stealth
 					// could not get through, residential and plain certainly cannot — they are
@@ -935,7 +950,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 								org,
 								premium: weaker,
 							});
-							if (k !== null) deps.cooldowns?.arm(k, now(), parsed?.retryAfterMs);
+							if (k !== null) deps.cooldowns?.arm(k, now(), parsed?.retryAfterMs, why);
 						}
 					}
 				} else if (outcome === 'OK' || outcome === 'TARGET_NOT_FOUND') {

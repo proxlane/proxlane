@@ -76,7 +76,15 @@ Cooldowns are scoped, and the scope is the point:
   account and must never affect anyone else.
 
 `GET /health/cooldowns` shows what is cooling and what recently expired. Cooldowns are on by
-default.
+default. Each entry says what armed it in `reason` (the outcome), and in `detail` when the
+provider gave its own words, so an account cooldown reads as out of credit, suspended or rate
+limited rather than just "account":
+
+```json
+{ "scope": "account", "provider": "brightdata", "org": "self", "expiresInMs": 41200,
+  "consecutive": 3, "probeTaken": false, "reason": "AUTH_FAILED",
+  "detail": "Account is suspended. Login to brightdata.com/cp/setting/billing to activate your account" }
+```
 
 ## Deadlines
 
