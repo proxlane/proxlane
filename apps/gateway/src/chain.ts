@@ -356,6 +356,20 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 		};
 	}
 
+	// THE PROVIDERS THIS REQUEST RULED OUT, named on every refusal below, not only on the one
+	// where nobody was capable. "Every capable provider is cooling" used to be the whole message,
+	// and a caller read it as "every provider": firecrawl, excluded for `wait_for`, was not in the
+	// list, and pinning it a minute later served the page. The word "capable" carried the whole
+	// distinction and nobody could see it. Now the refusal says who was left out, and why.
+	const ruledOut = deps.candidates
+		.filter((c) => !capable.includes(c))
+		.map(
+			(c) =>
+				`${c.adapter.capabilities.id} (${whyIncapable(c.adapter.capabilities, guarded) ?? 'not capable'})`,
+		);
+	const andRuledOut =
+		ruledOut.length === 0 ? '' : `; not capable of this request: ${ruledOut.join(', ')}`;
+
 	// FAIL OPEN. `integrations.md` section 3's Valkey-failure table: losing health costs a
 	// worse routing decision, never a refused request. Health is an optimisation over a chain
 	// that already works, so a store that is down must not be able to take the gateway with
@@ -559,7 +573,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 			retryAfterMs: Math.max(MIN_RETRY_AFTER_MS, Math.min(soonest - now(), untilForced)),
 			reason: `every capable provider is cooling: ${cooled
 				.map((c) => `${c.provider} (${c.scope})`)
-				.join(', ')}`,
+				.join(', ')}${andRuledOut}`,
 		};
 	}
 
@@ -1092,7 +1106,14 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				// THE ORDINARY WAY A CHAIN RUNS OUT, and the one #275 was actually about: the
 				// fallthrough below the loop is only reached when a probe claim is lost. When an
 				// earlier hop heard from the target, that verdict is the summary; see `lastVerdict`.
-				if (lastVerdict !== undefined) return { ...lastVerdict, attempts };
+				//
+				// The ruled-out providers are named here too, after the outcome's own meaning, which
+				// is what the caller would otherwise read as the whole message.
+				const saidOut = (o: Outcome) =>
+					ruledOut.length === 0 ? {} : { reason: `${policyFor(o).meaning}${andRuledOut}` };
+				if (lastVerdict !== undefined) {
+					return { ...lastVerdict, attempts, ...saidOut(lastVerdict.outcome) };
+				}
 				return {
 					outcome,
 					attempts,
@@ -1100,6 +1121,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					providerHealth,
 					...(detectRuleId === undefined ? {} : { detectRuleId }),
 					...(parsed === undefined ? {} : { result: parsed }),
+					...saidOut(outcome),
 				};
 			}
 		} finally {
@@ -1117,15 +1139,20 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	if (lastCompleted !== undefined) {
 		// The whole result, not its outcome name — and the target's verdict when there was one,
 		// not whichever hop happened to run last. See `lastCompleted` and `lastVerdict` above.
-		return { ...(lastVerdict ?? lastCompleted), attempts, reason: 'chain exhausted' };
+		return {
+			...(lastVerdict ?? lastCompleted),
+			attempts,
+			reason: `chain exhausted${andRuledOut}`,
+		};
 	}
 	return {
 		outcome: attempts.length === 0 ? 'NO_PROVIDER_AVAILABLE' : lastOutcome,
 		attempts,
-		reason:
+		reason: `${
 			attempts.length === 0
 				? 'every capable provider was already being probed by another request'
-				: 'chain exhausted',
+				: 'chain exhausted'
+		}${andRuledOut}`,
 	};
 }
 

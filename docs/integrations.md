@@ -467,6 +467,10 @@ each has a plausible near-miss:
   per-hop budget divides the remaining deadline by the hops still to come, so skipping late
   reserves time for providers that will never be tried and silently starves the real
   attempts.
+- **A refusal names who the request ruled out.** "Every capable provider is cooling" was the
+  whole message, and a caller read it as every provider: firecrawl, excluded for `wait_for`,
+  served the page when pinned a minute later. Every chain refusal after the capability filter
+  now ends with `; not capable of this request: <id> (<parameter>)`.
 - **When every capable provider is cooling, one forced attempt, rate-limited per domain.**
   This used to be "no floor at all", on the ground that a demoted provider is a guess about a
   trend while a cooldown is a fact — each of these refused this exact domain *minutes* ago, so

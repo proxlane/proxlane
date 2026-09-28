@@ -243,6 +243,11 @@ The outcome says the account cannot be used; the message says why, so a suspende
 mistaken for a wrong key. The request log carries the same text as `provider_said`. It is the
 provider's text, bounded to 300 characters with control characters removed.
 
+A provider this request's parameters ruled out never appears in `attempts`, so a failed chain's
+`error.message` names it and the parameter that excluded it, for example
+`every capable provider is cooling: scrapfly (account); not capable of this request: firecrawl (wait_for)`.
+Pinning that provider with `provider=` fails the same way, for the same reason.
+
 ## Sandbox
 
 Set `PROXLANE_SANDBOX_KEY` on the gateway and you have a second key that can never spend. A

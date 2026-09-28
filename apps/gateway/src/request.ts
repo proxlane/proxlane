@@ -306,7 +306,14 @@ export async function parseScrapeRequest(
 	if (premiumRaw !== 'none' && premiumRaw !== 'residential' && premiumRaw !== 'stealth') {
 		return refuse(400, 'BAD_REQUEST', 'premium must be none, residential or stealth');
 	}
+	// TWO LETTERS, like every code a provider sells (ISO 3166-1 alpha-2, plus ScraperAPI's `eu`).
+	// It was never checked, and it is echoed into the refusal that names who a request ruled out
+	// ("country_code=…"), once per provider: 16 KiB of anything, five times over. A caller who
+	// sends `usa` also deserves "that is not a country code", not "no provider can serve it".
 	const countryCode = c.req.query('country_code');
+	if (countryCode !== undefined && !/^[a-z]{2}$/i.test(countryCode)) {
+		return refuse(400, 'BAD_REQUEST', 'country_code must be a two-letter code, e.g. us or de');
+	}
 	// A CSS SELECTOR, AND IT IS VALIDATED, because two of the three providers that take it put
 	// it in a query string and the shape is otherwise caller-controlled text on the hot path.
 	// `URLSearchParams` encodes, so this is not about injection there — it is about refusing a
