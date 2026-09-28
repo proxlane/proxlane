@@ -1,5 +1,18 @@
 # @proxlane/web
 
+## 0.11.7
+
+### Patch Changes
+
+- [#386](https://github.com/proxlane/proxlane/pull/386) [`8979f64`](https://github.com/proxlane/proxlane/commit/8979f641d7da4946663a0d2cd26e84ab4423be20) Thanks [@scarsam](https://github.com/scarsam)! - The live canary proves a declared `wait_for` holds, against a page whose content arrives four seconds after load, rather than only that the parameter was accepted.
+
+- [#388](https://github.com/proxlane/proxlane/pull/388) [`84ad2c3`](https://github.com/proxlane/proxlane/commit/84ad2c3e2662dbfe27637b80bafe8d21d28ebdcf) Thanks [@scarsam](https://github.com/scarsam)! - A `wait_for` element is checked against the page: a page without it is the new `WAIT_FOR_UNMET` (tried once more at another provider, never cooled, never charged) instead of a success, and `X-Wait-For` says `met` or `unverified`.
+
+- Updated dependencies [[`e36a685`](https://github.com/proxlane/proxlane/commit/e36a6855d2cf3dd9569f22d6cfca5c8238f84282), [`bceb9fa`](https://github.com/proxlane/proxlane/commit/bceb9fa1d07d972d57648615718023d54c39b0bc), [`4632905`](https://github.com/proxlane/proxlane/commit/4632905fb29908ff9ec0b149090843fb81156db6), [`e3655b4`](https://github.com/proxlane/proxlane/commit/e3655b43244258c259c7f7527796d0cb27664d5a), [`84ad2c3`](https://github.com/proxlane/proxlane/commit/84ad2c3e2662dbfe27637b80bafe8d21d28ebdcf)]:
+  - @proxlane/adapters@0.13.0
+  - @proxlane/shared@0.15.0
+  - @proxlane/detect@0.4.0
+
 ## 0.11.6
 
 ### Patch Changes

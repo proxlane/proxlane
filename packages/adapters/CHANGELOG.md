@@ -1,5 +1,18 @@
 # @proxlane/adapters
 
+## 0.13.0
+
+### Minor Changes
+
+- [#381](https://github.com/proxlane/proxlane/pull/381) [`e36a685`](https://github.com/proxlane/proxlane/commit/e36a6855d2cf3dd9569f22d6cfca5c8238f84282) Thanks [@scarsam](https://github.com/scarsam)! - A suspended Bright Data account is `AUTH_FAILED` with the provider's own reason in the attempt's `providerMessage`, instead of an empty `OK` that cooled Bright Data on every domain as a site block.
+
+- [#389](https://github.com/proxlane/proxlane/pull/389) [`e3655b4`](https://github.com/proxlane/proxlane/commit/e3655b43244258c259c7f7527796d0cb27664d5a) Thanks [@scarsam](https://github.com/scarsam)! - Firecrawl honours `wait_for`, sent as a selector wait action; verified live holding a page until the element appeared.
+
+### Patch Changes
+
+- Updated dependencies [[`e36a685`](https://github.com/proxlane/proxlane/commit/e36a6855d2cf3dd9569f22d6cfca5c8238f84282), [`bceb9fa`](https://github.com/proxlane/proxlane/commit/bceb9fa1d07d972d57648615718023d54c39b0bc), [`84ad2c3`](https://github.com/proxlane/proxlane/commit/84ad2c3e2662dbfe27637b80bafe8d21d28ebdcf)]:
+  - @proxlane/shared@0.15.0
+
 ## 0.12.2
 
 ### Patch Changes
