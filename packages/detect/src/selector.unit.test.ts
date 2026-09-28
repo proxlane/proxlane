@@ -6,7 +6,12 @@
 // the adversarial inputs are timed, because this runs on every `wait_for` request.
 
 import { describe, expect, it } from 'vitest';
-import { elementPresent, elementPresentIn, parseSimpleSelector } from './selector.js';
+import {
+	elementPresent,
+	elementPresentIn,
+	MAX_SELECTOR_SCAN_BYTES,
+	parseSimpleSelector,
+} from './selector.js';
 
 const page = `<!doctype html><html><body>
 <div id="main" class="listing  wide" data-loaded="true" title="a > b">
@@ -140,5 +145,71 @@ describe('bytes', () => {
 	it('falls back to UTF-8 for a charset label it does not know', () => {
 		const bytes = new TextEncoder().encode('<p id="late">x</p>');
 		expect(elementPresentIn(bytes, 'not-a-charset', '#late')).toBe(true);
+	});
+});
+
+describe('what the first review found (#387)', () => {
+	it('keeps its place on a page whose lowercase is longer than itself', () => {
+		// `İ` lowercases to two code units. Positions found in a lowercased copy drifted one per
+		// `İ`, so a script stayed in and markup after it was skipped: a wrong answer both ways.
+		const html = `${'<p>İstanbul</p>'.repeat(50)}<script>var x = '<i id="late">';</script><p id="late">ok</p>`;
+		expect(elementPresent(html, '#late')).toBe(true);
+		expect(
+			elementPresent(`${'İ'.repeat(50)}<script>'<b class="fake">'</script>`, '.fake'),
+		).toBe(false);
+	});
+
+	it('does not read a custom element as the raw-text element its name starts with', () => {
+		// `<script-loader>` is a web component, not a script: `\b` matched it and everything
+		// after it was dropped as script text.
+		const html = '<script-loader src="x"></script-loader><p id="late">ok</p>';
+		expect(elementPresent(html, '#late')).toBe(true);
+		expect(elementPresent('<template-card></template-card><p class="x">', '.x')).toBe(true);
+	});
+
+	it('ends an empty comment where the spec does', () => {
+		expect(elementPresent('<!--><p id="late">ok</p><!-- x -->', '#late')).toBe(true);
+		expect(elementPresent('<!---><p id="late">ok</p><!-- x -->', '#late')).toBe(true);
+	});
+
+	it('does not count the fallback markup in a noscript, or text in a title or textarea', () => {
+		expect(elementPresent('<noscript><div class="results"></div></noscript>', '.results')).toBe(
+			false,
+		);
+		expect(elementPresent('<title><b id="late"></b></title>', '#late')).toBe(false);
+		expect(elementPresent('<textarea><b id="late"></b></textarea>', '#late')).toBe(false);
+		// And still sees what follows them.
+		expect(elementPresent('<noscript>x</noscript><div class="results">', '.results')).toBe(
+			true,
+		);
+	});
+
+	it('decodes the entities an attribute value is likely to carry', () => {
+		expect(
+			elementPresent('<p id="caf&eacute;"></p><p data-q="a&amp;b"></p>', '[data-q="a&b"]'),
+		).toBe(true);
+		expect(elementPresent('<p id="&#x6C;ate"></p>', '#late')).toBe(true);
+	});
+
+	it('reports a page above the scan cap as unverified, never as missing', () => {
+		const big = `${' '.repeat(MAX_SELECTOR_SCAN_BYTES)}<p id="late">`;
+		expect(elementPresent(big, '#late')).toBeUndefined();
+		expect(elementPresentIn(new TextEncoder().encode(big), 'utf-8', '#late')).toBeUndefined();
+	});
+
+	it('scans a page at the cap made of nothing but tags inside the hot-path budget', () => {
+		// The worst shapes a target can send: the most tags per byte, and one tag with the most
+		// distinct attribute names, which used to become a million-entry Map.
+		const tags = '<a>'.repeat(Math.floor(MAX_SELECTOR_SCAN_BYTES / 3));
+		const names = `<div ${Array.from({ length: 200_000 }, (_, k) => `a${k}`).join(' ')}>`.slice(
+			0,
+			MAX_SELECTOR_SCAN_BYTES,
+		);
+		for (const html of [tags, names]) {
+			elementPresent(html, '#x'); // warm
+			const t0 = performance.now();
+			expect(elementPresent(html, '#x')).toBe(false);
+			expect(performance.now() - t0).toBeLessThan(250);
+		}
 	});
 });
