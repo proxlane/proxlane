@@ -516,3 +516,83 @@ describe('a cooldown records what armed it', () => {
 		expect(cd.peek('k')).not.toHaveProperty('reason');
 	});
 });
+
+describe('wait_for is checked against the page, not taken on the provider word', () => {
+	// Measured 2026-09-28: Firecrawl waited ~10s for a selector that never appeared and answered
+	// OK with the page as it was. A caller paid for that shell three times before anything said so.
+	const serving = (id: string, html: string, contentType = 'text/html'): Adapter => ({
+		...adapterFor(id, 'OK'),
+		parse: () => ({
+			outcome: 'OK',
+			body: new TextEncoder().encode(html),
+			contentType,
+			cost: { microcredits: 0, source: 'estimated' },
+		}),
+	});
+	const shell = '<body><p id="placeholder">not yet</p></body>';
+	const full = '<body><p id="placeholder">not yet</p><p id="late">ok</p></body>';
+	const run = (
+		waitFor: string,
+		adapters: Adapter[],
+		cooldowns: CooldownStore = new InMemoryCooldownStore(() => 0.9),
+	) =>
+		runChain(
+			{ ...REQ, renderJs: true, waitFor },
+			{
+				transport,
+				candidates: adapters.map((adapter) => ({ adapter, key: 'k' })),
+				maxBodyBytes: 1024 * 1024,
+				cooldowns,
+			},
+		);
+
+	it('serves a page that has the element, and says so', async () => {
+		const r = await run('#late', [serving('a', full)]);
+		expect(r.outcome).toBe('OK');
+		expect(r.attempts[0]?.waitFor).toBe('met');
+	});
+
+	it('fails over ONCE from a page that lacks it, and serves the next if it has it', async () => {
+		const r = await run('#late', [serving('a', shell), serving('b', full), serving('c', full)]);
+		expect(r.attempts.map((a) => `${a.provider}:${a.outcome}`)).toEqual([
+			'a:WAIT_FOR_UNMET',
+			'b:OK',
+		]);
+		expect(r.outcome).toBe('OK');
+	});
+
+	it('stops after the second miss: a page that never produces it is not paid for everywhere', async () => {
+		const r = await run('#late', [
+			serving('a', shell),
+			serving('b', shell),
+			serving('c', full),
+		]);
+		expect(r.attempts).toHaveLength(2);
+		expect(r.outcome).toBe('WAIT_FOR_UNMET');
+		// The page as it came back, for a caller who can use a partial one.
+		expect(new TextDecoder().decode(r.result?.body)).toContain('placeholder');
+	});
+
+	it('cools nothing: a missing element says nothing about a provider or a domain', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		await run('#late', [serving('a', shell), serving('b', shell)], cd);
+		expect(await cd.list(Date.now())).toEqual([]);
+	});
+
+	it('claims nothing about a selector it cannot judge', async () => {
+		const r = await run('.results > li', [serving('a', shell)]);
+		expect(r.outcome).toBe('OK');
+		expect(r.attempts[0]?.waitFor).toBe('unverified');
+	});
+
+	it('claims nothing about a body that is not HTML', async () => {
+		const r = await run('#late', [serving('a', '{"late":false}', 'application/json')]);
+		expect(r.outcome).toBe('OK');
+		expect(r.attempts[0]?.waitFor).toBe('unverified');
+	});
+
+	it('leaves a request without wait_for exactly as it was', async () => {
+		const r = await chain(undefined, [['a', 'OK']]);
+		expect(r.attempts[0]).not.toHaveProperty('waitFor');
+	});
+});
