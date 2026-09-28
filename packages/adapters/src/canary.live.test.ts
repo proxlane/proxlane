@@ -50,6 +50,17 @@ import { type Adapter, expectedOutcome, REGISTRY } from './index.js';
 const JS_ONLY_TARGET = 'https://proxlane.dev/canary/js';
 const JS_ONLY_MARKER = 'proxlane-render-ok';
 
+/**
+ * `/canary/late`, from `apps/web/public/canary/late.html`: the marker is appended four seconds
+ * AFTER load, inside `#late`. `/canary/js` writes its marker the instant the script runs, so a
+ * provider that ignores a wait condition passes there; here it cannot, because a snapshot taken
+ * at load holds only the placeholder. This is what turns "the parameter was accepted" into "the
+ * wait held".
+ */
+const LATE_TARGET = 'https://proxlane.dev/canary/late';
+const LATE_SELECTOR = '#late';
+const LATE_MARKER = 'proxlane-late-ok';
+
 const IDS = Object.keys(REGISTRY).sort();
 
 /**
@@ -274,16 +285,16 @@ describe.each(configured)('%s, against the live API', (id) => {
 		// charged for a rendered shell while believing they waited. That is precisely the failure
 		// `wait_for` was added to end, so it must not be the failure `wait_for` introduces.
 		//
-		// The marker only exists after JS runs, so a provider that ignored the selector can still
-		// pass on a fast page. What this pins is narrower and still worth having: asking for the
-		// wait does not break the request. `isCapable` filtering is unit-tested; the name is what
-		// only a live call can judge, and a 400 from the provider is how a wrong one shows up.
+		// Two things only a live call can judge: that the name is right (a 400 is how a wrong one
+		// shows up where the provider validates), and that the wait holds (the late page below is
+		// how a name that is silently ignored shows up where it does not). `isCapable` filtering
+		// is unit-tested.
 		const adapter: Adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
 		if (!adapter.capabilities.waitForSelector) {
 			expect(adapter.capabilities.waitForSelector).toBe(false);
 			return;
 		}
-		const { parsed } = await attempt(id, JS_ONLY_TARGET, true, 'body');
+		const { parsed } = await attempt(id, LATE_TARGET, true, LATE_SELECTOR);
 		if (accountStoppedUs(id, parsed.outcome)) return;
 		expect(
 			parsed.outcome,
@@ -291,6 +302,15 @@ describe.each(configured)('%s, against the live API', (id) => {
 				'the parameter name is probably wrong, and a wrong name is silently ignored rather ' +
 				'than rejected on the providers that do accept it',
 		).toBe('OK');
+		// AND THE WAIT HELD. The first version of this check asked for `body`, which every page
+		// has at load, so a provider that dropped the parameter passed. `#late` exists only four
+		// seconds after load: a wait that did not happen returns the placeholder.
+		const text = new TextDecoder().decode(parsed.body ?? new Uint8Array());
+		expect(
+			text,
+			`${id} declares waitForSelector, the request succeeded, and the page came back before ` +
+				`${LATE_SELECTOR} existed: the wait was accepted and not honoured`,
+		).toContain(LATE_MARKER);
 	}, 180_000);
 });
 
