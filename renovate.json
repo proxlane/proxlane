@@ -82,6 +82,12 @@
 			"matchCurrentVersion": "/^[~^]?0\\./",
 			"groupName": null,
 			"automerge": false
+		},
+		{
+			"description": "The esbuild OVERRIDE in pnpm-workspace.yaml exists for one advisory, GHSA-67mh-4wv8-2f99, and ^0.25.12 is the first patched line. It lifts drizzle-kit's deprecated @esbuild-kit loader off 0.18 to the 0.25.12 drizzle-kit already resolves for itself. Renovate proposed ^0.28 on 2026-09-28 (#379): no further fix, no fewer copies, and the loader two breaking 0.x minors past anything it was tested with. Patches on 0.25 still flow.",
+			"matchPackageNames": ["esbuild"],
+			"matchFileNames": ["pnpm-workspace.yaml"],
+			"allowedVersions": "<0.26"
 		}
 	],
 	"prConcurrentLimit": 2,
