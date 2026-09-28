@@ -61,6 +61,11 @@ export interface RequestLine {
 	 * Safe to persist: each is one edit from, or an alias of, a parameter of ours.
 	 */
 	readonly near_miss?: Readonly<Record<string, string>>;
+	/**
+	 * `provider: message` for each attempt a provider refused in its own words, e.g. Bright Data's
+	 * "Account is suspended". Provider text, not caller text, bounded and control-stripped.
+	 */
+	readonly provider_said?: readonly string[];
 }
 
 /**

@@ -25,7 +25,8 @@ is to run them. A measured comparison will be published once there is enough tra
 
 Rendering is included in the price, so this is the cheapest of the four for rendered pages.
 The key is `<zone>:<token>`, because the zone belongs to your account. A bare token is read as
-an empty zone and comes back as `AUTH_FAILED`.
+an empty zone and comes back as `AUTH_FAILED`. So does a suspended account, with Bright Data's
+own reason in the attempt's `providerMessage`.
 
 ```bash
 BRIGHTDATA_KEY=my-unlocker-zone:abc123...

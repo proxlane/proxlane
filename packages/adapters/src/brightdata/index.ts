@@ -15,6 +15,8 @@ import { capabilities } from './capabilities.js';
 import {
 	BRD_ERROR_HEADER,
 	BRD_MESSAGE_HEADER,
+	BRD_REFUSAL_CODE_HEADER,
+	BRD_REFUSAL_MESSAGE_HEADER,
 	BRD_STATUS_HEADER,
 	targetStatusFromMessage,
 } from './schema.js';
@@ -144,6 +146,29 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	const message = header(res.headers, BRD_MESSAGE_HEADER);
 	const statusHeader = header(res.headers, BRD_STATUS_HEADER);
 	const targetStatus = statusHeader === undefined ? undefined : Number(statusHeader);
+
+	// THE ACCOUNT REFUSED, before anything about the target. See BRD_REFUSAL_CODE_HEADER: a
+	// suspended account answers 200 with an empty body, and the 407 in the status header is the
+	// superproxy's own "proxy authentication required", not anything the target said.
+	//
+	// AUTH_FAILED because it is the account-level refusal the taxonomy already has: class
+	// `gateway` ("your account; fall back to your own"), cooled per account, not per domain.
+	// Bright Data's words travel with it, because "rotate the key" is the wrong fix here.
+	// Unbilled: a refused request never reached a target.
+	const refusal = header(res.headers, BRD_REFUSAL_CODE_HEADER);
+	if (refusal !== undefined) {
+		const words = header(res.headers, BRD_REFUSAL_MESSAGE_HEADER) ?? message;
+		const said = words === undefined ? {} : { providerMessage: words };
+		if (refusal.startsWith('client_') || targetStatus === 407) {
+			return {
+				outcome: 'AUTH_FAILED',
+				...said,
+				cost: { microcredits: 0, source: 'estimated' },
+			};
+		}
+		// Another superproxy code. Never OK: whatever it is, the page did not come back.
+		return { outcome: 'PROVIDER_ERROR', ...upstream(targetStatus), ...said, cost: COST };
+	}
 
 	// NO x-brd-status-code AND NO ERROR is drift. In raw mode that header is how the target's
 	// answer reaches us at all, so its absence means the contract changed under us — which is

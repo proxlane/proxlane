@@ -175,6 +175,35 @@ export function expectedOutcome(
 	return expect;
 }
 
+/**
+ * Fixtures that record the ACCOUNT refusing a request, not a target answering one, keyed by the
+ * outcome that routes a recording there.
+ *
+ * Nothing summons them. `pnpm record` keeps the first one a run produces when an account happens
+ * to be in that state: a spent plan, or a credential the provider refuses (a revoked key, a
+ * suspended account). So conformance honours them and never requires them, the replay transport
+ * never serves one as a target's answer (it carries the url of whichever target it interrupted),
+ * and `repo:check` never ages one. One list, read by all four, so a fifth kind is one line.
+ */
+export const ACCOUNT_FIXTURES = {
+	QUOTA_EXHAUSTED: 'quota-exhausted',
+	AUTH_FAILED: 'auth-failed',
+} as const satisfies Partial<Record<Outcome, string>>;
+
+export type AccountFixture = (typeof ACCOUNT_FIXTURES)[keyof typeof ACCOUNT_FIXTURES];
+
+/** The account fixture an outcome is kept as, if it is an account refusal. */
+export function accountFixtureFor(outcome: string): AccountFixture | undefined {
+	return Object.hasOwn(ACCOUNT_FIXTURES, outcome)
+		? ACCOUNT_FIXTURES[outcome as keyof typeof ACCOUNT_FIXTURES]
+		: undefined;
+}
+
+/** Whether a fixture category (a file name without `.json`) is an account fixture. */
+export function isAccountFixture(category: string): category is AccountFixture {
+	return (Object.values(ACCOUNT_FIXTURES) as string[]).includes(category);
+}
+
 export function cheapestCost(table: CostTable): Microcredits {
 	const cells = Object.values(table.matrix).flatMap((r) =>
 		[r.plain, r.rendered].filter((n): n is Microcredits => n !== null),
@@ -459,6 +488,15 @@ export interface ParsedResult {
 	 * than it is present, and every consumer must have a fallback.
 	 */
 	readonly retryAfterMs?: number;
+	/**
+	 * The provider's own words when it refused the ACCOUNT rather than the request, e.g. Bright
+	 * Data's "Account is suspended. Login to … to activate your account".
+	 *
+	 * Set only where the outcome alone sends the operator to the wrong fix: AUTH_FAILED reads as
+	 * "rotate the key", and a suspended account's key is fine. Untrusted third-party text; the
+	 * gateway bounds it and strips control characters before a caller or a log line sees it.
+	 */
+	readonly providerMessage?: string;
 	readonly cost: {
 		readonly microcredits: Microcredits;
 		readonly source: 'reported' | 'estimated';

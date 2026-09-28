@@ -682,6 +682,17 @@ describe('a spent plan does not overwrite the fixture it interrupted', () => {
 		expect(fixtureFileFor('success-html', 'OK', 'QUOTA_EXHAUSTED', true)).toBeUndefined();
 	});
 
+	it('moves a refused account to its own file too, so a suspension is not drift', () => {
+		// A suspended Bright Data account answered every category with AUTH_FAILED (2026-09-28).
+		// Before this it would have been written over `success-html` as a changed provider.
+		expect(fixtureFileFor('success-html', 'OK', 'AUTH_FAILED', false)).toBe('auth-failed');
+		expect(fixtureFileFor('success-html', 'OK', 'AUTH_FAILED', true)).toBeUndefined();
+		// Unless AUTH_FAILED is what the category expects, when it is the category's own answer.
+		expect(fixtureFileFor('auth-failed', 'AUTH_FAILED', 'AUTH_FAILED', false)).toBe(
+			'auth-failed',
+		);
+	});
+
 	it('writes nothing for a concurrency cap', () => {
 		expect(fixtureFileFor('success-html', 'OK', 'RATE_LIMITED', false)).toBeUndefined();
 	});
@@ -705,6 +716,7 @@ describe('a spent plan does not overwrite the fixture it interrupted', () => {
 		mkdirSync(fresh);
 		writeFileSync(join(committed, 'success-html.json'), fixture('success-html'));
 		writeFileSync(join(committed, `${QUOTA_FIXTURE}.json`), fixture(QUOTA_FIXTURE));
+		writeFileSync(join(committed, 'auth-failed.json'), fixture('auth-failed'));
 		writeFileSync(join(fresh, 'success-html.json'), fixture('success-html'));
 		const q = quiet();
 		try {
@@ -716,8 +728,9 @@ describe('a spent plan does not overwrite the fixture it interrupted', () => {
 			});
 			expect(code).toBe(0);
 			expect(q.text()).toMatch(
-				/NOT CHECKED: quota-exhausted \(captured only from a spent plan\)/,
+				/quota-exhausted \(captured only from an account in that state\)/,
 			);
+			expect(q.text()).toMatch(/auth-failed \(captured only from an account in that state\)/);
 			expect(q.text()).not.toMatch(/recorded nothing for it/);
 		} finally {
 			q.restore();

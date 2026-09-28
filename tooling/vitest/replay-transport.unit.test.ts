@@ -7,7 +7,7 @@ import { createReplayTransport, loadFixtures } from './replay-transport.js';
 // A spent plan's refusal carries the url of the target it interrupted. Matching is by url and
 // the first hit wins, and `quota-exhausted` sorts before `success-html`, so loading it would
 // replay an empty wallet as the answer to the happy path.
-describe('a recorded quota refusal is never replayed', () => {
+describe('a recorded account refusal is never replayed', () => {
 	const exchange = (category: string, status: number) =>
 		JSON.stringify({
 			kind: 'exchange',
@@ -22,6 +22,8 @@ describe('a recorded quota refusal is never replayed', () => {
 		const dir = join(root, 'packages/adapters/src/x/fixtures');
 		mkdirSync(dir, { recursive: true });
 		writeFileSync(join(dir, 'quota-exhausted.json'), exchange('quota-exhausted', 403));
+		// And a refused account, which sorts first of all (2026-09-28, a suspended Bright Data).
+		writeFileSync(join(dir, 'auth-failed.json'), exchange('auth-failed', 200));
 		writeFileSync(join(dir, 'success-html.json'), exchange('success-html', 200));
 
 		const entries = loadFixtures(root, 'x');

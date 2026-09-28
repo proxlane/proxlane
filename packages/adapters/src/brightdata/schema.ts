@@ -72,6 +72,19 @@ export const BRD_STATUS_HEADER = 'x-brd-status-code';
 export const BRD_ERROR_HEADER = 'x-brd-error-code';
 export const BRD_MESSAGE_HEADER = 'x-brd-error';
 
+/**
+ * Bright Data REFUSING OUR ACCOUNT, in a second header family: `x-brd-err-code` and
+ * `x-brd-err-msg`, not the `x-brd-error-code` above. Recorded 2026-09-28 from a suspended
+ * account: HTTP 200, an empty body, `x-brd-status-code: 407`, `x-brd-err-code: client_10020`.
+ *
+ * The adapter read only the first family, so none of this matched: the 407 fell through every
+ * branch to OK, the empty body became SOFT_BLOCK in the chain, and every domain the caller
+ * touched cooled Bright Data as though that site had blocked it. The superproxy's own refusal
+ * codes are `client_*`.
+ */
+export const BRD_REFUSAL_CODE_HEADER = 'x-brd-err-code';
+export const BRD_REFUSAL_MESSAGE_HEADER = 'x-brd-err-msg';
+
 /** `response status was rejected: 500 status code` -> 500. */
 export function targetStatusFromMessage(message: string): number | undefined {
 	const m = /\b(\d{3})\s+status code\b/.exec(message);

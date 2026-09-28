@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import type { Outcome, ProviderHttpResponse } from '../contract.js';
 import { carriesBody } from '../contract.js';
 import { BrightdataAdapter } from './index.js';
-import { BRD_ERROR_HEADER, BRD_STATUS_HEADER } from './schema.js';
+import { BRD_ERROR_HEADER, BRD_REFUSAL_CODE_HEADER, BRD_STATUS_HEADER } from './schema.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
@@ -111,5 +111,49 @@ describe('an error code is an error whether or not it came with a message', () =
 		const parsed = BrightdataAdapter.parse(withHeaders({ [BRD_STATUS_HEADER]: '200' }));
 		expect(parsed.outcome).toBe('OK');
 		expect(parsed.body).toBeDefined();
+	});
+});
+
+describe('a refused account is an account fault, not an empty page', () => {
+	// Recorded 2026-09-28 from a suspended account: 200, an empty body, `x-brd-status-code: 407`,
+	// and the refusal in `x-brd-err-code`, a header family this adapter did not read. It parsed
+	// as OK, the chain turned the empty OK into SOFT_BLOCK, and every domain a caller touched
+	// cooled Bright Data as though that site had blocked it.
+	const suspended = load('auth-failed');
+
+	it('parses the recorded suspension as AUTH_FAILED', () => {
+		expect(BrightdataAdapter.parse(suspended).outcome).toBe('AUTH_FAILED');
+	});
+
+	it("carries Bright Data's own words, since AUTH_FAILED alone reads as a wrong key", () => {
+		expect(BrightdataAdapter.parse(suspended).providerMessage).toMatch(/Account is suspended/);
+	});
+
+	it('bills nothing for a request that never reached a target', () => {
+		expect(BrightdataAdapter.parse(suspended).cost.microcredits).toBe(0);
+	});
+
+	it('reads a refusal by its code even without the 407', () => {
+		const headers = { ...suspended.headers, [BRD_STATUS_HEADER]: '200' };
+		expect(BrightdataAdapter.parse({ ...suspended, headers }).outcome).toBe('AUTH_FAILED');
+	});
+
+	it('reads another superproxy code as a provider failure, never as content', () => {
+		// The recorded response with its `client_` code swapped for one we have never seen, and the
+		// 407 gone. Whatever it means, the page did not come back, and OK would say it had.
+		const headers = {
+			...suspended.headers,
+			[BRD_REFUSAL_CODE_HEADER]: 'unknown_20000',
+			[BRD_STATUS_HEADER]: '200',
+		};
+		const parsed = BrightdataAdapter.parse({ ...suspended, headers });
+		expect(parsed.outcome).toBe('PROVIDER_ERROR');
+		expect(parsed.providerMessage).toMatch(/Account is suspended/);
+	});
+
+	it('the old header family still decides everything it decided before', () => {
+		// The control: a response with no refusal header parses exactly as it did.
+		expect(BrightdataAdapter.parse(load('success-html')).outcome).toBe('OK');
+		expect(BrightdataAdapter.parse(load('dead-host')).outcome).toBe('TARGET_ERROR');
 	});
 });

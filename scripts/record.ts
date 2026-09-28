@@ -26,9 +26,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
+	type AccountFixture,
 	type Adapter,
+	accountFixtureFor,
 	expectedOutcome,
 	type GatewayRequest,
+	isAccountFixture,
 	type Outcome,
 } from '@proxlane/adapters';
 import { createFetchTransport } from '@proxlane/shared/transport';
@@ -269,7 +272,9 @@ export const TARGETS: readonly Target[] = [
 // ---------------------------------------------------------------- fixture shape
 
 /**
- * A spent plan's answer, kept as a fixture of its own. Not in `TARGETS`: no target summons it.
+ * An account's refusal, kept as a fixture of its own: a spent plan as `quota-exhausted`, a refused
+ * credential or suspended account as `auth-failed`. See `ACCOUNT_FIXTURES`. Not in `TARGETS`: no
+ * target summons one.
  *
  * Until 2026-09-17 a spent plan was recorded OVER the category it interrupted. The fixture
  * was written before `parse()` ran, so `success-html.json` became a quota refusal while the
@@ -281,14 +286,16 @@ export const TARGETS: readonly Target[] = [
  * tests whose bodies somebody typed. The fixture READMEs called a recording "bytes no assertion
  * reads"; conformance now reads them, and a claim published outside this repo can point at them.
  */
-export const QUOTA_FIXTURE = 'quota-exhausted';
+export const QUOTA_FIXTURE = 'quota-exhausted' satisfies AccountFixture;
 
 /**
  * Which file a recording lands in, decided by what `parse()` made of it. `undefined` writes none.
  *
  * - The expected outcome, or one the matrix does not assert: the category's own file.
- * - `QUOTA_EXHAUSTED` where the matrix expected something else: `QUOTA_FIXTURE`, never the
- *   category. Not in diff mode, which compares categories and must not grow a file per run.
+ * - An account refusal (`QUOTA_EXHAUSTED`, `AUTH_FAILED`) where the matrix expected something
+ *   else: its account fixture, never the category. Not in diff mode, which compares categories
+ *   and must not grow a file per run. `AUTH_FAILED` joined on 2026-09-28: a suspended Bright Data
+ *   account would otherwise have been written over `success-html` as drift.
  * - `RATE_LIMITED` where unexpected: nothing. A concurrency cap is a moment, not a shape, and
  *   writing it over the category is the same overwrite as above.
  * - Any other mismatch: the category's file, as before. That is drift, and the diff says so.
@@ -301,13 +308,14 @@ export function fixtureFileFor(
 	diff: boolean,
 ): string | undefined {
 	if (got === undefined || got === expect || expect === 'provider-dependent') return category;
-	if (got === 'QUOTA_EXHAUSTED') return diff ? undefined : QUOTA_FIXTURE;
+	const account = accountFixtureFor(got);
+	if (account !== undefined) return diff ? undefined : account;
 	if (got === 'RATE_LIMITED') return undefined;
 	return category;
 }
 
 interface FixtureCommon {
-	readonly category: TargetCategory | typeof QUOTA_FIXTURE;
+	readonly category: TargetCategory | AccountFixture;
 	readonly recordedAt: string;
 	readonly adapter: string;
 	readonly target: { readonly url: string; readonly renderJs: boolean };
@@ -1053,9 +1061,9 @@ export function reportDiff(
 		/** Categories whose fresh recording no longer parses to the outcome the matrix expects. */
 		readonly mismatched: readonly string[];
 		/**
-		 * Categories the provider answered `RATE_LIMITED` — the plan's credits are spent or its
-		 * concurrency cap was hit. Required rather than optional: a caller that has not decided
-		 * what to do about an empty wallet is the caller this field exists for.
+		 * Categories the ACCOUNT refused: a spent plan, a concurrency cap, or a credential the
+		 * provider will not accept. Required rather than optional: a caller that has not decided
+		 * what to do about an account that cannot record is the caller this field exists for.
 		 */
 		readonly exhausted: readonly string[];
 		/**
@@ -1117,12 +1125,12 @@ export function reportDiff(
 		// Never re-recordable on demand: it exists only when a plan happened to be spent. A diff
 		// run cannot compare it, and calling its absence from a funded run "recorded nothing" would
 		// report drift every week the wallet has credit in it.
-		if (category === QUOTA_FIXTURE) {
-			unchecked.push(`${category} (captured only from a spent plan)`);
+		if (isAccountFixture(category)) {
+			unchecked.push(`${category} (captured only from an account in that state)`);
 			continue;
 		}
 		if (run.exhausted.includes(category)) {
-			unchecked.push(`${category} (account out of credit)`);
+			unchecked.push(`${category} (the account refused)`);
 			continue;
 		}
 
@@ -1407,7 +1415,10 @@ if (import.meta.filename === process.argv[1]) {
 	let failed = 0;
 	const mismatched: string[] = [];
 	const exhausted: string[] = [];
-	let quotaKept = false;
+	/** Account fixtures already written this run: the FIRST refusal of each kind is kept. */
+	const accountKept = new Set<AccountFixture>();
+	/** What each refused category got, for the summary: out of credit and refused read differently. */
+	const refusedAs = new Map<string, string>();
 	const unparsed: string[] = [];
 	const skipped: string[] = [];
 	for (const target of targets) {
@@ -1635,15 +1646,13 @@ if (import.meta.filename === process.argv[1]) {
 		const file = fixtureFileFor(target.category, expect, parsedOutcome, diff);
 		// The FIRST refusal of a run, not the last: after it every category gets the same answer,
 		// and overwriting it would only swap which interrupted target the file names.
-		if (file === QUOTA_FIXTURE && !quotaKept) {
-			quotaKept = true;
-			const quota: ExchangeFixture = {
-				...fixture,
-				category: QUOTA_FIXTURE,
-				expect: 'QUOTA_EXHAUSTED',
-			};
-			writeFileSync(join(outDir, `${file}.json`), `${JSON.stringify(quota, null, '\t')}\n`);
-		} else if (file !== undefined && file !== QUOTA_FIXTURE) {
+		if (file !== undefined && isAccountFixture(file)) {
+			if (!accountKept.has(file) && parsedOutcome !== undefined) {
+				accountKept.add(file);
+				const refusal: ExchangeFixture = { ...fixture, category: file, expect: parsedOutcome };
+				writeFileSync(join(outDir, `${file}.json`), `${JSON.stringify(refusal, null, '\t')}\n`);
+			}
+		} else if (file !== undefined) {
 			writeFileSync(join(outDir, `${file}.json`), `${serialized}\n`);
 		}
 
@@ -1655,7 +1664,10 @@ if (import.meta.filename === process.argv[1]) {
 			verdict = `~ ${parsedOutcome} (provider-dependent, not asserted)`;
 		} else if (parsedOutcome === expect) {
 			verdict = `= ${parsedOutcome}`;
-		} else if (parsedOutcome === 'RATE_LIMITED' || parsedOutcome === 'QUOTA_EXHAUSTED') {
+		} else if (
+			parsedOutcome === 'RATE_LIMITED' ||
+			accountFixtureFor(parsedOutcome) !== undefined
+		) {
 			// The wallet, not the provider. Separated here rather than in reportDiff so the
 			// console line a human reads says which of the two it was, and so the non-diff
 			// summary below stops calling a spent plan an unexpected outcome.
@@ -1663,11 +1675,14 @@ if (import.meta.filename === process.argv[1]) {
 			// BOTH, and permanently. A spent plan is QUOTA_EXHAUSTED once the adapters emit it;
 			// a concurrency cap hit mid-recording is RATE_LIMITED. Neither is a change in what a
 			// fixture looks like, which is the only thing this command is asking.
+			//
+			// AUTH_FAILED TOO, since a suspended account answered every category the same way.
 			verdict =
-				file === QUOTA_FIXTURE
-					? `! got ${parsedOutcome} (account, not provider) — kept as ${QUOTA_FIXTURE}.json`
+				file !== undefined && isAccountFixture(file)
+					? `! got ${parsedOutcome} (account, not provider) — kept as ${file}.json`
 					: `! got ${parsedOutcome} (account, not provider)`;
 			exhausted.push(target.category);
+			refusedAs.set(target.category, parsedOutcome);
 		} else {
 			verdict = `! got ${parsedOutcome}`;
 			mismatched.push(target.category);
@@ -1699,11 +1714,9 @@ if (import.meta.filename === process.argv[1]) {
 				: []),
 			...(exhausted.length > 0
 				? [
-						`  ${exhausted.length} could not be recorded — account out of credit: ${exhausted.join(', ')}`,
-						'  The provider is fine; the plan is spent. These fixtures were NOT refreshed.',
-						...(existsSync(join(outDir, `${QUOTA_FIXTURE}.json`))
-							? [`  The refusal itself is recorded as ${QUOTA_FIXTURE}.json.`]
-							: []),
+						`  ${exhausted.length} could not be recorded — the account refused: ${exhausted.map((c) => `${c} (${refusedAs.get(c)})`).join(', ')}`,
+						'  The provider is fine; the account is not. These fixtures were NOT refreshed.',
+						...[...accountKept].map((f) => `  The refusal itself is recorded as ${f}.json.`),
 					]
 				: []),
 			...(mismatched.length > 0

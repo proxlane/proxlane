@@ -76,6 +76,25 @@ const RETRYABLE_AT_TERMINAL: ReadonlySet<Outcome> = new Set([
 	'PROVIDER_TIMEOUT',
 ]);
 
+/** The longest provider message an attempt carries; Bright Data's suspension notice is ~90. */
+export const MAX_PROVIDER_MESSAGE = 300;
+
+/**
+ * A provider's message made safe to repeat: control characters (a newline would split a log line,
+ * a NUL would end a header) become spaces, runs collapse, and the length is bounded.
+ */
+export function boundedProviderMessage(message: string): string {
+	let visible = '';
+	for (const ch of message) {
+		const code = ch.codePointAt(0) ?? 0;
+		visible += code < 0x20 || code === 0x7f ? ' ' : ch;
+	}
+	const flat = visible.replace(/\s+/g, ' ').trim();
+	return flat.length <= MAX_PROVIDER_MESSAGE
+		? flat
+		: `${flat.slice(0, MAX_PROVIDER_MESSAGE - 1)}…`;
+}
+
 export interface Attempt {
 	readonly provider: string;
 	readonly outcome: Outcome;
@@ -105,6 +124,12 @@ export interface Attempt {
 	 * unbilled-spend metric in plan.md section 7 exists to watch.
 	 */
 	readonly costMicrocredits?: number;
+	/**
+	 * The provider's own words about an account-level refusal, e.g. "Account is suspended".
+	 * Bounded and stripped of control characters by `boundedProviderMessage`: it is third-party
+	 * text, and it reaches the error body and the request log.
+	 */
+	readonly providerMessage?: string;
 	/**
 	 * What `costMicrocredits` is denominated in. Carried per attempt because a chain can mix
 	 * them: three launch providers sell credits and one bills cents, so a failover from
@@ -917,6 +942,9 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				budgetMs: budget.perAttemptMs,
 				upstreamMs,
 				...(res.kind === 'response' ? { latencyMs: res.latencyMs } : {}),
+				...(parsed?.providerMessage === undefined
+					? {}
+					: { providerMessage: boundedProviderMessage(parsed.providerMessage) }),
 				...(parsed === undefined
 					? {}
 					: {

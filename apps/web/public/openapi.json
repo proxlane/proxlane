@@ -594,7 +594,7 @@
 						}
 					},
 					"502": {
-						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. QUOTA_EXHAUSTED: The plan's credits are spent for this billing cycle. AUTH_FAILED: Provider rejected the key itself — wrong, revoked or malformed. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
+						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. QUOTA_EXHAUSTED: The plan's credits are spent for this billing cycle. AUTH_FAILED: Provider refused the key or the account behind it: wrong, revoked or suspended. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
 						"headers": {
 							"X-Outcome": {
 								"$ref": "#/components/headers/X-Outcome"
@@ -1353,7 +1353,7 @@
 						}
 					},
 					"502": {
-						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. QUOTA_EXHAUSTED: The plan's credits are spent for this billing cycle. AUTH_FAILED: Provider rejected the key itself — wrong, revoked or malformed. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
+						"description": "SOFT_BLOCK: our detector fired on the body; a rule ID is attached. HARD_BLOCK: Provider says blocked or banned. TARGET_ERROR: Target site 5xx or DNS dead. PROVIDER_ERROR: Provider 5xx or infrastructure failure. QUOTA_EXHAUSTED: The plan's credits are spent for this billing cycle. AUTH_FAILED: Provider refused the key or the account behind it: wrong, revoked or suspended. PROVIDER_DRIFT: Response failed its Zod schema. PROVIDER_BODY_OFFLOADED: the provider stored the body out of band and returned a pointer we cannot follow.",
 						"headers": {
 							"X-Outcome": {
 								"$ref": "#/components/headers/X-Outcome"
@@ -1980,7 +1980,7 @@
 					},
 					"attempts": {
 						"type": "array",
-						"description": "What was tried and what each provider said. The grain you need when debugging a failover.",
+						"description": "What was tried and what each provider said. The grain you need when debugging a failover. An attempt the provider refused in its own words carries them as `providerMessage`, e.g. a suspended account's reason on AUTH_FAILED.",
 						"items": {
 							"type": "object"
 						}

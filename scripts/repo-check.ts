@@ -10,8 +10,10 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// Type-only imports, so Node's type stripping loads this file without a build.
+import { isAccountFixture } from '../packages/adapters/src/contract.ts';
 import { buildCodeowners, parseTable, ticks } from './codeowners.ts';
 import {
 	apply as applyProviders,
@@ -2609,11 +2611,10 @@ function matchesOwner(pattern: string, file: string): boolean {
 			undated.push(f);
 			continue;
 		}
-		// Dated, but not aged. A spent plan's refusal is dated by when a plan ran out, which
-		// nothing schedules, so its age says nothing about whether the weekly job covers this
-		// adapter — which is all this asks. If a spent plan stops mapping to QUOTA_EXHAUSTED, the
-		// live canary stops exempting it and goes red; that is the check this one would duplicate.
-		if (f.endsWith('/quota-exhausted.json')) continue;
+		// Dated, but not aged. An account fixture is dated by when an account happened to refuse,
+		// which nothing schedules, so its age says nothing about whether the weekly job covers
+		// this adapter, which is all this asks. See ACCOUNT_FIXTURES.
+		if (isAccountFixture(basename(f, '.json'))) continue;
 		const days = Math.floor((now - ms) / 86_400_000);
 		if (days > MAX_AGE_DAYS) stale.push(`${f} (${days}d)`);
 	}

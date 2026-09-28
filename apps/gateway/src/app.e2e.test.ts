@@ -954,6 +954,63 @@ describe('one line per request, covering every exit', () => {
 		expect(line?.id).toMatch(/^[\w-]+$/);
 	});
 
+	it("names a suspended account in the provider's own words, in the log and the body", async () => {
+		// The recorded suspension (2026-09-28), served at the network boundary. It is an account
+		// fixture, so the replay transport never serves it for a target; this test does, on purpose.
+		const f = JSON.parse(
+			readFileSync(
+				resolve(ROOT, 'packages/adapters/src/brightdata/fixtures/auth-failed.json'),
+				'utf8',
+			),
+		) as { response: { status: number; headers: Record<string, string>; bodyBase64: string } };
+		const suspended: HttpTransport = {
+			async execute() {
+				return {
+					kind: 'response',
+					response: {
+						status: f.response.status,
+						headers: f.response.headers,
+						body: new Uint8Array(Buffer.from(f.response.bodyBase64, 'base64')),
+					},
+					latencyMs: 5,
+				};
+			},
+		};
+		const lines: RequestLine[] = [];
+		const app = createApp({
+			transport: suspended,
+			candidates: adapters.filter((a) => a.adapter.capabilities.id === 'brightdata'),
+			apiKey: API_KEY,
+			maxBodyBytes: 1024 * 1024,
+			defaultDeadlineMs: 90_000,
+			log: (l) => lines.push(l),
+		});
+		const server = serve({ fetch: app.fetch, port: 0 });
+		await new Promise((r) => setTimeout(r, 50));
+		const port = (server.address() as AddressInfo).port;
+		let body: {
+			error: { code: string; class: string };
+			attempts: { providerMessage?: string }[];
+		};
+		let res: Response;
+		try {
+			res = await fetch(
+				`http://127.0.0.1:${port}/v1?api_key=${API_KEY}&url=${encodeURIComponent('https://example.com/')}`,
+			);
+			body = (await res.json()) as typeof body;
+		} finally {
+			await new Promise<void>((r) => server.close(() => r()));
+		}
+		// An account fault, not a site block: the class a caller falls back on, and no SOFT_BLOCK.
+		expect(res.headers.get('X-Outcome')).toBe('AUTH_FAILED');
+		expect(body.error.class).toBe('gateway');
+		expect(body.attempts[0]?.providerMessage).toMatch(/^Account is suspended/);
+		expect(lines[0]?.legs).toBe('account');
+		expect(lines[0]?.provider_said).toEqual([
+			expect.stringMatching(/^brightdata: Account is suspended/),
+		]);
+	});
+
 	it('logs a refused key, which is the line that shows someone probing', async () => {
 		const [line] = await capture('/v1?api_key=nope&url=https://example.com/');
 		expect(line?.status).toBe(401);

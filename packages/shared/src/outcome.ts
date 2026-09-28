@@ -438,7 +438,11 @@ export const FAILOVER = {
 		// Also marks the key unhealthy and notifies the user.
 		cooldown: 'acct',
 		pages: false,
-		meaning: 'Provider rejected the key itself — wrong, revoked or malformed',
+		// SUSPENDED TOO, since 2026-09-28. A suspended Bright Data account refuses a key that is
+		// otherwise fine, and it is the same fact for a caller: this account cannot be used, fall
+		// back. The attempt carries the provider's own words, so the operator reads "suspended"
+		// rather than rotating a working key.
+		meaning: 'Provider refused the key or the account behind it: wrong, revoked or suspended',
 	},
 	PROVIDER_DRIFT: {
 		class: 'provider',
