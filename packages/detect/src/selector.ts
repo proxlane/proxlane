@@ -97,7 +97,7 @@ const RAW_CLOSE = new Map(
  * over. `detect()` bounds itself the same way with SCAN_BYTES.
  *
  * Measured 2026-09-28 on the maintainer's laptop, median of ten runs at this size: a page made
- * of nothing but `<a>` tags, the most tags a target can pack into it, 22ms; one tag with the most
+ * of nothing but `<a>` tags, the most tags a target can pack into it, ~30ms; one tag with the most
  * distinct attribute names, 9ms; an ordinary page of rows and links, 9ms. A garbage collection
  * during a run can add more; the test holds the worst shape under 250ms so CI noise does not flake.
  */
@@ -105,7 +105,8 @@ export const MAX_SELECTOR_SCAN_BYTES = 2 * 1024 * 1024;
 
 const isSpace = (c: number) => c === 32 || c === 9 || c === 10 || c === 12 || c === 13;
 const isAlpha = (c: number) => (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
-const isNameChar = (c: number) => isAlpha(c) || (c >= 48 && c <= 57) || c === 45;
+/** `</svg` or `</math`, read case-insensitively at a position in the page as it is. */
+const FOREIGN_CLOSE = /<\/(?:svg|math)(?=[\s/>])/iy;
 
 /** The entities an attribute value is likely to carry; anything else is compared as written. */
 function decodeEntities(v: string): string {
@@ -141,6 +142,8 @@ function scanStartTags(
 	needTag: boolean,
 ): void {
 	const n = html.length;
+	/** How deep inside `<svg>` or `<math>` the scan is. */
+	let foreign = 0;
 	let i = html.indexOf('<');
 	while (i !== -1) {
 		// A comment, from `<!--` to the first `-->` after `<!`: `<!-->` and `<!--->` are empty
@@ -154,10 +157,16 @@ function scanStartTags(
 		}
 		let j = i + 1;
 		if (!isAlpha(html.charCodeAt(j))) {
+			FOREIGN_CLOSE.lastIndex = i;
+			if (foreign > 0 && FOREIGN_CLOSE.test(html)) foreign--;
 			i = html.indexOf('<', j);
 			continue;
 		}
-		while (j < n && isNameChar(html.charCodeAt(j))) j++;
+		// A browser's tag name runs to whitespace, `/` or `>`. Stopping at the first character
+		// outside [a-z0-9-] read `<script_x>` as `script` and skipped the rest of the page as its text.
+		for (let c = html.charCodeAt(j); j < n && !isSpace(c) && c !== 47 && c !== 62; ) {
+			c = html.charCodeAt(++j);
+		}
 		const nameEnd = j;
 		// Allocated only when a wanted attribute turns up: most tags on a page carry none, and a
 		// Map per tag was most of the cost on a page made of nothing but tags.
@@ -199,7 +208,14 @@ function scanStartTags(
 		// longer names skip the copy unless the selector itself names a tag.
 		const tag = needTag || nameEnd - i - 1 <= 9 ? html.slice(i + 1, nameEnd).toLowerCase() : '';
 		if (visit(needTag ? tag : '', attrs ?? NO_ATTRS)) return;
-		const close = RAW_CLOSE.get(tag);
+		// SVG and MathML are foreign content: a `<title>` or `<style>` inside them is an ordinary
+		// element, not raw text, and skipping it as text would miss what follows it.
+		if (tag === 'svg' || tag === 'math') {
+			if (html.charCodeAt(j - 1) !== 47) foreign++;
+			i = html.indexOf('<', j);
+			continue;
+		}
+		const close = foreign > 0 ? undefined : RAW_CLOSE.get(tag);
 		if (close !== undefined) {
 			// Its contents are text. Skip to its end tag, found case-insensitively in the page as it
 			// is; `plaintext`, or a raw element that never closes, runs to the end of the page.
@@ -218,7 +234,8 @@ function matches(c: Compound, tag: string, attrs: ReadonlyMap<string, string>): 
 	if (c.tag !== undefined && c.tag !== tag) return false;
 	if (c.ids.some((id) => attrs.get('id') !== id)) return false;
 	if (c.classes.length > 0) {
-		const have = new Set((attrs.get('class') ?? '').split(/\s+/).filter(Boolean));
+		// ASCII whitespace only, as HTML splits a class list: a no-break space is part of a name.
+		const have = new Set((attrs.get('class') ?? '').split(/[ \t\n\f\r]+/).filter(Boolean));
 		if (!c.classes.every((k) => have.has(k))) return false;
 	}
 	for (const a of c.attrs) {

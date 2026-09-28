@@ -213,3 +213,25 @@ describe('what the first review found (#387)', () => {
 		}
 	});
 });
+
+describe('what the second review found (#387)', () => {
+	it('reads a whole tag name, so script_x is not a script', () => {
+		expect(elementPresent('<script_x></script_x><p id="late">ok</p>', '#late')).toBe(true);
+		expect(elementPresent('<title.x></title.x><p id="late">ok</p>', '#late')).toBe(true);
+		expect(elementPresent('<my_el id="late"></my_el>', 'my_el')).toBe(true);
+	});
+
+	it('treats title and style inside SVG as elements, and raw text again after it', () => {
+		const svg = '<svg><title>t</title><style>s</style></svg><p id="late">ok</p>';
+		expect(elementPresent(svg, '#late')).toBe(true);
+		expect(elementPresent('<svg><title><b class="x"></b></title></svg>', '.x')).toBe(true);
+		expect(elementPresent('<svg></svg><title><b class="x"></b></title>', '.x')).toBe(false);
+		// A self-closing svg opens nothing.
+		expect(elementPresent('<svg/><title><b class="x"></b></title>', '.x')).toBe(false);
+	});
+
+	it('splits a class list on ASCII whitespace only', () => {
+		expect(elementPresent('<p class="a\u00a0b"></p>', '.a')).toBe(false);
+		expect(elementPresent('<p class="a\tb"></p>', '.b')).toBe(true);
+	});
+});
