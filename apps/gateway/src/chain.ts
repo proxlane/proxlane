@@ -197,6 +197,11 @@ export interface ChainResult {
 	readonly provider?: string;
 	/** Every hop, in order. The logged grain is the attempt, not the request. */
 	readonly attempts: readonly Attempt[];
+	/**
+	 * The `wait_for` check of the attempt whose page this result carries. Not the last attempt's:
+	 * a chain that ends on an account refusal still returns an earlier hop's page.
+	 */
+	readonly waitFor?: WaitForCheck;
 	readonly reason?: string;
 	/**
 	 * How long until this request could succeed, when the chain knows. Set only when every
@@ -806,8 +811,12 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					// block whatever it lacks. Only an HTML page, and only a selector simple enough
 					// to judge: anything else is `unverified`, never guessed.
 					if (outcome === 'OK' && parsed.body !== undefined && req.waitFor !== undefined) {
+						// No content type: judged only if the body starts like markup. A JSON envelope
+						// with no header has no tags, and reading it as HTML would fail it over.
 						const html =
-							parsed.contentType === undefined || /html|xml/i.test(parsed.contentType);
+							parsed.contentType === undefined
+								? /^\s*</.test(new TextDecoder().decode(parsed.body.subarray(0, 64)))
+								: /html|xml/i.test(parsed.contentType);
 						const present = html
 							? elementPresentIn(parsed.body, parsed.charset, req.waitFor)
 							: undefined;
@@ -1030,6 +1039,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				attempts,
 				provider: adapter.capabilities.id,
 				providerHealth,
+				...(waitFor === undefined ? {} : { waitFor }),
 				...(detectRuleId === undefined ? {} : { detectRuleId }),
 				...(parsed === undefined ? {} : { result: parsed }),
 			};
@@ -1052,6 +1062,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					// provider that had just capped us. `integrations.md` section 3 has specified
 					// `429 + Retry-After` for RATE_LIMITED since the taxonomy was written.
 					...(parsed?.retryAfterMs === undefined ? {} : { retryAfterMs: parsed.retryAfterMs }),
+					...(waitFor === undefined ? {} : { waitFor }),
 					...(detectRuleId === undefined ? {} : { detectRuleId }),
 					...(parsed === undefined ? {} : { result: parsed }),
 				};
@@ -1065,6 +1076,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 						attempts,
 						provider: adapter.capabilities.id,
 						providerHealth,
+						...(waitFor === undefined ? {} : { waitFor }),
 						...(detectRuleId === undefined ? {} : { detectRuleId }),
 						...(parsed === undefined ? {} : { result: parsed }),
 					};
@@ -1159,6 +1171,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 					attempts,
 					provider: adapter.capabilities.id,
 					providerHealth,
+					...(waitFor === undefined ? {} : { waitFor }),
 					...(detectRuleId === undefined ? {} : { detectRuleId }),
 					...(parsed === undefined ? {} : { result: parsed }),
 					...saidOut(outcome),

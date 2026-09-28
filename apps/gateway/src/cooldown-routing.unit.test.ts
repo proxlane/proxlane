@@ -591,6 +591,30 @@ describe('wait_for is checked against the page, not taken on the provider word',
 		expect(r.attempts[0]?.waitFor).toBe('unverified');
 	});
 
+	it('judges a body with no content type only if it starts like markup', async () => {
+		const noType = (id: string, body: string): Adapter => ({
+			...adapterFor(id, 'OK'),
+			parse: () => ({
+				outcome: 'OK',
+				body: new TextEncoder().encode(body),
+				cost: { microcredits: 0, source: 'estimated' },
+			}),
+		});
+		expect((await run('#late', [noType('a', '{"late":1}')])).attempts[0]?.waitFor).toBe(
+			'unverified',
+		);
+		expect((await run('#late', [noType('a', '  <p id="late">')])).attempts[0]?.waitFor).toBe(
+			'met',
+		);
+	});
+
+	it("reports the served page's check, not the last attempt's, when a refusal ends the chain", async () => {
+		const r = await run('#late', [serving('a', shell), adapterFor('b', 'AUTH_FAILED')]);
+		expect(r.outcome).toBe('WAIT_FOR_UNMET');
+		expect(r.waitFor).toBe('unmet');
+		expect(r.attempts[r.attempts.length - 1]).not.toHaveProperty('waitFor');
+	});
+
 	it('leaves a request without wait_for exactly as it was', async () => {
 		const r = await chain(undefined, [['a', 'OK']]);
 		expect(r.attempts[0]).not.toHaveProperty('waitFor');

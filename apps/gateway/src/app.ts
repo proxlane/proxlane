@@ -242,13 +242,11 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
 		// what integration code should switch on. See `OutcomeClass` in @proxlane/shared.
 		'X-Outcome-Class': outcomeClass(r.outcome),
 		'X-Attempts': String(r.attempts.length),
-		// Whether the element `wait_for` named was in the page that was served: `met`, or
-		// `unverified` when the selector is beyond what the gateway judges. An unmet one is the
-		// outcome itself, WAIT_FOR_UNMET. Read from the LAST attempt, the one whose page this is.
-		...((): Record<string, string> => {
-			const last = r.attempts[r.attempts.length - 1]?.waitFor;
-			return last === undefined ? {} : { 'X-Wait-For': last };
-		})(),
+		// Whether the element `wait_for` named was in the page that was served: `met`, `unmet`
+		// (the outcome is then WAIT_FOR_UNMET), or `unverified` when the selector is beyond what the
+		// gateway judges. From the result, which is the attempt whose page this is: the last attempt
+		// is not, when a chain ends on a refusal and returns an earlier hop's page.
+		...(r.waitFor === undefined ? {} : { 'X-Wait-For': r.waitFor }),
 		// WHO FAILED, not just who served. `X-Provider-Used` names the winner and `X-Attempts`
 		// counts the tries, and between them they cannot answer the first question anyone asks
 		// after a failover: which provider was flaky?

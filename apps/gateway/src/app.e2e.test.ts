@@ -513,11 +513,12 @@ describe('failures reach the caller as a status they can branch on', () => {
 		expect(merged['X-Cost-Source']).toBe('reported');
 	});
 
-	it('says whether the served page held the wait_for element, from the attempt that served it', async () => {
+	it('says whether the served page held the wait_for element, from the result not the last attempt', async () => {
 		const merged = headersFor(
 			{
 				outcome: 'OK',
 				provider: 'b',
+				waitFor: 'met',
 				attempts: [
 					{
 						provider: 'a',

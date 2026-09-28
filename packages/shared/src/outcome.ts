@@ -334,6 +334,13 @@ export const FAILOVER = {
 		// domain, and cooling one would refuse the next request that waits for something else.
 		//
 		// Carries the page as it came back, so a caller who can use a partial page still has it.
+		// If the one retry then ends TARGET_ERROR, which carries no body, that partial page is lost:
+		// the last verdict decides, as it does for every outcome.
+		//
+		// HOSTED MUST DECIDE THIS BEFORE IT SHIPS (#383). Not chargeable AND carrying the page means
+		// `wait_for=#never-there` returns a rendered page for free while the operator pays for two
+		// rendered attempts. BYOK is unaffected: the caller's own provider bills them. Either charge
+		// this outcome when it carries a body, or drop the body on hosted keys.
 		class: 'target',
 		httpStatus: 502,
 		chargeable: false,

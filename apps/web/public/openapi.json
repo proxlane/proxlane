@@ -1815,7 +1815,7 @@
 				}
 			},
 			"X-Wait-For": {
-				"description": "Present when the request carried wait_for and a page was served: met when the named element is in it, unverified when the selector is beyond what the gateway judges (a combinator or pseudo-class) or the body is not HTML. A page without the element is not served as a success: the outcome is WAIT_FOR_UNMET.",
+				"description": "Present when the request carried wait_for and a page was served: met when the named element is in it, unmet when it is not (the outcome is then WAIT_FOR_UNMET), unverified when the selector is beyond what the gateway judges (a combinator or pseudo-class) or the body is not HTML. A page without the element is not served as a success: the outcome is WAIT_FOR_UNMET.",
 				"schema": {
 					"type": "string",
 					"enum": [
