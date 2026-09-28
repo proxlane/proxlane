@@ -2,4 +2,4 @@
 "@proxlane/gateway": patch
 ---
 
-A failed chain's message names the providers the request ruled out and the parameter that excluded each, so "every capable provider is cooling" no longer reads as every provider.
+A failed chain's message names the providers the request ruled out and the parameter that excluded each, so "every capable provider is cooling" no longer reads as every provider. A `country_code` that is not two letters is refused with a 400.

@@ -303,6 +303,12 @@ describe('one error shape, whatever went wrong', () => {
 			'client',
 		],
 		[
+			'a country code that is not two letters',
+			`api_key=${API_KEY}&url=https://example.com/&country_code=usa`,
+			'BAD_REQUEST',
+			'client',
+		],
+		[
 			'a forced provider that does not exist',
 			`api_key=${API_KEY}&url=https://example.com/&provider=nope`,
 			'NO_PROVIDER_AVAILABLE',
