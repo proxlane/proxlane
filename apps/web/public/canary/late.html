@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Proxlane canary: late content probe</title>
+<meta name="robots" content="noindex, nofollow">
+<!--
+  A page whose content arrives four seconds AFTER it has loaded.
+
+  `/canary/js` proves a provider runs JavaScript; its marker is written the moment the script
+  runs, so a provider that ignores a wait condition still passes there. This page is for the
+  other question: does `wait_for` actually hold the snapshot until the element exists? Asked
+  without a wait, a renderer that snapshots at load returns the placeholder; asked to wait for
+  `#late`, it must return the marker. Accepted is not enforced, and a wait that silently does
+  not happen is worse than none.
+
+  Plain like its sibling: no framework, no external request. The marker is assembled from two
+  halves so the served source cannot satisfy the check by accident.
+-->
+<body>
+<p id="placeholder">The late content has not arrived.</p>
+<script>
+  setTimeout(() => {
+    var late = document.createElement('p');
+    late.id = 'late';
+    late.textContent = 'proxlane-late' + '-ok';
+    document.body.appendChild(late);
+  }, 4000);
+</script>
+</body>
