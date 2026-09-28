@@ -96,9 +96,13 @@ export function boundedProviderMessage(message: string, key?: string): string {
 	for (const part of parts.filter((p) => p.length >= 4).sort((a, b) => b.length - a.length)) {
 		flat = flat.split(part).join('REDACTED');
 	}
-	return flat.length <= MAX_PROVIDER_MESSAGE
+	// BY CODE POINT, never by UTF-16 unit. A cut through a surrogate pair leaves a lone half,
+	// which lua-cjson refuses to decode, and the cooldown CLAIM script treats an undecodable
+	// record as claimable: every concurrent request would take the one probe.
+	const points = Array.from(flat);
+	return points.length <= MAX_PROVIDER_MESSAGE
 		? flat
-		: `${flat.slice(0, MAX_PROVIDER_MESSAGE - 1)}…`;
+		: `${points.slice(0, MAX_PROVIDER_MESSAGE - 1).join('')}…`;
 }
 
 export interface Attempt {
