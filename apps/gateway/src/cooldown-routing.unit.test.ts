@@ -396,3 +396,61 @@ describe('the in-memory store does not leak', () => {
 		expect(cd.size).toBe(1);
 	});
 });
+
+describe('a refusal names the providers the request ruled out, not only the cooling ones', () => {
+	// Reported by a caller: the ladder answered "every capable provider is cooling", pinning
+	// firecrawl a minute later served the page. Firecrawl was never cooling; the request carried
+	// `wait_for`, which firecrawl cannot honour, so it was ruled out before cooldowns were read.
+	// "capable" carried the whole distinction and the message never said who it excluded.
+	const noWait = (id: string, outcome: Outcome): Adapter => {
+		const a = adapterFor(id, outcome);
+		return { ...a, capabilities: { ...a.capabilities, waitForSelector: false } };
+	};
+
+	it('says who was left out, and why, when every capable provider is cooling', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		cd.arm(blkKey('a'), Date.now());
+		// The forced slot is spent, so this request gets the refusal rather than the floor.
+		cd.arm(forcedProbeKey(DOMAIN), Date.now(), COOLDOWN.CAP_MS);
+		const r = await runChain(
+			{ ...REQ, waitFor: '.results' },
+			{
+				transport,
+				candidates: [
+					{ adapter: adapterFor('a', 'OK'), key: 'k' },
+					{ adapter: noWait('firecrawl', 'OK'), key: 'k' },
+				],
+				maxBodyBytes: 1024 * 1024,
+				cooldowns: cd,
+			},
+		);
+		expect(r.outcome).toBe('NO_PROVIDER_AVAILABLE');
+		expect(r.reason).toMatch(
+			/^every capable provider is cooling: a \(blocked on target\.example\)/,
+		);
+		expect(r.reason).toMatch(/; not capable of this request: firecrawl \(wait_for\)$/);
+	});
+
+	it('says it on an exhausted chain too', async () => {
+		const r = await runChain(
+			{ ...REQ, waitFor: '.results' },
+			{
+				transport,
+				candidates: [
+					{ adapter: adapterFor('a', 'PROVIDER_ERROR'), key: 'k' },
+					{ adapter: noWait('firecrawl', 'OK'), key: 'k' },
+				],
+				maxBodyBytes: 1024 * 1024,
+			},
+		);
+		// After the outcome's own meaning, which was the whole message before.
+		expect(r.reason).toBe(
+			'Provider 5xx or infrastructure failure; not capable of this request: firecrawl (wait_for)',
+		);
+	});
+
+	it('adds nothing when every provider was capable', async () => {
+		const r = await chain(undefined, [['a', 'PROVIDER_ERROR']]);
+		expect(r.reason).toBeUndefined();
+	});
+});
