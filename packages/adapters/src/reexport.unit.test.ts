@@ -114,6 +114,7 @@ const EXCLUSIONS: ReadonlyArray<readonly [reason: string, names: readonly string
 			'COOLDOWN',
 			'CooldownDecision',
 			'CooldownEntry',
+			'CooldownWhy',
 			// The premium ladder and the tier-cooling rule. Router state by the same argument as
 			// the rest of this group: an adapter declares WHICH tiers it sells, and the chain
 			// decides what a block at one of them implies for the others. An adapter that could

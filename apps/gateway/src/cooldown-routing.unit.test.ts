@@ -452,5 +452,45 @@ describe('a refusal names the providers the request ruled out, not only the cool
 	it('adds nothing when every provider was capable', async () => {
 		const r = await chain(undefined, [['a', 'PROVIDER_ERROR']]);
 		expect(r.reason).toBeUndefined();
+
+describe('a cooldown records what armed it', () => {
+	const acctKey = (provider: string) =>
+		cooldownKey('acct', { provider, org: 'self', domain: DOMAIN, premium: 'none' }) as string;
+
+	it("keeps the outcome and the provider's words for an account refusal", async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		const suspended: Adapter = {
+			...adapterFor('brightdata', 'AUTH_FAILED'),
+			parse: () => ({
+				outcome: 'AUTH_FAILED',
+				providerMessage: 'Account is suspended',
+				cost: { microcredits: 0, source: 'estimated' },
+			}),
+		};
+		await runChain(REQ, {
+			transport,
+			candidates: [{ adapter: suspended, key: 'k' }],
+			maxBodyBytes: 1024 * 1024,
+			cooldowns: cd,
+		});
+		expect(cd.peek(acctKey('brightdata'))).toMatchObject({
+			reason: 'AUTH_FAILED',
+			detail: 'Account is suspended',
+		});
+	});
+
+	it('keeps the outcome for a domain block, with no words invented', async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		await chain(cd, [['a', 'HARD_BLOCK']]);
+		const e = cd.peek(blkKey('a'));
+		expect(e?.reason).toBe('HARD_BLOCK');
+		expect(e).not.toHaveProperty('detail');
+	});
+
+	it('drops an old reason on a re-arm that gives none, rather than repeating it as new', () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		cd.arm('k', 0, undefined, { reason: 'QUOTA_EXHAUSTED' });
+		cd.arm('k', 1);
+		expect(cd.peek('k')).not.toHaveProperty('reason');
 	});
 });

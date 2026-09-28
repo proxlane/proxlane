@@ -911,11 +911,18 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				// introduced by the fix for the account-clear bug, which is the shape to watch:
 				// a correct change to one branch invalidating an assumption in another.
 				let wroteKey: string | undefined;
+				// WHY, stored beside the timing, so /health/cooldowns can say "out of credit" or
+				// "suspended" rather than only "account".
+				const said =
+					parsed?.providerMessage === undefined
+						? undefined
+						: boundedProviderMessage(parsed.providerMessage, key);
+				const why = { reason: outcome, ...(said === undefined ? {} : { detail: said }) };
 				if (cdKey !== null) {
 					// The TARGET's Retry-After, when the provider exposed it. Better than any
 					// curve we can invent: a jittered first draw averages 15s, and a site asking
 					// for 120 would be hit eight times too early.
-					deps.cooldowns?.arm(cdKey, now(), parsed?.retryAfterMs);
+					deps.cooldowns?.arm(cdKey, now(), parsed?.retryAfterMs, why);
 					wroteKey = cdKey;
 					// AND EVERY WEAKER TIER, for a block. The implication runs one way: if stealth
 					// could not get through, residential and plain certainly cannot — they are
@@ -935,7 +942,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 								org,
 								premium: weaker,
 							});
-							if (k !== null) deps.cooldowns?.arm(k, now(), parsed?.retryAfterMs);
+							if (k !== null) deps.cooldowns?.arm(k, now(), parsed?.retryAfterMs, why);
 						}
 					}
 				} else if (outcome === 'OK' || outcome === 'TARGET_NOT_FOUND') {

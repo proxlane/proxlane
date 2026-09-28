@@ -33,6 +33,7 @@ import {
 	COOLDOWN,
 	type CooldownDecision,
 	type CooldownEntry,
+	type CooldownWhy,
 	decide,
 	type HealthState,
 	healthWeight,
@@ -42,7 +43,7 @@ import {
 	observeProbe,
 } from '@proxlane/shared';
 import type { Redis } from 'ioredis';
-import type { CooldownStore } from './cooldown-store.js';
+import { type CooldownStore, withWhy } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
 
 /**
@@ -491,7 +492,7 @@ export class ValkeyCooldownStore implements CooldownStore {
 		return res === 1;
 	}
 
-	arm(key: string, now: number, retryAfterMs?: number): void {
+	arm(key: string, now: number, retryAfterMs?: number, why?: CooldownWhy): void {
 		void (async () => {
 			for (let attempt = 0; attempt < CAS_ATTEMPTS; attempt++) {
 				try {
@@ -500,10 +501,12 @@ export class ValkeyCooldownStore implements CooldownStore {
 					// Honour the target's own Retry-After when the provider exposed it. The
 					// in-memory store does, and a shared store that quietly did not would make
 					// backoff depend on which one you deployed.
-					const entry: CooldownEntry =
+					const entry: CooldownEntry = withWhy(
 						retryAfterMs === undefined
 							? arm(prev, now, this.#rng, maxCapForKey(key))
-							: armFor(prev, now, retryAfterMs);
+							: armFor(prev, now, retryAfterMs),
+						why,
+					);
 					const ttl = Math.max(1, entry.untilMs - now + COOLDOWN_GRACE_MS);
 					const ok = await this.#redis.eval(
 						CAS,
@@ -602,6 +605,10 @@ function parseCooldown(raw: string | null): CooldownEntry | null {
 			untilMs: v.untilMs,
 			consecutive: v.consecutive,
 			probeTaken: v.probeTaken === true,
+			// Read back only as the strings they were written as. The store is shared, and a record
+			// another writer mangled must not become arbitrary JSON in the endpoint's answer.
+			...(typeof v.reason === 'string' ? { reason: v.reason.slice(0, 64) } : {}),
+			...(typeof v.detail === 'string' ? { detail: v.detail.slice(0, 300) } : {}),
 		};
 	} catch {
 		return null;

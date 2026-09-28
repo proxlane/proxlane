@@ -19,7 +19,7 @@ generator at it, or open it in any OpenAPI viewer.
 | `POST` | `/v1` | Scrape a URL and forward a request body |
 | `GET` | `/health` | Liveness, the running version, and `usable`: how many of the configured providers are not in an account cooldown right now. Counts only, never names. Needs no key |
 | `GET` | `/health/providers` | Per-provider health. Needs `PROXLANE_HEALTH=on` to be meaningful |
-| `GET` | `/health/cooldowns` | What is cooling now, and what expired recently |
+| `GET` | `/health/cooldowns` | What is cooling now, what expired recently, and the outcome that armed each |
 
 `PUT` and `DELETE` on `/v1` return 404. They are not treated as `GET`.
 
