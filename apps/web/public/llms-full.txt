@@ -514,6 +514,12 @@ happened to a scrape, and a request rejected at the door never became one.
 `attempts` lists what was tried and what each provider said. That is the grain you need when
 debugging a failover.
 
+An attempt the provider refused in its own words carries them as `providerMessage`, for example
+Bright Data's `"Account is suspended. Login to … to activate your account"` on an `AUTH_FAILED`.
+The outcome says the account cannot be used; the message says why, so a suspended account is not
+mistaken for a wrong key. The request log carries the same text as `provider_said`. It is the
+provider's text, bounded to 300 characters with control characters removed.
+
 ## Sandbox
 
 Set `PROXLANE_SANDBOX_KEY` on the gateway and you have a second key that can never spend. A

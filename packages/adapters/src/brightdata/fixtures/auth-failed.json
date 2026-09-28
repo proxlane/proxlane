@@ -1,0 +1,39 @@
+{
+	"kind": "exchange",
+	"category": "auth-failed",
+	"recordedAt": "2026-09-28T08:31:45.188Z",
+	"adapter": "brightdata",
+	"target": {
+		"url": "https://httpbin.dev/html",
+		"renderJs": false
+	},
+	"expect": "AUTH_FAILED",
+	"request": {
+		"method": "POST",
+		"url": "https://api.brightdata.com/request",
+		"headers": {
+			"authorization": "REDACTED",
+			"content-type": "application/json"
+		},
+		"body": "{\"zone\":\"REDACTED\",\"url\":\"https://httpbin.dev/html\",\"format\":\"raw\",\"method\":\"GET\",\"render\":false}"
+	},
+	"response": {
+		"status": 200,
+		"headers": {
+			"access-control-allow-origin": "*",
+			"connection": "keep-alive",
+			"date": "VOLATILE",
+			"proxy-authenticate": "Basic realm=\"Bright Data\"",
+			"proxy-connection": "close",
+			"proxy-status": "brd.superproxy.io; received-status=407; error=\"http_request_denied\"; details=\"client_10020: Account is suspended. Login to brightdata.com/cp/setting/billing to activate your account\"",
+			"server": "nginx",
+			"transfer-encoding": "chunked",
+			"x-brd-err-code": "client_10020",
+			"x-brd-err-msg": "Account is suspended. Login to brightdata.com/cp/setting/billing to activate your account",
+			"x-brd-error": "Account is suspended. Login to brightdata.com/cp/setting/billing to activate your account",
+			"x-brd-status-code": "407"
+		},
+		"bodyBase64": "",
+		"bodyBytes": 0
+	}
+}

@@ -505,7 +505,7 @@ export function buildSpec(): string {
 						attempts: {
 							type: 'array',
 							description:
-								'What was tried and what each provider said. The grain you need when debugging a failover.',
+								"What was tried and what each provider said. The grain you need when debugging a failover. An attempt the provider refused in its own words carries them as `providerMessage`, e.g. a suspended account's reason on AUTH_FAILED.",
 							items: { type: 'object' },
 						},
 					},

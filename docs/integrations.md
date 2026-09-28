@@ -232,7 +232,7 @@ defined per outcome, centrally, never inside adapters.
 | `PROVIDER_ERROR` | `provider` | Provider 5xx / infra failure | 502 | no | yes | `acct`, short | no |
 | `RATE_LIMITED` | `provider` | Provider 429 / concurrency cap | 429 + `Retry-After` | no | yes | `acct`, respect headers | no |
 | `QUOTA_EXHAUSTED` | `gateway` | The plan's credits are spent for the cycle | 502 | no | yes | `acct` | no |
-| `AUTH_FAILED` | `gateway` | Provider 401/403 on the key | 502 | no | yes | `acct`; mark key unhealthy, notify user | no |
+| `AUTH_FAILED` | `gateway` | Provider 401/403 on the key, or a refused account (Bright Data `x-brd-err-code: client_*` with a 407 and no body, e.g. suspended; see #383) | 502 | no | yes | `acct`; mark key unhealthy, notify user | no |
 | `PROVIDER_DRIFT` | `provider` | Response failed schema parse | 502 | no | yes | no | **yes** |
 | `PROVIDER_BODY_OFFLOADED` | `provider` | Provider stored the body out of band and returned a pointer | 502 | no | yes | no | no |
 | `INVALID_REQUEST` | `gateway` | **Our translation** produced a provider 400 | 500 | no | **no** | no | **yes** |

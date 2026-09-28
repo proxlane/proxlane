@@ -12,7 +12,7 @@ import { CAPABILITIES, costOf } from '@proxlane/adapters';
 import type { HttpTransport, TransportResult } from '@proxlane/shared/transport';
 import { describe, expect, it } from 'vitest';
 import { hopBudget, MIN_USEFUL_ATTEMPT_MS } from './budget.js';
-import { isCapable, runChain, whyIncapable } from './chain.js';
+import { isCapable, MAX_PROVIDER_MESSAGE, runChain, whyIncapable } from './chain.js';
 
 function caps(over: Partial<ProviderCapabilities> & { id: string }): ProviderCapabilities {
 	return {
@@ -769,5 +769,65 @@ describe('the edge decides before any provider is chosen', () => {
 		expect(r.outcome).toBe('TARGET_FORBIDDEN');
 		// Not merely the right outcome: the URL never reached a provider's logs either.
 		expect(transport.budgets).toHaveLength(0);
+	});
+});
+
+describe("a provider's own words about a refused account reach the attempt, made safe", () => {
+	// AUTH_FAILED alone reads as "rotate the key". A suspended Bright Data account's key is fine,
+	// and the provider says so in plain words; the attempt carries them to the error body and log.
+	const saying = (providerMessage: string): Adapter => ({
+		...adapterOf('a', 'AUTH_FAILED'),
+		parse: () => ({
+			outcome: 'AUTH_FAILED',
+			providerMessage,
+			cost: { microcredits: 0, source: 'estimated' },
+		}),
+	});
+	const run = (adapter: Adapter) =>
+		runChain(req(), {
+			transport: transportOf([okResponse]),
+			candidates: [{ adapter, key: 'K' }],
+			maxBodyBytes: 1_000,
+		});
+
+	it('carries the message on the attempt', async () => {
+		const r = await run(saying('Account is suspended. Login to activate your account'));
+		expect(r.attempts[0]?.providerMessage).toBe(
+			'Account is suspended. Login to activate your account',
+		);
+	});
+
+	it('strips control characters, so a newline cannot forge a log line', async () => {
+		const r = await run(saying('suspended\n{"forged":true}\u0000\u001b[31m'));
+		expect(r.attempts[0]?.providerMessage).toBe('suspended {"forged":true} [31m');
+	});
+
+	it('strips C1 controls too, which a UTF-8 message read as latin1 produces', async () => {
+		const r = await run(saying('a\u0085b\u009bc'));
+		expect(r.attempts[0]?.providerMessage).toBe('a b c');
+	});
+
+	it("removes the provider's key, whole and by part, so a message naming the zone does not", async () => {
+		const adapter = saying(
+			'zone my-zone-1 refused token s3cr3t-token-value, key my-zone-1:s3cr3t-token-value',
+		);
+		const r = await runChain(req(), {
+			transport: transportOf([okResponse]),
+			candidates: [{ adapter, key: 'my-zone-1:s3cr3t-token-value' }],
+			maxBodyBytes: 1_000,
+		});
+		expect(r.attempts[0]?.providerMessage).toBe(
+			'zone REDACTED refused token REDACTED, key REDACTED',
+		);
+	});
+
+	it('bounds the length', async () => {
+		const r = await run(saying('x'.repeat(5_000)));
+		expect(r.attempts[0]?.providerMessage?.length).toBe(MAX_PROVIDER_MESSAGE);
+	});
+
+	it('adds nothing when the provider said nothing', async () => {
+		const r = await run(adapterOf('a', 'AUTH_FAILED'));
+		expect(r.attempts[0] && 'providerMessage' in r.attempts[0]).toBe(false);
 	});
 });

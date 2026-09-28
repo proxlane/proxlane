@@ -18,3 +18,10 @@ The recorder drives a standard target matrix — success (HTML and JSON), target
 summoned from a stable target on demand, so a recorder claiming to produce them would write
 a 200 labelled `block` — a fabrication with a plausible filename. Those come from real
 traffic.
+
+**`auth-failed.json` appears only when the account refuses during `pnpm record`.** Recorded
+2026-09-28 from a suspended account: HTTP 200, an empty body, `x-brd-status-code: 407` and
+`x-brd-err-code: client_10020`, a header family the adapter did not read until then, so it
+parsed as OK. The recorder writes a refusal there instead of over the category it interrupted,
+and conformance asserts it still parses to `AUTH_FAILED`. Not required, not aged, never replayed
+as a target's answer; see `ACCOUNT_FIXTURES`.

@@ -141,7 +141,15 @@ function keyMatches(presented: string, expected: string): boolean {
  */
 /** What the query asked for that the gateway does not read: computed once, used twice. */
 type QueryReport = { ignored: string[]; hints: [string, string][] };
-type Vars = { Variables: { requestId: string; startedAt: number; queryReport: QueryReport } };
+type Vars = {
+	Variables: {
+		requestId: string;
+		startedAt: number;
+		queryReport: QueryReport;
+		/** `provider: message` for each attempt a provider refused in its own words. */
+		providerSaid: readonly string[] | undefined;
+	};
+};
 
 /** `reported` if every charged attempt was the provider's own figure, `estimated` if none was. */
 function costSource(
@@ -216,7 +224,13 @@ export function headersFor(r: ChainResult, totalMs: number): Record<string, stri
 	// When a chain stayed inside one unit the total is real and is reported with the unit named.
 	// When it crossed units there is no total to give, and inventing one is worse than saying
 	// so — the per-attempt figures are in the response body, each with its own unit.
-	const charged = r.attempts.filter((a) => a.costMicrocredits !== undefined);
+	//
+	// A ZERO IS NOT A CHARGE. A refused account is unbilled, and counting its 0 in cents next to
+	// a credit charge from the provider that served reported `mixed` on every failover away from
+	// a suspended Bright Data account, for a chain that spent in exactly one unit.
+	const charged = r.attempts.filter(
+		(a) => a.costMicrocredits !== undefined && a.costMicrocredits > 0,
+	);
 	const units = new Set(charged.map((a) => a.costUnit ?? 'provider-credits'));
 	const total = charged.reduce((n, a) => n + (a.costMicrocredits ?? 0), 0);
 	const mixed = units.size > 1;
@@ -615,6 +629,13 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 							: { terminalRetries: deps.terminalRetries }),
 					});
 
+		// For the request log, which is built from headers and context after this returns. The
+		// error body already carries each attempt, message included; the log line did not.
+		const said = result.attempts.flatMap((a) =>
+			a.providerMessage === undefined ? [] : [`${a.provider}: ${a.providerMessage}`],
+		);
+		if (said.length > 0) c.set('providerSaid', said);
+
 		// Named on every sandbox response, so a simulated 200 that leaks into a real pipeline is
 		// caught by the first thing that reads headers rather than by a customer.
 		// `nosniff` alongside it on the body path: unlike a proxied page, this HTML is OURS,
@@ -777,6 +798,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 						// From the middleware's report, not read back from the response: the middleware
 						// sets those headers after this handler returns, so they are not on `res` yet.
 						const { ignored, hints } = c.get('queryReport');
+						const said = c.get('providerSaid');
 						const target = c.req.query('url');
 						const host = hostOf(target);
 						log({
@@ -818,6 +840,10 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 							// names are safe to keep: each is one edit from a parameter of ours.
 							...(ignored.length === 0 ? {} : { ignored: ignoredCount(ignored) }),
 							...(hints.length === 0 ? {} : { near_miss: Object.fromEntries(hints) }),
+							// What a provider said when it refused the account: "Account is suspended",
+							// where the outcome alone (AUTH_FAILED) would send the operator to rotate a key
+							// that works. Bounded and control-stripped in the chain.
+							...(said === undefined ? {} : { provider_said: said }),
 							// A SANDBOX LINE SAYS SO. Without this a sandbox holder could write
 							// `AUTH_FAILED` lines naming real providers with `legs: account` — the
 							// zero-capacity signature from #276 — and nothing in the log could tell

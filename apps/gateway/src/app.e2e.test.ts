@@ -472,6 +472,41 @@ describe('failures reach the caller as a status they can branch on', () => {
 		expect(merged['X-Attempts']).toBe('2');
 	});
 
+	it('does not call a chain mixed because an unbilled refusal was in cents', async () => {
+		// A suspended Bright Data account is refused at zero cost in `usd-cents`; the provider that
+		// served charged credits. One unit was spent, and the header said `mixed` on every failover.
+		const merged = headersFor(
+			{
+				outcome: 'OK',
+				provider: 'scraperapi',
+				attempts: [
+					{
+						provider: 'brightdata',
+						outcome: 'AUTH_FAILED',
+						budgetMs: 1,
+						upstreamMs: 1,
+						costMicrocredits: 0,
+						costUnit: 'usd-cents',
+						costSource: 'estimated',
+					},
+					{
+						provider: 'scraperapi',
+						outcome: 'OK',
+						budgetMs: 1,
+						upstreamMs: 1,
+						costMicrocredits: 1_000_000,
+						costUnit: 'provider-credits',
+						costSource: 'reported',
+					},
+				],
+			},
+			5,
+		);
+		expect(merged['X-Cost-Estimate']).toBe('1.000000');
+		expect(merged['X-Cost-Unit']).toBe('provider-credits');
+		expect(merged['X-Cost-Source']).toBe('reported');
+	});
+
 	it('omits the chain entirely when nothing was tried', async () => {
 		// SHIPPED BROKEN IN 0.7.0, and found by putting the header on the marketing page: a
 		// request refused before a provider is chosen has an empty attempt list, so this emitted
@@ -952,6 +987,63 @@ describe('one line per request, covering every exit', () => {
 		expect(line?.attempts).toBe(1);
 		expect(line?.cost).toBeTypeOf('string');
 		expect(line?.id).toMatch(/^[\w-]+$/);
+	});
+
+	it("names a suspended account in the provider's own words, in the log and the body", async () => {
+		// The recorded suspension (2026-09-28), served at the network boundary. It is an account
+		// fixture, so the replay transport never serves it for a target; this test does, on purpose.
+		const f = JSON.parse(
+			readFileSync(
+				resolve(ROOT, 'packages/adapters/src/brightdata/fixtures/auth-failed.json'),
+				'utf8',
+			),
+		) as { response: { status: number; headers: Record<string, string>; bodyBase64: string } };
+		const suspended: HttpTransport = {
+			async execute() {
+				return {
+					kind: 'response',
+					response: {
+						status: f.response.status,
+						headers: f.response.headers,
+						body: new Uint8Array(Buffer.from(f.response.bodyBase64, 'base64')),
+					},
+					latencyMs: 5,
+				};
+			},
+		};
+		const lines: RequestLine[] = [];
+		const app = createApp({
+			transport: suspended,
+			candidates: adapters.filter((a) => a.adapter.capabilities.id === 'brightdata'),
+			apiKey: API_KEY,
+			maxBodyBytes: 1024 * 1024,
+			defaultDeadlineMs: 90_000,
+			log: (l) => lines.push(l),
+		});
+		const server = serve({ fetch: app.fetch, port: 0 });
+		await new Promise((r) => setTimeout(r, 50));
+		const port = (server.address() as AddressInfo).port;
+		let body: {
+			error: { code: string; class: string };
+			attempts: { providerMessage?: string }[];
+		};
+		let res: Response;
+		try {
+			res = await fetch(
+				`http://127.0.0.1:${port}/v1?api_key=${API_KEY}&url=${encodeURIComponent('https://example.com/')}`,
+			);
+			body = (await res.json()) as typeof body;
+		} finally {
+			await new Promise<void>((r) => server.close(() => r()));
+		}
+		// An account fault, not a site block: the class a caller falls back on, and no SOFT_BLOCK.
+		expect(res.headers.get('X-Outcome')).toBe('AUTH_FAILED');
+		expect(body.error.class).toBe('gateway');
+		expect(body.attempts[0]?.providerMessage).toMatch(/^Account is suspended/);
+		expect(lines[0]?.legs).toBe('account');
+		expect(lines[0]?.provider_said).toEqual([
+			expect.stringMatching(/^brightdata: Account is suspended/),
+		]);
 	});
 
 	it('logs a refused key, which is the line that shows someone probing', async () => {

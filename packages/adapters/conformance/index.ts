@@ -105,10 +105,12 @@ const EXPECTED: Readonly<Record<string, Outcome | 'provider-dependent'>> = {
 	'target-rate-limited': 'TARGET_RATE_LIMITED',
 	// Honoured if one is ever captured; see REQUIRED below for why it cannot be required.
 	'provider-error': 'PROVIDER_ERROR',
-	// Written by `pnpm record` when a plan runs out mid-recording, never summoned on demand, so
-	// honoured and not required. It is the evidence behind mapping a spent plan away from a
-	// target block, which is otherwise a sentence in a changelog.
+	// Written by `pnpm record` when an account refuses mid-recording, never summoned on demand,
+	// so honoured and not required; see ACCOUNT_FIXTURES. They are the evidence behind mapping a
+	// spent plan or a refused account away from a target block, which is otherwise a sentence in
+	// a changelog. Spelled out rather than spread from the list, so this table stays readable.
 	'quota-exhausted': 'QUOTA_EXHAUSTED',
+	'auth-failed': 'AUTH_FAILED',
 	// Measured across three providers: 422, 500 and a plain 200. There is no single right
 	// answer, so asserting one would be a permanent false failure.
 	'slow-target': 'provider-dependent',
