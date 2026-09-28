@@ -1,5 +1,24 @@
 # @proxlane/gateway
 
+## 0.21.0
+
+### Minor Changes
+
+- [#381](https://github.com/proxlane/proxlane/pull/381) [`e36a685`](https://github.com/proxlane/proxlane/commit/e36a6855d2cf3dd9569f22d6cfca5c8238f84282) Thanks [@scarsam](https://github.com/scarsam)! - A suspended Bright Data account is `AUTH_FAILED` with the provider's own reason in the attempt's `providerMessage`, instead of an empty `OK` that cooled Bright Data on every domain as a site block.
+
+- [#385](https://github.com/proxlane/proxlane/pull/385) [`bceb9fa`](https://github.com/proxlane/proxlane/commit/bceb9fa1d07d972d57648615718023d54c39b0bc) Thanks [@scarsam](https://github.com/scarsam)! - `GET /health/cooldowns` says what armed each cooldown (`reason`) and the provider's own words when it gave any (`detail`), so an account cooldown reads as out of credit or suspended rather than only "account".
+
+- [#388](https://github.com/proxlane/proxlane/pull/388) [`84ad2c3`](https://github.com/proxlane/proxlane/commit/84ad2c3e2662dbfe27637b80bafe8d21d28ebdcf) Thanks [@scarsam](https://github.com/scarsam)! - A `wait_for` element is checked against the page: a page without it is the new `WAIT_FOR_UNMET` (tried once more at another provider, never cooled, never charged) instead of a success, and `X-Wait-For` says `met` or `unverified`.
+
+### Patch Changes
+
+- [#382](https://github.com/proxlane/proxlane/pull/382) [`7b912cf`](https://github.com/proxlane/proxlane/commit/7b912cf3efe70d7c88ff762672d4a39df1eb7b89) Thanks [@scarsam](https://github.com/scarsam)! - A failed chain's message names the providers the request ruled out and the parameter that excluded each, so "every capable provider is cooling" no longer reads as every provider. A `country_code` that is not two letters is refused with a 400.
+
+- Updated dependencies [[`e36a685`](https://github.com/proxlane/proxlane/commit/e36a6855d2cf3dd9569f22d6cfca5c8238f84282), [`bceb9fa`](https://github.com/proxlane/proxlane/commit/bceb9fa1d07d972d57648615718023d54c39b0bc), [`4632905`](https://github.com/proxlane/proxlane/commit/4632905fb29908ff9ec0b149090843fb81156db6), [`e3655b4`](https://github.com/proxlane/proxlane/commit/e3655b43244258c259c7f7527796d0cb27664d5a), [`84ad2c3`](https://github.com/proxlane/proxlane/commit/84ad2c3e2662dbfe27637b80bafe8d21d28ebdcf)]:
+  - @proxlane/adapters@0.13.0
+  - @proxlane/shared@0.15.0
+  - @proxlane/detect@0.4.0
+
 ## 0.20.0
 
 ### Minor Changes

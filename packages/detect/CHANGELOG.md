@@ -1,5 +1,11 @@
 # @proxlane/detect
 
+## 0.4.0
+
+### Minor Changes
+
+- [#387](https://github.com/proxlane/proxlane/pull/387) [`4632905`](https://github.com/proxlane/proxlane/commit/4632905fb29908ff9ec0b149090843fb81156db6) Thanks [@scarsam](https://github.com/scarsam)! - `elementPresent` says whether a page holds the element a simple CSS selector names, or that the selector is beyond what it judges.
+
 ## 0.3.3
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @proxlane/shared
 
+## 0.15.0
+
+### Minor Changes
+
+- [#385](https://github.com/proxlane/proxlane/pull/385) [`bceb9fa`](https://github.com/proxlane/proxlane/commit/bceb9fa1d07d972d57648615718023d54c39b0bc) Thanks [@scarsam](https://github.com/scarsam)! - `GET /health/cooldowns` says what armed each cooldown (`reason`) and the provider's own words when it gave any (`detail`), so an account cooldown reads as out of credit or suspended rather than only "account".
+
+- [#388](https://github.com/proxlane/proxlane/pull/388) [`84ad2c3`](https://github.com/proxlane/proxlane/commit/84ad2c3e2662dbfe27637b80bafe8d21d28ebdcf) Thanks [@scarsam](https://github.com/scarsam)! - A `wait_for` element is checked against the page: a page without it is the new `WAIT_FOR_UNMET` (tried once more at another provider, never cooled, never charged) instead of a success, and `X-Wait-For` says `met` or `unverified`.
+
+### Patch Changes
+
+- [#381](https://github.com/proxlane/proxlane/pull/381) [`e36a685`](https://github.com/proxlane/proxlane/commit/e36a6855d2cf3dd9569f22d6cfca5c8238f84282) Thanks [@scarsam](https://github.com/scarsam)! - A suspended Bright Data account is `AUTH_FAILED` with the provider's own reason in the attempt's `providerMessage`, instead of an empty `OK` that cooled Bright Data on every domain as a site block.
+
 ## 0.14.0
 
 ### Minor Changes
