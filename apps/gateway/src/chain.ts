@@ -913,8 +913,12 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				let wroteKey: string | undefined;
 				// WHY, stored beside the timing, so /health/cooldowns can say "out of credit" or
 				// "suspended" rather than only "account".
+				//
+				// THE WORDS ONLY ON AN ACCOUNT KEY. `cd:blk` is shared across orgs, and a provider's
+				// text is about the account that sent the request; on a shared key one org's refusal
+				// would be read out to another. The outcome alone is safe anywhere.
 				const said =
-					parsed?.providerMessage === undefined
+					parsed?.providerMessage === undefined || scope !== 'acct'
 						? undefined
 						: boundedProviderMessage(parsed.providerMessage, key);
 				const why = { reason: outcome, ...(said === undefined ? {} : { detail: said }) };

@@ -479,6 +479,26 @@ describe('a cooldown records what armed it', () => {
 		});
 	});
 
+	it("never puts a provider's words on a domain key, which every org shares", async () => {
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		const talkative: Adapter = {
+			...adapterFor('a', 'HARD_BLOCK'),
+			parse: () => ({
+				outcome: 'HARD_BLOCK',
+				providerMessage: 'blocked for account 12345',
+				cost: { microcredits: 0, source: 'estimated' },
+			}),
+		};
+		await runChain(REQ, {
+			transport,
+			candidates: [{ adapter: talkative, key: 'k' }],
+			maxBodyBytes: 1024 * 1024,
+			cooldowns: cd,
+		});
+		expect(cd.peek(blkKey('a'))?.reason).toBe('HARD_BLOCK');
+		expect(cd.peek(blkKey('a'))).not.toHaveProperty('detail');
+	});
+
 	it('keeps the outcome for a domain block, with no words invented', async () => {
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		await chain(cd, [['a', 'HARD_BLOCK']]);
