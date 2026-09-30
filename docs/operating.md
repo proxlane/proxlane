@@ -217,9 +217,11 @@ Unanswered issues are the single clearest signal that a project is dead, and
 the fix costs minutes — but a 48-hour SLA is destroyed by definition by this document's
 own promise that every process here survives being skipped for a week.
 
-**Automatic issues jump the queue, and there are two kinds.** `record:diff` opens
+**Automatic issues jump the queue, and there are three kinds.** `record:diff` opens
 `flag:provider-drift` when a recorded fixture stops matching what a provider returns, and it
-prints the shape difference, so the label is a finding. The canary opens `flag:canary-red`,
+prints the shape difference, so the label is a finding. When an account refuses every request
+it opens `flag:account-refusing` instead, once, and closes it on the first run that compares
+again: a spent wallet is not drift, and filing it as drift every week buried the real kind. The canary opens `flag:canary-red`,
 which is only an observation: an assertion failed, and the cause could be the provider, an
 adapter, the test target or our own credentials.
 

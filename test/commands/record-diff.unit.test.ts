@@ -19,7 +19,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { RENEW_AFTER_DAYS, reportDiff } from '../../scripts/record.ts';
+import { ACCOUNT_REFUSED_EXIT, RENEW_AFTER_DAYS, reportDiff } from '../../scripts/record.ts';
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64');
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
@@ -404,11 +404,12 @@ describe('a spent plan is not provider drift', () => {
 		// THE LINE THAT MATTERS, and the reason the two cases above need a second fixture at all.
 		// Excusing an empty wallet must not become a way to pass without comparing anything: the
 		// zero-denominator rule outranks it. Every category exhausted is not a green week, it is
-		// a week with no evidence, and it exits 1.
+		// a week with no evidence. It is not DRIFT either, so it exits with its own code, and the
+		// workflow keeps one `flag:account-refusing` issue open for it instead of a drift issue.
 		write(committed, fixture({}));
 		write(fresh, fixture({ at: daysAgo(0) }));
-		expect(reportDiff('x', committed, fresh, { ...CLEAN, exhausted: ['success-html'] })).toBe(
-			1,
-		);
+		const code = reportDiff('x', committed, fresh, { ...CLEAN, exhausted: ['success-html'] });
+		expect(code).not.toBe(0);
+		expect(code).toBe(ACCOUNT_REFUSED_EXIT);
 	});
 });

@@ -307,7 +307,11 @@ export function fixtureFileFor(
 	got: string | undefined,
 	diff: boolean,
 ): string | undefined {
-	if (got === undefined || got === expect || expect === 'provider-dependent') return category;
+	if (got === undefined || got === expect) return category;
+	// THE ACCOUNT BEFORE THE EXEMPTION. `provider-dependent` exempts a category from asserting
+	// what the TARGET made the provider say; a refusal is not that. Checked after it, a refused
+	// `slow-target` was written over its fixture and reported as a changed provider: three false
+	// drift issues in one week (2026-09-30), from three accounts that were out of credit.
 	const account = accountFixtureFor(got);
 	if (account !== undefined) return diff ? undefined : account;
 	if (got === 'RATE_LIMITED') return undefined;
@@ -1051,6 +1055,14 @@ export function partitionByOnly(
  * old, or a weekly job produces a weekly pull request of nothing but timestamps, which is how a
  * reviewer learns to approve this job's diffs without reading them.
  */
+/**
+ * `pnpm record --diff` exits with this when the account refused every request it made, so nothing
+ * could be compared and nothing drifted. The scheduled workflow turns it into a warning, not a
+ * drift issue: three false "fixture drift" issues in one week (2026-09-30) were three accounts
+ * out of credit.
+ */
+export const ACCOUNT_REFUSED_EXIT = 3;
+
 export function reportDiff(
 	adapterId: string,
 	committedDir: string,
@@ -1214,6 +1226,18 @@ export function reportDiff(
 		// Non-zero denominator. Comparing nothing and calling it unchanged is the failure this
 		// whole function was rewritten to remove, so it cannot be allowed to pass quietly.
 		if (confirmed + renewed === 0) {
+			// THE ACCOUNT, NOT THE PROVIDER. Nothing compared because the account refused: out of
+			// credit, suspended, or capped. That is a fact about a wallet, already visible to the
+			// canary, and filing it as "fixture drift" every week is noise that buries real drift.
+			// Its own exit code, so the workflow can say so without opening an issue.
+			if (run.exhausted.length > 0) {
+				process.stdout.write(
+					`\n  ${adapterId}: the account refused (${run.exhausted.join(', ')}), so nothing ` +
+						'could be compared. Nothing drifted; top up or reactivate the account.\n' +
+						uncheckedLine,
+				);
+				return ACCOUNT_REFUSED_EXIT;
+			}
 			process.stderr.write(
 				`\n  ${adapterId}: nothing was compared. ${unchecked.length} skipped, 0 recorded.\n` +
 					'  An empty comparison is not a clean one.\n\n',
@@ -1660,8 +1684,6 @@ if (import.meta.filename === process.argv[1]) {
 		if (parsedOutcome === undefined) {
 			verdict = `? parse() threw: ${parseError}`;
 			unparsed.push(target.category);
-		} else if (expect === 'provider-dependent') {
-			verdict = `~ ${parsedOutcome} (provider-dependent, not asserted)`;
 		} else if (parsedOutcome === expect) {
 			verdict = `= ${parsedOutcome}`;
 		} else if (
@@ -1683,6 +1705,9 @@ if (import.meta.filename === process.argv[1]) {
 					: `! got ${parsedOutcome} (account, not provider)`;
 			exhausted.push(target.category);
 			refusedAs.set(target.category, parsedOutcome);
+		} else if (expect === 'provider-dependent') {
+			// After the account branch, for the reason fixtureFileFor gives.
+			verdict = `~ ${parsedOutcome} (provider-dependent, not asserted)`;
 		} else {
 			verdict = `! got ${parsedOutcome}`;
 			mismatched.push(target.category);

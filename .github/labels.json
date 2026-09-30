@@ -32,6 +32,11 @@
 			"name": "flag:canary-red"
 		},
 		{
+			"color": "D4A72C",
+			"description": "A provider account refused every recorded request: out of credit or suspended. Not drift",
+			"name": "flag:account-refusing"
+		},
+		{
 			"color": "B3271E",
 			"description": "A provider's response shape or outcomes changed. Set by record:diff, or after diagnosis",
 			"name": "flag:provider-drift"
