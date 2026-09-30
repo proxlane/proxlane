@@ -163,3 +163,35 @@ describe('scrapingbee translate', () => {
 		expect(ScrapingbeeAdapter.translate(req, 'K').method).toBe('GET');
 	});
 });
+
+describe('a spent plan is QUOTA_EXHAUSTED, not a wrong key', () => {
+	// Recorded 2026-09-30 from the free plan at 1,002 of 1,000 credits: 401 and
+	// {"message":"Monthly API calls limit reached: 1000"}, the status a wrong key also gets.
+	const spent = load('quota-exhausted');
+	const with401 = (body: string): ProviderHttpResponse => ({
+		...spent,
+		body: new Uint8Array(Buffer.from(body, 'utf8')),
+	});
+
+	it('parses the recorded refusal as QUOTA_EXHAUSTED, in its own words, unbilled', () => {
+		const parsed = ScrapingbeeAdapter.parse(spent);
+		expect(parsed.outcome).toBe('QUOTA_EXHAUSTED');
+		expect(parsed.providerMessage).toBe('Monthly API calls limit reached: 1000');
+		expect(parsed.cost.microcredits).toBe(0);
+	});
+
+	it('still reads any other 401 as a wrong key', () => {
+		const parsed = ScrapingbeeAdapter.parse(with401('{"message":"Invalid api key"}'));
+		expect(parsed.outcome).toBe('AUTH_FAILED');
+		expect(parsed.providerMessage).toBe('Invalid api key');
+	});
+
+	it('never turns an unreadable body into drift: the status still decides', () => {
+		expect(ScrapingbeeAdapter.parse(with401('<html>oops</html>')).outcome).toBe('AUTH_FAILED');
+		expect(ScrapingbeeAdapter.parse(with401('{"message":7}')).outcome).toBe('AUTH_FAILED');
+	});
+
+	it('reads a 402 as out of credits, which is what it means', () => {
+		expect(ScrapingbeeAdapter.parse({ ...spent, status: 402 }).outcome).toBe('QUOTA_EXHAUSTED');
+	});
+});

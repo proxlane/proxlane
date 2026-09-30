@@ -18,3 +18,9 @@ The recorder drives a standard target matrix — success (HTML and JSON), target
 summoned from a stable target on demand, so a recorder claiming to produce them would write
 a 200 labelled `block` — a fabrication with a plausible filename. Those come from real
 traffic.
+
+**`quota-exhausted.json` appears only when the plan runs out during `pnpm record`.** Recorded
+2026-09-30 at 1,002 of 1,000 credits: `401 {"message":"Monthly API calls limit reached: 1000"}`,
+the same status a wrong key gets, so the adapter reads the message to tell them apart.
+Conformance asserts it still parses to `QUOTA_EXHAUSTED`. Not required, not aged, never replayed
+as a target's answer; see `ACCOUNT_FIXTURES`.
