@@ -1,5 +1,13 @@
 # @proxlane/adapters
 
+## 0.13.1
+
+### Patch Changes
+
+- [#396](https://github.com/proxlane/proxlane/pull/396) [`4e7b755`](https://github.com/proxlane/proxlane/commit/4e7b755bf03afee97476f71d99ea454572dc98e1) Thanks [@scarsam](https://github.com/scarsam)! - `pnpm record --diff` reports an account that refused every request as its own case, not as fixture drift.
+
+- [#394](https://github.com/proxlane/proxlane/pull/394) [`5235dca`](https://github.com/proxlane/proxlane/commit/5235dca30e6c1ff66cb5f7bacbf0e4542167d49e) Thanks [@scarsam](https://github.com/scarsam)! - A spent ScrapingBee plan (401 "Monthly API calls limit reached") is `QUOTA_EXHAUSTED` with ScrapingBee's words, not `AUTH_FAILED`.
+
 ## 0.13.0
 
 ### Minor Changes
