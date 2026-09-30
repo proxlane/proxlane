@@ -33,7 +33,7 @@
 		},
 		{
 			"color": "D4A72C",
-			"description": "A provider account refused every recorded request: out of credit or suspended. Not drift",
+			"description": "A provider account refused every recorded request: out of credit, suspended or throttled",
 			"name": "flag:account-refusing"
 		},
 		{

@@ -1233,7 +1233,8 @@ export function reportDiff(
 			if (run.exhausted.length > 0) {
 				process.stdout.write(
 					`\n  ${adapterId}: the account refused (${run.exhausted.join(', ')}), so nothing ` +
-						'could be compared. Nothing drifted; top up or reactivate the account.\n' +
+						'could be compared. Nothing drifted: the account is out of credit, suspended, or was\n' +
+						'  throttled for the whole run.\n' +
 						uncheckedLine,
 				);
 				return ACCOUNT_REFUSED_EXIT;
