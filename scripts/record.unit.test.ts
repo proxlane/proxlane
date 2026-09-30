@@ -10,6 +10,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
+	ACCOUNT_REFUSED_EXIT,
 	fixtureCarriesEchoedAddress,
 	fixtureFileFor,
 	hasEchoedAddress,
@@ -693,6 +694,27 @@ describe('a spent plan does not overwrite the fixture it interrupted', () => {
 		);
 	});
 
+	it('recognises a refusal before the provider-dependent exemption', () => {
+		// slow-target is provider-dependent. A spent plan answering it was written over the fixture
+		// and reported as drift, three times in one week.
+		expect(
+			fixtureFileFor('slow-target', 'provider-dependent', 'QUOTA_EXHAUSTED', true),
+		).toBeUndefined();
+		expect(fixtureFileFor('slow-target', 'provider-dependent', 'QUOTA_EXHAUSTED', false)).toBe(
+			QUOTA_FIXTURE,
+		);
+		expect(fixtureFileFor('slow-target', 'provider-dependent', 'AUTH_FAILED', false)).toBe(
+			'auth-failed',
+		);
+		expect(
+			fixtureFileFor('slow-target', 'provider-dependent', 'RATE_LIMITED', true),
+		).toBeUndefined();
+		// And still records what the target made the provider say.
+		expect(fixtureFileFor('slow-target', 'provider-dependent', 'TARGET_ERROR', true)).toBe(
+			'slow-target',
+		);
+	});
+
 	it('writes nothing for a concurrency cap', () => {
 		expect(fixtureFileFor('success-html', 'OK', 'RATE_LIMITED', false)).toBeUndefined();
 	});
@@ -704,6 +726,49 @@ describe('a spent plan does not overwrite the fixture it interrupted', () => {
 			'target-error',
 		);
 		expect(fixtureFileFor('success-html', 'OK', undefined, false)).toBe('success-html');
+	});
+
+	it('exits apart, not as drift, when the account refused everything it was asked', () => {
+		const root = mkdtempSync(join(tmpdir(), 'record-refused-'));
+		const committed = join(root, 'committed');
+		const fresh = join(root, 'fresh');
+		mkdirSync(committed);
+		mkdirSync(fresh);
+		writeFileSync(join(committed, 'slow-target.json'), fixture('slow-target'));
+		const q = quiet();
+		try {
+			const code = reportDiff('x', committed, fresh, {
+				failed: 0,
+				skipped: [],
+				mismatched: [],
+				exhausted: ['slow-target'],
+			});
+			expect(code).toBe(ACCOUNT_REFUSED_EXIT);
+			expect(q.text()).toMatch(/the account refused \(slow-target\)/);
+			expect(q.text()).not.toMatch(/changed shape/);
+		} finally {
+			q.restore();
+		}
+	});
+
+	it('still fails an empty comparison that was not the account', () => {
+		const root = mkdtempSync(join(tmpdir(), 'record-empty-'));
+		const committed = join(root, 'committed');
+		mkdirSync(committed);
+		writeFileSync(join(committed, 'slow-target.json'), fixture('slow-target'));
+		const q = quiet();
+		try {
+			const code = reportDiff('x', committed, join(root, 'fresh'), {
+				failed: 0,
+				skipped: [],
+				mismatched: [],
+				exhausted: [],
+				deferred: ['slow-target'],
+			});
+			expect(code).toBe(1);
+		} finally {
+			q.restore();
+		}
 	});
 
 	it('does not read a committed refusal as drift on a funded run', () => {
