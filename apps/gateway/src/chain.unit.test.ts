@@ -821,6 +821,11 @@ describe("a provider's own words about a refused account reach the attempt, made
 		);
 	});
 
+	it('removes invisible format characters a UTF-8 body can carry', async () => {
+		const r = await run(saying('limit\u202e reached\u200b: 1000\u2066'));
+		expect(r.attempts[0]?.providerMessage).toBe('limit reached: 1000');
+	});
+
 	it('bounds the length', async () => {
 		const r = await run(saying('x'.repeat(5_000)));
 		expect(r.attempts[0]?.providerMessage?.length).toBe(MAX_PROVIDER_MESSAGE);

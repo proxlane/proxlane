@@ -111,12 +111,33 @@ function outcomeForTarget(status: number): Outcome {
 	return 'TARGET_ERROR';
 }
 
+/**
+ * ScrapingBee's own words on a refusal, when its error body carries them. Read for the words, never
+ * for control flow by shape: an unreadable body is `undefined`, and the status still decides.
+ */
+function refusalMessage(body: Uint8Array): string | undefined {
+	try {
+		const v = JSON.parse(new TextDecoder().decode(body)) as { message?: unknown };
+		return typeof v.message === 'string' ? v.message : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * A SPENT PLAN, NOT A BAD KEY. Recorded 2026-09-30: the free plan at 1,002 of 1,000 credits answers
+ * `401 {"message":"Monthly API calls limit reached: 1000"}`, the same status as a wrong key. As
+ * AUTH_FAILED it read "rotate the key", and the drift job called it a changed provider.
+ */
+const SPENT = /limit reached|out of credits|no (?:more )?credits/i;
+
 /** ScrapingBee never reached the target, so this is a fact about them or our key. */
-function outcomeForProvider(status: number): Outcome {
+function outcomeForProvider(status: number, message: string | undefined): Outcome {
 	if (status === 400) return 'INVALID_REQUEST';
-	if (status === 401) return 'AUTH_FAILED';
-	// 402 is out of credits, which is an account fact like an expired key.
-	if (status === 402 || status === 403) return 'AUTH_FAILED';
+	// 402 is out of credits by its definition; a 401 is, when its message says so.
+	if (status === 402) return 'QUOTA_EXHAUSTED';
+	if (status === 401 && message !== undefined && SPENT.test(message)) return 'QUOTA_EXHAUSTED';
+	if (status === 401 || status === 403) return 'AUTH_FAILED';
 	if (status === 429) return 'RATE_LIMITED';
 	return 'PROVIDER_ERROR';
 }
@@ -139,7 +160,19 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 		// They never reached the target, so nothing here is a fact about it. Their own error
 		// body is JSON, but it is not parsed for control flow: the STATUS decides the outcome,
 		// and a schema failure on a message string must not turn a clear 401 into drift.
-		return { ...withoutMeta, outcome: outcomeForProvider(res.status) };
+		//
+		// The message is read for its WORDS: it separates a spent plan from a wrong key, and it
+		// travels with an account refusal so the operator reads "limit reached". Its absence or a
+		// shape we do not know changes nothing. Unbilled: ScrapingBee refused before any target.
+		const message = refusalMessage(res.body);
+		const outcome = outcomeForProvider(res.status, message);
+		const account = outcome === 'QUOTA_EXHAUSTED' || outcome === 'AUTH_FAILED';
+		return {
+			...withoutMeta,
+			outcome,
+			...(account && message !== undefined ? { providerMessage: message } : {}),
+			...(account ? { cost: { microcredits: 0, source: 'estimated' as const } } : {}),
+		};
 	}
 
 	// Validated, never cast. The header this adapter's correctness rests on can be present

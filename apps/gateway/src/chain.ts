@@ -87,7 +87,10 @@ export const MAX_PROVIDER_MESSAGE = 300;
  */
 export function boundedProviderMessage(message: string, key?: string): string {
 	let visible = '';
-	for (const ch of message) {
+	// FORMAT CHARACTERS GO FIRST, removed rather than spaced: bidi overrides and zero-width
+	// characters render as nothing and can reorder what an operator reads. Header-sourced messages
+	// could not carry them (latin1); a message read from a UTF-8 body, like ScrapingBee's, can.
+	for (const ch of message.replace(/\p{Cf}/gu, '')) {
 		const code = ch.codePointAt(0) ?? 0;
 		visible += code < 0x20 || (code >= 0x7f && code <= 0x9f) ? ' ' : ch;
 	}
