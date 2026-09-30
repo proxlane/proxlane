@@ -306,10 +306,11 @@ jobs:
             --json number --jq '.[0].number // empty')"
           if [ "$REFUSED" = "true" ]; then
             if [ -z "$OPEN" ]; then
-              BODY="$(printf 'The %s account refused every request record:diff made, so its fixtures could not be checked for drift. Out of credit, suspended or capped: top up or reactivate it.\n\n```\n%s\n```\n\nRun: %s\n\nThis closes itself on the first run that compares a fixture again.' "$A" "$(grep -E 'account refused|NOT CHECKED' /tmp/diff.txt | head -5)" "$RUN_URL")"
+              BODY="$(printf 'The %s account refused every request record:diff made, so its fixtures could not be checked for drift. Out of credit, suspended, or throttled for the whole run: top up, reactivate, or wait.\n\n```\n%s\n```\n\nRun: %s\n\nThis closes itself on the first run that compares a fixture again.' "$A" "$(grep -E 'account refused|NOT CHECKED' /tmp/diff.txt | head -5)" "$RUN_URL")"
               gh issue create --title "provider account refusing: $A" --label "flag:account-refusing" --body "$BODY"
             fi
-          elif [ -n "$OPEN" ] && [ "$DIFF_OUTCOME" = "success" ]; then
+          # Only a run that recorded with NO refusal closes it: a partly refused run exits 0 too.
+          elif [ -n "$OPEN" ] && [ "$DIFF_OUTCOME" = "success" ] && ! grep -q 'the account refused' /tmp/diff.txt; then
             gh issue close "$OPEN" --comment "Compared again in $RUN_URL, so the account is serving."
           fi
       # An identical re-recording renews the fixture's date, but only once it is 30 days old, so
