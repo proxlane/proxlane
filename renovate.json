@@ -88,6 +88,11 @@
 			"matchPackageNames": ["esbuild"],
 			"matchFileNames": ["pnpm-workspace.yaml"],
 			"allowedVersions": "<0.26"
+		},
+		{
+			"description": "tsdown stays below 0.23. Built both on 2026-10-05: every .mjs byte-identical, but 0.23's declarations export two types the source never exports from @proxlane/detect (Compound, VerifiedRule), compared by the TypeScript checker's module exports. A type that ships becomes API we owe semver on. Lift this when 0.23.x stops widening the export set; rebuild and compare first.",
+			"matchPackageNames": ["tsdown"],
+			"allowedVersions": "<0.23"
 		}
 	],
 	"prConcurrentLimit": 2,
