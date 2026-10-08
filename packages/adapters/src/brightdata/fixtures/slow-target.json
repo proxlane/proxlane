@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "slow-target",
-	"recordedAt": "2026-09-24T21:13:19.737Z",
+	"recordedAt": "2026-10-08T06:41:59.004Z",
 	"adapter": "brightdata",
 	"target": {
 		"url": "https://httpbin.dev/delay/30",
@@ -20,24 +20,16 @@
 	"response": {
 		"status": 200,
 		"headers": {
-			"access-control-allow-credentials": "true",
-			"access-control-allow-origin": "*, *",
+			"access-control-allow-origin": "*",
 			"connection": "keep-alive",
-			"content-encoding": "gzip",
-			"content-security-policy": "frame-ancestors 'self' *.httpbin.dev; font-src 'self' *.httpbin.dev; default-src 'self' *.httpbin.dev; img-src 'self' *.httpbin.dev https://cdn.scrapfly.io; media-src 'self' *.httpbin.dev; object-src 'self' *.httpbin.dev https://web-scraping.dev; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.httpbin.dev; style-src 'self' 'unsafe-inline' *.httpbin.dev https://unpkg.com; frame-src 'self' *.httpbin.dev https://web-scraping.dev; worker-src 'self' *.httpbin.dev; connect-src 'self' *.httpbin.dev",
-			"content-type": "application/json; encoding=utf-8",
 			"date": "VOLATILE",
-			"permissions-policy": "fullscreen=(self), autoplay=*, geolocation=(), camera=(), ch-ua=*, ch-ua-arch=*, ch-ua-bitness=*, ch-ua-full-version=*, ch-ua-full-version-list=*, ch-ua-mobile=*, ch-ua-model=*, ch-ua-platform=*, ch-ua-platform-version=*, ch-ua-wow64=*, ch-ua-form-factors=*, ch-viewport-width=*, ch-viewport-height=*, ch-dpr=*, ch-width=*, ch-prefers-reduced-motion=*, ch-prefers-color-scheme=*, ch-downlink=*, ch-ect=*, ch-rtt=*, ch-save-data=*, ch-device-memory=*",
-			"referrer-policy": "strict-origin-when-cross-origin",
 			"server": "nginx",
-			"strict-transport-security": "max-age=31536000; includeSubDomains; preload",
 			"transfer-encoding": "chunked",
-			"vary": "Accept-Encoding",
-			"x-brd-status-code": "200",
-			"x-content-type-options": "nosniff",
-			"x-xss-protection": "1; mode=block"
+			"x-brd-error": "request timeout",
+			"x-brd-error-code": "req_timeout",
+			"x-brd-status-code": "502"
 		},
-		"bodyBase64": "ewogICJhcmdzIjoge30sCiAgImhlYWRlcnMiOiB7CiAgICAiQWNjZXB0IjogWwogICAgICAidGV4dC9odG1sLGFwcGxpY2F0aW9uL3hodG1sK3htbCxhcHBsaWNhdGlvbi94bWw7cT0wLjksaW1hZ2UvYXZpZixpbWFnZS93ZWJwLGltYWdlL2FwbmcsKi8qO3E9MC44LGFwcGxpY2F0aW9uL3NpZ25lZC1leGNoYW5nZTt2PWIzO3E9MC43IgogICAgXSwKICAgICJBY2NlcHQtRW5jb2RpbmciOiBbCiAgICAgICJnemlwLCBkZWZsYXRlLCBiciwgenN0ZCIKICAgIF0sCiAgICAiQWNjZXB0LUxhbmd1YWdlIjogWwogICAgICAiZW4tVVMsZW47cT0wLjkiCiAgICBdLAogICAgIkhvc3QiOiBbCiAgICAgICJodHRwYmluLmRldiIKICAgIF0sCiAgICAiUHJpb3JpdHkiOiBbCiAgICAgICJ1PTAsIGkiCiAgICBdLAogICAgIlNlYy1DaC1VYSI6IFsKICAgICAgIlwiTm90PUE/QnJhbmRcIjt2PVwiOTlcIiwgXCJHb29nbGUgQ2hyb21lXCI7dj1cIjE1MVwiLCBcIkNocm9taXVtXCI7dj1cIjE1MVwiIgogICAgXSwKICAgICJTZWMtQ2gtVWEtTW9iaWxlIjogWwogICAgICAiPzAiCiAgICBdLAogICAgIlNlYy1DaC1VYS1QbGF0Zm9ybSI6IFsKICAgICAgIlwiV2luZG93c1wiIgogICAgXSwKICAgICJTZWMtRmV0Y2gtRGVzdCI6IFsKICAgICAgImRvY3VtZW50IgogICAgXSwKICAgICJTZWMtRmV0Y2gtTW9kZSI6IFsKICAgICAgIm5hdmlnYXRlIgogICAgXSwKICAgICJTZWMtRmV0Y2gtU2l0ZSI6IFsKICAgICAgIm5vbmUiCiAgICBdLAogICAgIlNlYy1GZXRjaC1Vc2VyIjogWwogICAgICAiPzEiCiAgICBdLAogICAgIlVwZ3JhZGUtSW5zZWN1cmUtUmVxdWVzdHMiOiBbCiAgICAgICIxIgogICAgXSwKICAgICJVc2VyLUFnZW50IjogWwogICAgICAiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzE1MS4wLjAuMCBTYWZhcmkvNTM3LjM2IgogICAgXQogIH0sCiAgIm9yaWdpbiI6ICJyOTc1NzgwMDE1MWJiOTJlOWIxZDAyYmY2YzkxNTE2ZTgiLAogICJ1cmwiOiAiaHR0cHM6Ly9odHRwYmluLmRldi9kZWxheS8zMCIsCiAgIm1ldGhvZCI6ICJHRVQiLAogICJkYXRhIjogImRhdGE6YXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtO2Jhc2U2NCwiLAogICJmaWxlcyI6IG51bGwsCiAgImZvcm0iOiBudWxsLAogICJqc29uIjogbnVsbAp9Cg==",
-		"bodyBytes": 1204
+		"bodyBase64": "",
+		"bodyBytes": 0
 	}
 }
