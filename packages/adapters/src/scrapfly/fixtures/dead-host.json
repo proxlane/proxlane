@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "dead-host",
-	"recordedAt": "2026-08-27T08:01:37.833Z",
+	"recordedAt": "2026-10-08T06:41:23.445Z",
 	"adapter": "scrapfly",
 	"target": {
 		"url": "https://not-a-real-host.invalid/",
@@ -19,18 +19,20 @@
 		"status": 400,
 		"headers": {
 			"content-encoding": "gzip",
-			"content-length": "205",
+			"content-length": "206",
 			"content-type": "application/json; charset=utf-8",
 			"date": "VOLATILE",
+			"strict-transport-security": "max-age=31536000; includeSubDomains",
 			"vary": "Accept-Encoding",
+			"x-content-type-options": "nosniff",
 			"x-request-id": "VOLATILE",
 			"x-scrapfly-reject-code": "400",
 			"x-scrapfly-reject-description": "Invalid hostname, given https://not-a-real-host.invalid/",
-			"x-scrapfly-reject-id": "5c7d171f-5a24-4984-9a7f-046cbb90ae3e",
+			"x-scrapfly-reject-id": "VOLATILE",
 			"x-scrapfly-reject-reason": "invalid api param: url",
 			"x-scrapfly-reject-retryable": "false"
 		},
-		"bodyBase64": "eyJhcGlfcGFyYW0iOiJ1cmwiLCJjb2RlIjoiRVJSOjpTQ1JBUEU6OkNPTkZJR19FUlJPUiIsImVycm9yX2lkIjoiNWM3ZDE3MWYtNWEyNC00OTg0LTlhN2YtMDQ2Y2JiOTBhZTNlIiwiaHR0cF9jb2RlIjo0MDAsImxpbmtzIjpudWxsLCJtZXNzYWdlIjoiSW52YWxpZCBob3N0bmFtZSwgZ2l2ZW4gaHR0cHM6Ly9ub3QtYS1yZWFsLWhvc3QuaW52YWxpZC8iLCJyZWFzb24iOiJCYWQgUmVxdWVzdCJ9",
+		"bodyBase64": "eyJhcGlfcGFyYW0iOiJ1cmwiLCJjb2RlIjoiRVJSOjpTQ1JBUEU6OkNPTkZJR19FUlJPUiIsImVycm9yX2lkIjoiZmE4YzI5NGItZmM2NS00ZGYzLWI5MmUtMjI1ZDM0NzEwMWVmIiwiaHR0cF9jb2RlIjo0MDAsImxpbmtzIjpudWxsLCJtZXNzYWdlIjoiSW52YWxpZCBob3N0bmFtZSwgZ2l2ZW4gaHR0cHM6Ly9ub3QtYS1yZWFsLWhvc3QuaW52YWxpZC8iLCJyZWFzb24iOiJCYWQgUmVxdWVzdCJ9",
 		"bodyBytes": 225
 	}
 }
