@@ -142,7 +142,7 @@ jobs:
       # The scanner is a .ts file run through Node's native type stripping, so it needs the
       # pinned Node 24 — the runner's default is older and would fail to parse it. Pinning
       # via .nvmrc rather than a literal keeps it with the rest of the toolchain.
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         # `package-manager-cache: false` is REQUIRED here, not tidiness. v5 turned that flag on
         # by default; it reads `packageManager` from package.json and shells out to pnpm to
         # locate the store. This job never installs pnpm — it only needs Node to run a .ts
