@@ -32,7 +32,15 @@ overrides:
   # (GHSA-g89c-p67h-r497 and its sibling). It is a devDependency chain — wrangler and the
   # Cloudflare Vite plugin under apps/web — so nothing shipped carries it, but Dependabot
   # counts it against the public repo all the same. A patch pin, lifted the day miniflare moves.
-  sharp@<0.35.4: 0.35.5
+  #
+  # 2026-10-13: miniflare moved, to an exact 0.35.4, which the `<0.35.4` range no longer caught,
+  # and 0.35.4 carries GHSA-wq5f-xc86-pv6w (librsvg). The range now names the patched version, so
+  # the next exact pin below it is caught too.
+  sharp@<0.35.5: 0.35.5
+  # @tailwindcss/node resolves source-map-js 1.2.1, which GHSA-68fv-2mgg-jv7q names: an indexed
+  # source map can stall the event loop. Build-time only, under apps/web. postcss already resolves
+  # 1.2.2, so this dedupes rather than introducing a version.
+  source-map-js@<1.2.2: ^1.2.2
 
 catalog:
   # runtime — the gateway hot path
