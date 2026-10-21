@@ -72,6 +72,9 @@ catalogs:
     ioredis:
       specifier: ^6.0
       version: 6.0.0
+    markdown-it:
+      specifier: ^15.0
+      version: 15.0.3
     pg:
       specifier: ^8.23
       version: 8.23.1
@@ -100,7 +103,7 @@ catalogs:
       specifier: ^5.9
       version: 5.9.3
     vite:
-      specifier: ^8.2
+      specifier: ^8.3
       version: 8.3.2
     vitest:
       specifier: ^4.1
