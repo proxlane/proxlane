@@ -98,12 +98,12 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 
 | Thing | Kind | Package | Pin | Why this one |
 |---|---|---|---|---|
-| Node | runtime | `node` | `24.21.0` | 22 entered maintenance 2025-10-21. 24 is Active until 2026-10-20 and supported to 2028-04-30. Revisit 26 shortly after launch, not during it |
+| Node | runtime | `node` | `24.22.1` | 22 entered maintenance 2025-10-21. 24 is Active until 2026-10-20 and supported to 2028-04-30. Revisit 26 shortly after launch, not during it. **This pin is the gateway's HTTP client**: `transport.ts` calls the global `fetch`, which is Node's bundled undici. 24.22.1 bundles undici 7.30.1, the fix for an unhandled error on an excessive content length that crashed the process (high, 2026-10-26), on responses a target controls |
 | Package manager | runtime | `pnpm` | `10.34.6` | latest is 11.x. **Publishing depends on staying here.** pnpm 10 rewrites `workspace:*` and then delegates to the npm CLI, which is what performs the OIDC exchange; pnpm 11.0.x reimplemented publish natively and broke it, repaired in 11.0.7. See `operating.md` B8 before bumping. The exact string with its integrity hash lives in `packageManager` — captured at scaffold time, never drifts |
 | Postgres | image | `pgvector/pgvector` | `pg17` | matches the existing box, one fewer version in the house — and the image is already resident there, so reusing it costs no extra disk |
 | Cache | image | `valkey/valkey` | `8-alpine` | BSD and Linux Foundation, chosen deliberately rather than inherited from a tag. Note `redis:7` resolves to 7.4.x, which is RSALv2/SSPL |
 | Base UI | npm | `@base-ui/react` | `^1.6.0` | **not `@base-ui-components/react`**, which is abandoned at `1.0.0-rc.0` and is what a model reaches for by default. The catalog does not close this trap — the wrong package resolves cleanly at a literal — so assertion 11 bans the name outright |
-| HTTP | npm | `undici` | `^8.9` | the reason we are on Node; not Node's bundled copy, so tuning is reproducible |
+| HTTP | npm | `undici` | `^8.12.2` | the reason we are on Node; not Node's bundled copy, so tuning is reproducible. **No package imports it yet**: the gateway runs on Node's bundled copy, which the Node row floors. The floor here and the overrides cover the copies dev tooling pulls in |
 | Valkey client | npm | `ioredis` | `^6.0` | speaks to Valkey unchanged |
 | Gateway | npm | `hono` | `^4.12` | |
 | Gateway server | npm | `@hono/node-server` | `^2.1` | |
@@ -137,7 +137,7 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Node types | npm | `@types/node` | `^24` | **latest is 26.x** — major-matched to the Node pin, or you silently type Node 26 APIs onto a Node 24 runtime |
 | Task runner | npm | `turbo` | `^2.10` | |
 | Linter | npm | `@biomejs/biome` | `^2.5` | one config at root, CI fails on diff |
-| Test runner | npm | `vitest` | `^4.1` | `projects` is the v3+ API; `workspace` is gone |
+| Test runner | npm | `vitest` | `^4.1.12` | `projects` is the v3+ API; `workspace` is gone. The floor fixes two `@vitest/mocker` advisories (2026-10-25/26) |
 | Package build | npm | `tsdown` | `^0.22` | pre-1.0, pin tight |
 | Containers | npm | `testcontainers` | `^12.1` | versions must match the compose file — assertion 8 |
 | Versioning | npm | `@changesets/cli` | `^2.31` | |
