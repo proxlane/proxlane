@@ -1,5 +1,11 @@
 # @proxlane/adapters
 
+## 0.13.2
+
+### Patch Changes
+
+- [#422](https://github.com/proxlane/proxlane/pull/422) [`a8c280c`](https://github.com/proxlane/proxlane/commit/a8c280c3cf1c305f77fcaf34dd775245ceb09742) Thanks [@scarsam](https://github.com/scarsam)! - Requires zod 4.6.6 or later, which fixes GHSA-mrhx-c7xc-m3w5.
+
 ## 0.13.1
 
 ### Patch Changes

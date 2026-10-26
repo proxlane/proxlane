@@ -1,5 +1,14 @@
 # @proxlane/gateway
 
+## 0.21.2
+
+### Patch Changes
+
+- [#423](https://github.com/proxlane/proxlane/pull/423) [`7caa40f`](https://github.com/proxlane/proxlane/commit/7caa40f452a904fe449ea6d3a7b59e9183d245f6) Thanks [@scarsam](https://github.com/scarsam)! - The image runs on Node 24.22.1, whose bundled undici fixes a crash on a response with an excessive content length.
+
+- Updated dependencies [[`a8c280c`](https://github.com/proxlane/proxlane/commit/a8c280c3cf1c305f77fcaf34dd775245ceb09742)]:
+  - @proxlane/adapters@0.13.2
+
 ## 0.21.1
 
 ### Patch Changes
