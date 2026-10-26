@@ -9,11 +9,14 @@
 // raw-text elements are skipped with indexOf, never a lazy regex that rescans an unclosed one.
 
 /** Elements whose contents are code or data, not reading text, and how each one closes. */
-const SKIPPED = new Map(
-	['script', 'style', 'noscript', 'template', 'svg', 'head'].map(
+const SKIPPED = new Map<string, RegExp>([
+	...['script', 'style', 'noscript', 'template', 'svg'].map(
 		(t) => [t, new RegExp(`</${t}(?=[\\s/>])`, 'gi')] as const,
 	),
-);
+	// `</head>` is optional and minified pages leave it out: skipping to it alone dropped the whole
+	// page and still reported success. The body opening ends the head as well.
+	['head', /<\/head(?=[\s/>])|<body(?=[\s/>])/gi],
+]);
 
 /** Elements that start a new line when they open or close. */
 const BLOCK =
@@ -38,7 +41,9 @@ function decodeEntities(s: string): string {
 
 /** The document's `<title>`, if it has one. */
 export function titleOf(html: string): string | undefined {
-	const m = /<title\b[^>]*>([^<]{0,500})<\/title\s*>/i.exec(html);
+	// Bounded: `[^>]*` also matches `<`, so `<title` repeated with no `>` rescanned to the end of the
+	// page from every start, quadratic on a page a target controls.
+	const m = /<title\b[^<>]{0,256}>([^<]{0,500})<\/title\s*>/i.exec(html);
 	const t = m?.[1] === undefined ? '' : decodeEntities(m[1]).replace(/\s+/g, ' ').trim();
 	return t === '' ? undefined : t;
 }
@@ -57,6 +62,13 @@ export function htmlToText(html: string): string {
 		if (html.startsWith('<!--', lt)) {
 			const end = html.indexOf('-->', lt + 2);
 			i = end === -1 ? html.length : end + 3;
+			continue;
+		}
+		// A `<` is markup only when a tag could start there. `3 < 5` in prose or code is text, and
+		// jumping to the next `>` from it swallowed everything up to the next tag.
+		if (!/[a-zA-Z/!?]/.test(html[lt + 1] ?? '')) {
+			out += '<';
+			i = lt + 1;
 			continue;
 		}
 		const gt = html.indexOf('>', lt + 1);

@@ -30,14 +30,26 @@ describe('htmlToText', () => {
 		expect(htmlToText('<!--><p>after</p>')).toBe('after');
 	});
 
+	it('keeps the page when </head> is missing, as minified pages leave it', () => {
+		expect(htmlToText('<html><head><title>T</title><body><p>content</p></body>')).toBe(
+			'content',
+		);
+	});
+
+	it('keeps a < that does not start a tag', () => {
+		expect(htmlToText('<p>3 < 5 is true</p><p>more</p>')).toBe('3 < 5 is true\n\nmore');
+	});
+
 	it('stays linear on hostile input', () => {
 		for (const html of [
+			'<title'.repeat(400_000),
 			'<script>'.repeat(200_000),
 			'<!--'.repeat(200_000),
 			`<p ${'a'.repeat(1_000_000)}`,
 		]) {
 			const t0 = performance.now();
 			htmlToText(html);
+			titleOf(html);
 			expect(performance.now() - t0).toBeLessThan(1_000);
 		}
 	});
