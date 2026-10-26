@@ -712,7 +712,7 @@ which is exactly what an agent needs.
 Claude Code, Claude Desktop, Cursor and any other MCP client can use it.
 
 ```bash
-claude mcp add proxlane --env PROXLANE_URL=http://localhost:8787 --env PROXLANE_API_KEY=your-gateway-key -- npx -y @proxlane/sdk
+claude mcp add proxlane --env PROXLANE_URL=http://localhost:8787 --env PROXLANE_API_KEY=your-gateway-key -- npx -y @proxlane/sdk@0.1
 ```
 
 The agent gets the page as readable text, or a failure marked as an error:
