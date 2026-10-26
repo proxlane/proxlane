@@ -1,20 +1,74 @@
 # @proxlane/sdk
 
-**This is a placeholder. There is no SDK yet.** The published version exports one string constant
-and nothing else — it exists to hold the name.
+An MCP server that gives an AI agent a web-fetch tool that fails honestly.
 
-You do not need one. [Proxlane](https://proxlane.dev) is one GET:
+A plain fetch hands an agent a 200 with a captcha in the body, and the agent summarises the
+captcha. This tool fetches through your own [Proxlane](https://proxlane.dev) gateway, which fails
+over between scraping APIs and checks every response for block pages. The agent gets the page as
+readable text, or a failure that says what happened and whether retrying is worth it. A block page
+is never returned as content.
+
+## Set up
+
+You need a running gateway with at least one provider key. That is one container:
+[proxlane.dev/docs/quickstart](https://proxlane.dev/docs/quickstart).
+
+Then add the server to your MCP client. Claude Code:
 
 ```bash
-curl "http://localhost:8787/v1?api_key=$PROXLANE_API_KEY&url=https://example.com"
+claude mcp add proxlane --env PROXLANE_URL=http://localhost:8787 --env PROXLANE_API_KEY=your-gateway-key -- npx -y @proxlane/sdk
 ```
 
-The response headers tell you what happened: `X-Outcome`, `X-Provider-Used`, `X-Chain`,
-`X-Detect-Rule`, `X-Cost-Estimate`, `X-Cost-Source`. The full reference is at
-**[proxlane.dev/docs/api](https://proxlane.dev/docs/api)**, and there is an OpenAPI spec at
-[proxlane.dev/openapi.json](https://proxlane.dev/openapi.json) if you would rather generate a
-client than write one.
+Claude Desktop, Cursor and other clients take the same three things in their JSON config:
 
-If and when an SDK is worth having, it will be announced in the
-[repository](https://github.com/proxlane/proxlane). Until then this package is not something to
-install.
+```json
+{
+  "mcpServers": {
+    "proxlane": {
+      "command": "npx",
+      "args": ["-y", "@proxlane/sdk"],
+      "env": {
+        "PROXLANE_URL": "http://localhost:8787",
+        "PROXLANE_API_KEY": "your-gateway-key"
+      }
+    }
+  }
+}
+```
+
+`PROXLANE_API_KEY` is the gateway's own key, not a provider's. Provider keys stay on the gateway.
+
+## The tool
+
+`fetch_page`
+
+| Argument | | |
+|---|---|---|
+| `url` | required | http or https |
+| `render` | optional | run JavaScript first; costs several times more |
+| `wait_for` | optional | a CSS selector to wait for; implies `render`, and the page is a failure if it never appears |
+| `country` | optional | two-letter code, e.g. `us` |
+| `format` | `text` (default) or `html` | |
+| `max_chars` | default 20000 | longer results are truncated, and say so |
+
+On failure the result is marked as an error and reads:
+
+```json
+{ "ok": false, "outcome": "SOFT_BLOCK", "class": "blocked", "retryable": true, "chain": "scraperapi:SOFT_BLOCK>brightdata:SOFT_BLOCK" }
+```
+
+`class` is one of six that never grows, and `retryable` follows from it: the site's own answer
+(`target`) and a bad request (`client`) are not worth retrying; a block or a provider problem may
+be, later. The gateway has already tried every provider it could, so an immediate retry is not.
+
+## In your own process
+
+```ts
+import { createServer } from '@proxlane/sdk';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+
+await createServer({ gatewayUrl: 'http://localhost:8787', apiKey: process.env.PROXLANE_API_KEY! })
+	.connect(new StdioServerTransport());
+```
+
+Apache-2.0.
