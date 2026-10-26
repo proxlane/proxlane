@@ -1,0 +1,69 @@
+name: mcp-registry
+
+# Lists `@proxlane/sdk` in the official MCP registry as `io.github.proxlane/proxlane`.
+#
+# A SEPARATE WORKFLOW, NOT A STEP IN `release.yml`, for three reasons a review found in the first
+# draft, which put it there:
+#   - npm's trusted publisher is bound to `release.yml`. An OIDC token minted here carries this
+#     file's `job_workflow_ref`, so `mcp-publisher`, a downloaded binary, cannot publish to npm
+#     with it. Inside the release job it could have.
+#   - A failed listing there failed the release job, which skipped the gateway image.
+#   - A re-run there published nothing to npm, so the listing step never ran again.
+# The script checks the registry first, so every run is safe and any run repairs a gap.
+
+on:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: mcp-registry
+  cancel-in-progress: false
+
+jobs:
+  list:
+    # A release on `main` from a push, not a dispatched rehearsal on some branch.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # the MCP registry's github-oidc login; nothing else here uses a credential
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The commit the release ran on, so the version read is the one it published.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with: { node-version-file: '.nvmrc', package-manager-cache: false }
+      # Node builtins only, so no install: nothing from the lockfile runs in a job with an
+      # id-token.
+      - name: server.json, and whether this version still needs listing
+        id: mcp
+        run: node scripts/mcp-server-json.ts "$RUNNER_TEMP/server.json"
+      - name: publish to the MCP registry
+        if: steps.mcp.outputs.publish == 'true'
+        working-directory: ${{ runner.temp }}
+        env:
+          # Pinned by digest, not by tag: a release asset can be replaced under the same tag.
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+          LISTING: ${{ steps.mcp.outputs.listing }}
+        run: |
+          curl -fsSL -o mcp-publisher.tar.gz "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+          ./mcp-publisher login github-oidc
+          for attempt in 1 2 3; do
+            ./mcp-publisher publish && exit 0
+            # A publish that landed but lost its response fails the next attempt as a duplicate.
+            curl -sf -o /dev/null "$LISTING" && { echo "listed after all"; exit 0; }
+            echo "publish attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          exit 1

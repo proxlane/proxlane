@@ -158,7 +158,8 @@ export function createServer(config: ServerConfig): McpServer {
 					outcome: 'UNAUTHORIZED',
 					class: 'client',
 					retryable: false,
-					reason: 'the gateway refused the key; set PROXLANE_API_KEY to its PROXLANE_API_KEY',
+					reason:
+						"the gateway refused the key; set PROXLANE_API_KEY to the gateway's own PROXLANE_API_KEY",
 				});
 			}
 

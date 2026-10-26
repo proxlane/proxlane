@@ -236,7 +236,10 @@ jobs:
       # is a posture regression to investigate, not a broken release to unwind.
       - name: verify the publish used trusted publishing
         if: steps.changesets.outputs.published == 'true'
-        run: node scripts/verify-trusted-publish.ts '${{ steps.changesets.outputs.publishedPackages }}'
+        # Through env, never pasted into the command: it is JSON a shell would parse.
+        env:
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+        run: node scripts/verify-trusted-publish.ts "$PUBLISHED"
 
       # THE GATEWAY'S OWN VERSION, not the CLI's.
       #

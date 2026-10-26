@@ -398,6 +398,14 @@ so nobody has to ask.
   `release.yml` in `proxlane/proxlane` with publish permission. Inspect with
   `npm trust list <pkg>`; note `npm trust` needs npm >= 11.10, so use the Node 24 pin's npm
   rather than whatever the shell resolves.
+- **`@proxlane/sdk` is listed in the official MCP registry** as `io.github.proxlane/proxlane`,
+  by `mcp-registry.yml` after every successful release. `server.json` is generated from the
+  SDK's manifest by `scripts/mcp-server-json.ts` and never committed, so its version cannot
+  drift. A separate workflow, not a release step: npm trusts only `release.yml`, so the OIDC
+  token handed to the downloaded `mcp-publisher` cannot publish packages, and a failed listing
+  cannot hold back the gateway image. Each run checks the registry first, so re-running it, or
+  dispatching it by hand, repairs a missing listing. Interactive `mcp-publisher login github`
+  would not work: it only ever grants a personal namespace, never the org's.
 - **The binding is to the workflow FILENAME.** Renaming `release.yml` breaks it silently, and
   publishing falls back to the token rather than failing. `repo:check` assertion 22 keeps the
   file existing under that name because `CLAUDE.md` owns the literal path.
