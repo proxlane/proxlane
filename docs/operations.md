@@ -54,9 +54,10 @@ one.
 - **Per-org concurrency limits.** Valkey token bucket keyed by org. Prevents one user
   saturating the pool. Also mirrors what providers do to us: their 429s are a
   concurrency cap, not a rate cap, and we must respect that per provider key.
-- **undici Agent tuning.** `connections` per origin, `keepAliveTimeout`,
-  `headersTimeout` and `bodyTimeout` set explicitly per adapter. Node defaults will
-  kill ScraperAPI's long retries.
+- **undici Agent tuning, not built.** `connections` per origin, `keepAliveTimeout`,
+  `headersTimeout` and `bodyTimeout` per adapter. This used to say Node's defaults would
+  kill ScraperAPI's long retries; they would not, since they are 300s and every hop's
+  deadline is shorter. Build it when a measurement shows the pool or keep-alive matters.
 - **Backpressure.** When the in-flight count exceeds a ceiling, return 429 with
   `Retry-After` rather than queueing. A proxy that queues silently becomes a
   latency black hole.

@@ -195,8 +195,7 @@ autoscaling fleet is that case whether or not you set the variable. Treat the re
 design telling you the truth.
 
 **3. Scale to zero.** Idle instances are reclaimed, so the first request after a quiet period
-pays a cold start and rebuilds undici's per-origin pools — the pools that are the reason this
-project runs on Node at all. Warm instances reuse them; a fleet that is constantly cycling does
+pays a cold start and reopens its connections to every provider. Warm instances reuse them; a fleet that is constantly cycling does
 not. If your traffic is bursty and latency-sensitive, a small always-on machine still wins.
 
 Also worth knowing: **1,024 file descriptors are shared across concurrent executions** on an
