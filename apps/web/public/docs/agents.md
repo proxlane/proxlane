@@ -8,6 +8,27 @@ Agents are bad at ambiguous failure. Give one a scraper that returns 200 with a 
 page and it will summarise the challenge page. Proxlane exists to make the failure legible,
 which is exactly what an agent needs.
 
+## As an MCP server
+
+`@proxlane/sdk` is an MCP server with one tool, `fetch_page`, that fetches through your gateway.
+Claude Code, Claude Desktop, Cursor and any other MCP client can use it.
+
+```bash
+claude mcp add proxlane --env PROXLANE_URL=http://localhost:8787 --env PROXLANE_API_KEY=your-gateway-key -- npx -y @proxlane/sdk@0.1
+```
+
+The agent gets the page as readable text, or a failure marked as an error:
+
+```json
+{ "ok": false, "outcome": "SOFT_BLOCK", "class": "blocked", "retryable": true }
+```
+
+A block page is reported as a failure, never handed over as content, and `retryable` follows
+the rule below. Other clients and the full argument list:
+[the package README](https://github.com/proxlane/proxlane/tree/main/packages/sdk#readme).
+
+The rest of this page is for building the same thing yourself over HTTP.
+
 ## The one rule
 
 Branch on `X-Outcome-Class`, and give the agent a different instruction per class.
@@ -90,7 +111,5 @@ https://proxlane.dev/llms.txt
 
 ## What does not exist yet
 
-There is **no MCP server** and no published SDK. `@proxlane/sdk` is a placeholder.
-
-Use the HTTP endpoint. It is a single GET, it needs no client library, and the headers are
-the interface.
+There is no client library beyond the MCP server. Over HTTP, use the endpoint directly: it is a
+single GET, and the headers are the interface.
