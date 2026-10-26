@@ -1115,7 +1115,7 @@ while spending real credits, which is the failure this whole document is arrange
 | Tests | Vitest `projects` (the v3+ API; `workspace` is gone) | unit/contract/e2e/live, each selected by filename with `passWithNoTests: false`; the live project is invoked only by `pnpm test:live` |
 | Test infra | Testcontainers | versions pinned in `CLAUDE.md`, matching the compose file |
 | Runtime | Node LTS | major pinned in `CLAUDE.md`; see the Node vs Bun decision in `plan.md` |
-| HTTP | undici via `HttpTransport` | per-adapter `headersTimeout` / `bodyTimeout` / pool size; the reason we are on Node. Depend on the **standalone `undici` package**, not Node's bundled copy, so the tuning is reproducible across runtimes |
+| HTTP | the global `fetch` (Node's bundled undici) via `HttpTransport` | defaults, with a per-hop deadline. Per-adapter `headersTimeout` / `bodyTimeout` / pool size are the reason we are on Node and are **not built**; `plan.md` section 3 says when they will be |
 | Build | tsdown (packages), Vite (web) | ESM only |
 | Monorepo | pnpm + turborepo | remote cache later |
 | DB | Drizzle + drizzle-kit | migrations in repo, `db push` forbidden in CI |

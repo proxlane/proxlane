@@ -50,8 +50,9 @@ reasoning survives, not so it gets loaded.
 
 ## Decisions already made, do not relitigate without a reason
 
-- **Runtime: Node, not Bun.** The gateway needs undici's per-origin pools and
-  explicit `headersTimeout`/`bodyTimeout` per provider. See `plan.md` section 3.
+- **Runtime: Node, not Bun.** A proxy needs outbound HTTP control that undici exposes and
+  Bun's fetch does not. **None of it is configured yet**: the transport calls the global
+  `fetch` on its defaults, and each hop is bounded by its own deadline. See `plan.md` section 3.
 - **Web: TanStack Start**, not Next.js. Hono for the gateway.
 - **UI: Base UI wrapped once in `packages/ui`.** Never shadcn defaults, never any
   library's default theme. Tailwind v4 tokens hand-authored.
@@ -103,7 +104,6 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Postgres | image | `pgvector/pgvector` | `pg17` | matches the existing box, one fewer version in the house — and the image is already resident there, so reusing it costs no extra disk |
 | Cache | image | `valkey/valkey` | `8-alpine` | BSD and Linux Foundation, chosen deliberately rather than inherited from a tag. Note `redis:7` resolves to 7.4.x, which is RSALv2/SSPL |
 | Base UI | npm | `@base-ui/react` | `^1.6.0` | **not `@base-ui-components/react`**, which is abandoned at `1.0.0-rc.0` and is what a model reaches for by default. The catalog does not close this trap — the wrong package resolves cleanly at a literal — so assertion 11 bans the name outright |
-| HTTP | npm | `undici` | `^8.12.2` | the reason we are on Node; not Node's bundled copy, so tuning is reproducible. **No package imports it yet**: the gateway runs on Node's bundled copy, which the Node row floors. The floor here and the overrides cover the copies dev tooling pulls in |
 | Valkey client | npm | `ioredis` | `^6.0` | speaks to Valkey unchanged |
 | Gateway | npm | `hono` | `^4.12` | |
 | Gateway server | npm | `@hono/node-server` | `^2.1` | |

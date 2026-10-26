@@ -164,6 +164,15 @@ running arbitrary hardware get a more predictable runtime; and long-lived connec
 with large buffered bodies are exactly the workload where the mature runtime is worth
 more than the fast one.
 
+**What is built, as of 2026-10-26: none of those knobs.** `transport.ts` calls the global
+`fetch`, which is Node's bundled undici on its defaults: a pool per origin, 300s header and body
+timeouts, 10s to connect. Each hop is bounded by its own `AbortController` deadline, which is
+always shorter, so explicit `headersTimeout` and `bodyTimeout` would change nothing observable.
+The tuning gets built when a measurement says the pool or keep-alive matters, and then as a
+dependency on the standalone `undici` package with its own `Agent`. Until then that package is
+not a dependency: a second copy is a second thing to patch, and the 2026-10-26 advisory needed
+only a Node bump. The decision stands because the knobs exist here and not in Bun.
+
 Do not split runtimes. Bun as a package manager or test runner alongside Node in
 production adds a second set of resolution and compatibility edge cases for no gain.
 One runtime, everywhere, including CI and the Docker images.

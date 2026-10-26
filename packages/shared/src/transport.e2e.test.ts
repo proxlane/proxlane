@@ -6,9 +6,8 @@
 // no automated coverage at all. Before this, `createFetchTransport` was referenced by exactly
 // three files: itself, `index.ts`, and the k6 harness. None of them run on a pull request.
 //
-// That matters more here than in most projects. `plan.md` section 3's stated reason for
-// choosing Node over Bun is undici's per-origin pools with explicit `headersTimeout` and
-// `bodyTimeout`, and the transport's own comment records a bug found by hand: a trickling
+// That matters more here than in most projects. A proxy lives on its outbound HTTP, and
+// the transport's own comment records a bug found by hand: a trickling
 // body ran 12,730 ms against a 2,000 ms budget, because `fetch()` resolves when HEADERS
 // arrive and the timer had been cleared there. Nothing would have caught its return.
 //

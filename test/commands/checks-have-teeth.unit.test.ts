@@ -262,10 +262,10 @@ describe('repo:check goes red when it should', () => {
 	});
 
 	it('catches a toolchain pin that disagrees with the catalog', () => {
-		// Anchored on the line, not its range: a security floor moved `^8.9` and this went blind.
-		mutate('pnpm-workspace.yaml', (t) => t.replace(/^ {2}undici: .*$/m, '  undici: ^7.0'));
+		// Anchored on the line, not its range: a security floor moved undici's and this went blind.
+		mutate('pnpm-workspace.yaml', (t) => t.replace(/^ {2}hono: .*$/m, '  hono: ^3.0'));
 		expectRedBecause(
-			/^ {2}\[6\] undici: table says \^8[\d.]*, catalog says \^7\.0$/m,
+			/^ {2}\[6\] hono: table says \^4[\d.]*, catalog says \^3\.0$/m,
 			'catalog disagrees with the table',
 		);
 	});
