@@ -1,5 +1,12 @@
 # @proxlane/web
 
+## 0.11.9
+
+### Patch Changes
+
+- Updated dependencies [[`a8c280c`](https://github.com/proxlane/proxlane/commit/a8c280c3cf1c305f77fcaf34dd775245ceb09742)]:
+  - @proxlane/adapters@0.13.2
+
 ## 0.11.8
 
 ### Patch Changes
