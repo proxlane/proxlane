@@ -56,10 +56,11 @@
 			"automerge": true
 		},
 		{
-			"description": "GitHub Actions are never automerged, and are pinned to a commit SHA. release.yml runs with contents:write, packages:write and id-token:write and mints npm provenance, so a compromised third-party action executes inside the job that signs our releases. The repo already checksums the one gitleaks tarball it downloads, with the comment that piping an unverified download into a shell is a poor look in the job whose purpose is supply-chain hygiene — the same standard now applies to the code around the publish. repo:check assertion 47 holds it.",
+			"description": "GitHub Actions are never automerged, and are pinned to a commit SHA. release.yml runs with contents:write, packages:write and id-token:write and mints npm provenance, so a compromised third-party action executes inside the job that signs our releases. The repo already checksums the one gitleaks tarball it downloads, with the comment that piping an unverified download into a shell is a poor look in the job whose purpose is supply-chain hygiene — the same standard now applies to the code around the publish. repo:check assertion 47 holds it. `commitMessageTopic` drops the owner (`actions/`) from the subject: a digest bump names a 7-character SHA as well, and `chore(deps): bump actions/create-github-app-token digest to 64ab729` came to 67 characters, two over the 65 the title lint allows, on 2026-10-26 (#410). Without the owner it is 59.",
 			"matchManagers": ["github-actions"],
 			"automerge": false,
-			"pinDigests": true
+			"pinDigests": true,
+			"commitMessageTopic": "{{{replace '^[^/]+/' '' depName}}}"
 		},
 		{
 			"description": "typescript 7.x is the Go rewrite, not a 5.x successor. See the Why column in CLAUDE.md.",
