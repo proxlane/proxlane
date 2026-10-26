@@ -1,5 +1,11 @@
 # @proxlane/sdk
 
+## 0.1.1
+
+### Patch Changes
+
+- [#427](https://github.com/proxlane/proxlane/pull/427) [`58d4d6c`](https://github.com/proxlane/proxlane/commit/58d4d6cf0981c6edb85e77a1f5b19a0c82a5ae74) Thanks [@scarsam](https://github.com/scarsam)! - The MCP server is listed in the official MCP registry as `io.github.proxlane/proxlane`, and a refused key now says which key to set.
+
 ## 0.1.0
 
 ### Minor Changes
