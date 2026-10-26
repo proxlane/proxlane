@@ -111,7 +111,7 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Migrations | npm | `drizzle-kit` | `^0.31` | pairs with drizzle-orm, also pre-1.0 — pin both tight |
 | Postgres driver | npm | `pg` | `^8.23` | node-postgres, not `postgres.js`. Transaction-mode pgbouncer is the deployment target (`operations.md` §3) and prepared statements need disabling there; `pg` makes that a pool option rather than a driver-wide flag |
 | Postgres driver types | npm | `@types/pg` | `^8.21` | major-matched to `pg` |
-| Validation | npm | `zod` | `^4.4` | |
+| Validation | npm | `zod` | `^4.6.6` | the floor is the fix for GHSA-mrhx-c7xc-m3w5 (memory exhaustion validating oversized constrained collections); zod runs in adapter parsing and the MCP server's inputs. provenance of 4.6.6 and 4.6.7 checked after zod's 2026-09-21 credential incident: both built by their own release workflow from commits on their `main` |
 | MCP server | npm | `@modelcontextprotocol/sdk` | `^1.32` | the official TypeScript SDK, for the `fetch_page` MCP server in `@proxlane/sdk`. Takes zod 3.25 or 4 as a peer, so it shares the `zod` row above rather than pulling a second copy |
 | Logging | npm | `pino` | `^10.3` | |
 | Key encryption | npm | `libsodium-wrappers` | `^0.8` | sealed provider keys, `operations.md` section 5 |
