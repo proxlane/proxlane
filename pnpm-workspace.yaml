@@ -93,3 +93,4 @@ catalog:
   vite: ^8.2
   vitest: ^4.1
   zod: ^4.4
+  '@modelcontextprotocol/sdk': ^1.32
