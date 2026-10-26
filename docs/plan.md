@@ -717,7 +717,7 @@ of it; those cannot both hold.
 
 **DECIDED 2026-10-26, by the owner: the channel is in, as top-of-funnel for adoption, not revenue.**
 The goal is people adopting Proxlane themselves; nothing else had moved that. The MCP server ships
-in `@proxlane/sdk` against the user's own self-hosted gateway, so it costs nothing per call and
+in `@proxlane/sdk` against the user's own self-hosted gateway, so a call costs the project nothing and
 needs no spend ceiling. The keyless trial stays out, gated by section 18 as before: an agent
 still needs a gateway, which is the honest version of "zero signup".
 
