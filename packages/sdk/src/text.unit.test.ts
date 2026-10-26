@@ -36,6 +36,10 @@ describe('htmlToText', () => {
 		);
 	});
 
+	it('keeps the content of a minimal page whose head never ends', () => {
+		expect(htmlToText('<head><title>T</title><script>x</script><p>Hello')).toBe('T\nHello');
+	});
+
 	it('keeps a < that does not start a tag', () => {
 		expect(htmlToText('<p>3 < 5 is true</p><p>more</p>')).toBe('3 < 5 is true\n\nmore');
 	});

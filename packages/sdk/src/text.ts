@@ -87,6 +87,13 @@ export function htmlToText(html: string): string {
 			// in the copy would not point into the original. detect learned that in review (#387).
 			skip.lastIndex = gt + 1;
 			const close = skip.exec(html);
+			if (close === null && name === 'head') {
+				// A head with neither `</head>` nor `<body>` is valid minimal HTML. Skipping it to the
+				// end of the page would drop the content and still call the fetch a success, so read
+				// on instead; its scripts and styles are skipped one by one regardless.
+				i = gt + 1;
+				continue;
+			}
 			const after = close === null ? -1 : html.indexOf('>', close.index);
 			i = after === -1 ? html.length : after + 1;
 			continue;
