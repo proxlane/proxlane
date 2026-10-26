@@ -416,6 +416,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.32.2(zod@4.6.5)
+      '@proxlane/shared':
+        specifier: workspace:*
+        version: link:../shared
       zod:
         specifier: 'catalog:'
         version: 4.6.5

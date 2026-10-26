@@ -29,16 +29,20 @@
 			"default": "./dist/index.mjs"
 		}
 	},
+	"bin": {
+		"proxlane-mcp": "./dist/bin.mjs"
+	},
 	"files": [
 		"dist"
 	],
 	"scripts": {
-		"build": "tsdown src/index.ts --format esm --dts",
+		"build": "tsdown src/index.ts src/bin.ts --format esm --dts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "catalog:",
+		"@proxlane/shared": "workspace:*",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
