@@ -112,6 +112,7 @@ waiting to happen, which is the whole reason this table is machine-parsed.
 | Postgres driver | npm | `pg` | `^8.23` | node-postgres, not `postgres.js`. Transaction-mode pgbouncer is the deployment target (`operations.md` §3) and prepared statements need disabling there; `pg` makes that a pool option rather than a driver-wide flag |
 | Postgres driver types | npm | `@types/pg` | `^8.21` | major-matched to `pg` |
 | Validation | npm | `zod` | `^4.4` | |
+| MCP server | npm | `@modelcontextprotocol/sdk` | `^1.32` | the official TypeScript SDK, for the `fetch_page` MCP server in `@proxlane/sdk`. Takes zod 3.25 or 4 as a peer, so it shares the `zod` row above rather than pulling a second copy |
 | Logging | npm | `pino` | `^10.3` | |
 | Key encryption | npm | `libsodium-wrappers` | `^0.8` | sealed provider keys, `operations.md` section 5 |
 | Auth | npm | `better-auth` | `^1.6` | generates its own Drizzle schema — sequence it *before* the hand-written one |

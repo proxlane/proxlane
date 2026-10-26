@@ -1,12 +1,16 @@
 {
 	"name": "@proxlane/sdk",
 	"version": "0.0.2",
-	"description": "Placeholder. Proxlane has no SDK yet — call the HTTP endpoint directly, it is one GET.",
+	"description": "An MCP server that gives an AI agent a web-fetch tool through your self-hosted Proxlane gateway: failover across scraping APIs, and a failed fetch is reported as a failure, never handed over as content.",
 	"keywords": [
+		"mcp",
+		"model-context-protocol",
+		"mcp-server",
+		"ai-agents",
 		"web-scraping",
 		"scraping-api",
-		"proxlane",
-		"placeholder"
+		"failover",
+		"proxlane"
 	],
 	"homepage": "https://proxlane.dev",
 	"repository": {
@@ -32,6 +36,10 @@
 		"build": "tsdown src/index.ts --format esm --dts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"clean": "rm -rf dist"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "catalog:",
+		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@proxlane/tsconfig": "workspace:*",

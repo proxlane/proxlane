@@ -1,2 +1,3 @@
-// @proxlane/sdk — scaffold only. See CLAUDE.md for the owner and docs/ for the spec.
+// @proxlane/sdk: the MCP server that gives an agent a fetch tool through a Proxlane gateway.
 export const PACKAGE_NAME = '@proxlane/sdk';
+export { htmlToText, titleOf } from './text.js';
