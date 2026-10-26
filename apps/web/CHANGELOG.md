@@ -1,5 +1,11 @@
 # @proxlane/web
 
+## 0.11.10
+
+### Patch Changes
+
+- [#425](https://github.com/proxlane/proxlane/pull/425) [`12c718e`](https://github.com/proxlane/proxlane/commit/12c718e75af766cafa4372a2fe4923bd358f2922) Thanks [@scarsam](https://github.com/scarsam)! - The agents guide documents the MCP server.
+
 ## 0.11.9
 
 ### Patch Changes
