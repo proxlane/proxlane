@@ -41,6 +41,9 @@ overrides:
   # source map can stall the event loop. Build-time only, under apps/web. postcss already resolves
   # 1.2.2, so this dedupes rather than introducing a version.
   source-map-js@<1.2.2: ^1.2.2
+  # GHSA-mrhx-c7xc-m3w5, fixed in 4.6.6: TanStack's router and start plugins kept resolving 4.6.5
+  # after the catalog moved. The catalog floor covers our own packages; this covers theirs.
+  zod@<4.6.6: ^4.6.6
 
 catalog:
   # runtime — the gateway hot path
@@ -92,5 +95,5 @@ catalog:
   undici: ^8.9
   vite: ^8.2
   vitest: ^4.1
-  zod: ^4.4
+  zod: ^4.6.6
   '@modelcontextprotocol/sdk': ^1.32
