@@ -16,7 +16,7 @@ You need a running gateway with at least one provider key. That is one container
 Then add the server to your MCP client. Claude Code:
 
 ```bash
-claude mcp add proxlane --env PROXLANE_URL=http://localhost:8787 --env PROXLANE_API_KEY=your-gateway-key -- npx -y @proxlane/sdk
+claude mcp add proxlane --env PROXLANE_URL=http://localhost:8787 --env PROXLANE_API_KEY=your-gateway-key -- npx -y @proxlane/sdk@0.1
 ```
 
 Claude Desktop, Cursor and other clients take the same three things in their JSON config:
@@ -26,7 +26,7 @@ Claude Desktop, Cursor and other clients take the same three things in their JSO
   "mcpServers": {
     "proxlane": {
       "command": "npx",
-      "args": ["-y", "@proxlane/sdk"],
+      "args": ["-y", "@proxlane/sdk@0.1"],
       "env": {
         "PROXLANE_URL": "http://localhost:8787",
         "PROXLANE_API_KEY": "your-gateway-key"
@@ -37,6 +37,11 @@ Claude Desktop, Cursor and other clients take the same three things in their JSO
 ```
 
 `PROXLANE_API_KEY` is the gateway's own key, not a provider's. Provider keys stay on the gateway.
+Pin the version, as above: `npx -y` otherwise runs whatever was published last, with that key in
+its environment.
+
+**Every call spends provider credits**, several times more with `render` or `wait_for`. The tool
+is deliberately not marked read-only, so clients that auto-approve read-only tools still ask.
 
 ## The tool
 
