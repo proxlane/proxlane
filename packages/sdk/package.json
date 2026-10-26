@@ -42,6 +42,7 @@
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "catalog:",
+		"@proxlane/shared": "workspace:*",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

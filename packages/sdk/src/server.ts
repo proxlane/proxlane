@@ -12,6 +12,7 @@
 import { createRequire } from 'node:module';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { carriesBody, OUTCOMES, type Outcome } from '@proxlane/shared/outcome';
 import { z } from 'zod';
 import { htmlToText, titleOf } from './text.js';
 
@@ -54,6 +55,17 @@ function failure(fields: Record<string, unknown>): CallToolResult {
 export function createServer(config: ServerConfig): McpServer {
 	const doFetch = config.fetch ?? fetch;
 	const base = config.gatewayUrl.replace(/\/+$/, '');
+	// For messages only: a URL with credentials in it is never repeated into a model's context.
+	const shown = (() => {
+		try {
+			const u = new URL(base);
+			u.username = '';
+			u.password = '';
+			return u.toString().replace(/\/$/, '');
+		} catch {
+			return 'the configured PROXLANE_URL';
+		}
+	})();
 	const server = new McpServer({ name: 'proxlane', version: VERSION });
 
 	server.registerTool(
@@ -67,7 +79,11 @@ export function createServer(config: ServerConfig): McpServer {
 				'captcha page is reported as a failure, never returned as content. Do not retry ' +
 				'immediately when retryable is true; the gateway has already tried other providers.',
 			inputSchema: {
-				url: z.string().url().describe('The page to fetch, http or https.'),
+				url: z
+					.string()
+					.url()
+					.refine((u) => /^https?:\/\//i.test(u), 'only http and https URLs')
+					.describe('The page to fetch, http or https.'),
 				render: z
 					.boolean()
 					.optional()
@@ -99,7 +115,9 @@ export function createServer(config: ServerConfig): McpServer {
 					.default(20_000)
 					.describe('Truncate the result to this many characters.'),
 			},
-			annotations: { readOnlyHint: true, openWorldHint: true },
+			// NOT readOnlyHint, though nothing local changes: some clients auto-approve read-only tools,
+			// and every call spends provider credits, several times more with render or wait_for.
+			annotations: { openWorldHint: true },
 		},
 		async ({ url, render, wait_for, country, format, max_chars }) => {
 			const q = new URLSearchParams({ url });
@@ -108,11 +126,16 @@ export function createServer(config: ServerConfig): McpServer {
 			if (country !== undefined) q.set('country_code', country.toLowerCase());
 
 			let res: Response;
+			let raw: string;
 			try {
 				res = await doFetch(`${base}/v1?${q}`, {
 					headers: { authorization: `Bearer ${config.apiKey}` },
+					// The gateway never redirects; one means PROXLANE_URL points somewhere else.
+					redirect: 'error',
 					signal: AbortSignal.timeout(TIMEOUT_MS),
 				});
+				// Read inside the same try and timeout: a stall mid-body is a timeout verdict too.
+				raw = await res.text();
 			} catch (err) {
 				const timedOut = err instanceof Error && err.name === 'TimeoutError';
 				return failure({
@@ -121,7 +144,7 @@ export function createServer(config: ServerConfig): McpServer {
 					retryable: true,
 					reason: timedOut
 						? `no answer from the gateway within ${TIMEOUT_MS / 1000}s`
-						: `could not reach the Proxlane gateway at ${base}; is it running? (PROXLANE_URL)`,
+						: `could not reach the Proxlane gateway at ${shown}; is it running? (PROXLANE_URL)`,
 				});
 			}
 
@@ -140,7 +163,6 @@ export function createServer(config: ServerConfig): McpServer {
 			}
 
 			if (cls === 'ok') {
-				const raw = await res.text();
 				const title = format === 'text' ? titleOf(raw) : undefined;
 				const body = format === 'text' ? htmlToText(raw) : raw;
 				const text = title === undefined ? body : `# ${title}\n\n${body}`;
@@ -165,13 +187,17 @@ export function createServer(config: ServerConfig): McpServer {
 			}
 
 			// A failure. The body is the gateway's JSON error, or, for an outcome that carries the
-			// page (a block page, a page without the wait_for element), the page itself, which is
-			// exactly what must not reach the model as content.
+			// page (a block page, a 404, a page without the wait_for element), the TARGET's page, which
+			// must not reach the model at all. So the body is read as the gateway's error ONLY for an
+			// outcome known not to carry the page. Reading any JSON let a target's own JSON page,
+			// shaped like our error, put its words into `reason` as though the gateway had said them.
+			const known = (OUTCOMES as readonly string[]).includes(outcome ?? '');
+			const gatewaysOwn = known && !carriesBody(outcome as Outcome);
 			let reason: string | undefined;
 			let providerSaid: string[] = [];
-			if ((res.headers.get('content-type') ?? '').includes('json')) {
+			if (gatewaysOwn && (res.headers.get('content-type') ?? '').includes('json')) {
 				try {
-					const body = (await res.json()) as {
+					const body = JSON.parse(raw) as {
 						error?: { message?: unknown };
 						attempts?: { provider?: unknown; providerMessage?: unknown }[];
 					};

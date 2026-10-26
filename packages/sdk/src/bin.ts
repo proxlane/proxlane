@@ -15,8 +15,18 @@ if (apiKey === undefined || apiKey === '') {
 	process.exit(2);
 }
 
-const server = createServer({
-	gatewayUrl: process.env.PROXLANE_URL?.trim() || 'http://localhost:8787',
-	apiKey,
-});
+const gatewayUrl = process.env.PROXLANE_URL?.trim() || 'http://localhost:8787';
+try {
+	const u = new URL(gatewayUrl);
+	if (u.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)) {
+		process.stderr.write(
+			`proxlane-mcp: PROXLANE_URL is plain http to ${u.hostname}; the gateway key travels in cleartext. Use https.\n`,
+		);
+	}
+} catch {
+	process.stderr.write('proxlane-mcp: PROXLANE_URL is not a URL.\n');
+	process.exit(2);
+}
+
+const server = createServer({ gatewayUrl, apiKey });
 await server.connect(new StdioServerTransport());
