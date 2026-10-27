@@ -177,7 +177,7 @@ export function Transcript({ blocks }: { readonly blocks: readonly Block[] }) {
 		// a command nobody can copy by eye and a transcript that never happened. A real terminal
 		// scrolls sideways, so this one does too: `Panel`'s body is already `overflow-x-auto`, with
 		// the raspberry scrollbar saying there is more to the right.
-		'col-start-1 row-start-1 whitespace-pre font-mono text-[0.8125rem] leading-[1.9]';
+		'col-start-1 row-start-1 whitespace-pre font-mono text-[0.75rem] leading-[1.9] sm:text-[0.8125rem]';
 
 	const endsOnOutput = blocks[blocks.length - 1]?.cmd === undefined;
 	let before = 0;
