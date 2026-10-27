@@ -537,10 +537,10 @@ function Hero({
 					    desktop and reintroduced on a phone by the same element.
 					    The tabs are a horizontal scroller instead, like every other overflowing thing
 					    on the site, with the brand scrollbar saying there is more to the right. */}
+					{/* The `chain` label hides on a phone: it and the four tabs need 365px of a 325px bar, and the
+					    tab that fell off the end was the fourth scenario, unreachable without
+					    knowing to scroll. Each tab names itself in full to a screen reader. */}
 					<div className="flex items-center justify-between gap-x-4 border-[color:var(--color-rule)] border-b pr-2 pl-4">
-						{/* Not on a phone: the label and four tabs need 365px of a 325px bar, and the
-						    tab that fell off the end was the fourth scenario, unreachable without
-						    knowing to scroll. Each tab names itself in full to a screen reader. */}
 						<span className="hidden shrink-0 font-mono text-[color:var(--color-slate)] text-xs sm:inline">
 							chain
 						</span>
@@ -989,14 +989,10 @@ function Response({ scenario }: { readonly scenario: Scenario }) {
 				    need 318px of a 293px body, so every row scrolled. Stacked, each pair is a label
 				    and its reading, and nothing scrolls. From `sm` they sit side by side again. */}
 				<dl className="grid grid-cols-1 font-mono text-[0.75rem] leading-[1.9] sm:w-max sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-10 sm:text-[0.8125rem] sm:leading-[2]">
-					{headers.map(([name, value], row) => (
+					{headers.map(([name, value]) => (
 						<div key={name} className="contents">
-							<dt
-								className={`whitespace-nowrap text-[color:var(--color-slate)] ${row > 0 ? 'mt-2.5 sm:mt-0' : ''}`}
-							>
-								{name}
-							</dt>
-							<dd className="whitespace-nowrap">
+							<dt className="whitespace-nowrap text-[color:var(--color-slate)]">{name}</dt>
+							<dd className="mb-2.5 whitespace-nowrap sm:mb-0">
 								{name === 'x-chain'
 									? value.split('>').map((hop, i) => (
 											<span key={`${i}-${hop}`} className="block">
