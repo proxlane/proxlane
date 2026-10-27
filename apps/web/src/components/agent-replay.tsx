@@ -15,7 +15,7 @@ import { ClientMark, type MarkId, Toggle } from './agent-marks.js';
 export interface ReplayClient {
 	readonly id: string;
 	readonly name: string;
-	readonly mark?: MarkId;
+	readonly mark: MarkId;
 }
 
 interface Run {
@@ -180,7 +180,7 @@ function Conversation({
 
 			<div className={beat >= 2 ? 'proxlane-beat' : 'invisible'}>
 				<p className="flex items-center gap-1.5 font-mono text-[color:var(--color-slate)] text-xs">
-					{client.mark !== undefined && <ClientMark id={client.mark} className="size-3.5" />}
+					<ClientMark id={client.mark} className="size-3.5" />
 					{client.name.toLowerCase()}
 				</p>
 				<p className="mt-1 inline-block rounded-card border border-[color:var(--color-rule)] px-2.5 py-1.5 font-mono text-[0.8125rem]">
