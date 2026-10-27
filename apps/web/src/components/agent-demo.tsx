@@ -1,5 +1,6 @@
 /**
- * The agent station: which clients can run the MCP server, and how to add it to each.
+ * The agent station: which clients can run the MCP server, how to add it to each, and a replay of
+ * an agent using it.
  *
  * EVERY CLIENT HERE RUNS A LOCAL STDIO SERVER, and that is why the list stops where it does.
  * ChatGPT, claude.ai and the Gemini app connect to MCP servers by URL from their own clouds; they
@@ -15,6 +16,7 @@
 
 import { useState } from 'react';
 import { ClientMark, type MarkId, Toggle } from './agent-marks.js';
+import { Replay } from './agent-replay.js';
 import { CopyButton } from './artifacts.js';
 import { ctaClass } from './cta.js';
 
@@ -112,7 +114,9 @@ export function AgentStation() {
 				))}
 			</div>
 
-			<div className="grid gap-6 lg:max-w-[40rem]">
+			<div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+				<Replay client={client} />
+
 				<div className="flex min-w-0 flex-col gap-4">
 					<div className="overflow-hidden rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] shadow-panel">
 						<div className="flex min-h-11 items-center justify-between gap-4 border-[color:var(--color-rule)] border-b pr-2.5 pl-4">
