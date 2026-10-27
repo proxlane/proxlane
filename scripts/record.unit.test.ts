@@ -646,6 +646,57 @@ describe('--only is a scope, not a disappearance', () => {
 	});
 });
 
+describe('a category with no single right answer', () => {
+	// Bright Data's `slow-target` flipped between its own timeout and the target's page three
+	// times in three weeks, and each flip opened a drift issue (#393, #405, #415).
+	const flipped = () => {
+		const root = mkdtempSync(join(tmpdir(), 'record-varies-'));
+		const committed = join(root, 'committed');
+		const fresh = join(root, 'fresh');
+		mkdirSync(committed);
+		mkdirSync(fresh);
+		writeFileSync(join(committed, 'slow-target.json'), fixture('slow-target'));
+		const page = JSON.parse(fixture('slow-target'));
+		page.response.headers = { 'content-type': 'application/json' };
+		writeFileSync(join(fresh, 'slow-target.json'), JSON.stringify(page));
+		return { committed, fresh };
+	};
+	const run = (varies?: Map<string, string>) => ({
+		failed: 0,
+		skipped: [],
+		mismatched: [],
+		exhausted: [],
+		...(varies === undefined ? {} : { varies }),
+	});
+
+	it('reports a new shape as variation while parse() still understands it', () => {
+		const { committed, fresh } = flipped();
+		const q = quiet();
+		try {
+			const code = reportDiff('x', committed, fresh, run(new Map([['slow-target', 'OK']])));
+			expect(code).toBe(0);
+			expect(q.text()).toMatch(
+				/VARIED, NOT DRIFT: slow-target \(provider-dependent, parsed as OK/,
+			);
+			expect(q.text()).not.toMatch(/changed shape/);
+		} finally {
+			q.restore();
+		}
+	});
+
+	it('still calls it drift when the run did not vouch for it', () => {
+		// A provider-dependent recording that parses to PROVIDER_DRIFT is left out of `varies`.
+		const { committed, fresh } = flipped();
+		const q = quiet();
+		try {
+			expect(reportDiff('x', committed, fresh, run())).toBe(1);
+			expect(q.text()).toMatch(/slow-target\.json: \d+ gone, \d+ new/);
+		} finally {
+			q.restore();
+		}
+	});
+});
+
 describe('the CLI refuses to spend credits by accident', () => {
 	it('requires --adapter', () => {
 		const { code, out } = run([]);
