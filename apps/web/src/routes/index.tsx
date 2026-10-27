@@ -536,8 +536,11 @@ function Hero({
 					    desktop and reintroduced on a phone by the same element.
 					    The tabs are a horizontal scroller instead, like every other overflowing thing
 					    on the site, with the brand scrollbar saying there is more to the right. */}
+					{/* The `chain` label hides on a phone: it and the four tabs need 365px of a 325px bar, and the
+					    tab that fell off the end was the fourth scenario, unreachable without
+					    knowing to scroll. Each tab names itself in full to a screen reader. */}
 					<div className="flex items-center justify-between gap-x-4 border-[color:var(--color-rule)] border-b pr-2 pl-4">
-						<span className="shrink-0 font-mono text-[color:var(--color-slate)] text-xs">
+						<span className="hidden shrink-0 font-mono text-[color:var(--color-slate)] text-xs sm:inline">
 							chain
 						</span>
 						<div className="flex min-w-0 items-center overflow-x-auto">
@@ -552,7 +555,7 @@ function Hero({
 						</div>
 					</div>
 
-					<div className="overflow-x-auto px-4 py-8 sm:px-6 sm:py-10">
+					<div className="overflow-x-auto px-2 py-8 sm:px-6 sm:py-10">
 						{/* A floor, not a height. The one-attempt chain is a third the height of the
 					    three-attempt one, and without this the whole page jumps every time the
 					    selection changes — the switch would be unusable for the thing it exists to
@@ -578,7 +581,7 @@ function Hero({
 								{...statusProp}
 								compact
 								presentation
-								className="min-w-[336px] max-w-[380px] lg:hidden"
+								className="w-full max-w-[380px] lg:hidden"
 							/>
 						</div>
 					</div>
@@ -684,7 +687,7 @@ function ScenarioTab({
 			// `whitespace-nowrap`, because the bar scrolls now. Without it "first hop" broke over two
 			// lines inside its own tab and pushed the bar to double height — the wrap moved from the
 			// row down into the button rather than going away.
-			className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap px-2.5 font-mono text-xs transition-colors ${
+			className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap px-2 font-mono text-xs transition-colors sm:px-2.5 ${
 				selected
 					? 'text-[color:var(--color-accent)]'
 					: 'text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
@@ -976,16 +979,28 @@ function Response({ scenario }: { readonly scenario: Scenario }) {
 				 * wraps instead of running out of the box. `break-all` rather than `break-words`:
 				 * a chain has no spaces to break at.
 				 */}
-				{/* SCROLLS, DOES NOT WRAP. `x-chain` is one token with no spaces, so wrapping it broke
-				    the value across two lines mid-identifier and made a three-hop chain unreadable on a
-				    phone. A header value is a single string: it belongs on one line, and the line
-				    belongs in a scroller. `Panel` already gives the body `overflow-x-auto`, and the
-				    scrollbar is the brand raspberry, so the affordance says "there is more". */}
-				<dl className="grid w-max grid-cols-[auto_minmax(0,1fr)] gap-x-10 font-mono text-[0.8125rem] leading-[2]">
+				{/* SCROLLS, DOES NOT WRAP, except `x-chain` at its own separators. Wrapping it anywhere
+				    broke the value mid-identifier; one line ran a three-hop chain past the panel edge
+				    even on desktop, hiding the hop that served. Broken at each `>`, every hop stays
+				    whole and the chain reads down the page as the diagram above draws it. The copy
+				    button still copies the header as the gateway sends it, on one line. */}
+				{/* NAME OVER VALUE ON A PHONE. Side by side, the longest name and the longest hop
+				    need 318px of a 293px body, so every row scrolled. Stacked, each pair is a label
+				    and its reading, and nothing scrolls. From `sm` they sit side by side again. */}
+				<dl className="grid grid-cols-1 font-mono text-[0.75rem] leading-[1.9] sm:w-max sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-10 sm:text-[0.8125rem] sm:leading-[2]">
 					{headers.map(([name, value]) => (
 						<div key={name} className="contents">
 							<dt className="whitespace-nowrap text-[color:var(--color-slate)]">{name}</dt>
-							<dd className="whitespace-nowrap">{value}</dd>
+							<dd className="mb-2.5 whitespace-nowrap sm:mb-0">
+								{name === 'x-chain'
+									? value.split('>').map((hop, i) => (
+											<span key={`${i}-${hop}`} className="block">
+												{i > 0 && <span className="text-[color:var(--color-slate)]">&gt;</span>}
+												{hop}
+											</span>
+										))
+									: value}
+							</dd>
 						</div>
 					))}
 				</dl>
