@@ -55,7 +55,8 @@ const RUNS: readonly Run[] = [
 		],
 		outcome: 'OK',
 		status: 200,
-		result: `{ "ok": true, "provider": "scrapfly",
+		result: `{ "ok": true,
+  "provider": "scrapfly",
   "chain": "scraperapi:SOFT_BLOCK>scrapfly:OK" }`,
 		answer:
 			'Team is $24 per seat a month, billed yearly. The page also lists a free plan for up to three seats.',
@@ -86,8 +87,10 @@ const RUNS: readonly Run[] = [
 			},
 		],
 		outcome: 'HARD_BLOCK',
-		result: `{ "ok": false, "outcome": "HARD_BLOCK",
-  "class": "blocked", "retryable": true }`,
+		result: `{ "ok": false,
+  "outcome": "HARD_BLOCK",
+  "class": "blocked",
+  "retryable": true }`,
 		answer:
 			'Every provider was blocked by a bot check on that page, so I have nothing to read and will not guess at the price. Worth trying again later, not right now.',
 	},
@@ -145,7 +148,7 @@ function useReplay(runKey: string, answerLength: number) {
 					play();
 				}
 			},
-			{ threshold: 0.35 },
+			{ threshold: 0.2 },
 		);
 		io.observe(node);
 		return () => {
@@ -158,6 +161,36 @@ function useReplay(runKey: string, answerLength: number) {
 	return { ref, ...state };
 }
 
+/**
+ * The chain the gateway walked, as the hero draws it. Remounted per run and client, so the legs
+ * draw again each time the replay plays.
+ */
+function Chain({ run, client, beat }: { run: Run; client: ReplayClient; beat: number }) {
+	const statusProp = run.status === undefined ? {} : { status: run.status };
+	return (
+		<div className={`min-h-[132px] overflow-x-auto ${beat >= 3 ? '' : 'invisible'}`}>
+			{beat >= 3 && (
+				<RouteDiagram
+					key={`${run.id}-${client.id}`}
+					attempts={run.attempts}
+					outcome={run.outcome}
+					{...statusProp}
+					compact
+					presentation
+					className="w-full min-w-[280px] max-w-[380px]"
+				/>
+			)}
+		</div>
+	);
+}
+
+/**
+ * A chat on the left and the chain beside it, not stacked in one column. The first version put
+ * the ask, the call, the diagram, the result and the answer in a single 500px column, and five
+ * kinds of thing at one rhythm read as one dense block. Split, the left reads as a conversation
+ * and the right as the drawing it refers to. Below `lg` there is no room beside it, so the
+ * diagram drops back in between the call and its result, where it happens.
+ */
 function Conversation({
 	run,
 	client,
@@ -169,54 +202,56 @@ function Conversation({
 	beat: number;
 	chars: number;
 }) {
-	const statusProp = run.status === undefined ? {} : { status: run.status };
 	const failed = run.outcome !== 'OK';
 	return (
-		<div className="flex min-w-0 flex-col gap-4">
-			<div className={beat >= 1 ? 'proxlane-beat' : 'invisible'}>
-				<p className="font-mono text-[color:var(--color-slate)] text-xs">you</p>
-				<p className="mt-1 text-[0.9375rem]">{ASK}</p>
-			</div>
+		<div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-10">
+			<div className="flex min-w-0 flex-col gap-6">
+				<div className={`self-start ${beat >= 1 ? 'proxlane-beat' : 'invisible'}`}>
+					<p className="font-mono text-[color:var(--color-slate)] text-xs">you</p>
+					<p className="mt-2 rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_5%,transparent)] px-4 py-2.5 text-[0.9375rem]">
+						{ASK}
+					</p>
+				</div>
 
-			<div className={beat >= 2 ? 'proxlane-beat' : 'invisible'}>
-				<p className="flex items-center gap-1.5 font-mono text-[color:var(--color-slate)] text-xs">
-					<ClientMark id={client.mark} className="size-3.5" />
-					{client.name.toLowerCase()}
+				<div className={beat >= 2 ? 'proxlane-beat' : 'invisible'}>
+					<p className="flex items-center gap-1.5 font-mono text-[color:var(--color-slate)] text-xs">
+						<ClientMark id={client.mark} className="size-3.5" />
+						{client.name.toLowerCase()}
+					</p>
+					<p className="mt-2 inline-block rounded-card border border-[color:var(--color-rule)] px-3 py-2 font-mono text-[0.8125rem]">
+						<span className="text-[color:var(--color-accent)]">→ </span>
+						{CALL}
+					</p>
+				</div>
+
+				<div className="lg:hidden">
+					<Chain run={run} client={client} beat={beat} />
+				</div>
+
+				<pre
+					className={`overflow-x-auto whitespace-pre border-l-2 py-1 pl-4 font-mono text-[0.75rem] leading-[1.8] ${
+						failed ? 'border-[color:var(--color-accent)]' : 'border-[color:var(--color-rule)]'
+					} ${beat >= 4 ? 'proxlane-beat' : 'invisible'}`}
+				>
+					{run.result}
+				</pre>
+
+				<p
+					className={`max-w-[56ch] text-[0.9375rem] leading-relaxed ${beat >= 5 ? '' : 'invisible'}`}
+				>
+					{run.answer.slice(0, chars)}
+					{beat >= 5 && chars < run.answer.length && (
+						<span className="proxlane-caret text-[color:var(--color-accent)]">▊</span>
+					)}
 				</p>
-				<p className="mt-1 inline-block rounded-card border border-[color:var(--color-rule)] px-2.5 py-1.5 font-mono text-[0.8125rem]">
-					<span className="text-[color:var(--color-accent)]">→ </span>
-					{CALL}
+			</div>
+
+			<div className="hidden flex-col justify-center rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_3%,transparent)] px-6 py-8 lg:flex">
+				<p className="mb-5 font-mono text-[color:var(--color-slate)] text-xs">
+					what the gateway did
 				</p>
+				<Chain run={run} client={client} beat={beat} />
 			</div>
-
-			<div className={`min-h-[132px] overflow-x-auto ${beat >= 3 ? '' : 'invisible'}`}>
-				{beat >= 3 && (
-					<RouteDiagram
-						key={`${run.id}-${client.id}`}
-						attempts={run.attempts}
-						outcome={run.outcome}
-						{...statusProp}
-						compact
-						presentation
-						className="w-full min-w-[280px] max-w-[360px]"
-					/>
-				)}
-			</div>
-
-			<pre
-				className={`overflow-x-auto whitespace-pre rounded-card border-l-2 py-1 pl-3 font-mono text-[0.75rem] leading-[1.7] ${
-					failed ? 'border-[color:var(--color-accent)]' : 'border-[color:var(--color-rule)]'
-				} ${beat >= 4 ? 'proxlane-beat' : 'invisible'}`}
-			>
-				{run.result}
-			</pre>
-
-			<p className={`text-[0.9375rem] leading-relaxed ${beat >= 5 ? '' : 'invisible'}`}>
-				{run.answer.slice(0, chars)}
-				{beat >= 5 && chars < run.answer.length && (
-					<span className="proxlane-caret text-[color:var(--color-accent)]">▊</span>
-				)}
-			</p>
 		</div>
 	);
 }
@@ -247,7 +282,7 @@ export function Replay({ client }: { client: ReplayClient }) {
 						))}
 					</div>
 				</div>
-				<div ref={ref} className="grid grid-cols-[minmax(0,1fr)] px-4 py-5 sm:px-5">
+				<div ref={ref} className="grid grid-cols-[minmax(0,1fr)] px-5 py-7 sm:px-8 sm:py-8">
 					{/* Both finished runs, invisible, in the cell the live one plays in: the panel holds
 					    the taller one's height from the first frame, so switching runs moves nothing. */}
 					{RUNS.map((r) => (

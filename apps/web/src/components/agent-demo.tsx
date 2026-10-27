@@ -116,9 +116,9 @@ export function AgentStation() {
 				))}
 			</div>
 
-			<div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-				<Replay client={client} />
-
+			{/* Setup beside its note, then the replay on a row of its own. Side by side with the
+			    replay, the snippet and a five-beat conversation competed for one glance. */}
+			<div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
 				<div className="flex min-w-0 flex-col gap-4">
 					<div className="overflow-hidden rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] shadow-panel">
 						<div className="flex min-h-11 items-center justify-between gap-4 border-[color:var(--color-rule)] border-b pr-2.5 pl-4">
@@ -137,6 +137,8 @@ export function AgentStation() {
 							Add to {client.name}
 						</a>
 					)}
+				</div>
+				<div className="flex min-w-0 flex-col gap-4">
 					<p className="max-w-[52ch] text-[color:var(--color-slate)] text-sm leading-relaxed">
 						<span className="text-[color:var(--color-ink)]">{KEY}</span> is the gateway's own{' '}
 						<code className="font-mono text-[0.8125rem]">PROXLANE_API_KEY</code>, from the
@@ -146,6 +148,8 @@ export function AgentStation() {
 					</p>
 				</div>
 			</div>
+
+			<Replay client={client} />
 		</div>
 	);
 }
