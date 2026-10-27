@@ -20,11 +20,14 @@ const SITE = STRUCTURED_SITE;
 // serves both.
 //
 // Provider names stay, and stay early. They are the terms people search for, and a truncation
-// that loses them would cost more than one that loses the tail.
+// that loses them would cost more than one that loses the tail. "MCP server for AI agents" is
+// the other thing people search for, and it shipped, so it is in the 143 characters too.
 const DESCRIPTION =
-	'One endpoint in front of ScraperAPI, ScrapingBee, Scrapfly, Bright Data and Firecrawl. ' +
-	'Automatic failover, honest block detection, per-request cost. AGPL, self-hosted.';
-const TITLE = 'Proxlane: one endpoint in front of every scraping API';
+	'Self-hosted failover across ScraperAPI, ScrapingBee, Scrapfly, Bright Data and Firecrawl, ' +
+	'with block detection and an MCP server for AI agents.';
+// The query words, not the slogan. "One endpoint in front of every scraping API" is the hero's
+// subhead, where it is read; in a result list, "failover" and "scraping APIs" are what match.
+const TITLE = 'Proxlane: open source failover for scraping APIs';
 
 export const Route = createRootRoute({
 	head: () => ({
