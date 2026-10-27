@@ -436,6 +436,21 @@ Two consequences that ARE public, because they shape the code:
 - Affiliate rate is never an input to routing or rankings. That is a house rule in
   `CLAUDE.md`, not a preference.
 
+**Code that is right under BYOK and wrong under hosted credits.** Each was found in review and
+accepted for now because the caller and the account owner are the same person. All must change
+before hosted ships:
+
+- **Bright Data's account refusal is forgeable by a target** (#383). A site can cool Bright
+  Data for the org scraping it. Under hosted credits one customer's target would cool the
+  shared account for every customer. Confirm a refusal with a probe before arming `acct`.
+- **`providerMessage` carries the provider's own refusal text** to the caller. Under hosted
+  credits that is our account's state reaching customers. Keep it BYOK-only.
+- **`/health/cooldowns` does not filter by org.** `acct` entries carry the org id and the
+  provider's words, so a multi-tenant deployment needs per-org scoping on it.
+- **`WAIT_FOR_UNMET` carries the rendered page and is not chargeable**, so
+  `wait_for=#never-there` buys two rendered attempts for nothing. Charge it when it carries a
+  body, or drop the body on hosted keys. Recorded on the outcome's policy in `outcome.ts`.
+
 ## 8. Metrics and Kill/Pivot Criteria
 
 The project has explicit stop conditions and a review cadence. They are numeric, they are
