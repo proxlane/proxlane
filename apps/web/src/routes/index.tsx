@@ -100,7 +100,7 @@ function Home() {
 					title="Every answer says how it got there"
 					lead={[
 						'Branch on the class, read the outcome for detail.',
-						'The class is closed and will not grow, so adding an outcome cannot break your switch. Headers follow the chain selected above.',
+						'Headers follow the chain selected above.',
 					]}
 				>
 					<Response scenario={scenario} />
@@ -117,7 +117,7 @@ function Home() {
 				</Station>
 				<Station
 					label="lines"
-					title="Five providers, five lines"
+					title="Five scraping APIs, five lines"
 					lead={['They are not interchangeable, which is the point.', linesLead()]}
 				>
 					<Lines />
@@ -186,7 +186,7 @@ const SCENARIOS: readonly Scenario[] = [
 		outcome: 'OK',
 		status: 200,
 		caption:
-			'The first provider answered 200 with a challenge page and the detector named the rule that caught it; the second failed outright; the third served. Your providers charge for all three, so Proxlane reports all three. It takes no cut of any of it.',
+			'The first provider answered 200 with a challenge page and the detector named the rule that caught it; the second failed outright; the third served. Your providers charge for all three, so Proxlane reports all three.',
 	},
 	{
 		id: 'direct',
@@ -376,7 +376,7 @@ function linesLead(): string {
 	const js = free
 		? `rendering JavaScript is free on one and ${dearest.js}x the price on another`
 		: `rendering JavaScript costs up to ${dearest.js}x`;
-	return `Printed by proxlane providers, straight from the capability registry. One does sessions, ${geo}and ${js}. A line colour is assigned here too, and every surface reuses it.`;
+	return `Printed by proxlane providers, straight from the capability registry. One does sessions, ${geo}and ${js}.`;
 }
 
 /**
@@ -508,9 +508,8 @@ function Hero({
 				<p className="text-[0.9375rem] leading-relaxed sm:text-base">
 					<span className="font-medium">No provider works on every target.</span>{' '}
 					<span className="text-[color:var(--color-slate)]">
-						Teams end up with two or three accounts and a pile of glue code that switches
-						between them. Providers degrade for hours before they fail outright, and they will
-						never fail over to a competitor.
+						Teams juggle two or three accounts and the glue code to switch between them. A
+						provider degrades for hours before it fails, and none fails over to a competitor.
 					</span>
 				</p>
 				<p className="mt-3 text-[0.9375rem] leading-relaxed sm:text-base">
