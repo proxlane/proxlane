@@ -1083,6 +1083,11 @@ export function reportDiff(
 		 * recording failure — see `partitionByOnly`. Optional, because a full run has none.
 		 */
 		readonly deferred?: readonly string[];
+		/**
+		 * `provider-dependent` categories, by what this run parsed them as. Optional, because
+		 * only a run that recorded one has any.
+		 */
+		readonly varies?: ReadonlyMap<string, string>;
 	},
 ): number {
 	// A RECORDING PASS THAT COULD NOT RECORD IS NOT EVIDENCE OF NO DRIFT, and this is the hole
@@ -1107,6 +1112,7 @@ export function reportDiff(
 
 	const changed: string[] = [];
 	const unchecked: string[] = [];
+	const varied: string[] = [];
 	let confirmed = 0;
 	let renewed = 0;
 
@@ -1193,6 +1199,17 @@ export function reportDiff(
 		const now = new Set(shapeOf(after));
 		const gone = [...was].filter((x) => !now.has(x));
 		const added = [...now].filter((x) => !was.has(x));
+		// NO SINGLE RIGHT ANSWER IS NOT DRIFT. `slow-target` is a 30 s delay, and Bright Data
+		// sometimes waits it out and sometimes gives up at its own timeout. Both parse to a real
+		// outcome, so a different shape from week to week is the category doing its job, not
+		// the provider changing: it filed three false drift issues in three weeks (#393, #405,
+		// #415). Said, never silent, and only while parse() still understands the response: a
+		// recording that parses to PROVIDER_DRIFT stays out of `varies` and is reported as drift.
+		const parsedAs = run.varies?.get(category);
+		if (parsedAs !== undefined && (gone.length > 0 || added.length > 0)) {
+			varied.push(`${category} (provider-dependent, parsed as ${parsedAs} this run)`);
+			continue;
+		}
 		if (gone.length > 0 || added.length > 0) {
 			const detail = [
 				...gone.slice(0, 3).map((g) => `-${g}`),
@@ -1218,14 +1235,15 @@ export function reportDiff(
 	}
 
 	const uncheckedLine =
-		unchecked.length > 0
+		(unchecked.length > 0
 			? `  NOT CHECKED: ${unchecked.join(', ')} — re-run with --only=<category> --timeout-ms=<n>\n`
-			: '';
+			: '') + (varied.length > 0 ? `  VARIED, NOT DRIFT: ${varied.join(', ')}\n` : '');
 
 	if (changed.length === 0) {
 		// Non-zero denominator. Comparing nothing and calling it unchanged is the failure this
 		// whole function was rewritten to remove, so it cannot be allowed to pass quietly.
-		if (confirmed + renewed === 0) {
+		// A varied category WAS compared; it is in the denominator, the verdict is just not "same".
+		if (confirmed + renewed + varied.length === 0) {
 			// THE ACCOUNT, NOT THE PROVIDER. Nothing compared because the account refused: out of
 			// credit, suspended, or capped. That is a fact about a wallet, already visible to the
 			// canary, and filing it as "fixture drift" every week is noise that buries real drift.
@@ -1440,6 +1458,7 @@ if (import.meta.filename === process.argv[1]) {
 	let failed = 0;
 	const mismatched: string[] = [];
 	const exhausted: string[] = [];
+	const varies = new Map<string, string>();
 	/** Account fixtures already written this run: the FIRST refusal of each kind is kept. */
 	const accountKept = new Set<AccountFixture>();
 	/** What each refused category got, for the summary: out of credit and refused read differently. */
@@ -1709,6 +1728,8 @@ if (import.meta.filename === process.argv[1]) {
 		} else if (expect === 'provider-dependent') {
 			// After the account branch, for the reason fixtureFileFor gives.
 			verdict = `~ ${parsedOutcome} (provider-dependent, not asserted)`;
+			if (parsedOutcome !== undefined && parsedOutcome !== 'PROVIDER_DRIFT')
+				varies.set(target.category, parsedOutcome);
 		} else {
 			verdict = `! got ${parsedOutcome}`;
 			mismatched.push(target.category);
@@ -1726,6 +1747,7 @@ if (import.meta.filename === process.argv[1]) {
 				mismatched,
 				exhausted,
 				deferred,
+				varies,
 			}),
 		);
 	}
