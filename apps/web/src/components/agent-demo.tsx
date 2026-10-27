@@ -140,11 +140,9 @@ export function AgentStation() {
 				</div>
 				<div className="flex min-w-0 flex-col gap-4">
 					<p className="max-w-[52ch] text-[color:var(--color-slate)] text-sm leading-relaxed">
-						<span className="text-[color:var(--color-ink)]">{KEY}</span> is the gateway's own{' '}
-						<code className="font-mono text-[0.8125rem]">PROXLANE_API_KEY</code>, from the
-						quickstart above. Your provider keys stay on the gateway; the agent never sees them.
-						One tool, <code className="font-mono text-[0.8125rem]">fetch_page</code>, with
-						rendering, a wait-for selector and a country.
+						<span className="text-[color:var(--color-ink)]">{KEY}</span> is the gateway's{' '}
+						<code className="font-mono text-[0.8125rem]">PROXLANE_API_KEY</code> from the
+						quickstart. Your provider keys never reach the agent.
 					</p>
 				</div>
 			</div>
