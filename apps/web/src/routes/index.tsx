@@ -2,6 +2,8 @@ import { CAPABILITIES, capabilitiesFor, costOf } from '@proxlane/adapters';
 import { describeRoute, type RouteAttempt, RouteDiagram } from '@proxlane/route-viz';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { AgentStation } from '../components/agent-demo.js';
+import { Roundel } from '../components/agent-marks.js';
 import { type Block, Panel, Transcript } from '../components/artifacts.js';
 import { Cta } from '../components/cta.js';
 import { DeployRow } from '../components/deploy.js';
@@ -56,6 +58,17 @@ function Home() {
 					<Quickstart />
 				</Station>
 				<Station
+					label="agents"
+					wide
+					title="Give your agent a scraper that admits failure"
+					lead={[
+						'An MCP server for Claude, Codex, Gemini CLI, Cursor and VS Code.',
+						'One tool, fetch_page, through the gateway you just started. A block page reaches the model as a failure with a retry hint, never as content to summarise.',
+					]}
+				>
+					<AgentStation />
+				</Station>
+				<Station
 					label="detection"
 					title="A 200 is not a success"
 					// NOT "every competitor reports a block page as a success". `plan.md` §6 records that
@@ -108,17 +121,6 @@ function Home() {
 					lead={['They are not interchangeable, which is the point.', linesLead()]}
 				>
 					<Lines />
-				</Station>
-				<Station
-					label="agents"
-					wide
-					title="Every command speaks JSON"
-					lead={[
-						'Built to be driven by a script.',
-						'A --json flag on every command, a stable envelope, and exit codes that separate a bad answer from a bad call. The repo ships a use-proxlane skill, so an agent can read the contract instead of guessing it.',
-					]}
-				>
-					<Agents />
 				</Station>
 			</Line>
 		</div>
@@ -388,24 +390,6 @@ function linesLead(): string {
  */
 const ROUTING_ORDER = ['scraperapi', 'scrapfly', 'scrapingbee', 'brightdata'] as const;
 
-const CLI_COMMAND = 'proxlane outcomes SOFT_BLOCK --json';
-const CLI_OUTPUT = `{
-  "ok": true,
-  "command": "outcomes",
-  "data": [
-    {
-      "outcome": "SOFT_BLOCK",
-      "class": "blocked",
-      "httpStatus": 502,
-      "chargeable": false,
-      "failover": true,
-      "cooldown": "blk",
-      "pages": false,
-      "meaning": "200 but our detector fired; a rule ID is attached"
-    }
-  ]
-}`;
-
 /**
  * Real `proxlane doctor` output, trimmed to the lines that make the point.
  *
@@ -468,17 +452,7 @@ const QUICKSTART_BLOCKS: readonly Block[] = [
 	},
 ];
 
-const AGENT_BLOCKS: readonly Block[] = [{ cmd: CLI_COMMAND }, { out: CLI_OUTPUT }];
-
 const QUICKSTART_COPY = 'docker run -p 8787:8787 --env-file .env ghcr.io/proxlane/gateway';
-
-/** Straight from `.claude/skills/use-proxlane/SKILL.md`, which ships in the repo. */
-const EXIT_CODES = [
-	['0', 'good, proceed'],
-	['1', 'the command worked, the answer is bad. Read the outcome. Not a crash.'],
-	['2', 'you called it wrong. Retrying the same call will not help.'],
-	['3', 'the environment is wrong, no key. Stop and fix setup.'],
-] as const;
 
 const CURL_BEFORE = 'curl "https://api.scraperapi.com?api_key=KEY&url=..."';
 // LOCALHOST, BECAUSE THERE IS NO HOSTED ENDPOINT. This is the one line on the page a reader is
@@ -509,6 +483,19 @@ function Hero({
 				One endpoint in front of every scraping API. When a provider gets blocked, the next one
 				runs, and you are told which, and why.
 			</p>
+			{/* THE AGENT LINE, ONE ROW AND NO MORE. The page's job is still the hostname; this is the
+			    second door, and it says where it leads rather than how. The rings overlap like
+			    stations on one line, in the single colour `agent-marks.tsx` explains. */}
+			<a href="#agents" className="group mt-6 inline-flex items-center gap-3 text-sm">
+				<span className="flex items-center -space-x-1.5">
+					{(['claude', 'openai', 'gemini', 'cursor', 'code'] as const).map((id) => (
+						<Roundel key={id} id={id} stacked />
+					))}
+				</span>
+				<span className="text-[color:var(--color-ink)] underline decoration-[color:var(--color-rule)] underline-offset-4 transition-colors duration-200 ease-(--ease-lane) group-hover:decoration-[color:var(--color-accent)]">
+					Also an MCP server, for Claude, Codex, Gemini CLI, Cursor and VS Code
+				</span>
+			</a>
 
 			{/* THE PROBLEM, BEFORE THE DIAGRAM.
 			    The page used to open on a mechanism and never said why anyone needs it: seven
@@ -817,6 +804,7 @@ function Station({
 	return (
 		<section
 			ref={section}
+			id={label}
 			data-station
 			data-here={here ? '' : undefined}
 			className="relative sm:pl-14"
@@ -1063,40 +1051,6 @@ function Lines() {
 				</tbody>
 			</table>
 		</Panel>
-	);
-}
-
-/**
- * The agent surface, which is the CLI, and it is shipped rather than promised.
- *
- * NO MCP SERVER IS CLAIMED. `packages/sdk` is one file today and the MCP server named in
- * `CLAUDE.md` does not exist yet; `state.md` says the same about `npx proxlane try` and the
- * playground. The house rule is shipped behaviour only, so this section advertises exactly
- * what `proxlane --help` prints and what `.claude/skills/use-proxlane/SKILL.md` documents.
- *
- * The transcript is real output, captured by running the built CLI.
- */
-function Agents() {
-	return (
-		<div className="flex flex-col gap-5">
-			<Panel label="terminal" copy={CLI_COMMAND} what="the command">
-				<Transcript blocks={AGENT_BLOCKS} />
-			</Panel>
-
-			<Panel label="exit codes" bodyClass="px-4 py-1">
-				<dl className="grid grid-cols-[auto_1fr] gap-x-6 font-mono text-[0.8125rem]">
-					{EXIT_CODES.map(([code, meaning], i) => (
-						<div
-							key={code}
-							className={`col-span-2 grid grid-cols-subgrid py-3 ${i > 0 ? 'border-[color:var(--color-rule)] border-t' : ''}`}
-						>
-							<dt className="font-medium">{code}</dt>
-							<dd className="text-[color:var(--color-slate)]">{meaning}</dd>
-						</div>
-					))}
-				</dl>
-			</Panel>
-		</div>
 	);
 }
 
