@@ -169,8 +169,16 @@ function parse(res: ProviderHttpResponse): ParsedResult {
 	// domain. So all three must hold, as they did in the recording: a `client_*` code, the 407,
 	// and no body. A target forging that must answer 407 with nothing, on purpose. Anything else
 	// in this header family is ignored and the response is read exactly as before, where every
-	// consequence is scoped to the target's own domain. Proving the strip would lift this; the
-	// recording to take is in #383.
+	// consequence is scoped to the target's own domain.
+	//
+	// IT IS NOT STRIPPED, AND THE REST IS ACCEPTED. Recorded 2026-10-08 (#383): Bright Data
+	// passes a target's `x-brd-err-*` and `x-brd-error*` through unchanged, and no header tells
+	// a forged refusal from a real one. A site that answers 407 with an empty body and a
+	// `client_*` code can cool Bright Data for the org scraping it, up to the account cap per
+	// hit. No leak and no billing effect, and under BYOK the org chose that site. The fixes,
+	// a confirming probe or waiting for a second domain, both add network or shared state to
+	// the chain, so they wait for hosted mode, where the org is not the one choosing the target
+	// (`plan.md` section 7).
 	const refusal = header(res.headers, BRD_REFUSAL_CODE_HEADER);
 	if (
 		refusal?.startsWith('client_') === true &&
