@@ -3,7 +3,7 @@ import { describeRoute, type RouteAttempt, RouteDiagram } from '@proxlane/route-
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { AgentStation } from '../components/agent-demo.js';
-import { ClientMark } from '../components/agent-marks.js';
+import { Roundel } from '../components/agent-marks.js';
 import { type Block, Panel, Transcript } from '../components/artifacts.js';
 import { Cta } from '../components/cta.js';
 import { DeployRow } from '../components/deploy.js';
@@ -484,18 +484,17 @@ function Hero({
 				runs, and you are told which, and why.
 			</p>
 			{/* THE AGENT LINE, ONE ROW AND NO MORE. The page's job is still the hostname; this is the
-			    second door, and it says where it leads rather than how. Marks in currentColor, for
-			    the reason `agent-demo.tsx` gives. */}
-			<a
-				href="#agents"
-				className="mt-5 inline-flex items-center gap-2.5 text-[color:var(--color-ink)] text-sm underline decoration-[color:var(--color-rule)] underline-offset-4 transition-colors duration-200 ease-(--ease-lane) hover:decoration-[color:var(--color-accent)]"
-			>
-				<span className="flex items-center gap-1.5 text-[color:var(--color-slate)]">
-					<ClientMark id="claude" />
-					<ClientMark id="gemini" />
-					<ClientMark id="cursor" />
+			    second door, and it says where it leads rather than how. The rings overlap like
+			    stations on one line, in the single colour `agent-marks.tsx` explains. */}
+			<a href="#agents" className="group mt-6 inline-flex items-center gap-3 text-sm">
+				<span className="flex items-center -space-x-1.5">
+					{(['claude', 'openai', 'gemini', 'cursor', 'code'] as const).map((id) => (
+						<Roundel key={id} id={id} stacked />
+					))}
 				</span>
-				Also an MCP server, for Claude, Codex, Gemini CLI, Cursor and VS Code
+				<span className="text-[color:var(--color-ink)] underline decoration-[color:var(--color-rule)] underline-offset-4 transition-colors duration-200 ease-(--ease-lane) group-hover:decoration-[color:var(--color-accent)]">
+					Also an MCP server, for Claude, Codex, Gemini CLI, Cursor and VS Code
+				</span>
 			</a>
 
 			{/* THE PROBLEM, BEFORE THE DIAGRAM.

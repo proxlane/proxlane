@@ -14,7 +14,7 @@
  */
 
 import { useState } from 'react';
-import { ClientMark, type MarkId, Toggle } from './agent-marks.js';
+import { ClientMark, type MarkId, Roundel, Toggle } from './agent-marks.js';
 import { CopyButton } from './artifacts.js';
 import { ctaClass } from './cta.js';
 
@@ -37,7 +37,7 @@ const CURSOR_LINK = `cursor://anysphere.cursor-deeplink/mcp/install?name=proxlan
 interface Client {
 	readonly id: string;
 	readonly name: string;
-	readonly mark?: MarkId;
+	readonly mark: MarkId;
 	/** What the panel bar names: a shell, or the file the snippet goes in. */
 	readonly where: string;
 	readonly text: string;
@@ -63,6 +63,7 @@ export const CLIENTS: readonly Client[] = [
 	{
 		id: 'codex',
 		name: 'Codex',
+		mark: 'openai',
 		where: 'terminal',
 		text: `codex mcp add proxlane \\\n  --env PROXLANE_API_KEY=${KEY} \\\n  -- npx -y @proxlane/sdk@0.1`,
 	},
@@ -84,6 +85,7 @@ export const CLIENTS: readonly Client[] = [
 	{
 		id: 'vscode',
 		name: 'VS Code',
+		mark: 'code',
 		where: 'terminal',
 		text: `code --add-mcp '${JSON.stringify({ name: 'proxlane', type: 'stdio', ...SERVER, env: ENV })}'`,
 	},
@@ -106,7 +108,7 @@ export function AgentStation() {
 						onSelect={() => setClientId(c.id)}
 						label={`Show setup for ${c.name}`}
 					>
-						{c.mark !== undefined && <ClientMark id={c.mark} className="size-[18px]" />}
+						<Roundel id={c.mark} selected={c.id === client.id} />
 						{c.name}
 					</Toggle>
 				))}
@@ -127,7 +129,7 @@ export function AgentStation() {
 					</div>
 					{client.link !== undefined && (
 						<a className={`${ctaClass('quiet', 'sm')} self-start`} href={client.link}>
-							{client.mark !== undefined && <ClientMark id={client.mark} />}
+							<ClientMark id={client.mark} />
 							Add to {client.name}
 						</a>
 					)}
