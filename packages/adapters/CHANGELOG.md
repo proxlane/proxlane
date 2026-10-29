@@ -1,5 +1,11 @@
 # @proxlane/adapters
 
+## 0.13.3
+
+### Patch Changes
+
+- [#429](https://github.com/proxlane/proxlane/pull/429) [`194d603`](https://github.com/proxlane/proxlane/commit/194d603113ba720aaa396630dbef316e56885ca6) Thanks [@scarsam](https://github.com/scarsam)! - The Bright Data adapter documents that a target can forge its account-refusal shape, and why that is accepted under BYOK.
+
 ## 0.13.2
 
 ### Patch Changes

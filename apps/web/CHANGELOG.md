@@ -1,5 +1,20 @@
 # @proxlane/web
 
+## 0.11.11
+
+### Patch Changes
+
+- [#432](https://github.com/proxlane/proxlane/pull/432) [`ce52df4`](https://github.com/proxlane/proxlane/commit/ce52df430a45cbaa17096a5a85c34fbc1fdf1a62) Thanks [@scarsam](https://github.com/scarsam)! - The homepage replays an agent calling fetch_page, once served and once blocked on every provider.
+
+- [#431](https://github.com/proxlane/proxlane/pull/431) [`dda63a7`](https://github.com/proxlane/proxlane/commit/dda63a7594764a637aa6248994b1928046ec1845) Thanks [@scarsam](https://github.com/scarsam)! - The homepage shows how to add the MCP server to Claude Code, Claude Desktop, Codex, Gemini CLI, Cursor and VS Code.
+
+- [#433](https://github.com/proxlane/proxlane/pull/433) [`9213afd`](https://github.com/proxlane/proxlane/commit/9213afdd275161a9ada7340a5057ceeb692f5541) Thanks [@scarsam](https://github.com/scarsam)! - The homepage's chain diagram, scenario tabs and response headers fit a phone without scrolling, and x-chain reads one hop per line.
+
+- [#434](https://github.com/proxlane/proxlane/pull/434) [`6b6d731`](https://github.com/proxlane/proxlane/commit/6b6d73199eda2fce68eeb5a3f9da1991a8ed3286) Thanks [@scarsam](https://github.com/scarsam)! - The site title and description name failover and the MCP server, and the homepage drops repeated copy.
+
+- Updated dependencies [[`194d603`](https://github.com/proxlane/proxlane/commit/194d603113ba720aaa396630dbef316e56885ca6)]:
+  - @proxlane/adapters@0.13.3
+
 ## 0.11.10
 
 ### Patch Changes
