@@ -95,6 +95,11 @@ export const CLIENTS: readonly Client[] = [
 		mark: 'code',
 		lang: 'bash',
 		where: 'terminal',
-		text: `code --add-mcp '${JSON.stringify({ name: 'proxlane', type: 'stdio', ...SERVER, env: ENV })}'`,
+		// Over four lines, not one. The single line ran 140 characters off the edge of the panel;
+		// a newline inside single quotes is still one shell argument, and still the same JSON.
+		text: `code --add-mcp '{
+  "name": "proxlane", "type": "stdio", "command": ${JSON.stringify(SERVER.command)},
+  "args": ${JSON.stringify(SERVER.args).replace(',', ', ')},
+  "env": ${JSON.stringify(ENV).replace(':', ': ').replace('{', '{ ').replace('}', ' }')} }'`,
 	},
 ];
