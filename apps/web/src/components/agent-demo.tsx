@@ -24,12 +24,15 @@ const SERVER = { command: 'npx', args: ['-y', '@proxlane/sdk@0.1'] } as const;
 const KEY = 'your-gateway-key';
 const ENV = { PROXLANE_API_KEY: KEY };
 
-/** An `mcpServers` file, with the two-item `args` kept on one line the way people write it. */
-const CONFIG = JSON.stringify(
-	{ mcpServers: { proxlane: { ...SERVER, env: ENV } } },
-	null,
-	2,
-).replace(/\[\s+("[^"]*"),\s+("[^"]*")\s+\]/, '[$1, $2]');
+/**
+ * An `mcpServers` file in three lines, the height of the commands beside it in the tab set. Every
+ * snippet shares one reserved height so switching tabs moves nothing; at nine lines the JSON set
+ * that height and left the one-line commands floating in an empty panel. Each value is
+ * `JSON.stringify`d from the same objects the Cursor link encodes, so only the layout is by hand.
+ */
+const CONFIG = `{ "mcpServers": { "proxlane": {
+    "command": ${JSON.stringify(SERVER.command)}, "args": ${JSON.stringify(SERVER.args).replace(',', ', ')},
+    "env": ${JSON.stringify(ENV).replace(':', ': ').replace('{', '{ ').replace('}', ' }')} } } }`;
 
 /** Cursor's documented install link: the server's config, JSON then base64, name alongside. */
 const CURSOR_LINK = `cursor://anysphere.cursor-deeplink/mcp/install?name=proxlane&config=${btoa(
@@ -127,15 +130,34 @@ export function AgentStation() {
 							</span>
 							<CopyButton text={client.text} what={`the ${client.name} setup`} />
 						</div>
-						<pre className="overflow-x-auto whitespace-pre p-4 font-mono text-[0.8125rem] leading-[1.9]">
-							<code>{client.text}</code>
-						</pre>
+						{/* EVERY CLIENT'S SNIPPET, STACKED, the live one on top. A JSON file is twice the
+						    height of a one-line command, so switching tabs resized the panel and shoved
+						    the replay below it up and down. The tallest now sets the height for all. */}
+						<div className="grid overflow-x-auto p-4 font-mono text-[0.8125rem] leading-[1.9]">
+							{CLIENTS.map((c) => (
+								<pre
+									key={c.id}
+									aria-hidden={c.id === client.id ? undefined : true}
+									className={`col-start-1 row-start-1 whitespace-pre ${c.id === client.id ? '' : 'invisible'}`}
+								>
+									<code>{c.text}</code>
+								</pre>
+							))}
+						</div>
 					</div>
-					{client.link !== undefined && (
+					{/* The button's slot is always there, for the same reason. */}
+					{client.link !== undefined ? (
 						<a className={`${ctaClass('quiet', 'sm')} self-start`} href={client.link}>
 							<ClientMark id={client.mark} />
 							Add to {client.name}
 						</a>
+					) : (
+						<span
+							aria-hidden="true"
+							className={`${ctaClass('quiet', 'sm')} invisible self-start`}
+						>
+							Add to client
+						</span>
 					)}
 				</div>
 				<div className="flex min-w-0 flex-col gap-4">

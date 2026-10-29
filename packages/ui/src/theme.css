@@ -253,6 +253,59 @@
 	}
 }
 
+/* The route's entrance, one leg at a time. `route-diagram.tsx` sets `--leg-at` on each leg and
+ * names each part by its moment: `arrive` (station and name), the line (an inline draw, or `wipe`
+ * when dashed), `stop` (the cross or terminus), `settle` (leader, outcome and rule), `curve` (the
+ * interchange down to the next leg). Every keyframe starts from the hidden state and ends on the
+ * element's own, so the reduced-motion reset lands everything finished and still. */
+@keyframes proxlane-arrive {
+	from {
+		opacity: 0;
+	}
+}
+@keyframes proxlane-wipe {
+	from {
+		clip-path: inset(-8px 100% -8px 0);
+	}
+	to {
+		clip-path: inset(-8px 0 -8px 0);
+	}
+}
+@keyframes proxlane-stop {
+	from {
+		opacity: 0;
+		transform: scale(0.4);
+	}
+}
+@keyframes proxlane-trace {
+	from {
+		stroke-dashoffset: 1;
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+[data-leg] [data-part="arrive"] {
+	animation: proxlane-arrive 260ms ease-out var(--leg-at, 0ms) both;
+}
+[data-leg] [data-part="wipe"] {
+	animation: proxlane-wipe 480ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--leg-at, 0ms) + 120ms)
+		both;
+}
+[data-leg] [data-part="stop"] {
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: proxlane-stop 280ms cubic-bezier(0.34, 1.56, 0.64, 1)
+		calc(var(--leg-at, 0ms) + 560ms) both;
+}
+[data-leg] [data-part="settle"] {
+	animation: proxlane-arrive 300ms ease-out calc(var(--leg-at, 0ms) + 640ms) both;
+}
+[data-leg] [data-part="curve"] {
+	stroke-dasharray: 1;
+	animation: proxlane-trace 280ms ease-in-out calc(var(--leg-at, 0ms) + 440ms) both;
+}
+
 /* A terminal caret.
  *
  * Runs 0 -> 1 rather than 1 -> 0 on purpose: the reduced-motion reset clamps every animation

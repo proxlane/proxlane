@@ -34,6 +34,22 @@ export interface RouteAttempt {
 	readonly detectRuleId?: string;
 }
 
+/**
+ * The entrance, leg by leg, and how long it takes.
+ *
+ * Each leg plays a short sequence from its own start: the station and its name, then the line,
+ * then the mark where it ended, then the outcome, then the curve down to the next leg. Before
+ * this only a SOLID line drew; the stations, crosses and labels were all there on frame one, and
+ * a chain of blocked (dashed) legs had nothing that moved at all, so it simply appeared.
+ *
+ * Exported because a caller sequencing something after the drawing, the agent replay, has to
+ * wait for it rather than guess.
+ */
+export const LEG_STEP_MS = 620;
+export function entranceMs(legs: number): number {
+	return legs === 0 ? 0 : (legs - 1) * LEG_STEP_MS + 940;
+}
+
 export interface RouteDiagramProps {
 	readonly attempts: readonly RouteAttempt[];
 	/** The outcome the caller actually received, labelled at the terminus. */
@@ -347,7 +363,7 @@ export function RouteDiagram({
 					<g
 						key={`${attempt.provider}-${i}`}
 						data-leg={attempt.provider}
-						style={{ color: stroke }}
+						style={{ color: stroke, '--leg-at': `${i * LEG_STEP_MS}ms` } as CSSProperties}
 					>
 						{/* The hit band, first so every stroke draws over it. */}
 						{interactive && (
@@ -371,14 +387,17 @@ export function RouteDiagram({
 							strokeWidth="var(--stroke-line, 3)"
 							strokeLinecap="round"
 							strokeDasharray={blocked ? '2 7' : undefined}
+							// A blocked leg is already dashed, and animating dashoffset on it would march
+							// the dashes rather than draw the line, so it is wiped in from the left
+							// instead. Both take the same time from the same moment.
+							data-part={blocked ? 'wipe' : undefined}
 							style={
-								// A blocked leg is already dashed, and animating dashoffset on it would
-								// march the dashes rather than draw the line. It arrives at full length.
 								blocked
 									? undefined
 									: ({
 											strokeDasharray: strokeEnd - geo.startX,
-											animation: `proxlane-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) ${i * 320}ms both`,
+											animation:
+												'proxlane-draw 480ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--leg-at) + 120ms) both',
 											'--draw-length': strokeEnd - geo.startX,
 										} as CSSProperties)
 							}
@@ -400,6 +419,8 @@ export function RouteDiagram({
 						{!last && (
 							<path
 								data-glow
+								data-part="curve"
+								pathLength={1}
 								d={`M ${geo.startX} ${y} q -${geo.bulge} 0 -${geo.bulge} ${geo.bulge} v ${geo.rowHeight - geo.bulge * 2} q 0 ${geo.bulge} ${geo.bulge} ${geo.bulge}`}
 								fill="none"
 								stroke={stroke}
@@ -408,6 +429,7 @@ export function RouteDiagram({
 						)}
 
 						<circle
+							data-part="arrive"
 							cx={geo.startX}
 							cy={y}
 							r={last ? geo.stationR : geo.interchangeR}
@@ -422,6 +444,7 @@ export function RouteDiagram({
 						    leaves a short leg stranded beside an unexplained gap. */}
 						{!succeeded && (
 							<line
+								data-part="settle"
 								x1={legEnd + 11}
 								y1={y}
 								x2={outcomeX - 10}
@@ -449,6 +472,7 @@ export function RouteDiagram({
 							y={y - geo.labelRise}
 							fontSize={labelSize}
 							fontFamily="var(--font-mono)"
+							data-part="arrive"
 						>
 							<tspan fill="var(--color-ink)" fontWeight="500">
 								{attempt.provider}
@@ -470,6 +494,7 @@ export function RouteDiagram({
 							fontSize={labelSize}
 							fontWeight={succeeded ? '500' : '400'}
 							fontFamily="var(--font-mono)"
+							data-part="settle"
 						>
 							{succeeded && status !== undefined
 								? `${status} ${attempt.outcome}`
@@ -482,6 +507,7 @@ export function RouteDiagram({
 								fill="var(--color-slate)"
 								fontSize={labelSize - 3}
 								fontFamily="var(--font-mono)"
+								data-part="settle"
 							>
 								{attempt.detectRuleId}
 							</text>
@@ -491,7 +517,7 @@ export function RouteDiagram({
 						    reads as an unfinished drawing. Ringed with a filled centre, which is how
 						    a map distinguishes the end of a line from a stop along it. */}
 						{succeeded && (
-							<>
+							<g data-part="stop">
 								<circle
 									cx={legEnd}
 									cy={y}
@@ -501,13 +527,13 @@ export function RouteDiagram({
 									strokeWidth="var(--stroke-line, 3)"
 								/>
 								<circle cx={legEnd} cy={y} r="2" fill={stroke} />
-							</>
+							</g>
 						)}
 
 						{/* A stop, not a station: this leg ended here and went no further. Struck at
 						    the leg's own weight — thinner read as a different, weaker mark. */}
 						{!succeeded && (
-							<g stroke={stroke} strokeWidth="2.5" strokeLinecap="round">
+							<g data-part="stop" stroke={stroke} strokeWidth="2.5" strokeLinecap="round">
 								<line x1={legEnd - 5.5} y1={y - 5.5} x2={legEnd + 5.5} y2={y + 5.5} />
 								<line x1={legEnd - 5.5} y1={y + 5.5} x2={legEnd + 5.5} y2={y - 5.5} />
 							</g>
