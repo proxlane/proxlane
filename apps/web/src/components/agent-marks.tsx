@@ -107,11 +107,14 @@ export function Toggle({
 	selected,
 	onSelect,
 	label,
+	rule = true,
 	children,
 }: {
 	selected: boolean;
 	onSelect: () => void;
 	label: string;
+	/** The underline. Off where something else marks the selection, like a roundel's ring. */
+	rule?: boolean;
 	children: ReactNode;
 }) {
 	return (
@@ -127,7 +130,7 @@ export function Toggle({
 			}`}
 		>
 			<span
-				className={`inline-flex items-center gap-2 border-b-2 pb-1 ${selected ? 'border-[color:var(--color-accent)]' : 'border-transparent'}`}
+				className={`inline-flex items-center gap-2 border-b-2 pb-1 ${selected && rule ? 'border-[color:var(--color-accent)]' : 'border-transparent'}`}
 			>
 				{children}
 			</span>

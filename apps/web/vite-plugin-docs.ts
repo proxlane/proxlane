@@ -710,16 +710,56 @@ async function highlightSetup(): Promise<Record<string, string>> {
 		`--shiki-light:${sampled(role, THEMES.light)};--shiki-dark:${sampled(role, THEMES.dark)}`;
 	const light = highlighter.getTheme(THEMES.light);
 	const dark = highlighter.getTheme(THEMES.dark);
+	type Segment = readonly [text: string, style: string | undefined];
+	const shellSegments = (text: string): Segment[] =>
+		text
+			.split('\n')
+			.flatMap((line, i) => [
+				...(i === 0 ? [] : ([['\n', undefined]] as Segment[])),
+				...shellRoles(line, i === 0).map(
+					([t, role]): Segment => [t, role === undefined ? undefined : style(role)],
+				),
+			]);
+	// JSON as the docs colour it, one token at a time in both themes. The same grammar gives the
+	// same tokens either way, so the two passes line up index for index.
+	const jsonSegments = (text: string): Segment[] => {
+		const pass = (theme: string) =>
+			highlighter.codeToTokens(text, { lang: 'json', theme }).tokens.map((line) => line);
+		const l = pass(THEMES.light);
+		const d = pass(THEMES.dark);
+		return l.flatMap((line, i) => [
+			...(i === 0 ? [] : ([['\n', undefined]] as Segment[])),
+			...line.map(
+				(t, j): Segment => [
+					t.content,
+					`--shiki-light:${t.color};--shiki-dark:${d[i]?.[j]?.color ?? t.color}`,
+				],
+			),
+		]);
+	};
 	const shell = (text: string): string => {
-		const lines = text.split('\n').map((line, i) =>
-			shellRoles(line, i === 0)
-				.map(([t, role]) =>
-					role === undefined
-						? escapeHtml(t)
-						: `<span style="${style(role)}">${escapeHtml(t)}</span>`,
-				)
-				.join(''),
-		);
+		// A command whose last argument is a single-quoted JSON object (VS Code's `--add-mcp`):
+		// the shell part by role, the object as JSON, the quotes as the string they delimit.
+		const embedded = /^([^']*)'(\{[\s\S]*\})'$/.exec(text);
+		const segments: Segment[] =
+			embedded?.[1] !== undefined && embedded[2] !== undefined
+				? [
+						...shellSegments(embedded[1]),
+						["'", style('value')],
+						...jsonSegments(embedded[2]),
+						["'", style('value')],
+					]
+				: shellSegments(text);
+		const lines: string[] = [''];
+		for (const [t, css] of segments) {
+			if (t === '\n') {
+				lines.push('');
+				continue;
+			}
+			const html =
+				css === undefined ? escapeHtml(t) : `<span style="${css}">${escapeHtml(t)}</span>`;
+			lines[lines.length - 1] += html;
+		}
 		const base = `--shiki-light:${light.fg};--shiki-dark:${dark.fg}`;
 		return `<pre class="shiki" style="${base}"><code>${lines.map((l) => `<span class="line">${l}</span>`).join('\n')}</code></pre>`;
 	};

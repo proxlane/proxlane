@@ -35,11 +35,11 @@ interface Run {
 	readonly answer: string;
 }
 
-const ASK = 'What does the Team plan cost on shop.example?';
-const CALL = 'fetch_page  url: "https://shop.example/pricing"';
+const ASK = 'Summarise the latest changelog at acme.example.';
+const CALL = 'fetch_page url: "https://acme.example/changelog"';
 
 /**
- * Two runs of one question. A worked example, captioned as one: `shop.example` is a reserved name
+ * Two runs of one question. A worked example, captioned as one: `acme.example` is a reserved name
  * with no site behind it, which keeps a named target off the page as well.
  *
  * THE SECOND RUN IS THE ARGUMENT. Hand an agent a plain fetch and a challenge page arrives as a
@@ -67,7 +67,7 @@ const RUNS: readonly Run[] = [
   "provider": "scrapfly",
   "chain": "scraperapi:SOFT_BLOCK>scrapfly:OK" }`,
 		answer:
-			'Team is $24 per seat a month, billed yearly. The page also lists a free plan for up to three seats.',
+			'Version 4.2 adds single sign-on and drops support for Node 18. It also fixes webhooks that could fire twice on a retry.',
 	},
 	{
 		id: 'blocked',
@@ -102,7 +102,7 @@ const RUNS: readonly Run[] = [
   "class": "blocked",
   "retryable": true }`,
 		answer:
-			'Every provider was blocked by a bot check on that page, so I have nothing to read and will not guess at the price. Worth trying again later, not right now.',
+			'Every provider was blocked by a bot check on that page, so I have nothing to read and will not guess at what changed. Worth trying again later, not right now.',
 	},
 ];
 
@@ -225,12 +225,12 @@ function Gateway({ run, client, beat }: { run: Run; client: ReplayClient; beat: 
 						{...statusProp}
 						compact
 						presentation
-						className="w-full min-w-[280px] max-w-[380px]"
+						className="w-full min-w-[280px] max-w-[480px]"
 					/>
 				)}
 			</div>
 			<div
-				className={`border-[color:var(--color-rule)] border-t pt-4 font-mono text-[0.75rem] leading-[1.9] ${beat >= 4 ? 'proxlane-beat' : 'invisible'}`}
+				className={`border-[color:var(--color-rule)] border-t pt-5 font-mono text-[0.8125rem] leading-[1.9] ${beat >= 4 ? 'proxlane-beat' : 'invisible'}`}
 			>
 				<p className="font-medium">{run.response.line}</p>
 				<dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-6">
@@ -265,11 +265,11 @@ function Conversation({
 }) {
 	const failed = run.outcome !== 'OK';
 	return (
-		<div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-10">
-			<div className="flex min-w-0 flex-col gap-6">
+		<div className="grid min-w-0 gap-10 lg:grid-cols-[minmax(0,7fr)_minmax(0,6fr)] lg:gap-12">
+			<div className="flex min-w-0 flex-col gap-7">
 				<div className={`self-start ${beat >= 1 ? 'proxlane-beat' : 'invisible'}`}>
 					<p className="font-mono text-[color:var(--color-slate)] text-xs">you</p>
-					<p className="mt-2 rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_5%,transparent)] px-4 py-2.5 text-[0.9375rem]">
+					<p className="mt-2 rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_5%,transparent)] px-4 py-3 text-base">
 						{ASK}
 					</p>
 				</div>
@@ -279,7 +279,7 @@ function Conversation({
 						<ClientMark id={client.mark} className="size-3.5" />
 						{client.name.toLowerCase()}
 					</p>
-					<p className="mt-2 inline-block rounded-card border border-[color:var(--color-rule)] px-3 py-2 font-mono text-[0.8125rem]">
+					<p className="mt-2 inline-block rounded-card border border-[color:var(--color-rule)] px-3.5 py-2.5 font-mono text-[0.8125rem]">
 						<span className="text-[color:var(--color-accent)]">→ </span>
 						{CALL}
 					</p>
@@ -290,21 +290,19 @@ function Conversation({
 				</div>
 
 				<pre
-					className={`overflow-x-auto whitespace-pre border-l-2 py-1 pl-4 font-mono text-[0.75rem] leading-[1.8] ${
+					className={`overflow-x-auto whitespace-pre border-l-2 py-1 pl-4 font-mono text-[0.8125rem] leading-[1.8] ${
 						failed ? 'border-[color:var(--color-accent)]' : 'border-[color:var(--color-rule)]'
 					} ${beat >= 5 ? 'proxlane-beat' : 'invisible'}`}
 				>
 					{run.result}
 				</pre>
 
-				<p
-					className={`max-w-[56ch] text-[0.9375rem] leading-relaxed ${beat >= 6 ? '' : 'invisible'}`}
-				>
+				<p className={`max-w-[56ch] text-base leading-relaxed ${beat >= 6 ? '' : 'invisible'}`}>
 					<Answer key={`${run.id}-${client.id}`} text={run.answer} playing={playing} />
 				</p>
 			</div>
 
-			<div className="hidden flex-col justify-center rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_3%,transparent)] px-6 py-8 lg:flex">
+			<div className="hidden flex-col justify-center rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_3%,transparent)] px-8 py-10 lg:flex">
 				<p className="mb-5 font-mono text-[color:var(--color-slate)] text-xs">
 					what the gateway did
 				</p>
@@ -362,7 +360,7 @@ export function Replay({ client }: { client: ReplayClient }) {
 						))}
 					</div>
 				</div>
-				<div ref={ref} className="grid grid-cols-[minmax(0,1fr)] px-5 py-7 sm:px-8 sm:py-8">
+				<div ref={ref} className="grid grid-cols-[minmax(0,1fr)] px-5 py-8 sm:px-10 sm:py-11">
 					<Reserve client={client} />
 					<div aria-hidden="true" className="col-start-1 row-start-1">
 						<Conversation run={run} client={client} beat={beat} playing={playing} />
@@ -374,7 +372,7 @@ export function Replay({ client }: { client: ReplayClient }) {
 			</div>
 			<figcaption className="mt-4 max-w-[58ch] text-[color:var(--color-slate)] text-sm leading-relaxed">
 				<span className="text-[color:var(--color-ink)]">A worked example.</span> The response
-				and tool result are the shapes the gateway and server return; shop.example is a reserved
+				and tool result are the shapes the gateway and server return; acme.example is a reserved
 				name, not a site.
 			</figcaption>
 		</figure>

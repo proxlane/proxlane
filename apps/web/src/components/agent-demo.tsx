@@ -32,6 +32,8 @@ export function AgentStation() {
 						selected={c.id === client.id}
 						onSelect={() => setClientId(c.id)}
 						label={`Show setup for ${c.name}`}
+						// The ring says which client is selected. An underline under it said it twice.
+						rule={false}
 					>
 						<Roundel id={c.mark} selected={c.id === client.id} />
 						{c.name}
