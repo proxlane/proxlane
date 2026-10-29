@@ -428,7 +428,12 @@ describe('a shape is what the provider decides, not what a request happened to g
 		same(
 			fixture({ 'content-length': '10', 'sa-proxy-hash': 'x', 'sa-statuscode': '200' }, {}),
 			fixture(
-				{ 'transfer-encoding': 'chunked', connection: 'keep-alive', 'sa-statuscode': '200' },
+				{
+					'transfer-encoding': 'chunked',
+					connection: 'keep-alive',
+					'alt-svc': 'h3=":443"',
+					'sa-statuscode': '200',
+				},
 				{},
 			),
 		);
