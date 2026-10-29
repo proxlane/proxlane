@@ -937,12 +937,16 @@ export function sanitizeHeaders(
  *   age                              present only on a cache hit
  *   sa-proxy-hash                    ScraperAPI names the exit proxy on some responses and not
  *                                    others: "1 gone" in the morning, "1 new" that evening
+ *   alt-svc                          an edge advertising HTTP/3. Added 2026-10-28 when it appeared
+ *                                    on Scrapfly and Bright Data in the same run (#435, #437): an
+ *                                    edge rollout, not a response shape
  *
  * None of them is read by any `parse()`. Once `record-diff` stopped swallowing its exit code,
  * these alone opened a drift issue on every adapter, every week.
  */
 const SHAPELESS_HEADERS = new Set([
 	'age',
+	'alt-svc',
 	'connection',
 	'content-length',
 	'keep-alive',
