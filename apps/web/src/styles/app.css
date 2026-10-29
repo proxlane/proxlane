@@ -222,7 +222,17 @@ body::before {
 		animation-iteration-count: 1 !important;
 		/* biome-ignore lint/complexity/noImportantStyles: see above */
 		transition-duration: 0.01ms !important;
+		/* And no waiting. The route's legs and the replay's answer stagger by delay, and a delay
+		   left in place holds a part hidden for seconds before it lands finished. */
+		/* biome-ignore lint/complexity/noImportantStyles: see above */
+		animation-delay: 0ms !important;
 	}
+}
+
+/* The replay's height-reserving copies are never seen; nothing in them should animate. */
+[data-reserve] * {
+	/* biome-ignore lint/complexity/noImportantStyles: the diagram sets its animations inline */
+	animation: none !important;
 }
 
 /* Rendered markdown.

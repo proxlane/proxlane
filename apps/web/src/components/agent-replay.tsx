@@ -7,8 +7,13 @@
  * chain the gateway draws, and it re-renders for whichever client is selected above it.
  */
 
-import { describeRoute, type RouteAttempt, RouteDiagram } from '@proxlane/route-viz';
-import { useEffect, useRef, useState } from 'react';
+import {
+	describeRoute,
+	entranceMs,
+	type RouteAttempt,
+	RouteDiagram,
+} from '@proxlane/route-viz';
+import { memo, useEffect, useRef, useState } from 'react';
 import { ClientMark, type MarkId, Toggle } from './agent-marks.js';
 
 /** What the replay needs of a client: who is calling the tool. */
@@ -23,6 +28,8 @@ interface Run {
 	readonly attempts: readonly RouteAttempt[];
 	readonly outcome: string;
 	readonly status?: number;
+	/** What the gateway answered: the status line and the three headers the tool reads. */
+	readonly response: { readonly line: string; readonly class: string };
 	/** What `fetch_page` hands the model, in the shape `packages/sdk/src/server.ts` builds. */
 	readonly result: string;
 	readonly answer: string;
@@ -55,6 +62,7 @@ const RUNS: readonly Run[] = [
 		],
 		outcome: 'OK',
 		status: 200,
+		response: { line: 'HTTP/1.1 200 OK', class: 'ok' },
 		result: `{ "ok": true,
   "provider": "scrapfly",
   "chain": "scraperapi:SOFT_BLOCK>scrapfly:OK" }`,
@@ -87,6 +95,8 @@ const RUNS: readonly Run[] = [
 			},
 		],
 		outcome: 'HARD_BLOCK',
+		// 502 is HARD_BLOCK's `httpStatus` in `packages/shared/src/outcome.ts`.
+		response: { line: 'HTTP/1.1 502', class: 'blocked' },
 		result: `{ "ok": false,
   "outcome": "HARD_BLOCK",
   "class": "blocked",
@@ -96,25 +106,42 @@ const RUNS: readonly Run[] = [
 	},
 ];
 
-/** When each beat lands, in ms from the start. The answer then types at `CHAR_MS` a character. */
-const BEATS = [0, 650, 1300, 2600, 3300] as const;
-const CHAR_MS = 14;
+/**
+ * When each beat lands, in ms from the start: the ask, the call, the chain, the gateway's
+ * response, the tool result, the answer.
+ *
+ * DERIVED FROM THE CHAIN. These were five fixed numbers, and the result arrived on the left while
+ * a three-leg chain was still drawing on the right: an agent reading a verdict the gateway had not
+ * reached. `entranceMs` is the diagram's own clock, so the response waits for the last leg.
+ */
+const BEAT_COUNT = 6;
+function beatsFor(run: Run): readonly number[] {
+	const chain = 1300;
+	const response = chain + entranceMs(run.attempts.length) + 150;
+	return [0, 650, chain, response, response + 550, response + 1150];
+}
+/** One character of the answer every this many ms. */
+const CHAR_MS = 16;
 
 /**
- * The beats of one run: the ask, the tool call, the chain, the result, the answer.
+ * Which beat the replay is on, and whether it is actually playing.
  *
  * SAME CONTRACT AS `Transcript`: state starts complete so the server renders the finished
  * conversation and hydration matches, an effect rewinds it only when motion is allowed, and it
  * starts when scrolled into view. A run switched to after that replays at once, because the reader
  * asked for it.
+ *
+ * Six state changes per run and no more. The answer used to type through state, one render per
+ * character, and every render redrew the conversation, the diagram and both height-reserving
+ * copies: about a hundred full renders in two seconds, which is what read as choppy. The typing is
+ * CSS now (`Answer`).
  */
-function useReplay(runKey: string, answerLength: number) {
-	const [state, setState] = useState<{ beat: number; chars: number }>({
-		beat: BEATS.length,
-		chars: answerLength,
-	});
+function useReplay(runKey: string, beats: readonly number[]) {
+	const [state, setState] = useState({ beat: BEAT_COUNT, playing: false });
 	const ref = useRef<HTMLDivElement | null>(null);
 	const seen = useRef(false);
+	const plan = useRef(beats);
+	plan.current = beats;
 
 	useEffect(() => {
 		const node = ref.current;
@@ -124,23 +151,17 @@ function useReplay(runKey: string, answerLength: number) {
 		const timers: ReturnType<typeof setTimeout>[] = [];
 		const play = () => {
 			seen.current = true;
-			setState({ beat: 0, chars: 0 });
-			BEATS.forEach((at, i) => {
-				timers.push(setTimeout(() => setState({ beat: i + 1, chars: 0 }), at));
+			setState({ beat: 0, playing: true });
+			plan.current.forEach((at, i) => {
+				timers.push(setTimeout(() => setState({ beat: i + 1, playing: true }), at));
 			});
-			const start = BEATS[BEATS.length - 1] ?? 0;
-			for (let c = 1; c <= answerLength; c++) {
-				timers.push(
-					setTimeout(() => setState({ beat: BEATS.length, chars: c }), start + c * CHAR_MS),
-				);
-			}
 		};
 
 		if (seen.current) {
 			play();
 			return () => timers.forEach(clearTimeout);
 		}
-		setState({ beat: 0, chars: 0 });
+		setState({ beat: 0, playing: false });
 		const io = new IntersectionObserver(
 			(entries) => {
 				if (entries.some((e) => e.isIntersecting)) {
@@ -156,51 +177,91 @@ function useReplay(runKey: string, answerLength: number) {
 			timers.forEach(clearTimeout);
 		};
 		// runKey is the replay trigger: a different run or client starts it again.
-	}, [runKey, answerLength]);
+	}, [runKey]);
 
 	return { ref, ...state };
 }
 
 /**
- * The chain the gateway walked, as the hero draws it. Remounted per run and client, so the legs
- * draw again each time the replay plays.
+ * The answer, typed by CSS: one span per character, each fading in on its own delay. Nothing
+ * re-renders while it types. Plain text when not playing, so the server render, a reader who
+ * asked for stillness and the height-reserving copies all get the sentence whole.
  */
-function Chain({ run, client, beat }: { run: Run; client: ReplayClient; beat: number }) {
-	const statusProp = run.status === undefined ? {} : { status: run.status };
+function Answer({ text, playing }: { text: string; playing: boolean }) {
+	if (!playing) return <>{text}</>;
 	return (
-		<div className={`min-h-[132px] overflow-x-auto ${beat >= 3 ? '' : 'invisible'}`}>
-			{beat >= 3 && (
-				<RouteDiagram
-					key={`${run.id}-${client.id}`}
-					attempts={run.attempts}
-					outcome={run.outcome}
-					{...statusProp}
-					compact
-					presentation
-					className="w-full min-w-[280px] max-w-[380px]"
-				/>
-			)}
+		<>
+			{[...text].map((ch, i) => (
+				<span
+					key={i}
+					style={{ animation: `proxlane-arrive 90ms ease-out ${i * CHAR_MS}ms both` }}
+				>
+					{ch}
+				</span>
+			))}
+		</>
+	);
+}
+
+/**
+ * The chain the gateway walked, as the hero draws it, and what it sent back. Remounted per run
+ * and client, so the legs draw again each time the replay plays.
+ */
+function Gateway({ run, client, beat }: { run: Run; client: ReplayClient; beat: number }) {
+	const statusProp = run.status === undefined ? {} : { status: run.status };
+	const rows = [
+		['x-outcome', run.outcome],
+		['x-outcome-class', run.response.class],
+		['x-attempts', String(run.attempts.length)],
+	] as const;
+	return (
+		<div className="flex flex-col gap-6">
+			<div className={`min-h-[132px] overflow-x-auto ${beat >= 3 ? '' : 'invisible'}`}>
+				{beat >= 3 && (
+					<RouteDiagram
+						key={`${run.id}-${client.id}`}
+						attempts={run.attempts}
+						outcome={run.outcome}
+						{...statusProp}
+						compact
+						presentation
+						className="w-full min-w-[280px] max-w-[380px]"
+					/>
+				)}
+			</div>
+			<div
+				className={`border-[color:var(--color-rule)] border-t pt-4 font-mono text-[0.75rem] leading-[1.9] ${beat >= 4 ? 'proxlane-beat' : 'invisible'}`}
+			>
+				<p className="font-medium">{run.response.line}</p>
+				<dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-6">
+					{rows.map(([name, value]) => (
+						<div key={name} className="contents">
+							<dt className="text-[color:var(--color-slate)]">{name}</dt>
+							<dd>{value}</dd>
+						</div>
+					))}
+				</dl>
+			</div>
 		</div>
 	);
 }
 
 /**
- * A chat on the left and the chain beside it, not stacked in one column. The first version put
- * the ask, the call, the diagram, the result and the answer in a single 500px column, and five
- * kinds of thing at one rhythm read as one dense block. Split, the left reads as a conversation
- * and the right as the drawing it refers to. Below `lg` there is no room beside it, so the
- * diagram drops back in between the call and its result, where it happens.
+ * A chat on the left and the gateway beside it, not stacked in one column. Five kinds of thing at
+ * one rhythm in a single column read as one dense block. Split, the left reads as a conversation
+ * and the right as what the gateway did about it. Below `lg` there is no room beside it, so the
+ * gateway drops back in between the call and its result, where it happens.
  */
 function Conversation({
 	run,
 	client,
 	beat,
-	chars,
+	playing,
 }: {
 	run: Run;
 	client: ReplayClient;
 	beat: number;
-	chars: number;
+	playing: boolean;
 }) {
 	const failed = run.outcome !== 'OK';
 	return (
@@ -225,24 +286,21 @@ function Conversation({
 				</div>
 
 				<div className="lg:hidden">
-					<Chain run={run} client={client} beat={beat} />
+					<Gateway run={run} client={client} beat={beat} />
 				</div>
 
 				<pre
 					className={`overflow-x-auto whitespace-pre border-l-2 py-1 pl-4 font-mono text-[0.75rem] leading-[1.8] ${
 						failed ? 'border-[color:var(--color-accent)]' : 'border-[color:var(--color-rule)]'
-					} ${beat >= 4 ? 'proxlane-beat' : 'invisible'}`}
+					} ${beat >= 5 ? 'proxlane-beat' : 'invisible'}`}
 				>
 					{run.result}
 				</pre>
 
 				<p
-					className={`max-w-[56ch] text-[0.9375rem] leading-relaxed ${beat >= 5 ? '' : 'invisible'}`}
+					className={`max-w-[56ch] text-[0.9375rem] leading-relaxed ${beat >= 6 ? '' : 'invisible'}`}
 				>
-					{run.answer.slice(0, chars)}
-					{beat >= 5 && chars < run.answer.length && (
-						<span className="proxlane-caret text-[color:var(--color-accent)]">▊</span>
-					)}
+					<Answer key={`${run.id}-${client.id}`} text={run.answer} playing={playing} />
 				</p>
 			</div>
 
@@ -250,17 +308,39 @@ function Conversation({
 				<p className="mb-5 font-mono text-[color:var(--color-slate)] text-xs">
 					what the gateway did
 				</p>
-				<Chain run={run} client={client} beat={beat} />
+				<Gateway run={run} client={client} beat={beat} />
 			</div>
 		</div>
 	);
 }
 
+/**
+ * Both finished runs, invisible, in the cell the live one plays in, so the panel holds the taller
+ * one's height from the first frame and switching runs moves nothing. Memoised and still: they
+ * render once per client, and `data-reserve` stops the diagrams inside them animating unseen.
+ */
+const Reserve = memo(function Reserve({ client }: { client: ReplayClient }) {
+	return (
+		<>
+			{RUNS.map((r) => (
+				<div
+					key={r.id}
+					aria-hidden="true"
+					data-reserve
+					className="invisible col-start-1 row-start-1"
+				>
+					<Conversation run={r} client={client} beat={BEAT_COUNT} playing={false} />
+				</div>
+			))}
+		</>
+	);
+});
+
 export function Replay({ client }: { client: ReplayClient }) {
 	const [runId, setRunId] = useState<Run['id']>('blocked');
 	const run = RUNS.find((r) => r.id === runId) ?? RUNS[0];
 	if (run === undefined) throw new Error('RUNS is empty');
-	const { ref, beat, chars } = useReplay(`${run.id}-${client.id}`, run.answer.length);
+	const { ref, beat, playing } = useReplay(`${run.id}-${client.id}`, beatsFor(run));
 
 	return (
 		<figure className="flex min-w-0 flex-col">
@@ -283,29 +363,19 @@ export function Replay({ client }: { client: ReplayClient }) {
 					</div>
 				</div>
 				<div ref={ref} className="grid grid-cols-[minmax(0,1fr)] px-5 py-7 sm:px-8 sm:py-8">
-					{/* Both finished runs, invisible, in the cell the live one plays in: the panel holds
-					    the taller one's height from the first frame, so switching runs moves nothing. */}
-					{RUNS.map((r) => (
-						<div key={r.id} aria-hidden="true" className="invisible col-start-1 row-start-1">
-							<Conversation
-								run={r}
-								client={client}
-								beat={BEATS.length}
-								chars={r.answer.length}
-							/>
-						</div>
-					))}
+					<Reserve client={client} />
 					<div aria-hidden="true" className="col-start-1 row-start-1">
-						<Conversation run={run} client={client} beat={beat} chars={chars} />
+						<Conversation run={run} client={client} beat={beat} playing={playing} />
 					</div>
 					<p className="sr-only" aria-live="polite">
-						{`${ASK} ${client.name} calls fetch_page. ${describeRoute(run.attempts, run.outcome)} ${run.answer}`}
+						{`${ASK} ${client.name} calls fetch_page. ${describeRoute(run.attempts, run.outcome)} The gateway answers ${run.response.line}. ${run.answer}`}
 					</p>
 				</div>
 			</div>
 			<figcaption className="mt-4 max-w-[58ch] text-[color:var(--color-slate)] text-sm leading-relaxed">
-				<span className="text-[color:var(--color-ink)]">A worked example.</span> The tool result
-				is the shape the server returns; shop.example is a reserved name, not a site.
+				<span className="text-[color:var(--color-ink)]">A worked example.</span> The response
+				and tool result are the shapes the gateway and server return; shop.example is a reserved
+				name, not a site.
 			</figcaption>
 		</figure>
 	);

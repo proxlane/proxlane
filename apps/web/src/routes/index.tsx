@@ -568,6 +568,7 @@ function Hero({
 								{describeRoute(scenario.attempts, scenario.outcome)}
 							</p>
 							<RouteDiagram
+								key={scenario.id}
 								attempts={scenario.attempts}
 								outcome={scenario.outcome}
 								{...statusProp}
@@ -576,6 +577,7 @@ function Hero({
 								className="route-map hidden lg:block"
 							/>
 							<RouteDiagram
+								key={scenario.id}
 								attempts={scenario.attempts}
 								outcome={scenario.outcome}
 								{...statusProp}
