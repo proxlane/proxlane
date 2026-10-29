@@ -6,95 +6,15 @@
  * ChatGPT, claude.ai and the Gemini app connect to MCP servers by URL from their own clouds; they
  * cannot start `npx` on your machine or reach a gateway on localhost. Naming them would advertise
  * a connection nobody can make, which is the one thing the README rule forbids.
- *
- * THE COMMANDS WERE RUN, not transcribed. Claude Code, Gemini CLI and Codex each took the exact
- * string below against an isolated config and wrote the entry shown; Gemini reported the server
- * connected. Cursor's link and VS Code's `--add-mcp` follow each editor's own documented format.
- * `PROXLANE_URL` is left out because the server defaults to `http://localhost:8787`, which is
- * where the quickstart above puts the gateway.
  */
 
+import highlighted from 'virtual:agent-setup';
 import { useState } from 'react';
-import { ClientMark, type MarkId, Roundel, Toggle } from './agent-marks.js';
+import { CLIENTS, KEY } from '../lib/agent-setup.js';
+import { ClientMark, Roundel, Toggle } from './agent-marks.js';
 import { Replay } from './agent-replay.js';
 import { CopyButton } from './artifacts.js';
 import { ctaClass } from './cta.js';
-
-const SERVER = { command: 'npx', args: ['-y', '@proxlane/sdk@0.1'] } as const;
-const KEY = 'your-gateway-key';
-const ENV = { PROXLANE_API_KEY: KEY };
-
-/**
- * An `mcpServers` file in three lines, the height of the commands beside it in the tab set. Every
- * snippet shares one reserved height so switching tabs moves nothing; at nine lines the JSON set
- * that height and left the one-line commands floating in an empty panel. Each value is
- * `JSON.stringify`d from the same objects the Cursor link encodes, so only the layout is by hand.
- */
-const CONFIG = `{ "mcpServers": { "proxlane": {
-    "command": ${JSON.stringify(SERVER.command)}, "args": ${JSON.stringify(SERVER.args).replace(',', ', ')},
-    "env": ${JSON.stringify(ENV).replace(':', ': ').replace('{', '{ ').replace('}', ' }')} } } }`;
-
-/** Cursor's documented install link: the server's config, JSON then base64, name alongside. */
-const CURSOR_LINK = `cursor://anysphere.cursor-deeplink/mcp/install?name=proxlane&config=${btoa(
-	JSON.stringify({ ...SERVER, env: ENV }),
-)}`;
-
-interface Client {
-	readonly id: string;
-	readonly name: string;
-	readonly mark: MarkId;
-	/** What the panel bar names: a shell, or the file the snippet goes in. */
-	readonly where: string;
-	readonly text: string;
-	/** One click instead of a paste, where the client publishes a way to do it. */
-	readonly link?: string;
-}
-
-export const CLIENTS: readonly Client[] = [
-	{
-		id: 'claude-code',
-		name: 'Claude Code',
-		mark: 'claude',
-		where: 'terminal',
-		text: `claude mcp add proxlane \\\n  --env PROXLANE_API_KEY=${KEY} \\\n  -- npx -y @proxlane/sdk@0.1`,
-	},
-	{
-		id: 'claude-desktop',
-		name: 'Claude Desktop',
-		mark: 'claude',
-		where: 'claude_desktop_config.json',
-		text: CONFIG,
-	},
-	{
-		id: 'codex',
-		name: 'Codex',
-		mark: 'openai',
-		where: 'terminal',
-		text: `codex mcp add proxlane \\\n  --env PROXLANE_API_KEY=${KEY} \\\n  -- npx -y @proxlane/sdk@0.1`,
-	},
-	{
-		id: 'gemini',
-		name: 'Gemini CLI',
-		mark: 'gemini',
-		where: 'terminal',
-		text: `gemini mcp add proxlane npx -y @proxlane/sdk@0.1 \\\n  -e PROXLANE_API_KEY=${KEY}`,
-	},
-	{
-		id: 'cursor',
-		name: 'Cursor',
-		mark: 'cursor',
-		where: '~/.cursor/mcp.json',
-		text: CONFIG,
-		link: CURSOR_LINK,
-	},
-	{
-		id: 'vscode',
-		name: 'VS Code',
-		mark: 'code',
-		where: 'terminal',
-		text: `code --add-mcp '${JSON.stringify({ name: 'proxlane', type: 'stdio', ...SERVER, env: ENV })}'`,
-	},
-];
 
 // ---- the station -----------------------------------------------------------------------
 
@@ -135,13 +55,13 @@ export function AgentStation() {
 						    the replay below it up and down. The tallest now sets the height for all. */}
 						<div className="grid overflow-x-auto p-4 font-mono text-[0.8125rem] leading-[1.9]">
 							{CLIENTS.map((c) => (
-								<pre
+								<div
 									key={c.id}
 									aria-hidden={c.id === client.id ? undefined : true}
-									className={`col-start-1 row-start-1 whitespace-pre ${c.id === client.id ? '' : 'invisible'}`}
-								>
-									<code>{c.text}</code>
-								</pre>
+									className={`code-hl col-start-1 row-start-1 ${c.id === client.id ? '' : 'invisible'}`}
+									// Shiki's output from the build, for a string in this repo: no input reaches it.
+									dangerouslySetInnerHTML={{ __html: highlighted[c.id] ?? '' }}
+								/>
 							))}
 						</div>
 					</div>

@@ -400,12 +400,23 @@ body::before {
  *
  * The background stays ours. Shiki also emits `--shiki-*-bg`, but the code block should match
  * the panels around it rather than bring GitHub's surface colour into a hand-authored theme. */
+/* Outside the docs, a highlighted block sits inside one of our panels, which brings its own
+   padding and type; Shiki's `<pre>` only supplies the colour. */
+.code-hl .shiki {
+	margin: 0;
+	background: none;
+	white-space: pre;
+}
 .doc-prose .shiki,
-.doc-prose .shiki span {
+.doc-prose .shiki span,
+.code-hl .shiki,
+.code-hl .shiki span {
 	color: var(--shiki-light);
 }
 html[data-theme="dark"] .doc-prose .shiki,
-html[data-theme="dark"] .doc-prose .shiki span {
+html[data-theme="dark"] .doc-prose .shiki span,
+html[data-theme="dark"] .code-hl .shiki,
+html[data-theme="dark"] .code-hl .shiki span {
 	color: var(--shiki-dark);
 }
 

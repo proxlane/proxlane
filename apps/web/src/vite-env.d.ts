@@ -22,3 +22,9 @@ declare module 'virtual:docs-changelog' {
 	const changelog: ChangelogPackage[];
 	export default changelog;
 }
+
+// Each MCP client's setup snippet, coloured by Shiki at build time, keyed by client id.
+declare module 'virtual:agent-setup' {
+	const html: Record<string, string>;
+	export default html;
+}
