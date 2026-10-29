@@ -21,6 +21,7 @@ import { join } from 'node:path';
 import MarkdownIt from 'markdown-it';
 import { createHighlighter } from 'shiki';
 import type { Plugin } from 'vite';
+import { CLIENTS } from './src/lib/agent-setup.js';
 
 /** Only what the docs actually use. Every grammar loaded is bundle weight and startup cost. */
 const LANGS = ['bash', 'json', 'http', 'typescript', 'javascript', 'python'] as const;
@@ -638,6 +639,100 @@ const RESOLVED_CHANGELOG_ID = `\0${CHANGELOG_ID}`;
 const SEARCH_ID = 'virtual:docs-search';
 const RESOLVED_SEARCH_ID = `\0${SEARCH_ID}`;
 
+/**
+ * The homepage's MCP setup snippets, coloured here for the reason the docs' code blocks are: the
+ * same highlighter, the same two themes as CSS variables, and nothing of Shiki in the page.
+ */
+const SETUP_ID = 'virtual:agent-setup';
+const RESOLVED_SETUP_ID = `\0${SETUP_ID}`;
+/**
+ * A shell command coloured by ROLE, because the bash grammar cannot tell them apart.
+ *
+ * Shiki's bash grammar sees `claude mcp add proxlane --env KEY=value -- npx -y pkg` as a function
+ * followed by arguments, and the GitHub themes give arguments and flags two pale blues a reader
+ * cannot separate: the block read as one colour. Each word is classed here instead (command,
+ * flag, variable name, value, package) and painted with the colour the SAME theme gives that
+ * scope, read from the theme rather than typed, so it stays the docs' palette in both modes and
+ * no hex enters the repo.
+ */
+/**
+ * Each role, and a snippet whose token of that text the theme colours the way the role should
+ * read. A sample rather than a scope name, because Shiki resolves scopes against the theme's own
+ * grouping and a sample cannot get that wrong. If a theme update recolours one, the page follows.
+ */
+const ROLE_SAMPLE = {
+	command: ['typescript', 'function f() {}', 'f'],
+	flag: ['typescript', 'const x = 1', 'const'],
+	key: ['typescript', 'function f(a) {}', 'a'],
+	value: ['bash', 'echo "s"', '"s"'],
+	pkg: ['http', 'GET / HTTP/1.1\nHost: a', 'Host'],
+	punct: ['typescript', '// c', '// c'],
+} as const;
+type Role = keyof typeof ROLE_SAMPLE;
+
+function shellRoles(line: string, first: boolean): [string, Role | undefined][] {
+	const out: [string, Role | undefined][] = [];
+	let seenCommand = !first;
+	for (const part of line.split(/(\s+)/)) {
+		if (part === '' || /^\s+$/.test(part)) {
+			if (part !== '') out.push([part, undefined]);
+			continue;
+		}
+		const assign = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(part);
+		if (!seenCommand) {
+			out.push([part, 'command']);
+			seenCommand = true;
+		} else if (part === 'npx') out.push([part, 'command']);
+		else if (part === '\\') out.push([part, 'punct']);
+		else if (part.startsWith('-')) out.push([part, 'flag']);
+		else if (assign?.[1] !== undefined && assign[2] !== undefined) {
+			out.push([assign[1], 'key'], ['=', undefined], [assign[2], 'value']);
+		} else if (part.startsWith('@')) out.push([part, 'pkg']);
+		else if (part.startsWith("'")) out.push([part, 'value']);
+		else out.push([part, undefined]);
+	}
+	return out;
+}
+
+async function highlightSetup(): Promise<Record<string, string>> {
+	const highlighter = await highlighterFor();
+	const sampled = (role: Role, theme: string): string => {
+		const [lang, code, text] = ROLE_SAMPLE[role];
+		const hit = highlighter
+			.codeToTokens(code, { lang, theme })
+			.tokens.flat()
+			.find((t) => t.content.trim() === text);
+		if (hit?.color === undefined)
+			throw new Error(`${theme} no longer colours "${text}" in ${lang}`);
+		return hit.color;
+	};
+	const style = (role: Role) =>
+		`--shiki-light:${sampled(role, THEMES.light)};--shiki-dark:${sampled(role, THEMES.dark)}`;
+	const light = highlighter.getTheme(THEMES.light);
+	const dark = highlighter.getTheme(THEMES.dark);
+	const shell = (text: string): string => {
+		const lines = text.split('\n').map((line, i) =>
+			shellRoles(line, i === 0)
+				.map(([t, role]) =>
+					role === undefined
+						? escapeHtml(t)
+						: `<span style="${style(role)}">${escapeHtml(t)}</span>`,
+				)
+				.join(''),
+		);
+		const base = `--shiki-light:${light.fg};--shiki-dark:${dark.fg}`;
+		return `<pre class="shiki" style="${base}"><code>${lines.map((l) => `<span class="line">${l}</span>`).join('\n')}</code></pre>`;
+	};
+	return Object.fromEntries(
+		CLIENTS.map((c) => [
+			c.id,
+			c.lang === 'bash'
+				? shell(c.text)
+				: highlighter.codeToHtml(c.text, { lang: c.lang, themes: THEMES, defaultColor: false }),
+		]),
+	);
+}
+
 export function docsPlugin(options?: { readonly contentDir?: string }): Plugin {
 	// Relative to the Vite root, which is `apps/web`. Passed in only by tests.
 	const contentDir = options?.contentDir ?? 'content/docs';
@@ -650,9 +745,12 @@ export function docsPlugin(options?: { readonly contentDir?: string }): Plugin {
 		resolveId(id) {
 			if (id === SEARCH_ID) return RESOLVED_SEARCH_ID;
 			if (id === CHANGELOG_ID) return RESOLVED_CHANGELOG_ID;
+			if (id === SETUP_ID) return RESOLVED_SETUP_ID;
 			return null;
 		},
-		load(id) {
+		async load(id) {
+			if (id === RESOLVED_SETUP_ID)
+				return `export default ${JSON.stringify(await highlightSetup())}`;
 			if (id === RESOLVED_SEARCH_ID)
 				return `export default ${JSON.stringify(buildSearchIndex(contentDir))}`;
 			// `../..` from `apps/web` is the repo root, where the package CHANGELOGs live.
