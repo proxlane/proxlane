@@ -32,13 +32,13 @@ const SHAPE: Readonly<
 	Record<string, { readonly hint: string; readonly ok: (v: string) => boolean }>
 > = {
 	brightdata: {
-		hint: 'The Web Unlocker zone name, a colon, then the API token.',
+		hint: 'Needs the Web Unlocker zone name, a colon, then the API token.',
 		ok: (v) => /^[^:\s]+:\S+$/.test(v),
 	},
 };
 
 const FIELD =
-	'focus-inset w-full rounded-card border bg-[color:var(--color-surface)] py-2.5 pr-11 pl-3.5 font-mono text-[0.875rem] caret-[color:var(--color-accent)] transition-colors placeholder:font-sans placeholder:text-[color:var(--color-slate)]/70 ';
+	'focus-inset w-full rounded-card border bg-[color:var(--color-ground)] py-2.5 pr-11 pl-3.5 font-mono text-[0.875rem] caret-[color:var(--color-accent)] transition-colors placeholder:font-sans placeholder:text-[color:var(--color-slate)]/70 ';
 const FIELD_OK = 'border-[color:var(--color-rule)] hover:border-[color:var(--color-slate)]';
 const FIELD_BAD = 'border-[color:var(--color-accent)]';
 
@@ -134,47 +134,58 @@ export function ConnectForm() {
 	}
 
 	return (
-		<form onSubmit={seal} autoComplete="off" noValidate className="mt-10 flex flex-col gap-8">
-			{HOSTED_GATEWAY === undefined && (
-				<label className="flex max-w-[28rem] flex-col gap-2">
-					<span className="font-medium text-[color:var(--color-ink)] text-sm">Gateway</span>
-					<input
-						type="url"
-						value={gateway}
-						onChange={(e) => setGateway(e.target.value)}
-						placeholder="https://gateway.example.com"
-						spellCheck={false}
-						className={`${FIELD} ${FIELD_OK}`}
-					/>
-				</label>
-			)}
-			{/* A PLAIN FORM, NOT A PANEL. The site draws its diagrams and transcripts in `Panel`s, and a
-			    form inside one read as another of those pictures rather than something to type in. */}
-			<fieldset className="flex flex-col">
-				<legend className="mb-6 flex flex-col gap-1">
-					<span className="font-semibold text-[color:var(--color-ink)] text-lg tracking-[-0.01em]">
-						Your provider keys
-					</span>
-					<span className="text-[color:var(--color-slate)] text-sm">
-						Fill in the ones you have. Two or more, and a blocked request fails over to the
-						next.
-					</span>
-				</legend>
-				<div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-					{PROVIDERS.map((p) => (
-						<KeyField
-							key={p.id}
-							provider={p}
-							value={keys[p.id] ?? ''}
-							invalid={malformed.includes(p)}
-							onChange={(v) => setKeys((k) => ({ ...k, [p.id]: v }))}
+		// ONE CARD: the fields and the action that seals them belong to one object, and the footer
+		// is where the result of what you typed (the lanes) meets the button that acts on it. A
+		// plain card, not a `Panel`: those carry a mono label bar and read as the site's diagrams.
+		<form
+			onSubmit={seal}
+			autoComplete="off"
+			noValidate
+			className="mt-10 overflow-hidden rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] shadow-panel"
+		>
+			<div className="flex flex-col gap-7 p-5 sm:p-8">
+				{HOSTED_GATEWAY === undefined && (
+					<label className="flex max-w-[28rem] flex-col gap-2">
+						<span className="font-medium text-[color:var(--color-ink)] text-sm">Gateway</span>
+						<input
+							type="url"
+							value={gateway}
+							onChange={(e) => setGateway(e.target.value)}
+							placeholder="https://gateway.example.com"
+							spellCheck={false}
+							className={`${FIELD} ${FIELD_OK}`}
 						/>
-					))}
-				</div>
-			</fieldset>
+					</label>
+				)}
+				<fieldset className="flex flex-col gap-6">
+					{/* The page's h1 already names this; a visible legend said it a second time. */}
+					<legend className="sr-only">Provider keys</legend>
+					<p className="text-[color:var(--color-slate)] text-sm leading-relaxed">
+						Fill in the ones you have. With two or more, a blocked request fails over to the
+						next.
+					</p>
+					<div className="grid gap-x-6 gap-y-6 sm:grid-cols-2">
+						{PROVIDERS.map((p) => (
+							<KeyField
+								key={p.id}
+								provider={p}
+								value={keys[p.id] ?? ''}
+								invalid={malformed.includes(p)}
+								onChange={(v) => setKeys((k) => ({ ...k, [p.id]: v }))}
+							/>
+						))}
+					</div>
+				</fieldset>
+			</div>
 
-			<div className="flex flex-col gap-4 border-[color:var(--color-rule)] border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
-				<Route lines={filled} />
+			<div className="flex flex-col gap-4 border-[color:var(--color-rule)] border-t bg-[color:var(--color-ground)]/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-5">
+				<div aria-live="polite" className="min-w-0 text-sm">
+					{state.kind === 'error' ? (
+						<p className="text-[color:var(--color-accent)]">{state.message}</p>
+					) : (
+						<Route lines={filled} />
+					)}
+				</div>
 				<button
 					type="submit"
 					disabled={state.kind === 'working' || filled.length === 0}
@@ -187,11 +198,6 @@ export function ConnectForm() {
 							: `Seal ${filled.length} ${filled.length === 1 ? 'key' : 'keys'} into a token`}
 				</button>
 			</div>
-			<p aria-live="polite" className="-mt-4 min-h-5 text-sm sm:text-right">
-				{state.kind === 'error' && (
-					<span className="text-[color:var(--color-accent)]">{state.message}</span>
-				)}
-			</p>
 		</form>
 	);
 }
@@ -215,30 +221,41 @@ function KeyField({
 	const shape = SHAPE[provider.id];
 	return (
 		<div className="flex flex-col gap-2">
-			<label htmlFor={id} className="flex items-center gap-2.5 font-medium text-sm">
-				{/* The provider's line: a ghost until the field holds a key, then drawn. */}
-				<svg width="28" height="12" viewBox="0 0 22 10" aria-hidden="true" className="shrink-0">
-					<path
-						d="M2 5 H20"
-						stroke={provider.line}
-						strokeWidth="3"
-						strokeLinecap="round"
-						strokeDasharray={on ? undefined : '0.1 5'}
-						className="transition-[stroke-dasharray] duration-300"
-					/>
-					{on && (
-						<circle
-							cx="11"
-							cy="5"
-							r="3.25"
-							fill="var(--color-ground)"
+			<div className="flex items-baseline justify-between gap-3">
+				<label htmlFor={id} className="flex items-center gap-2.5 font-medium text-sm">
+					{/* The provider's line: a ghost until the field holds a key, then drawn. */}
+					<svg
+						width="28"
+						height="12"
+						viewBox="0 0 22 10"
+						aria-hidden="true"
+						className="shrink-0 self-center"
+					>
+						<path
+							d="M2 5 H20"
 							stroke={provider.line}
-							strokeWidth="2"
+							strokeWidth="3"
+							strokeLinecap="round"
+							strokeDasharray={on ? undefined : '0.1 5'}
 						/>
-					)}
-				</svg>
-				<span className="text-[color:var(--color-ink)]">{provider.name}</span>
-			</label>
+						{on && (
+							<circle
+								cx="11"
+								cy="5"
+								r="3.25"
+								fill="var(--color-surface)"
+								stroke={provider.line}
+								strokeWidth="2"
+							/>
+						)}
+					</svg>
+					<span className="text-[color:var(--color-ink)]">{provider.name}</span>
+				</label>
+				{/* The format, on the label row so a field with a rule is no taller than one without. */}
+				{shape !== undefined && (
+					<span className="font-mono text-[color:var(--color-slate)] text-xs">zone:token</span>
+				)}
+			</div>
 			<div className="relative">
 				<input
 					id={id}
@@ -249,9 +266,9 @@ function KeyField({
 					data-lpignore="true"
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
-					placeholder={shape === undefined ? 'Paste API key' : 'zone:token'}
+					placeholder="Paste API key"
 					aria-invalid={invalid || undefined}
-					aria-describedby={shape === undefined ? undefined : `${id}-hint`}
+					aria-describedby={invalid ? `${id}-hint` : undefined}
 					className={`${FIELD} ${invalid ? FIELD_BAD : FIELD_OK}`}
 				/>
 				<button
@@ -264,10 +281,10 @@ function KeyField({
 					<Eye open={shown} />
 				</button>
 			</div>
-			{shape !== undefined && (
+			{invalid && shape !== undefined && (
 				<span
 					id={`${id}-hint`}
-					className={`text-xs leading-relaxed ${invalid ? 'text-[color:var(--color-accent)]' : 'text-[color:var(--color-slate)]'}`}
+					className="text-[color:var(--color-accent)] text-xs leading-relaxed"
 				>
 					{shape.hint}
 				</span>
@@ -302,15 +319,15 @@ function Eye({ open }: { readonly open: boolean }) {
  */
 function Route({ lines }: { readonly lines: readonly Provider[] }) {
 	if (lines.length === 0) {
-		return <p className="text-[color:var(--color-slate)] text-sm">No keys yet.</p>;
+		return <p className="text-[color:var(--color-slate)]">No keys yet.</p>;
 	}
 	return (
-		<p className="flex items-center gap-3 text-[color:var(--color-slate)] text-sm">
+		<p className="flex items-center gap-3 text-[color:var(--color-slate)]">
 			<span className="flex -space-x-1" aria-hidden="true">
 				{lines.map((p) => (
 					<span
 						key={p.id}
-						className="size-3 rounded-full border-2 border-[color:var(--color-ground)]"
+						className="size-3 rounded-full border-2 border-[color:var(--color-surface)]"
 						style={{ backgroundColor: p.line }}
 					/>
 				))}
@@ -350,7 +367,7 @@ function Issued({
 			? [
 					{
 						id: 'connector' as const,
-						label: 'claude.ai · chatgpt',
+						label: 'connector',
 						copy: `${gateway}/mcp`,
 						what: 'the connector URL',
 					},
@@ -377,35 +394,44 @@ function Issued({
 	}, []);
 
 	return (
-		<div className="mt-10 flex flex-col gap-8">
-			<div className="flex flex-col gap-2">
-				<h2
-					ref={heading}
-					tabIndex={-1}
-					className="scroll-mt-28 font-semibold text-[color:var(--color-ink)] text-xl tracking-[-0.01em] outline-none"
-				>
-					Your token
-				</h2>
-				<p className="max-w-[60ch] text-[color:var(--color-slate)] leading-relaxed">
-					It is your keys, sealed: anyone holding it can spend them. Copy it somewhere safe now.
-					This page keeps no copy.
-				</p>
-			</div>
+		<div className="mt-10 flex flex-col gap-10">
+			<section className="flex flex-col gap-4">
+				<div className="flex flex-col gap-2">
+					<h2
+						ref={heading}
+						tabIndex={-1}
+						className="scroll-mt-28 font-semibold text-[color:var(--color-ink)] text-xl tracking-[-0.01em] outline-none"
+					>
+						Your token is ready
+					</h2>
+					<p className="max-w-[60ch] text-[color:var(--color-slate)] leading-relaxed">
+						It is your keys, sealed: anyone holding it can spend them. Copy it somewhere safe
+						now. This page keeps no copy.
+					</p>
+				</div>
 
-			<Panel label="token" copy={token} what="the token">
-				<p className="break-all font-mono text-[0.8125rem] text-[color:var(--color-ink)] leading-relaxed">
-					{token}
-				</p>
-			</Panel>
+				<Panel label="token" copy={token} what="the token">
+					<p className="break-all font-mono text-[0.8125rem] text-[color:var(--color-ink)] leading-relaxed">
+						{token}
+					</p>
+				</Panel>
+			</section>
 
-			<div className="flex flex-col gap-3">
-				<h3 className="font-semibold text-[color:var(--color-ink)]">Use it</h3>
+			<section className="flex flex-col gap-4">
+				<div className="flex flex-col gap-1">
+					<h3 className="font-semibold text-[color:var(--color-ink)] text-lg tracking-[-0.01em]">
+						Use it
+					</h3>
+					<p className="text-[color:var(--color-slate)] text-sm">
+						Pick where you will call Proxlane from.
+					</p>
+				</div>
 				<div className="overflow-hidden rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] shadow-panel">
 					<div className="flex min-h-11 items-center justify-between gap-4 border-[color:var(--color-rule)] border-b pr-2.5 pl-1.5">
 						<div
 							role="tablist"
 							aria-label="Where to use the token"
-							className="flex overflow-x-auto"
+							className="flex overflow-x-auto overflow-y-hidden"
 						>
 							{uses.map((u) => (
 								<button
@@ -418,7 +444,7 @@ function Issued({
 									onClick={() => setUse(u.id)}
 									className={`focus-inset relative min-h-11 whitespace-nowrap px-2.5 font-mono text-xs transition-colors ${
 										u.id === use
-											? 'text-[color:var(--color-ink)] after:absolute after:inset-x-2.5 after:-bottom-px after:h-0.5 after:rounded-full after:bg-[color:var(--color-accent)]'
+											? 'text-[color:var(--color-ink)] after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[color:var(--color-accent)]'
 											: 'text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
 									}`}
 								>
@@ -457,12 +483,12 @@ function Issued({
 						)}
 					</div>
 				</div>
-			</div>
+			</section>
 
 			<button
 				type="button"
 				onClick={onReset}
-				className="self-start text-[color:var(--color-slate)] text-sm underline decoration-[color:var(--color-rule)] underline-offset-4 hover:text-[color:var(--color-ink)]"
+				className={`${ctaClass('quiet', 'sm')} self-start`}
 			>
 				Seal a different set of keys
 			</button>

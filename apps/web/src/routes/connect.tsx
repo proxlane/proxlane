@@ -31,9 +31,8 @@ function Page() {
 				Connect your provider keys
 			</h1>
 			<p className="mt-5 max-w-[56ch] text-[color:var(--color-slate)] text-lg leading-relaxed">
-				Paste the keys for the providers you use. They are sealed into one token here, in your
-				browser, and the gateway reads them only while serving your request. Nothing stores
-				them.
+				Your keys are sealed into one token here, in your browser. The gateway opens it only to
+				serve your requests, and nothing stores the keys.
 			</p>
 
 			<ConnectForm />
