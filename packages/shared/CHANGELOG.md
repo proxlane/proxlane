@@ -1,5 +1,17 @@
 # @proxlane/shared
 
+## 0.16.0
+
+### Minor Changes
+
+- [#453](https://github.com/proxlane/proxlane/pull/453) [`db8d8f8`](https://github.com/proxlane/proxlane/commit/db8d8f83d65fc98fe6869cf6515a52e1db376ba8) Thanks [@scarsam](https://github.com/scarsam)! - The token keyring seals and opens the values a hosted gateway reads back later, such as OAuth codes and access tokens, with a key per purpose.
+
+- [#446](https://github.com/proxlane/proxlane/pull/446) [`c525593`](https://github.com/proxlane/proxlane/commit/c5255932b3001e60218f5ab541f174cc959697ba) Thanks [@scarsam](https://github.com/scarsam)! - Adds `@proxlane/shared/token`, which seals provider keys into a hosted gateway token and opens one.
+
+### Patch Changes
+
+- [#447](https://github.com/proxlane/proxlane/pull/447) [`bc57b35`](https://github.com/proxlane/proxlane/commit/bc57b35e3fb11604d2b5449dbb1ce83df7d51226) Thanks [@scarsam](https://github.com/scarsam)! - Adds per-key account cooldowns, a request-rate limiter and the `TOO_MANY_REQUESTS` error code, ahead of hosted tokens.
+
 ## 0.15.0
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # @proxlane/sdk
 
+## 0.1.2
+
+### Patch Changes
+
+- [#451](https://github.com/proxlane/proxlane/pull/451) [`5f08871`](https://github.com/proxlane/proxlane/commit/5f08871231e51b7faccf225141a798596da94e7c) Thanks [@scarsam](https://github.com/scarsam)! - `fetch_page` passes on the gateway's own reason when it refuses a key or token, and marks a per-caller limit retryable with how long to wait.
+
+- Updated dependencies [[`bc57b35`](https://github.com/proxlane/proxlane/commit/bc57b35e3fb11604d2b5449dbb1ce83df7d51226), [`db8d8f8`](https://github.com/proxlane/proxlane/commit/db8d8f83d65fc98fe6869cf6515a52e1db376ba8), [`c525593`](https://github.com/proxlane/proxlane/commit/c5255932b3001e60218f5ab541f174cc959697ba)]:
+  - @proxlane/shared@0.16.0
+
 ## 0.1.1
 
 ### Patch Changes

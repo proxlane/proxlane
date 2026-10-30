@@ -1,5 +1,32 @@
 # @proxlane/gateway
 
+## 0.22.0
+
+### Minor Changes
+
+- [#458](https://github.com/proxlane/proxlane/pull/458) [`7d679a8`](https://github.com/proxlane/proxlane/commit/7d679a8706b305f61572d47dee465fb8afe9638a) Thanks [@scarsam](https://github.com/scarsam)! - Remote MCP: with hosted mode and `PROXLANE_PUBLIC_URL`, the gateway serves `fetch_page` at `/mcp` over OAuth, for ChatGPT and claude.ai, and `proxlane doctor` checks it.
+
+- [#450](https://github.com/proxlane/proxlane/pull/450) [`09a513f`](https://github.com/proxlane/proxlane/commit/09a513f6876491c2705c406f1e4ec3fe7533554d) Thanks [@scarsam](https://github.com/scarsam)! - Hosted mode: with `PROXLANE_TOKEN_KEYS` set, the gateway accepts tenant tokens that carry their own provider keys, and `proxlane doctor` checks the keyring.
+
+### Patch Changes
+
+- [#455](https://github.com/proxlane/proxlane/pull/455) [`d111195`](https://github.com/proxlane/proxlane/commit/d111195ce8f6e1fefba6c5a3af82ad8637a5ea75) Thanks [@scarsam](https://github.com/scarsam)! - Adds the store that holds OAuth codes and refresh tokens to single use, ahead of the remote MCP endpoint.
+
+- [#456](https://github.com/proxlane/proxlane/pull/456) [`35f84bf`](https://github.com/proxlane/proxlane/commit/35f84bfc8ce2785ff5da5499708e035154e47e40) Thanks [@scarsam](https://github.com/scarsam)! - Adds the authorize side of the remote MCP authorization server: metadata, client registration and the consent request.
+
+- [#457](https://github.com/proxlane/proxlane/pull/457) [`ada5800`](https://github.com/proxlane/proxlane/commit/ada5800cd520699fc4c65ac1e221e5aa04a4e5bf) Thanks [@scarsam](https://github.com/scarsam)! - Adds the token side of the remote MCP authorization server: codes for tokens, rotation, single use and the bearer check.
+
+- [#447](https://github.com/proxlane/proxlane/pull/447) [`bc57b35`](https://github.com/proxlane/proxlane/commit/bc57b35e3fb11604d2b5449dbb1ce83df7d51226) Thanks [@scarsam](https://github.com/scarsam)! - Adds per-key account cooldowns, a request-rate limiter and the `TOO_MANY_REQUESTS` error code, ahead of hosted tokens.
+
+- [#454](https://github.com/proxlane/proxlane/pull/454) [`0fc8224`](https://github.com/proxlane/proxlane/commit/0fc8224354044b1d5cfcb33f7e58a79cce4ab849) Thanks [@scarsam](https://github.com/scarsam)! - `PROXLANE_TOKEN_PROVIDERS` limits which providers hosted tenants route to, and a hosted gateway no longer warns that it holds no provider keys of its own.
+
+- [#448](https://github.com/proxlane/proxlane/pull/448) [`8222110`](https://github.com/proxlane/proxlane/commit/822211037027579ea1d3663aabbb2bbab051f1b9) Thanks [@scarsam](https://github.com/scarsam)! - Resolves a tenant token to its provider candidates and limits, and keys callers by address, ahead of hosted mode.
+
+- Updated dependencies [[`bc57b35`](https://github.com/proxlane/proxlane/commit/bc57b35e3fb11604d2b5449dbb1ce83df7d51226), [`5f08871`](https://github.com/proxlane/proxlane/commit/5f08871231e51b7faccf225141a798596da94e7c), [`db8d8f8`](https://github.com/proxlane/proxlane/commit/db8d8f83d65fc98fe6869cf6515a52e1db376ba8), [`c525593`](https://github.com/proxlane/proxlane/commit/c5255932b3001e60218f5ab541f174cc959697ba)]:
+  - @proxlane/shared@0.16.0
+  - @proxlane/sdk@0.1.2
+  - @proxlane/adapters@0.13.4
+
 ## 0.21.3
 
 ### Patch Changes
