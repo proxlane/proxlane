@@ -66,6 +66,10 @@ export interface RequestLine {
 	 * "Account is suspended". Provider text, not caller text, bounded and control-stripped.
 	 */
 	readonly provider_said?: readonly string[];
+	/** Hosted mode: the tenant token's id, a hash. The token itself is never logged. */
+	readonly token?: string;
+	/** Hosted mode: why a token was turned away, e.g. `unknown-key`, `denied`, `key-limit`. */
+	readonly token_refused?: string;
 }
 
 /**

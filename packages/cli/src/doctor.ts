@@ -9,6 +9,7 @@ import {
 	readMemoryLimit,
 	SHORT_KEY_WARNING_LENGTH,
 } from '@proxlane/shared';
+import { loadTokenKeyring } from '@proxlane/shared/token';
 import { DEFAULT_BODY_CAP_MB } from '@proxlane/shared/transport';
 import { EXIT, emit, style } from './output.js';
 
@@ -496,6 +497,56 @@ async function valkeyReachable(): Promise<Check | undefined> {
 	};
 }
 
+/**
+ * Hosted mode: the token keyring, and the one setting that quietly weakens it.
+ *
+ * The gateway refuses to boot on a bad keyring, so a failure here explains a restarting
+ * container. The second line is the support question hosted mode will produce first: behind a
+ * reverse proxy, without `PROXLANE_CLIENT_IP_HEADER`, every caller shares the proxy's address
+ * and therefore one per-address limit.
+ */
+async function tokenCheck(): Promise<Check> {
+	const keys = (env('PROXLANE_TOKEN_KEYS') ?? '')
+		.split(',')
+		.map((k) => k.trim())
+		.filter(Boolean);
+	if (keys.length === 0) {
+		return {
+			name: 'tenant tokens',
+			ok: true,
+			detail:
+				'off. Set PROXLANE_TOKEN_KEYS to accept hosted tenant tokens beside the gateway key',
+		};
+	}
+	try {
+		const ring = await loadTokenKeyring(keys);
+		const header = env('PROXLANE_CLIENT_IP_HEADER');
+		const denied = (env('PROXLANE_TOKEN_DENY') ?? '')
+			.split(',')
+			.filter((id) => id.trim()).length;
+		return {
+			name: 'tenant tokens',
+			ok: true,
+			detail:
+				`on. Sealing to key ${ring.kids[0]}` +
+				(ring.kids.length > 1 ? `, still opening ${ring.kids.slice(1).join(', ')}` : '') +
+				`; ${denied} token(s) denied. Public key at GET /token-key. Caller address: ` +
+				(header === undefined
+					? 'the socket. Behind a reverse proxy that is the proxy, and every caller shares one limit; set PROXLANE_CLIENT_IP_HEADER to the header your proxy writes'
+					: header.toLowerCase() === 'forwarded'
+						? 'Forwarded (RFC 7239), which is NOT parsed: its entries read `for=…`, so every caller lands in one shared bucket. Name X-Forwarded-For or X-Real-IP instead'
+						: `the last entry of ${header}, from connections on a private network only`),
+		};
+	} catch (err) {
+		return {
+			name: 'tenant tokens',
+			ok: false,
+			detail: `PROXLANE_TOKEN_KEYS is set but unusable: ${err instanceof Error ? err.message : String(err)}. The gateway refuses to boot this way`,
+			fix: 'each comma-separated entry must be a pxlsk1_ secret key, newest first. Generate one with: npx proxlane keygen',
+		};
+	}
+}
+
 export async function doctor(json: boolean): Promise<number> {
 	const checks: Check[] = [
 		nodeCheck(),
@@ -503,6 +554,7 @@ export async function doctor(json: boolean): Promise<number> {
 		egressCheck(),
 		...stateChecks(),
 		...routingChecks(),
+		await tokenCheck(),
 	];
 	const reach = await valkeyReachable();
 	if (reach !== undefined) checks.push(reach);

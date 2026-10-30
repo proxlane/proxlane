@@ -22,6 +22,7 @@ import {
 	GATEWAY_ERROR_CODES,
 	requestIdFrom,
 } from '@proxlane/shared';
+import { TOKEN_PREFIX } from '@proxlane/shared/token';
 import type { HttpTransport } from '@proxlane/shared/transport';
 import { type Context, Hono } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -34,6 +35,7 @@ import { accountOnlyChain, hostOf, type RequestLine, timings } from './log.js';
 import { ignoredParams, nearMisses, parseScrapeRequest } from './request.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
 import { parseSimulate, SIMULATE_HEADER, simulate } from './simulate.js';
+import { resolveTenant, spendAuthFailures, type Tenancy } from './tenant.js';
 import { VERSION } from './version.js';
 
 export interface AppDeps {
@@ -42,6 +44,17 @@ export interface AppDeps {
 	readonly candidates: ReadonlyArray<{ adapter: Adapter; key: string }>;
 	/** The gateway's own key. Callers present this; provider keys never leave the server. */
 	readonly apiKey: string;
+	/**
+	 * Hosted mode: accept tenant tokens, each carrying its own provider keys. Omit for self-host,
+	 * where a token is just a wrong key. See `tenant.ts`.
+	 */
+	readonly tenancy?: Tenancy;
+	/**
+	 * The caller's address, for the per-address limit in hosted mode. Supplied by the server,
+	 * because only it knows whether a proxy sits in front: `index.ts` reads the socket, or the
+	 * header `PROXLANE_CLIENT_IP_HEADER` names. Omitted, every caller shares one address.
+	 */
+	readonly clientAddress?: (c: Context) => string;
 	/**
 	 * A second key class that can never spend. A request authenticated with it is answered by
 	 * `simulate()` from the outcome table and no provider is called; `X-Proxlane-Simulate`
@@ -103,14 +116,21 @@ export interface AppDeps {
 function presentedKey(c: {
 	req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined };
 }): string {
+	return presented(c).key;
+}
+
+/** The key, and whether it came in the header. A tenant token is refused from the query. */
+function presented(c: {
+	req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined };
+}): { key: string; inHeader: boolean } {
 	const auth = c.req.header('authorization');
 	if (auth !== undefined) {
 		// Case-insensitive scheme per RFC 9110, exactly one space, and nothing else trimmed:
 		// a key is opaque and may legitimately end in characters trimming would eat.
 		const m = /^[Bb][Ee][Aa][Rr][Ee][Rr] (.+)$/.exec(auth);
-		if (m?.[1] !== undefined) return m[1];
+		if (m?.[1] !== undefined) return { key: m[1], inHeader: true };
 	}
-	return c.req.query('api_key') ?? '';
+	return { key: c.req.query('api_key') ?? '', inHeader: false };
 }
 
 /**
@@ -148,6 +168,10 @@ type Vars = {
 		queryReport: QueryReport;
 		/** `provider: message` for each attempt a provider refused in its own words. */
 		providerSaid: readonly string[] | undefined;
+		/** The tenant token's id, once it opened. A hash: the token itself is never kept. */
+		token: string | undefined;
+		/** Why a tenant token was refused, in one word. */
+		tokenRefused: string | undefined;
 	};
 };
 
@@ -417,6 +441,27 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		}
 	});
 
+	// The public key the connect page seals tokens to. Unauthenticated, because it is public by
+	// design: anyone holding it can mint a token, but only for keys they already have. Serving it
+	// here rather than baking it into the page means a key rotation is one env change, and the
+	// page can never seal to a key this gateway does not hold.
+	app.get('/token-key', (c) => {
+		if (deps.tenancy === undefined) {
+			return errorWith(c, 501, {
+				code: 'NOT_ENABLED',
+				message: 'this gateway does not accept tenant tokens (PROXLANE_TOKEN_KEYS is unset)',
+				...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+			});
+		}
+		const { publicKey, kids } = deps.tenancy.keyring;
+		// CORS OPEN, on this endpoint only: a connect page on another origin seals in the browser,
+		// and this is the one thing it must fetch. Nothing here is secret, and no credential is read.
+		return c.json({ publicKey, kid: kids[0] }, 200, {
+			'Cache-Control': 'public, max-age=300',
+			'Access-Control-Allow-Origin': '*',
+		});
+	});
+
 	// The operator's view of what the router believes. Unlike `/health`, this one NAMES
 	// providers — an operator debugging "why is everything slow" needs to know which provider
 	// the gateway has given up on.
@@ -555,7 +600,11 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	const limiter =
 		deps.maxInflight === undefined ? undefined : new InflightLimiter(deps.maxInflight);
 
-	const served = async (c: Context<Vars>, sandbox: boolean) => {
+	const served = async (
+		c: Context<Vars>,
+		sandbox: boolean,
+		available: AppDeps['candidates'],
+	) => {
 		const parsed = await parseScrapeRequest(c, {
 			defaultDeadlineMs: deps.defaultDeadlineMs,
 			maxBodyBytes: deps.maxBodyBytes,
@@ -569,7 +618,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		}
 		const { req, forced } = parsed;
 
-		let candidates = deps.candidates;
+		let candidates = available;
 		if (forced !== undefined) {
 			// Benchmarking escape hatch from plan.md section 4.
 			candidates = candidates.filter((x) => x.adapter.capabilities.id === forced);
@@ -584,13 +633,13 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 				//
 				// The outcome is unchanged. Only the sentence is, and the sentence is the part a
 				// human reads.
-				const available = deps.candidates.map((x) => x.adapter.capabilities.id).sort();
+				const ids = available.map((x) => x.adapter.capabilities.id).sort();
 				return errorWith(c, 503, {
 					code: 'NO_PROVIDER_AVAILABLE',
 					message:
-						available.length === 0
+						ids.length === 0
 							? `no provider "${forced}", and none is configured — set a provider key`
-							: `no provider "${forced}". Configured: ${available.join(', ')}`,
+							: `no provider "${forced}". Configured: ${ids.join(', ')}`,
 					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
 				});
 			}
@@ -693,12 +742,75 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 	};
 
 	const handler = async (c: Context<Vars>) => {
-		const presented = presentedKey(c);
+		const { key: presentedValue, inHeader } = presented(c);
+		// A TENANT TOKEN IS A THIRD KEY CLASS, decided by its shape, and only in hosted mode. On a
+		// self-hosted gateway it is simply a wrong key and falls through to the 401 below.
+		let candidates = deps.candidates;
+		/** Set for a tenant request only: whose AUTH_FAILED budget the chain spends. */
+		let address: string | undefined;
+		if (deps.tenancy !== undefined && presentedValue.startsWith(TOKEN_PREFIX)) {
+			if (!inHeader) {
+				// Refused, not served: a token in a query string reaches access logs, proxy logs and
+				// Referer headers, and it is the user's provider keys. Better one 400 now than a
+				// habit that leaks them.
+				return errorWith(c, 400, {
+					code: 'BAD_REQUEST',
+					message:
+						'send a proxlane token as Authorization: Bearer <token>, never as api_key. Query strings end up in logs',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
+			// Before the token is resolved, so a request refused for it spends none of its budget.
+			if (c.req.header(SIMULATE_HEADER) !== undefined) {
+				return errorWith(c, 400, {
+					code: 'BAD_REQUEST',
+					message:
+						'X-Proxlane-Simulate is honoured only for the sandbox key. A tenant token always ' +
+						'spends real credits, so the request was refused rather than run',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
+			address = deps.clientAddress?.(c) ?? 'unknown';
+			const tenant = await resolveTenant(presentedValue, address, deps.tenancy, Date.now());
+			if (!tenant.ok) {
+				c.set('tokenRefused', tenant.why);
+				if (tenant.id !== undefined) c.set('token', tenant.id);
+				return errorWith(
+					c,
+					tenant.status,
+					{
+						code: tenant.code,
+						message: tenant.message,
+						...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+					},
+					tenant.retryAfterMs === undefined
+						? {}
+						: { 'Retry-After': String(Math.ceil(tenant.retryAfterMs / 1000)) },
+				);
+			}
+			c.set('token', tenant.id);
+			if (tenant.candidates.length === 0) {
+				// Named here rather than left to the chain, which would say "no providers configured"
+				// about a gateway that is configured fine. It is the token that holds nothing usable.
+				return errorWith(c, 503, {
+					code: 'NO_PROVIDER_AVAILABLE',
+					message: `this token holds no key for a provider this gateway runs. It runs: ${[
+						...deps.tenancy.adapters.keys(),
+					]
+						.sort()
+						.join(', ')}`,
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
+			candidates = tenant.candidates;
+		}
+		const tenant = candidates !== deps.candidates;
 		// The sandbox key is a KEY CLASS, not a flag on the live key. Which class a request
 		// belongs to is decided once, here, by the credential it carries — never by the header,
 		// which anyone can send.
-		const sandbox = deps.sandboxKey !== undefined && keyMatches(presented, deps.sandboxKey);
-		if (!sandbox && !keyMatches(presented, deps.apiKey)) {
+		const sandbox =
+			!tenant && deps.sandboxKey !== undefined && keyMatches(presentedValue, deps.sandboxKey);
+		if (!tenant && !sandbox && !keyMatches(presentedValue, deps.apiKey)) {
 			// NOT an Outcome. The taxonomy describes what happened to a scrape; this request
 			// never became one. Reusing AUTH_FAILED here would put gateway auth failures into
 			// the provider health statistics.
@@ -756,7 +868,11 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		}
 
 		try {
-			return await served(c, sandbox);
+			const res = await served(c, sandbox, candidates);
+			if (address !== undefined && deps.tenancy !== undefined) {
+				await spendAuthFailures(res.headers.get('X-Chain'), address, deps.tenancy, Date.now());
+			}
+			return res;
 		} finally {
 			// FINALLY, not the success path. A throw that skipped this leaks a slot for the
 			// lifetime of the process, and enough of them wedge the gateway at a ceiling it
@@ -860,6 +976,11 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 							...(h('X-Proxlane-Simulated') === undefined
 								? {}
 								: { sim: h('X-Proxlane-Simulated') as string }),
+							// Which tenant, by token id, and why one was turned away. Never the token.
+							...(c.get('token') === undefined ? {} : { token: c.get('token') as string }),
+							...(c.get('tokenRefused') === undefined
+								? {}
+								: { token_refused: c.get('tokenRefused') as string }),
 							...timings(h('Server-Timing')),
 						});
 					}
