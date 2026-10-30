@@ -1,5 +1,15 @@
 # @proxlane/web
 
+## 0.13.0
+
+### Minor Changes
+
+- [#459](https://github.com/proxlane/proxlane/pull/459) [`6411d80`](https://github.com/proxlane/proxlane/commit/6411d808ce1b4f3465cb69ec28c6c767408fdd29) Thanks [@scarsam](https://github.com/scarsam)! - The connect page seals to the hosted gateway at `api.proxlane.dev` and is listed in search.
+
+### Patch Changes
+
+- [#462](https://github.com/proxlane/proxlane/pull/462) [`0eea514`](https://github.com/proxlane/proxlane/commit/0eea514efddd1f08a9dfbb71f3feb603fc54cc04) Thanks [@scarsam](https://github.com/scarsam)! - The connect page shows the connector URL for claude.ai and ChatGPT after it issues a token.
+
 ## 0.12.0
 
 ### Minor Changes
