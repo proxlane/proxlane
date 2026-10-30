@@ -32,6 +32,7 @@ import type { CooldownStore } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
 import { InflightLimiter, retryAfterSeconds } from './inflight.js';
 import { accountOnlyChain, hostOf, type RequestLine, timings } from './log.js';
+import { type InternalBindings, mountOAuth, type OAuthDeps } from './oauth-routes.js';
 import { ignoredParams, nearMisses, parseScrapeRequest } from './request.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
 import { parseSimulate, SIMULATE_HEADER, simulate } from './simulate.js';
@@ -55,6 +56,11 @@ export interface AppDeps {
 	 * header `PROXLANE_CLIENT_IP_HEADER` names. Omitted, every caller shares one address.
 	 */
 	readonly clientAddress?: (c: Context) => string;
+	/**
+	 * Remote MCP over OAuth, beside hosted mode: `/mcp` and the authorization server's routes.
+	 * Needs `tenancy` too; `index.ts` sets it when `PROXLANE_PUBLIC_URL` is. See `oauth-routes.ts`.
+	 */
+	readonly oauth?: OAuthDeps;
 	/**
 	 * A second key class that can never spend. A request authenticated with it is answered by
 	 * `simulate()` from the outcome table and no provider is called; `X-Proxlane-Simulate`
@@ -349,6 +355,15 @@ export function ignoredCount(ignored: readonly string[]): number {
 
 export function createApp(deps: AppDeps): Hono<Vars> {
 	const app = new Hono<Vars>();
+
+	/**
+	 * The caller's address. An in-process request from `/mcp` carries its caller's in the server
+	 * bindings, which no request from outside can set; anything else asks the server.
+	 */
+	const addressOf = (c: Context): string =>
+		(c.env as InternalBindings | undefined)?.proxlaneAddress ??
+		deps.clientAddress?.(c) ??
+		'unknown';
 
 	// FIRST, and on every route including /health. A support thread that starts "it returned
 	// 401" is unanswerable without one, and `requests.id` in the log is this same value — so
@@ -770,7 +785,7 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
 				});
 			}
-			address = deps.clientAddress?.(c) ?? 'unknown';
+			address = addressOf(c);
 			const tenant = await resolveTenant(presentedValue, address, deps.tenancy, Date.now());
 			if (!tenant.ok) {
 				c.set('tokenRefused', tenant.why);
@@ -985,6 +1000,10 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 						});
 					}
 				};
+
+	if (deps.tenancy !== undefined && deps.oauth !== undefined) {
+		mountOAuth(app, deps.tenancy, deps.oauth, addressOf);
+	}
 
 	app.get('/v1', logged);
 	app.post('/v1', logged);

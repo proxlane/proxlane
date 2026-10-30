@@ -219,15 +219,28 @@ export function startAuthorize(
 			message: 'This sign-in link sends you somewhere its client did not register.',
 		};
 	}
-	const back = (error: string, description: string) => ({
-		kind: 'redirect' as const,
-		location: withParams(redirect, {
-			error,
-			error_description: description,
-			state: q.state,
-			iss: origin,
-		}),
-	});
+	// Errors go BACK only to a known callback. Registration is open, so redirecting an error to any
+	// registered URI would make this origin an open redirector (RFC 9700 4.11.2): register
+	// https://evil.example and hand out a malformed authorize link. Anyone else gets a page.
+	const known = isKnownCallback(redirect);
+	const back = (error: string, description: string): AuthorizeStart =>
+		known
+			? {
+					kind: 'redirect',
+					location: withParams(redirect, {
+						error,
+						error_description: description,
+						state: q.state,
+						iss: origin,
+					}),
+				}
+			: {
+					kind: 'fatal',
+					message: `This sign-in link is malformed (${error}). Start again from your app.`,
+				};
+	if (q.state !== undefined && q.state.length > 512) {
+		return back('invalid_request', 'state is longer than 512 characters');
+	}
 	if (q.response_type !== 'code')
 		return back('unsupported_response_type', 'only response_type=code');
 	if (q.code_challenge === undefined || !/^[A-Za-z0-9_-]{43,128}$/.test(q.code_challenge)) {
@@ -250,7 +263,7 @@ export function startAuthorize(
 		kind: 'consent',
 		consent: keyring.seal('consent', request, now + CONSENT_TTL_MS),
 		host: new URL(redirect).host,
-		verified: isKnownCallback(redirect),
+		verified: known,
 	};
 }
 

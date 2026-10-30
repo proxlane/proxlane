@@ -106,9 +106,9 @@ artefact is a box sealed with a key derived from the token keyring, so nothing i
   a refresh token, ninety days. Each carries the tenant token, so denying the tenant token by id
   revokes every grant made from it; a refresh checks the denylist before issuing.
 - **Single use is the one piece of state.** Codes and refresh tokens carry an id and a grant
-  family; their first use is recorded in Valkey (`SET NX` for the box's remaining life), and a
-  reused refresh token revokes its whole family. Without Valkey, or when it is down, the token
-  endpoint refuses rather than allowing a replay: this is the one store that fails closed.
+  family; their first use is recorded (`SET NX` in Valkey for at most the box's lifetime, or in
+  process for a single replica), and a reused one revokes its whole family. When Valkey is down
+  the token endpoint refuses rather than allowing a replay: the one store that fails closed.
 - **Rotation**: a retiring key stays in the ring at least ninety days, the refresh lifetime, or
   rotating logs every connected client out. Client registrations die with their key, and a
   client simply registers again.

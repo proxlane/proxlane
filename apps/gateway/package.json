@@ -12,8 +12,10 @@
 	},
 	"dependencies": {
 		"@hono/node-server": "catalog:",
+		"@modelcontextprotocol/sdk": "catalog:",
 		"@proxlane/adapters": "workspace:*",
 		"@proxlane/detect": "workspace:*",
+		"@proxlane/sdk": "workspace:*",
 		"@proxlane/shared": "workspace:*",
 		"hono": "catalog:",
 		"ioredis": "catalog:"

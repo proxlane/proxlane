@@ -561,6 +561,61 @@ async function tokenCheck(): Promise<Check> {
 	}
 }
 
+/**
+ * Remote MCP: whether this gateway serves `/mcp` and its OAuth routes, and the two ways to set it
+ * wrong that the gateway refuses to boot on. The URL is the OAuth issuer, compared exactly, so
+ * the support question is always "which URL did you give the app", and this prints it.
+ */
+function remoteMcpCheck(): Check {
+	const url = env('PROXLANE_PUBLIC_URL');
+	if (url === undefined || url === '') {
+		return {
+			name: 'remote mcp',
+			ok: true,
+			detail:
+				'off. With hosted mode on, set PROXLANE_PUBLIC_URL to serve /mcp to ChatGPT and claude.ai',
+		};
+	}
+	let u: URL | undefined;
+	try {
+		u = new URL(url);
+	} catch {
+		u = undefined;
+	}
+	const local = u !== undefined && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+	if (
+		u === undefined ||
+		(u.protocol !== 'https:' && !(u.protocol === 'http:' && local)) ||
+		u.pathname !== '/'
+	) {
+		return {
+			name: 'remote mcp',
+			ok: false,
+			detail: `PROXLANE_PUBLIC_URL is not an https origin with no path. The gateway refuses to boot this way`,
+			fix: 'set it to the address apps reach this gateway at, e.g. https://gateway.example.com',
+		};
+	}
+	if ((env('PROXLANE_TOKEN_KEYS') ?? '').trim() === '') {
+		return {
+			name: 'remote mcp',
+			ok: false,
+			detail:
+				'PROXLANE_PUBLIC_URL is set but PROXLANE_TOKEN_KEYS is not. The gateway refuses to boot this way',
+			fix: 'remote MCP needs hosted mode: npx proxlane keygen, then set PROXLANE_TOKEN_KEYS',
+		};
+	}
+	const shared = (env('PROXLANE_VALKEY_URL') ?? '') !== '';
+	return {
+		name: 'remote mcp',
+		ok: true,
+		detail:
+			`on. Give apps ${u.origin}/mcp; they find OAuth from there. Codes and refresh tokens are single use ` +
+			(shared
+				? 'across replicas, in Valkey, and sign-in fails closed while it is down'
+				: 'in this process; a restart forgets which were used'),
+	};
+}
+
 export async function doctor(json: boolean): Promise<number> {
 	const checks: Check[] = [
 		nodeCheck(),
@@ -569,6 +624,7 @@ export async function doctor(json: boolean): Promise<number> {
 		...stateChecks(),
 		...routingChecks(),
 		await tokenCheck(),
+		remoteMcpCheck(),
 	];
 	const reach = await valkeyReachable();
 	if (reach !== undefined) checks.push(reach);
