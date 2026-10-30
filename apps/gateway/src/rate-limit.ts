@@ -10,9 +10,9 @@
 // boundary, is a burst of a few seconds that the in-flight ceiling still bounds. A bucket buys
 // smoothness this gateway has no use for and costs a read-modify-write per request.
 //
-// FAILS OPEN, like every store this gateway reads on the request path (`integrations.md` section
-// 3). A limit that went down with Valkey and refused everyone would turn a cache outage into a
-// full one.
+// NEVER FAILS CLOSED, like every store this gateway reads on the request path (`integrations.md`
+// section 3): a limit that went down with Valkey and refused everyone would turn a cache outage
+// into a full one. Nor fully open: `ValkeyRateLimiter` counts in memory until Valkey is back.
 
 export interface RateLimit {
 	/** Requests allowed per window. */
@@ -51,41 +51,39 @@ export function windowStart(now: number, windowMs: number): number {
  * One process's counters. Right for self-host and for a single hosted replica; more than one
  * replica needs `ValkeyRateLimiter`, or each enforces its own copy of the limit.
  *
- * BOUNDED. Keys are source addresses and credential hashes, both chosen by callers, so the map is
- * swept of finished windows whenever it reaches `maxKeys`. Within one window it can still grow
- * past that, by as many distinct callers as arrive in it; refusing them instead would let
- * anyone with enough addresses lock everyone else out, which is worse than the memory.
+ * ONE MAP PER WINDOW, dropped whole when the window rolls over. Windows are aligned, so every key
+ * in the map belongs to the current one, and a new window is a new empty map: O(1) per request
+ * however many callers there are. The first version swept a single map when it got large, and a
+ * flood of distinct addresses made every request scan a hundred thousand entries that were all
+ * still live. Memory is bounded by the callers one window sees, which is the best a limiter that
+ * must not refuse strangers it has never seen can do.
  */
 export class InMemoryRateLimiter implements RateLimiter {
 	readonly rate: RateLimit;
-	readonly #maxKeys: number;
-	readonly #windows = new Map<string, { start: number; count: number }>();
+	#start = -1;
+	#counts = new Map<string, number>();
 
-	constructor(rate: RateLimit, maxKeys = 100_000) {
+	constructor(rate: RateLimit) {
 		this.rate = checkRate(rate, 'a rate limit');
-		this.#maxKeys = maxKeys;
 	}
 
 	async take(key: string, now: number): Promise<RateDecision> {
 		const start = windowStart(now, this.rate.windowMs);
-		let w = this.#windows.get(key);
-		if (w === undefined || w.start !== start) {
-			if (w === undefined && this.#windows.size >= this.#maxKeys) this.#sweep(start);
-			w = { start, count: 0 };
-			this.#windows.set(key, w);
+		if (start !== this.#start) {
+			// A request from a window already behind us, which only a clock step backwards makes,
+			// is counted in the current map rather than resetting it.
+			if (start > this.#start) this.#counts = new Map();
+			this.#start = Math.max(start, this.#start);
 		}
-		w.count++;
-		return w.count <= this.rate.limit
+		const count = (this.#counts.get(key) ?? 0) + 1;
+		this.#counts.set(key, count);
+		return count <= this.rate.limit
 			? { ok: true }
-			: { ok: false, retryAfterMs: start + this.rate.windowMs - now };
+			: { ok: false, retryAfterMs: this.#start + this.rate.windowMs - now };
 	}
 
-	/** Keys currently held. For the test that pins the sweep. */
+	/** Keys currently held. For the test that pins the rollover. */
 	get size(): number {
-		return this.#windows.size;
-	}
-
-	#sweep(current: number): void {
-		for (const [k, w] of this.#windows) if (w.start !== current) this.#windows.delete(k);
+		return this.#counts.size;
 	}
 }

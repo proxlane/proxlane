@@ -526,7 +526,8 @@ describe('the rate limiter counts once across replicas', () => {
 		expect((await cred.take('same', T)).ok).toBe(true);
 	});
 
-	it('fails OPEN when the server is gone, and says so', async () => {
+	it('falls back to counting in memory when the server is gone, and says so once', async () => {
+		// Never fully open: knocking Valkey over must not switch every limit off.
 		const dead = new Redis('redis://127.0.0.1:1', {
 			maxRetriesPerRequest: 0,
 			retryStrategy: () => null,
@@ -540,7 +541,10 @@ describe('the rate limiter counts once across replicas', () => {
 			rate,
 			onError: (w) => errors.push(w),
 		});
-		expect(await l.take('k', T)).toEqual({ ok: true });
+		const seen = [];
+		for (let i = 0; i < 4; i++) seen.push((await l.take('k', T + i)).ok);
+		expect(seen).toEqual([true, true, true, false]);
+		expect(errors).toHaveLength(1);
 		expect(errors[0]).toContain('rate limit ip');
 		dead.disconnect();
 	});

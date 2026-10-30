@@ -29,20 +29,25 @@ describe('a fixed window', () => {
 	});
 });
 
-describe('bounded memory', () => {
-	it('sweeps finished windows once it reaches its key ceiling', async () => {
-		const l = new InMemoryRateLimiter({ limit: 1, windowMs: MINUTE }, 3);
+describe('bounded memory, in constant time', () => {
+	it('drops the whole map when the window rolls over', async () => {
+		const l = new InMemoryRateLimiter({ limit: 1, windowMs: MINUTE });
 		for (const k of ['a', 'b', 'c']) await l.take(k, T);
 		await l.take('d', T + MINUTE);
-		// a, b and c were in a finished window; only d remains.
 		expect(l.size).toBe(1);
 	});
 
-	it('grows past the ceiling rather than refusing callers inside one window', async () => {
+	it('never refuses a stranger inside a window, however many there are', async () => {
 		// Refusing would let anyone with enough addresses lock everyone else out.
-		const l = new InMemoryRateLimiter({ limit: 1, windowMs: MINUTE }, 2);
-		for (const k of ['a', 'b', 'c']) expect((await l.take(k, T)).ok).toBe(true);
-		expect(l.size).toBe(3);
+		const l = new InMemoryRateLimiter({ limit: 1, windowMs: MINUTE });
+		for (let i = 0; i < 1000; i++) expect((await l.take(`k${i}`, T)).ok).toBe(true);
+		expect(l.size).toBe(1000);
+	});
+
+	it('does not reset when the clock steps back a window', async () => {
+		const l = new InMemoryRateLimiter({ limit: 1, windowMs: MINUTE });
+		await l.take('k', T + MINUTE);
+		expect((await l.take('k', T)).ok).toBe(false);
 	});
 });
 
