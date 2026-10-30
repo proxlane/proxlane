@@ -18,7 +18,7 @@ import {
 } from '@proxlane/shared';
 import { Redis } from 'ioredis';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
+import { ValkeyCooldownStore, ValkeyHealthStore, ValkeyRateLimiter } from './valkey.js';
 
 const URL = process.env.PROXLANE_VALKEY_URL;
 let redis: Redis;
@@ -480,6 +480,68 @@ describe('a store whose server has gone away', () => {
 		expect(() => store.record('a', 'OK', 1)).not.toThrow();
 		await waitFor(() => Promise.resolve(errors.length > 0), 3000);
 		expect(errors[0]).toContain('health');
+		dead.disconnect();
+	});
+});
+
+describe('the rate limiter counts once across replicas', () => {
+	const rate = { limit: 3, windowMs: 60_000 };
+	const T = 1_800_000_000_000 - (1_800_000_000_000 % 60_000);
+
+	it('enforces one limit for two gateways sharing a server, not one each', async () => {
+		const a = new ValkeyRateLimiter({ redis, name: 'cred', rate });
+		const b = new ValkeyRateLimiter({ redis, name: 'cred', rate });
+		const seen = [
+			await a.take('k', T),
+			await b.take('k', T + 1),
+			await a.take('k', T + 2),
+			await b.take('k', T + 3),
+		];
+		expect(seen.map((d) => d.ok)).toEqual([true, true, true, false]);
+		expect(seen[3]).toEqual({ ok: false, retryAfterMs: 60_000 - 3 });
+	});
+
+	it('starts a new window as a new key, and expires the old one on its own', async () => {
+		const l = new ValkeyRateLimiter({ redis, name: 'ip', rate });
+		for (let i = 0; i < 4; i++) await l.take('1.2.3.4', T);
+		expect((await l.take('1.2.3.4', T + 60_000)).ok).toBe(true);
+		const ttl = await redis.pttl(`rl:ip:1.2.3.4:${T}`);
+		// Set, and bounded by the window plus its slack. A key with no TTL refuses forever.
+		expect(ttl).toBeGreaterThan(0);
+		expect(ttl).toBeLessThanOrEqual(61_000);
+	});
+
+	it('keeps names apart, so the address limit and the credential limit never share a count', async () => {
+		const ip = new ValkeyRateLimiter({
+			redis,
+			name: 'ip',
+			rate: { limit: 1, windowMs: 60_000 },
+		});
+		const cred = new ValkeyRateLimiter({
+			redis,
+			name: 'cred',
+			rate: { limit: 1, windowMs: 60_000 },
+		});
+		expect((await ip.take('same', T)).ok).toBe(true);
+		expect((await cred.take('same', T)).ok).toBe(true);
+	});
+
+	it('fails OPEN when the server is gone, and says so', async () => {
+		const dead = new Redis('redis://127.0.0.1:1', {
+			maxRetriesPerRequest: 0,
+			retryStrategy: () => null,
+			lazyConnect: true,
+			commandTimeout: 500,
+		});
+		const errors: string[] = [];
+		const l = new ValkeyRateLimiter({
+			redis: dead,
+			name: 'ip',
+			rate,
+			onError: (w) => errors.push(w),
+		});
+		expect(await l.take('k', T)).toEqual({ ok: true });
+		expect(errors[0]).toContain('rate limit ip');
 		dead.disconnect();
 	});
 });

@@ -25,6 +25,12 @@ export const GATEWAY_ERROR_CODES = {
 	UNAUTHORIZED: 'client',
 	/** The endpoint exists but this deployment runs without the subsystem behind it. */
 	NOT_ENABLED: 'gateway',
+	/**
+	 * The caller is over a request-rate limit the gateway sets per caller, with `Retry-After`.
+	 * Not `RATE_LIMITED`, which is a provider's 429 and an outcome; not `GATEWAY_BUSY`, which is
+	 * the whole gateway at its ceiling. This one is about the caller, and slowing down fixes it.
+	 */
+	TOO_MANY_REQUESTS: 'client',
 } as const satisfies Record<string, OutcomeClass>;
 
 export type GatewayErrorCode = keyof typeof GATEWAY_ERROR_CODES;

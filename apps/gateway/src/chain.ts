@@ -231,8 +231,13 @@ export interface ChainDeps {
 	/**
 	 * Resolved by the caller in STATIC PRIORITY order; BYOK means keys arrive per request.
 	 * Health re-ranks this list, it does not replace it: ties break on the order given here.
+	 *
+	 * `account` names whose account the key bills, for the `cd:acct` namespace. Absent means
+	 * `orgId`, which is right when one deployment owns every key. The hosted gateway sets it per
+	 * key, because there every key is a different user's account: one user's spent plan must not
+	 * cool that provider for the next user, who brought their own key.
 	 */
-	readonly candidates: ReadonlyArray<{ adapter: Adapter; key: string }>;
+	readonly candidates: ReadonlyArray<{ adapter: Adapter; key: string; account?: string }>;
 	readonly maxBodyBytes: number;
 	/**
 	 * The caller's signal, so a client that hangs up stops costing money.
@@ -423,13 +428,21 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 	// attempt at a provider that was about to block us, which is money; refusing the request
 	// instead would cost the request.
 	const org = deps.orgId ?? 'self';
+	const accounts = new Map(deps.candidates.map((c) => [c.adapter.capabilities.id, c.account]));
+	/** The account a provider's key bills: the candidate's own, else the deployment's. */
+	const accountOf = (providerId: string): string => accounts.get(providerId) ?? org;
 	const domain = cooldownDomain(guarded.url);
 	// THE TIER THE REQUEST ASKED FOR, so a block on the cheap path does not suppress the escalation
 	// that would have worked. See `tiersAtOrBelow`.
 	const premium = guarded.premium;
 	const keysFor = (providerId: string) => ({
 		blk: cooldownKey('blk', { provider: providerId, domain, org, premium }) as string,
-		acct: cooldownKey('acct', { provider: providerId, domain, org, premium }) as string,
+		acct: cooldownKey('acct', {
+			provider: providerId,
+			domain,
+			org: accountOf(providerId),
+			premium,
+		}) as string,
 	});
 
 	let cooldowns: ReadonlyMap<string, CooldownDecision> = new Map();
@@ -937,7 +950,7 @@ export async function runChain(req: GatewayRequest, deps: ChainDeps): Promise<Ch
 				const cdKey = cooldownKey(scope, {
 					provider: adapter.capabilities.id,
 					domain,
-					org,
+					org: accountOf(adapter.capabilities.id),
 					premium,
 				});
 				// WHICH key this attempt wrote. Settlement is then decided by comparing it to the

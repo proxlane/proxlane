@@ -288,6 +288,37 @@ describe('outcomes arm the right namespace', () => {
 		).toBeDefined();
 	});
 
+	it("cools the account a key bills, so one user's spent plan never cools the next user", async () => {
+		// The hosted gateway: two requests, the same provider, two users' keys. Without a
+		// per-key account the first user's QUOTA_EXHAUSTED would skip the provider for the second.
+		const cd = new InMemoryCooldownStore(() => 0.9);
+		const acct = (org: string) =>
+			cooldownKey('acct', { provider: 'a', domain: DOMAIN, org, premium: 'none' }) as string;
+		await runChain(REQ, {
+			transport,
+			candidates: [
+				{ adapter: adapterFor('a', 'QUOTA_EXHAUSTED'), key: 'k1', account: 'user-1' },
+			],
+			maxBodyBytes: 1024 * 1024,
+			cooldowns: cd,
+		});
+		expect(cd.peek(acct('user-1'))).toBeDefined();
+		expect(cd.peek(acct('self'))).toBeUndefined();
+
+		// A second provider beside it, so a cooled `a` would be skipped rather than forced by the
+		// floor, and the first attempt says which happened.
+		const second = await runChain(REQ, {
+			transport,
+			candidates: [
+				{ adapter: adapterFor('a', 'OK'), key: 'k2', account: 'user-2' },
+				{ adapter: adapterFor('b', 'OK'), key: 'k3', account: 'user-2' },
+			],
+			maxBodyBytes: 1024 * 1024,
+			cooldowns: cd,
+		});
+		expect(second.attempts[0]?.provider).toBe('a');
+	});
+
 	it('cools nothing on a plain target 404', async () => {
 		const cd = new InMemoryCooldownStore(() => 0.9);
 		await chain(cd, [['a', 'TARGET_NOT_FOUND']]);
