@@ -78,6 +78,25 @@ claude.ai and ChatGPT require of dynamic client registration before building it)
 the homepage, only once it is live. **The hostname is undecided**, and the README names none
 until it resolves.
 
+**Remote MCP, for ChatGPT and claude.ai, is OAuth with no state either** (decided 2026-10-30).
+Both connect to an MCP server by URL, and the MCP authorization spec (2026-07-28) makes the server
+an OAuth 2.1 resource server. The hosted gateway is its own authorization server, and every
+artefact is a box sealed with a key derived from the token keyring, so nothing is stored:
+
+- **Client registration** is Dynamic Client Registration, which Claude uses and the spec keeps for
+  compatibility. The `client_id` is the registration itself, sealed: redirect URIs and a name.
+  Client ID Metadata Documents, which the spec now prefers, are deferred: the authorization
+  server would fetch a URL the client names, an SSRF surface that needs the edge guard first.
+- **Authorization** is a plain HTML form the gateway serves, no script: paste provider keys or an
+  existing token. The gateway seals the token itself, since it sees the keys on every request
+  anyway, and issues a code sealed with the PKCE challenge, client, redirect URI and resource. A
+  redirect URI is checked against the sealed registration before anything redirects to it.
+- **Tokens**: an access token bound to the `/mcp` resource (RFC 8707), an hour, and a refresh
+  token, ninety days, rotated on use. Each carries the tenant token inside, so revoking the tenant
+  token by id revokes every grant made from it.
+- **`/mcp`** is the existing `fetch_page` server over Streamable HTTP, stateless, calling this
+  gateway's own `/v1` with the tenant token, so every limit and refusal above applies unchanged.
+
 ### Request lifecycle
 
 ```

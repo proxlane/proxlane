@@ -21,6 +21,12 @@ description = "Proxlane tenant token: a user's provider keys, sealed to a gatewa
 regex = '''pxl1_[0-9a-f]{8}_[A-Za-z0-9_-]{100,}'''
 keywords = ["pxl1_"]
 
+[[rules]]
+id = "proxlane-oauth-token"
+description = "Proxlane OAuth access or refresh token: a tenant token inside a grant"
+regex = '''px[ar]1_[0-9a-f]{8}_[A-Za-z0-9_-]{100,}'''
+keywords = ["pxa1_", "pxr1_"]
+
 # Placeholder keys in tests. Every hex digit in order is never a real key, and the history scan
 # reads every commit on a branch, so a placeholder is allowed by its shape rather than by
 # rewriting history. The default `generic-api-key` rule reads `scraperapi: '…'` as an API key.
