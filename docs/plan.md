@@ -24,13 +24,57 @@ section 7 now states properly.
 
 ### Modes
 
-1. **BYOK (free forever).** User stores their provider API keys (encrypted) in our
-   dashboard. Requests route on their accounts. We never touch money. Revenue: affiliate.
+1. **BYOK (free forever).** Requests route on the user's own provider accounts. We never
+   touch money. Revenue: affiliate. **Hosted BYOK stores no provider keys**: the user's
+   proxlane key *is* their provider keys, sealed to the gateway. See "Hosted BYOK" below.
 2. **Hosted credits (phase 3).** Stripe top-ups, requests run on our master provider
    accounts, charged at provider cost + 5% flat fee, pay per successful request only.
 3. **Self-host (free forever).** `docker compose up`. Their infra, their keys, no
    phoning home. Optional opt-in: share anonymized per-domain routing stats, receive
    the community routing table in return.
+
+### Hosted BYOK: no stored keys (decided 2026-10-30)
+
+The hosted gateway is the step between self-host and hosted credits: paste your provider keys,
+get one proxlane key, point any client at it. No Docker, and the only way ChatGPT and claude.ai
+can reach us, since both connect to MCP servers by URL over HTTPS with OAuth.
+
+**We never store a provider key.** The gateway's keypair is a libsodium sealed box
+(`operations.md` §5). The connect page seals the user's provider keys **in the browser** with
+the public key, and the ciphertext is the proxlane key. The gateway opens it per request with
+the secret key, uses it, and drops it. No database row holds a key, no account is needed, and
+`apps/web` never sees one in plaintext. A leaked database leaks nothing; a leaked gateway secret
+key leaks every token issued under it, which is the one secret this design concentrates.
+
+Rejected alternatives: storing sealed keys in Postgres (a table of other people's keys, and the
+org/dashboard machinery before anyone needs it), and keys in a request header on every call
+(the gateway adds nothing over running locally, see `proxlane mcp` below).
+
+What follows from it:
+
+- **Revocation** is rotating the provider key, which is the real fix anyway. A small denylist
+  of token hashes in Valkey covers "I pasted it somewhere". The keypair carries a key id in the
+  token prefix so it can rotate with an overlap window.
+- **Tenancy is the token hash.** Rate limits, the cooldown namespace and logs key on it, never
+  on the token. Cooldowns key on the provider key's hash, so one user's spent plan never cools
+  another user down.
+- **Tokens travel in `Authorization` only**, never a query string, so they stay out of access
+  logs.
+- **Provider terms**: nothing stored and nothing pooled, which is the line Bright Data drew and
+  the condition ScrapingBee's human reply named (`state.md`).
+- **The org, role and dashboard design in `operations.md` §5 waits for hosted credits**, where
+  money makes accounts necessary.
+
+**`proxlane mcp`, the local twin.** The AGPL CLI runs the failover chain in-process, keys in
+the local env, no gateway at all. Zero trust for anyone who can set an env var, and it covers
+every local MCP client. It does not reach ChatGPT or claude.ai, which is the hosted gateway's job.
+
+**Sequence, one PR each:** token seal/open in `packages/shared`; the gateway's hosted mode
+(token auth, per-token limits and cooldowns, denylist, its `doctor` checks); the connect page;
+`proxlane mcp`; a remote MCP endpoint whose OAuth access token is the sealed token (check what
+claude.ai and ChatGPT require of dynamic client registration before building it); then docs and
+the homepage, only once it is live. **The hostname is undecided**, and the README names none
+until it resolves.
 
 ### Request lifecycle
 
