@@ -283,7 +283,12 @@ describe('doctor', () => {
 
 	describe('tenant tokens, judged the way the gateway boots', () => {
 		const run = async (vars: Record<string, string | undefined>) => {
-			const names = ['PROXLANE_TOKEN_KEYS', 'PROXLANE_CLIENT_IP_HEADER', 'PROXLANE_TOKEN_DENY'];
+			const names = [
+				'PROXLANE_TOKEN_KEYS',
+				'PROXLANE_CLIENT_IP_HEADER',
+				'PROXLANE_TOKEN_DENY',
+				'PROXLANE_TOKEN_PROVIDERS',
+			];
 			const saved = names.map((n) => [n, process.env[n]] as const);
 			for (const n of names) {
 				const v = vars[n];
@@ -331,6 +336,21 @@ describe('doctor', () => {
 				PROXLANE_CLIENT_IP_HEADER: 'Forwarded',
 			});
 			expect(rfc.check?.detail).toContain('NOT parsed');
+		});
+
+		it('names the providers tenants may use, and fails on one that does not exist', async () => {
+			const { generateTokenKeypair } = await import('@proxlane/shared/token');
+			const pair = await generateTokenKeypair();
+			const narrowed = await run({
+				PROXLANE_TOKEN_KEYS: pair.secretKey,
+				PROXLANE_TOKEN_PROVIDERS: 'scrapfly',
+			});
+			expect(narrowed.check?.detail).toContain('tenants may use scrapfly');
+			const typo = await run({
+				PROXLANE_TOKEN_KEYS: pair.secretKey,
+				PROXLANE_TOKEN_PROVIDERS: 'scrapfy',
+			});
+			expect(typo.check).toMatchObject({ ok: false });
 		});
 
 		it('fails, without echoing it, on a keyring the gateway would refuse to boot with', async () => {

@@ -338,3 +338,64 @@ describe('the secret scanner recognises what this module emits', () => {
 		);
 	});
 });
+
+describe('boxes the gateway seals for itself', () => {
+	const LATER = T0 + 3_600_000;
+
+	it('round-trips a value, and refuses it once expired', () => {
+		const box = keyring.seal('access', { t: 'x', aud: 'https://g.test/mcp' }, LATER);
+		expect(box).toMatch(new RegExp(`^pxa1_${pair.kid}_[A-Za-z0-9_-]+$`));
+		expect(keyring.unseal('access', box, T0)).toEqual({
+			ok: true,
+			value: { t: 'x', aud: 'https://g.test/mcp' },
+			kid: pair.kid,
+		});
+		expect(keyring.unseal('access', box, LATER + 1)).toEqual({ ok: false, reason: 'expired' });
+	});
+
+	it('never opens one purpose as another, so a code is not an access token', () => {
+		const code = keyring.seal('code', { t: 'x' }, LATER);
+		const asAccess = `pxa1_${code.slice('pxo1_'.length)}`;
+		expect(keyring.unseal('access', asAccess, T0)).toEqual({ ok: false, reason: 'unreadable' });
+		expect(keyring.unseal('access', code, T0)).toEqual({ ok: false, reason: 'malformed' });
+	});
+
+	it('opens boxes from a retiring key, and refuses a key that has left', async () => {
+		const next = await generateTokenKeypair();
+		const rotated = await loadTokenKeyring([next.secretKey, pair.secretKey]);
+		const old = keyring.seal('refresh', { n: 1 }, LATER);
+		expect(rotated.unseal('refresh', old, T0)).toMatchObject({ ok: true, kid: pair.kid });
+		const theirs = (await loadTokenKeyring([next.secretKey])).seal('refresh', { n: 1 }, LATER);
+		expect(keyring.unseal('refresh', theirs, T0)).toEqual({ ok: false, reason: 'unknown-key' });
+	});
+
+	it('refuses a box altered by one character', () => {
+		const box = keyring.seal('client', { r: ['https://a.test/cb'] });
+		const i = box.length - 8;
+		const flipped = box.slice(0, i) + (box[i] === 'A' ? 'B' : 'A') + box.slice(i + 1);
+		expect(keyring.unseal('client', flipped, T0)).toEqual({ ok: false, reason: 'unreadable' });
+	});
+
+	it('refuses junk before any decryption', () => {
+		for (const junk of [
+			'',
+			'pxc1_',
+			'pxc1_zz_abc',
+			`pxc1_${pair.kid}_`,
+			`pxc1_${'A'.repeat(20_000)}`,
+		]) {
+			expect(keyring.unseal('client', junk, T0)).toEqual({ ok: false, reason: 'malformed' });
+		}
+	});
+
+	it('refuses to seal a code or token with no expiry, so none can live forever', () => {
+		for (const purpose of ['consent', 'code', 'access', 'refresh'] as const) {
+			expect(() => keyring.seal(purpose, {})).toThrow(/expiry/);
+		}
+		expect(() => keyring.seal('client', {})).not.toThrow();
+	});
+
+	it('gives the same value two different boxes, by its random nonce', () => {
+		expect(keyring.seal('client', { a: 1 })).not.toBe(keyring.seal('client', { a: 1 }));
+	});
+});
