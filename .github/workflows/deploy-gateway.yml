@@ -55,6 +55,21 @@ jobs:
       vars.DEPLOY_GATEWAY == 'true' &&
       (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
+    # TWO GATEWAYS FROM ONE IMAGE, and each is proved separately. `dogfood` holds the
+    # maintainer's own provider keys for sibling projects; `hosted` is the public hosted-BYOK
+    # endpoint, which holds none (`plan.md` section 2). They are separate apps so a tenant flood
+    # cannot starve the dogfood traffic, which means two hooks and two health URLs: a green
+    # deploy of one says nothing about the other. Not fail-fast, for the same reason.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: dogfood
+            hook: DEPLOY_GATEWAY_HOOK
+            health: GATEWAY_HEALTH_URL
+          - target: hosted
+            hook: DEPLOY_HOSTED_HOOK
+            health: HOSTED_HEALTH_URL
     permissions:
       contents: read
       # To move the `deploy` tag. See "point the deploy tag" below for why this is the
@@ -65,15 +80,15 @@ jobs:
 
       - name: refuse to deploy half-configured
         env:
-          HOOK: ${{ secrets.DEPLOY_GATEWAY_HOOK }}
-          HEALTH_URL: ${{ vars.GATEWAY_HEALTH_URL }}
+          HOOK: ${{ secrets[matrix.hook] }}
+          HEALTH_URL: ${{ vars[matrix.health] }}
         run: |
           set -euo pipefail
           # Named individually. "Deploy is misconfigured" costs a round trip to find out which
           # half is missing, which is the B9 rule applied to our own pipeline.
           missing=
-          [ -n "$HOOK" ] || missing="$missing DEPLOY_GATEWAY_HOOK(secret)"
-          [ -n "$HEALTH_URL" ] || missing="$missing GATEWAY_HEALTH_URL(variable)"
+          [ -n "$HOOK" ] || missing="$missing ${{ matrix.hook }}(secret)"
+          [ -n "$HEALTH_URL" ] || missing="$missing ${{ matrix.health }}(variable)"
           if [ -n "$missing" ]; then
             echo "::error::DEPLOY_GATEWAY is true but these are unset:$missing"
             exit 1
@@ -124,7 +139,7 @@ jobs:
       - name: skip if this version is already live
         id: live
         env:
-          HEALTH_URL: ${{ vars.GATEWAY_HEALTH_URL }}
+          HEALTH_URL: ${{ vars[matrix.health] }}
           V: ${{ steps.v.outputs.version }}
         run: |
           set -euo pipefail
@@ -196,7 +211,7 @@ jobs:
       - name: ask the host to deploy it
         if: steps.live.outputs.skip != 'true'
         env:
-          HOOK: ${{ secrets.DEPLOY_GATEWAY_HOOK }}
+          HOOK: ${{ secrets[matrix.hook] }}
           V: ${{ steps.v.outputs.version }}
         run: |
           set -euo pipefail
@@ -216,7 +231,7 @@ jobs:
       - name: prove the new version is serving
         if: steps.live.outputs.skip != 'true'
         env:
-          HEALTH_URL: ${{ vars.GATEWAY_HEALTH_URL }}
+          HEALTH_URL: ${{ vars[matrix.health] }}
           V: ${{ steps.v.outputs.version }}
         run: |
           set -euo pipefail
