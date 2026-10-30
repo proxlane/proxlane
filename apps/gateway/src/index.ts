@@ -262,7 +262,9 @@ for (const id of ORDER) {
 	candidates.push({ adapter, key });
 }
 
-if (candidates.length === 0) {
+// In hosted mode the operator holding no provider key is the normal case: every tenant brings
+// their own. Only the operator's own key would have nothing to route on, and the banner says so.
+if (candidates.length === 0 && (env('PROXLANE_TOKEN_KEYS') ?? '').trim() === '') {
 	// WARN, do not exit — and the difference from PROXLANE_API_KEY above is the point.
 	//
 	// Refusing to boot without the gateway key prevents an open proxy, which is
@@ -437,7 +439,7 @@ const app = createApp({
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 	process.stdout.write(
 		`\n  proxlane gateway ${VERSION} on :${info.port}\n` +
-			`  providers: ${candidates.map((c) => c.adapter.capabilities.id).join(' > ')} (in order)\n` +
+			`  providers: ${candidates.length === 0 ? (tenancy === undefined ? 'none configured' : "none of the operator's own; tenants bring theirs") : `${candidates.map((c) => c.adapter.capabilities.id).join(' > ')} (in order)`}\n` +
 			`  state:     ${redis === undefined ? 'in-process (single replica only)' : 'valkey (shared)'}\n` +
 			`  health:    ${HEALTH_ENABLED ? 'on — GET /health/providers' : 'off by default; PROXLANE_HEALTH=on to enable'}\n` +
 			`  cooldowns: ${COOLDOWNS_ENABLED ? 'on — GET /health/cooldowns' : 'OFF (PROXLANE_COOLDOWNS=off)'}\n` +
