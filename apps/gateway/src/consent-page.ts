@@ -36,13 +36,17 @@ export function escapeHtml(s: string): string {
  * like the place the user just came from. Values are `packages/ui/src/theme.css`'s.
  */
 const STYLE = `
-:root{color-scheme:light dark;--ground:#fbfaf7;--surface:#fff;--ink:#14171a;--slate:#495057;--rule:#dee2e6;--accent:#c2255c;--on-accent:#fff}
-@media (prefers-color-scheme:dark){:root{--ground:#14171a;--surface:#1a1e23;--ink:#fbfaf7;--slate:#adb5bd;--rule:#343a40;--accent:#f06595;--on-accent:#14171a}}
+:root{color-scheme:light dark;--ground:#fbfaf7;--surface:#fff;--ink:#14171a;--slate:#495057;--rule:#dee2e6;--accent:#c2255c;--on-accent:#fff;--line-1:#0b7285;--line-2:#e8590c;--line-3:#5f3dc4;--line-4:#2b8a3e;--line-5:#5c940d}
+@media (prefers-color-scheme:dark){:root{--ground:#14171a;--surface:#1a1e23;--ink:#fbfaf7;--slate:#adb5bd;--rule:#343a40;--accent:#f06595;--on-accent:#14171a;--line-1:#22b8cf;--line-2:#ff922b;--line-3:#9775fa;--line-4:#51cf66;--line-5:#a9e34b}}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;background:var(--ground);color:var(--ink);font:16px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 main{max-width:30rem;margin:0 auto;padding:clamp(2rem,8vh,5rem) 1rem 3rem}
 .brand{display:flex;align-items:center;gap:.5rem;font-weight:600;letter-spacing:-.01em;margin-bottom:2rem}
-.brand i{width:.6rem;height:.6rem;border-radius:50%;background:var(--accent)}
+.brand svg{width:1.4rem;height:1.4rem}
+::selection{background:var(--accent);color:var(--on-accent)}
+input{caret-color:var(--accent)}
+.field>span:first-child{display:flex;align-items:center;gap:.6rem}
+.field svg{width:1.75rem;height:.75rem;flex:none}
 h1{font-size:1.625rem;line-height:1.2;letter-spacing:-.02em;margin:0 0 .75rem}
 p{color:var(--slate);margin:0 0 1rem}
 .host{color:var(--ink);font-weight:600}
@@ -50,7 +54,7 @@ p{color:var(--slate);margin:0 0 1rem}
 .warn{border:1px solid var(--accent);border-radius:10px;padding:.85rem 1rem;color:var(--ink);margin:1.25rem 0}
 .err{color:var(--accent);font-weight:500}
 .field{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem}
-.field span{font-size:.875rem;font-weight:500}
+.field>span:first-child{font-size:.875rem;font-weight:500}
 .hint{font-size:.8125rem;color:var(--slate);margin:.15rem 0 0}
 input[type=password],input[type=text]{width:100%;padding:.7rem .8rem;border:1px solid var(--rule);border-radius:8px;background:var(--ground);color:var(--ink);font:14px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}
 input::placeholder{color:var(--slate);opacity:.7;font-family:ui-sans-serif,system-ui,sans-serif}
@@ -72,8 +76,16 @@ button:hover,a.button:hover{filter:brightness(1.08)}
 code{display:block;font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);background:var(--ground);border:1px solid var(--rule);border-radius:8px;padding:.7rem .8rem;word-break:break-all}
 `;
 
+/** The site's mark (`apps/web/src/components/wordmark.tsx`): three lines and an interchange. */
+const MARK =
+	'<svg viewBox="0 0 32 32" aria-hidden="true"><g stroke-width="4" stroke-linecap="round"><path d="M3 9H29" stroke="var(--line-1)"/><path d="M3 18H29" stroke="var(--line-2)"/><path d="M3 27H29" stroke="var(--line-3)"/></g><circle cx="16" cy="18" r="6.5" fill="var(--ground)" stroke="var(--accent)" stroke-width="4.5"/></svg>';
+
+/** A provider's line, the colour it has on every diagram on the site (`capabilities.line`). */
+const line = (n: number) =>
+	`<svg viewBox="0 0 22 10" aria-hidden="true"><path d="M2 5H20" stroke="var(--line-${n})" stroke-width="3" stroke-linecap="round"/></svg>`;
+
 function page(title: string, body: string): string {
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(title)} · Proxlane</title><style>${STYLE}</style></head><body><main><div class="brand"><i></i>proxlane</div>${body}</main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(title)} · Proxlane</title><style>${STYLE}</style></head><body><main><div class="brand">${MARK}proxlane</div>${body}</main></body></html>`;
 }
 
 export function fatalPage(message: string): string {
@@ -90,11 +102,11 @@ export function consentPage(args: {
 	readonly error?: string;
 }): string {
 	const host = escapeHtml(args.host);
-	const fields = CAPABILITIES.map((c) => c.id)
-		.sort()
-		.map((id) => {
-			const name = escapeHtml(NAMES[id] ?? id);
-			return `<label class="field"><span>${name}</span><input type="password" name="key_${id}" autocomplete="off" spellcheck="false" placeholder="${name} API key"></label>`;
+	const fields = [...CAPABILITIES]
+		.sort((a, b) => a.id.localeCompare(b.id))
+		.map((c) => {
+			const name = escapeHtml(NAMES[c.id] ?? c.id);
+			return `<label class="field"><span>${line(c.line)}${name}</span><input type="password" name="key_${c.id}" autocomplete="off" spellcheck="false" placeholder="${c.id === 'brightdata' ? 'zone:token' : 'Paste API key'}"></label>`;
 		})
 		.join('');
 	// THE TOKEN FIRST, keys behind a fold. Most people arrive with a token from the connect page;

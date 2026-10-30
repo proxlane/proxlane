@@ -10,10 +10,10 @@
 import highlighted from 'virtual:agent-setup';
 import { CAPABILITIES } from '@proxlane/adapters';
 import { sealToken } from '@proxlane/shared/token';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import { CONNECT, GATEWAY_SLOT, TOKEN_SLOT } from '../lib/agent-setup.js';
 import { HOSTED_GATEWAY } from '../lib/hosted.js';
-import { Panel } from './artifacts.js';
+import { CopyButton, Panel } from './artifacts.js';
 import { ctaClass } from './cta.js';
 
 const NAMES: Readonly<Record<string, string>> = {
@@ -24,15 +24,32 @@ const NAMES: Readonly<Record<string, string>> = {
 	scrapingbee: 'ScrapingBee',
 };
 
-/** What a key looks like when it is not one string, said beside the field that needs it. */
-const SHAPE: Readonly<Record<string, string>> = {
-	brightdata: 'Zone name, a colon, then the API token: zone:token',
+/**
+ * What a key looks like when it is not one string, said under the field, and the check that the
+ * pasted value has that shape. Caught here rather than as a 401 from the provider on first use.
+ */
+const SHAPE: Readonly<
+	Record<string, { readonly hint: string; readonly ok: (v: string) => boolean }>
+> = {
+	brightdata: {
+		hint: 'The Web Unlocker zone name, a colon, then the API token.',
+		ok: (v) => /^[^:\s]+:\S+$/.test(v),
+	},
 };
 
 const FIELD =
-	'focus-inset w-full rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] px-3.5 py-2.5 font-mono text-[0.875rem] placeholder:font-sans placeholder:text-[color:var(--color-slate)]/70 hover:border-[color:var(--color-slate)]';
+	'focus-inset w-full rounded-card border bg-[color:var(--color-surface)] py-2.5 pr-11 pl-3.5 font-mono text-[0.875rem] caret-[color:var(--color-accent)] transition-colors placeholder:font-sans placeholder:text-[color:var(--color-slate)]/70 ';
+const FIELD_OK = 'border-[color:var(--color-rule)] hover:border-[color:var(--color-slate)]';
+const FIELD_BAD = 'border-[color:var(--color-accent)]';
 
-const PROVIDERS = CAPABILITIES.map((c) => c.id).sort();
+/**
+ * Each provider in its own LINE COLOUR, the one it has on every diagram on the site
+ * (`capabilities.line`). The form is the map's legend: the keys you fill are the lines the
+ * gateway can route over, so a filled field draws its line solid and an empty one stays a ghost.
+ */
+const PROVIDERS = [...CAPABILITIES]
+	.sort((a, b) => a.id.localeCompare(b.id))
+	.map((c) => ({ id: c.id, name: NAMES[c.id] ?? c.id, line: `var(--color-line-${c.line})` }));
 
 type State =
 	| { readonly kind: 'idle' }
@@ -79,17 +96,26 @@ export function ConnectForm() {
 	const [keys, setKeys] = useState<Record<string, string>>({});
 	const [state, setState] = useState<State>({ kind: 'idle' });
 
+	const filled = PROVIDERS.filter((p) => (keys[p.id] ?? '').trim() !== '');
+	const malformed = filled.filter((p) => SHAPE[p.id]?.ok((keys[p.id] ?? '').trim()) === false);
+
 	async function seal(e: FormEvent) {
 		e.preventDefault();
 		const url = gatewayUrl(gateway);
 		if (typeof url === 'string') return setState({ kind: 'error', message: url });
-		const filled = Object.fromEntries(Object.entries(keys).filter(([, v]) => v.trim() !== ''));
-		if (Object.keys(filled).length === 0) {
+		if (filled.length === 0) {
 			return setState({ kind: 'error', message: 'Add a key for at least one provider' });
+		}
+		if (malformed.length > 0) {
+			return setState({
+				kind: 'error',
+				message: `Check the ${malformed.map((p) => p.name).join(' and ')} key`,
+			});
 		}
 		setState({ kind: 'working' });
 		try {
-			const token = await sealToken({ keys: filled }, await publicKeyOf(url));
+			const sealed = Object.fromEntries(filled.map((p) => [p.id, (keys[p.id] ?? '').trim()]));
+			const token = await sealToken({ keys: sealed }, await publicKeyOf(url));
 			setKeys({});
 			setState({ kind: 'done', token, gateway: url.origin });
 		} catch (err) {
@@ -97,117 +123,349 @@ export function ConnectForm() {
 		}
 	}
 
-	return (
-		<div className="mt-10 flex flex-col gap-8">
-			<form onSubmit={seal} autoComplete="off" className="flex flex-col gap-6">
-				{HOSTED_GATEWAY === undefined && (
-					<label className="flex flex-col gap-2">
-						<span className="font-medium text-[color:var(--color-ink)] text-sm">Gateway</span>
-						<input
-							type="url"
-							value={gateway}
-							onChange={(e) => setGateway(e.target.value)}
-							placeholder="https://gateway.example.com"
-							spellCheck={false}
-							className={FIELD}
-						/>
-					</label>
-				)}
-				{/* A PLAIN FORM, NOT A PANEL. The site draws its diagrams and transcripts in `Panel`s, and a
-				    form inside one read as another of those pictures rather than something to type in. */}
-				<fieldset className="flex flex-col gap-5">
-					<legend className="mb-5 flex flex-col gap-1">
-						<span className="font-semibold text-[color:var(--color-ink)] text-lg">
-							Your provider keys
-						</span>
-						<span className="text-[color:var(--color-slate)] text-sm">
-							Fill in at least one. Leave the rest empty.
-						</span>
-					</legend>
-					<div className="grid gap-5 sm:grid-cols-2">
-						{PROVIDERS.map((id) => (
-							<label key={id} className="flex flex-col gap-2">
-								<span className="font-medium text-[color:var(--color-ink)] text-sm">
-									{NAMES[id] ?? id}
-								</span>
-								<input
-									type="password"
-									autoComplete="off"
-									spellCheck={false}
-									data-1p-ignore
-									data-lpignore="true"
-									value={keys[id] ?? ''}
-									onChange={(e) => setKeys((k) => ({ ...k, [id]: e.target.value }))}
-									placeholder={`${NAMES[id] ?? id} API key`}
-									className={FIELD}
-								/>
-								{SHAPE[id] !== undefined && (
-									<span className="text-[color:var(--color-slate)] text-xs leading-relaxed">
-										{SHAPE[id]}
-									</span>
-								)}
-							</label>
-						))}
-					</div>
-				</fieldset>
-				<div className="flex flex-wrap items-center gap-4">
-					<button
-						type="submit"
-						disabled={state.kind === 'working'}
-						className={ctaClass('primary', 'md')}
-					>
-						{state.kind === 'working' ? 'Sealing…' : 'Create token'}
-					</button>
-					<p aria-live="polite" className="text-sm">
-						{state.kind === 'error' && (
-							<span className="text-[color:var(--color-accent)]">{state.message}</span>
-						)}
-					</p>
-				</div>
-			</form>
+	if (state.kind === 'done') {
+		return (
+			<Issued
+				token={state.token}
+				gateway={state.gateway}
+				onReset={() => setState({ kind: 'idle' })}
+			/>
+		);
+	}
 
-			{state.kind === 'done' && <Issued token={state.token} gateway={state.gateway} />}
+	return (
+		<form onSubmit={seal} autoComplete="off" noValidate className="mt-10 flex flex-col gap-8">
+			{HOSTED_GATEWAY === undefined && (
+				<label className="flex max-w-[28rem] flex-col gap-2">
+					<span className="font-medium text-[color:var(--color-ink)] text-sm">Gateway</span>
+					<input
+						type="url"
+						value={gateway}
+						onChange={(e) => setGateway(e.target.value)}
+						placeholder="https://gateway.example.com"
+						spellCheck={false}
+						className={`${FIELD} ${FIELD_OK}`}
+					/>
+				</label>
+			)}
+			{/* A PLAIN FORM, NOT A PANEL. The site draws its diagrams and transcripts in `Panel`s, and a
+			    form inside one read as another of those pictures rather than something to type in. */}
+			<fieldset className="flex flex-col">
+				<legend className="mb-6 flex flex-col gap-1">
+					<span className="font-semibold text-[color:var(--color-ink)] text-lg tracking-[-0.01em]">
+						Your provider keys
+					</span>
+					<span className="text-[color:var(--color-slate)] text-sm">
+						Fill in the ones you have. Two or more, and a blocked request fails over to the
+						next.
+					</span>
+				</legend>
+				<div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+					{PROVIDERS.map((p) => (
+						<KeyField
+							key={p.id}
+							provider={p}
+							value={keys[p.id] ?? ''}
+							invalid={malformed.includes(p)}
+							onChange={(v) => setKeys((k) => ({ ...k, [p.id]: v }))}
+						/>
+					))}
+				</div>
+			</fieldset>
+
+			<div className="flex flex-col gap-4 border-[color:var(--color-rule)] border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
+				<Route lines={filled} />
+				<button
+					type="submit"
+					disabled={state.kind === 'working' || filled.length === 0}
+					className={`${ctaClass('primary', 'md')} disabled:cursor-not-allowed disabled:opacity-45`}
+				>
+					{state.kind === 'working'
+						? 'Sealing…'
+						: filled.length === 0
+							? 'Create token'
+							: `Seal ${filled.length} ${filled.length === 1 ? 'key' : 'keys'} into a token`}
+				</button>
+			</div>
+			<p aria-live="polite" className="-mt-4 min-h-5 text-sm sm:text-right">
+				{state.kind === 'error' && (
+					<span className="text-[color:var(--color-accent)]">{state.message}</span>
+				)}
+			</p>
+		</form>
+	);
+}
+
+type Provider = (typeof PROVIDERS)[number];
+
+function KeyField({
+	provider,
+	value,
+	invalid,
+	onChange,
+}: {
+	readonly provider: Provider;
+	readonly value: string;
+	readonly invalid: boolean;
+	readonly onChange: (v: string) => void;
+}) {
+	const [shown, setShown] = useState(false);
+	const id = useId();
+	const on = value.trim() !== '';
+	const shape = SHAPE[provider.id];
+	return (
+		<div className="flex flex-col gap-2">
+			<label htmlFor={id} className="flex items-center gap-2.5 font-medium text-sm">
+				{/* The provider's line: a ghost until the field holds a key, then drawn. */}
+				<svg width="28" height="12" viewBox="0 0 22 10" aria-hidden="true" className="shrink-0">
+					<path
+						d="M2 5 H20"
+						stroke={provider.line}
+						strokeWidth="3"
+						strokeLinecap="round"
+						strokeDasharray={on ? undefined : '0.1 5'}
+						className="transition-[stroke-dasharray] duration-300"
+					/>
+					{on && (
+						<circle
+							cx="11"
+							cy="5"
+							r="3.25"
+							fill="var(--color-ground)"
+							stroke={provider.line}
+							strokeWidth="2"
+						/>
+					)}
+				</svg>
+				<span className="text-[color:var(--color-ink)]">{provider.name}</span>
+			</label>
+			<div className="relative">
+				<input
+					id={id}
+					type={shown ? 'text' : 'password'}
+					autoComplete="off"
+					spellCheck={false}
+					data-1p-ignore
+					data-lpignore="true"
+					value={value}
+					onChange={(e) => onChange(e.target.value)}
+					placeholder={shape === undefined ? 'Paste API key' : 'zone:token'}
+					aria-invalid={invalid || undefined}
+					aria-describedby={shape === undefined ? undefined : `${id}-hint`}
+					className={`${FIELD} ${invalid ? FIELD_BAD : FIELD_OK}`}
+				/>
+				<button
+					type="button"
+					onClick={() => setShown((s) => !s)}
+					aria-label={shown ? `Hide the ${provider.name} key` : `Show the ${provider.name} key`}
+					aria-pressed={shown}
+					className="focus-inset absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-card text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]"
+				>
+					<Eye open={shown} />
+				</button>
+			</div>
+			{shape !== undefined && (
+				<span
+					id={`${id}-hint`}
+					className={`text-xs leading-relaxed ${invalid ? 'text-[color:var(--color-accent)]' : 'text-[color:var(--color-slate)]'}`}
+				>
+					{shape.hint}
+				</span>
+			)}
 		</div>
 	);
 }
 
-function Issued({ token, gateway }: { readonly token: string; readonly gateway: string }) {
+function Eye({ open }: { readonly open: boolean }) {
+	return (
+		<svg
+			width="16"
+			height="16"
+			viewBox="0 0 16 16"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.5"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			aria-hidden="true"
+		>
+			<path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8Z" />
+			<circle cx="8" cy="8" r="2" />
+			{open && <path d="M2.5 13.5 13.5 2.5" />}
+		</svg>
+	);
+}
+
+/**
+ * The route the token will carry: one line per key, merging into the station that is the token.
+ * Empty, it says what is missing in words rather than drawing an empty map.
+ */
+function Route({ lines }: { readonly lines: readonly Provider[] }) {
+	if (lines.length === 0) {
+		return <p className="text-[color:var(--color-slate)] text-sm">No keys yet.</p>;
+	}
+	return (
+		<p className="flex items-center gap-3 text-[color:var(--color-slate)] text-sm">
+			<span className="flex -space-x-1" aria-hidden="true">
+				{lines.map((p) => (
+					<span
+						key={p.id}
+						className="size-3 rounded-full border-2 border-[color:var(--color-ground)]"
+						style={{ backgroundColor: p.line }}
+					/>
+				))}
+			</span>
+			<span>
+				<span className="text-[color:var(--color-ink)]">
+					{lines.map((p) => p.name).join(', ')}
+				</span>
+				{lines.length === 1 ? ', no failover yet' : `, ${lines.length} lanes`}
+			</span>
+		</p>
+	);
+}
+
+type Use = 'connector' | 'claude' | 'curl';
+
+function Issued({
+	token,
+	gateway,
+	onReset,
+}: {
+	readonly token: string;
+	readonly gateway: string;
+	readonly onReset: () => void;
+}) {
 	// The build coloured each command with slots in it; the token and gateway exist only here.
 	// Escaped although neither can carry markup today: the token is base64url and the gateway an
 	// origin, and "today" is not a property the HTML should depend on.
 	const fill = (text: string, esc: (v: string) => string) =>
 		text.replaceAll(TOKEN_SLOT, esc(token)).replaceAll(GATEWAY_SLOT, esc(gateway));
 	const plain = (v: string) => v;
-	const claude = fill(CONNECT.claude, plain);
-	const curl = fill(CONNECT.curl, plain);
-	const claudeHtml = fill(highlighted['connect:claude'] ?? '', escapeHtml);
-	const curlHtml = fill(highlighted['connect:curl'] ?? '', escapeHtml);
+	// Ours only: another gateway serves `/mcp` just when its operator set PROXLANE_PUBLIC_URL, and
+	// this page cannot tell from `/token-key` whether they did.
+	const mcp = gateway === HOSTED_GATEWAY;
+	const uses: readonly { id: Use; label: string; copy: string; what: string }[] = [
+		...(mcp
+			? [
+					{
+						id: 'connector' as const,
+						label: 'claude.ai · chatgpt',
+						copy: `${gateway}/mcp`,
+						what: 'the connector URL',
+					},
+				]
+			: []),
+		{
+			id: 'claude',
+			label: 'claude code',
+			copy: fill(CONNECT.claude, plain),
+			what: 'the Claude Code command',
+		},
+		{ id: 'curl', label: 'curl', copy: fill(CONNECT.curl, plain), what: 'the curl command' },
+	];
+	const [use, setUse] = useState<Use>(uses[0]?.id ?? 'claude');
+	const current = uses.find((u) => u.id === use) ?? uses[0];
+	const heading = useRef<HTMLHeadingElement>(null);
+	const tabs = useId();
+
+	// The form is gone and this replaced it in place: move focus here, or a keyboard user is left
+	// on a button that no longer exists.
+	useEffect(() => {
+		heading.current?.focus();
+		heading.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+	}, []);
+
 	return (
-		<div className="flex flex-col gap-6">
-			<p className="max-w-[62ch] text-[color:var(--color-slate)] leading-relaxed">
-				<span className="text-[color:var(--color-ink)]">Your token is your keys, sealed.</span>{' '}
-				Anyone holding it can spend them, so keep it where you would keep the keys. It is shown
-				once; this page does not keep it.
-			</p>
+		<div className="mt-10 flex flex-col gap-8">
+			<div className="flex flex-col gap-2">
+				<h2
+					ref={heading}
+					tabIndex={-1}
+					className="scroll-mt-28 font-semibold text-[color:var(--color-ink)] text-xl tracking-[-0.01em] outline-none"
+				>
+					Your token
+				</h2>
+				<p className="max-w-[60ch] text-[color:var(--color-slate)] leading-relaxed">
+					It is your keys, sealed: anyone holding it can spend them. Copy it somewhere safe now.
+					This page keeps no copy.
+				</p>
+			</div>
+
 			<Panel label="token" copy={token} what="the token">
-				<p className="break-all font-mono text-[0.8125rem]">{token}</p>
+				<p className="break-all font-mono text-[0.8125rem] text-[color:var(--color-ink)] leading-relaxed">
+					{token}
+				</p>
 			</Panel>
-			<Panel label="claude code" copy={claude} what="the Claude Code command">
-				<Code html={claudeHtml} />
-			</Panel>
-			<Panel label="curl" copy={curl} what="the curl command">
-				<Code html={curlHtml} />
-			</Panel>
-			{/* Ours only: another gateway serves `/mcp` just when its operator set PROXLANE_PUBLIC_URL,
-			    and this page cannot tell from `/token-key` whether they did. */}
-			{gateway === HOSTED_GATEWAY && (
-				<Panel label="claude.ai and chatgpt" copy={`${gateway}/mcp`} what="the connector URL">
-					<p className="break-all font-mono text-[0.8125rem]">{gateway}/mcp</p>
-					<p className="mt-3 text-[color:var(--color-slate)] text-sm leading-relaxed">
-						Add it as a custom connector. It signs in by asking for this token, once.
-					</p>
-				</Panel>
-			)}
+
+			<div className="flex flex-col gap-3">
+				<h3 className="font-semibold text-[color:var(--color-ink)]">Use it</h3>
+				<div className="overflow-hidden rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] shadow-panel">
+					<div className="flex min-h-11 items-center justify-between gap-4 border-[color:var(--color-rule)] border-b pr-2.5 pl-1.5">
+						<div
+							role="tablist"
+							aria-label="Where to use the token"
+							className="flex overflow-x-auto"
+						>
+							{uses.map((u) => (
+								<button
+									key={u.id}
+									type="button"
+									role="tab"
+									id={`${tabs}-${u.id}`}
+									aria-selected={u.id === use}
+									aria-controls={`${tabs}-panel`}
+									onClick={() => setUse(u.id)}
+									className={`focus-inset relative min-h-11 whitespace-nowrap px-2.5 font-mono text-xs transition-colors ${
+										u.id === use
+											? 'text-[color:var(--color-ink)] after:absolute after:inset-x-2.5 after:-bottom-px after:h-0.5 after:rounded-full after:bg-[color:var(--color-accent)]'
+											: 'text-[color:var(--color-slate)] hover:text-[color:var(--color-ink)]'
+									}`}
+								>
+									{u.label}
+								</button>
+							))}
+						</div>
+						{current !== undefined && <CopyButton text={current.copy} what={current.what} />}
+					</div>
+					<div
+						role="tabpanel"
+						id={`${tabs}-panel`}
+						aria-labelledby={`${tabs}-${use}`}
+						className="p-4"
+					>
+						{use === 'connector' && (
+							<div className="flex flex-col gap-4">
+								<p className="break-all font-mono text-[0.875rem] text-[color:var(--color-ink)]">
+									{gateway}/mcp
+								</p>
+								<ol className="flex list-decimal flex-col gap-1.5 pl-5 text-[color:var(--color-slate)] text-sm leading-relaxed marker:text-[color:var(--color-slate)]">
+									<li>
+										In claude.ai or the Claude app: Settings, Connectors, Add custom connector.
+										In ChatGPT: a connector in developer mode.
+									</li>
+									<li>Paste this URL. It opens a Proxlane sign-in page.</li>
+									<li>Paste the token above there, once. The app never sees your keys.</li>
+								</ol>
+							</div>
+						)}
+						{use === 'claude' && (
+							<Code html={fill(highlighted['connect:claude'] ?? '', escapeHtml)} />
+						)}
+						{use === 'curl' && (
+							<Code html={fill(highlighted['connect:curl'] ?? '', escapeHtml)} />
+						)}
+					</div>
+				</div>
+			</div>
+
+			<button
+				type="button"
+				onClick={onReset}
+				className="self-start text-[color:var(--color-slate)] text-sm underline decoration-[color:var(--color-rule)] underline-offset-4 hover:text-[color:var(--color-ink)]"
+			>
+				Seal a different set of keys
+			</button>
 		</div>
 	);
 }
