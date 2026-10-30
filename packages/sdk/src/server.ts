@@ -153,13 +153,45 @@ export function createServer(config: ServerConfig): McpServer {
 			const provider = res.headers.get('x-provider-used') ?? undefined;
 			const chain = res.headers.get('x-chain') ?? undefined;
 
+			// THE GATEWAY'S OWN REFUSAL, before any scrape: a code that is not an outcome, so no
+			// `X-Outcome`, but always an `X-Outcome-Class`. Both conditions, so a server that is not a
+			// gateway (a wrong PROXLANE_URL) cannot put its own JSON into `reason`. Its message is the
+			// gateway's, written to be read: "this token was sealed to a key this gateway no longer
+			// holds" is what a hosted user needs, and a fixed sentence about PROXLANE_API_KEY was not.
+			let refusal: { code?: string; message?: string } = {};
+			if (outcome === undefined && cls !== undefined) {
+				try {
+					const e = (JSON.parse(raw) as { error?: { code?: unknown; message?: unknown } })
+						.error;
+					refusal = {
+						...(typeof e?.code === 'string' ? { code: e.code.slice(0, 40) } : {}),
+						...(typeof e?.message === 'string' ? { message: e.message.slice(0, 300) } : {}),
+					};
+				} catch {
+					// No body to read; the status and class still answer.
+				}
+			}
+
 			if (res.status === 401) {
 				return failure({
 					outcome: 'UNAUTHORIZED',
 					class: 'client',
 					retryable: false,
 					reason:
-						"the gateway refused the key; set PROXLANE_API_KEY to the gateway's own PROXLANE_API_KEY",
+						refusal.message ??
+						"the gateway refused the key in PROXLANE_API_KEY: the gateway's own PROXLANE_API_KEY, or a proxlane token for a hosted gateway",
+				});
+			}
+
+			if (refusal.code === 'TOO_MANY_REQUESTS') {
+				// Retryable, unlike the rest of `client`: slowing down is the whole fix.
+				const after = Number(res.headers.get('retry-after'));
+				return failure({
+					outcome: 'TOO_MANY_REQUESTS',
+					class: 'client',
+					retryable: true,
+					...(Number.isFinite(after) && after > 0 ? { retry_after_s: after } : {}),
+					...(refusal.message === undefined ? {} : { reason: refusal.message }),
 				});
 			}
 
@@ -212,8 +244,9 @@ export function createServer(config: ServerConfig): McpServer {
 					// An unreadable error body leaves the headers, which are the contract anyway.
 				}
 			}
+			reason ??= refusal.message;
 			return failure({
-				outcome: outcome ?? `HTTP_${res.status}`,
+				outcome: outcome ?? refusal.code ?? `HTTP_${res.status}`,
 				class: cls ?? 'gateway',
 				retryable: RETRYABLE[cls ?? 'gateway'] ?? true,
 				...(reason === undefined ? {} : { reason }),
