@@ -34,6 +34,19 @@ const CURSOR_LINK = `cursor://anysphere.cursor-deeplink/mcp/install?name=proxlan
 	JSON.stringify({ ...SERVER, env: ENV }),
 )}`;
 
+/**
+ * The commands the connect page prints once it has sealed a token, coloured here at build time
+ * like the snippets below. The token only exists in the visitor's browser, so the build colours
+ * a template and the page puts the token and gateway into the slots. Each slot is one shell word
+ * of the shape it stands for, so it is classed by the same role the real value would be.
+ */
+export const TOKEN_SLOT = 'PXL_TOKEN_SLOT';
+export const GATEWAY_SLOT = 'https://gateway.slot';
+export const CONNECT = {
+	claude: `claude mcp add --scope user proxlane \\\n  --env PROXLANE_URL=${GATEWAY_SLOT} \\\n  --env PROXLANE_API_KEY=${TOKEN_SLOT} \\\n  -- npx -y @proxlane/sdk@0.1`,
+	curl: `curl -H "Authorization: Bearer ${TOKEN_SLOT}" \\\n  "${GATEWAY_SLOT}/v1?url=https://example.com"`,
+} as const;
+
 export interface Client {
 	readonly id: string;
 	readonly name: string;

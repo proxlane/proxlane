@@ -21,7 +21,7 @@ import { join } from 'node:path';
 import MarkdownIt from 'markdown-it';
 import { createHighlighter } from 'shiki';
 import type { Plugin } from 'vite';
-import { CLIENTS } from './src/lib/agent-setup.js';
+import { CLIENTS, CONNECT } from './src/lib/agent-setup.js';
 
 /** Only what the docs actually use. Every grammar loaded is bundle weight and startup cost. */
 const LANGS = ['bash', 'json', 'http', 'typescript', 'javascript', 'python'] as const;
@@ -673,7 +673,8 @@ type Role = keyof typeof ROLE_SAMPLE;
 function shellRoles(line: string, first: boolean): [string, Role | undefined][] {
 	const out: [string, Role | undefined][] = [];
 	let seenCommand = !first;
-	for (const part of line.split(/(\s+)/)) {
+	// A double-quoted string is one word, spaces and all: curl's `-H "Authorization: Bearer …"`.
+	for (const part of line.split(/("[^"]*"|\s+)/)) {
 		if (part === '' || /^\s+$/.test(part)) {
 			if (part !== '') out.push([part, undefined]);
 			continue;
@@ -688,7 +689,7 @@ function shellRoles(line: string, first: boolean): [string, Role | undefined][] 
 		else if (assign?.[1] !== undefined && assign[2] !== undefined) {
 			out.push([assign[1], 'key'], ['=', undefined], [assign[2], 'value']);
 		} else if (part.startsWith('@')) out.push([part, 'pkg']);
-		else if (part.startsWith("'")) out.push([part, 'value']);
+		else if (part.startsWith("'") || part.startsWith('"')) out.push([part, 'value']);
 		else out.push([part, undefined]);
 	}
 	return out;
@@ -763,14 +764,16 @@ async function highlightSetup(): Promise<Record<string, string>> {
 		const base = `--shiki-light:${light.fg};--shiki-dark:${dark.fg}`;
 		return `<pre class="shiki" style="${base}"><code>${lines.map((l) => `<span class="line">${l}</span>`).join('\n')}</code></pre>`;
 	};
-	return Object.fromEntries(
-		CLIENTS.map((c) => [
+	return Object.fromEntries([
+		...CLIENTS.map((c) => [
 			c.id,
 			c.lang === 'bash'
 				? shell(c.text)
 				: highlighter.codeToHtml(c.text, { lang: c.lang, themes: THEMES, defaultColor: false }),
 		]),
-	);
+		// The connect page's commands, as templates with slots: `CONNECT` in agent-setup.ts.
+		...Object.entries(CONNECT).map(([id, text]) => [`connect:${id}`, shell(text)]),
+	]);
 }
 
 export function docsPlugin(options?: { readonly contentDir?: string }): Plugin {

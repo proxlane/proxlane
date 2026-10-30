@@ -30,24 +30,50 @@ export function escapeHtml(s: string): string {
 	return s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 }
 
+/**
+ * The site's palette, copied rather than linked: this page is served by the gateway under
+ * `default-src 'none'`, so it cannot load the site's stylesheet or fonts, and it should still look
+ * like the place the user just came from. Values are `packages/ui/src/theme.css`'s.
+ */
+const STYLE = `
+:root{color-scheme:light dark;--ground:#fbfaf7;--surface:#fff;--ink:#14171a;--slate:#495057;--rule:#dee2e6;--accent:#c2255c;--on-accent:#fff}
+@media (prefers-color-scheme:dark){:root{--ground:#14171a;--surface:#1a1e23;--ink:#fbfaf7;--slate:#adb5bd;--rule:#343a40;--accent:#f06595;--on-accent:#14171a}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--ground);color:var(--ink);font:16px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:30rem;margin:0 auto;padding:clamp(2rem,8vh,5rem) 1rem 3rem}
+.brand{display:flex;align-items:center;gap:.5rem;font-weight:600;letter-spacing:-.01em;margin-bottom:2rem}
+.brand i{width:.6rem;height:.6rem;border-radius:50%;background:var(--accent)}
+h1{font-size:1.625rem;line-height:1.2;letter-spacing:-.02em;margin:0 0 .75rem}
+p{color:var(--slate);margin:0 0 1rem}
+.host{color:var(--ink);font-weight:600}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:1.25rem;margin:1.5rem 0 1rem}
+.warn{border:1px solid var(--accent);border-radius:10px;padding:.85rem 1rem;color:var(--ink);margin:1.25rem 0}
+.err{color:var(--accent);font-weight:500}
+.field{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem}
+.field span{font-size:.875rem;font-weight:500}
+.hint{font-size:.8125rem;color:var(--slate);margin:.15rem 0 0}
+input[type=password],input[type=text]{width:100%;padding:.7rem .8rem;border:1px solid var(--rule);border-radius:8px;background:var(--ground);color:var(--ink);font:14px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}
+input::placeholder{color:var(--slate);opacity:.7;font-family:ui-sans-serif,system-ui,sans-serif}
+input:hover{border-color:var(--slate)}
+input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+details{border-top:1px solid var(--rule);margin-top:1.25rem;padding-top:1rem}
+summary{cursor:pointer;color:var(--slate);font-size:.9rem;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+ ";color:var(--accent);font-weight:600}
+details[open] summary::before{content:"\\2212  "}
+details[open] summary{margin-bottom:1rem}
+.keys{display:grid;gap:0 .9rem;grid-template-columns:1fr}
+@media (min-width:34rem){.keys{grid-template-columns:1fr 1fr}}
+.check{display:flex;gap:.6rem;align-items:flex-start;font-size:.9rem;margin:1rem 0 0}
+.check input{margin-top:.25rem;accent-color:var(--accent)}
+button,a.button{display:block;width:100%;margin-top:1.25rem;padding:.8rem 1rem;border:0;border-radius:999px;background:var(--accent);color:var(--on-accent);font-family:inherit;font-weight:600;font-size:1rem;line-height:1;text-align:center;cursor:pointer;text-decoration:none}
+button:hover,a.button:hover{filter:brightness(1.08)}
+.small{font-size:.8125rem}
+code{display:block;font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);background:var(--ground);border:1px solid var(--rule);border-radius:8px;padding:.7rem .8rem;word-break:break-all}
+`;
+
 function page(title: string, body: string): string {
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(title)} · Proxlane</title><style>
-:root{color-scheme:light dark;--ink:#16181d;--slate:#5b6270;--rule:#d9dce2;--accent:#c2185b;--ground:#fbfbfc}
-@media (prefers-color-scheme:dark){:root{--ink:#eceef2;--slate:#9aa1ad;--rule:#2c3038;--accent:#f06292;--ground:#14161a}}
-body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.6 system-ui,sans-serif}
-main{max-width:34rem;margin:0 auto;padding:3rem 1rem}
-h1{font-size:1.5rem;line-height:1.2;margin:0 0 1rem}
-p{color:var(--slate);margin:.75rem 0}
-.host{font-family:ui-monospace,monospace;color:var(--ink);font-size:1.05rem}
-.warn{border:1px solid var(--accent);border-radius:8px;padding:.75rem 1rem;color:var(--ink)}
-.err{color:var(--accent)}
-label{display:block;margin:.75rem 0 .25rem;font-size:.9rem}
-input[type=password],input[type=text]{width:100%;box-sizing:border-box;padding:.55rem .7rem;border:1px solid var(--rule);border-radius:8px;background:transparent;color:var(--ink);font:14px ui-monospace,monospace}
-fieldset{border:1px solid var(--rule);border-radius:8px;margin:1.25rem 0;padding:.5rem 1rem 1rem}
-legend{color:var(--slate);font-size:.85rem;padding:0 .25rem}
-button,a.button{display:inline-block;margin-top:1.25rem;padding:.6rem 1.1rem;border:1px solid var(--accent);border-radius:8px;background:transparent;color:var(--ink);font:inherit;cursor:pointer;text-decoration:none}
-code{font-family:ui-monospace,monospace;font-size:.9em;color:var(--ink);word-break:break-all}
-</style></head><body><main>${body}</main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(title)} · Proxlane</title><style>${STYLE}</style></head><body><main><div class="brand"><i></i>proxlane</div>${body}</main></body></html>`;
 }
 
 export function fatalPage(message: string): string {
@@ -66,34 +92,35 @@ export function consentPage(args: {
 	const host = escapeHtml(args.host);
 	const fields = CAPABILITIES.map((c) => c.id)
 		.sort()
-		.map(
-			(id) =>
-				`<label for="key_${id}">${escapeHtml(NAMES[id] ?? id)}</label><input type="password" id="key_${id}" name="key_${id}" autocomplete="off" spellcheck="false" placeholder="leave empty to skip">`,
-		)
+		.map((id) => {
+			const name = escapeHtml(NAMES[id] ?? id);
+			return `<label class="field"><span>${name}</span><input type="password" name="key_${id}" autocomplete="off" spellcheck="false" placeholder="${name} API key"></label>`;
+		})
 		.join('');
+	// THE TOKEN FIRST, keys behind a fold. Most people arrive with a token from the connect page;
+	// a page that opened on five empty key fields made the one field they needed look optional.
 	return page(
 		'Connect',
-		`<h1>Connect Proxlane to an AI app</h1>
-<p>The app at <span class="host">${host}</span> is asking to fetch pages through this gateway with your provider keys. It never sees the keys, only a token that uses them.</p>
+		`<h1>Connect ${host}</h1>
+<p><span class="host">${host}</span> wants to fetch pages through Proxlane with your provider keys. It never sees the keys, only a token that uses them.</p>
 ${
 	args.verified
 		? ''
 		: `<p class="warn"><strong>${host} is not a known AI app.</strong> Anyone can start a sign-in that sends you here. Continue only if you started this from an app you trust at exactly that address.</p>`
 }
 ${args.error === undefined ? '' : `<p class="err" role="alert">${escapeHtml(args.error)}</p>`}
-<form method="post" action="/oauth/authorize" autocomplete="off">
+<form method="post" action="/oauth/authorize" autocomplete="off" class="card">
 <input type="hidden" name="consent" value="${escapeHtml(args.consent)}">
-<fieldset><legend>Your provider keys</legend>${fields}</fieldset>
-<label for="token">Or a proxlane token you already have</label>
-<input type="text" id="token" name="token" autocomplete="off" spellcheck="false" placeholder="pxl1_…">
+<label class="field"><span>Your proxlane token</span><input type="text" name="token" autocomplete="off" spellcheck="false" placeholder="pxl1_…"><span class="hint">From proxlane.dev/connect. It starts with pxl1_.</span></label>
+<details><summary>No token? Paste provider keys instead</summary><div class="keys">${fields}</div><p class="hint">Fill in at least one. Leave the rest empty.</p></details>
 ${
 	args.verified
 		? ''
-		: `<label><input type="checkbox" name="confirm" value="${host}"> I started this from ${host}</label>`
+		: `<label class="check"><input type="checkbox" name="confirm" value="${host}"><span>I started this from ${host}</span></label>`
 }
 <button type="submit">Connect</button>
 </form>
-<p>Each request bills your own provider accounts. Nothing here stores your keys: they are sealed into the token the app receives.</p>`,
+<p class="small">Each request bills your own provider accounts. Nothing here stores your keys: they are sealed into the token the app receives.</p>`,
 	);
 }
 
@@ -110,7 +137,7 @@ export function connectedPage(args: {
 		'Connected',
 		`<h1>Connected</h1>
 <p>Keep this id. It names the token behind this connection, and it is how the gateway's operator revokes it if you ask; rotating the provider keys inside it works too.</p>
-<p><code>${escapeHtml(args.tokenId)}</code></p>
-<a class="button" href="${escapeHtml(args.location)}">Continue to ${escapeHtml(args.host)}</a>`,
+<div class="card"><code>${escapeHtml(args.tokenId)}</code>
+<a class="button" href="${escapeHtml(args.location)}">Continue to ${escapeHtml(args.host)}</a></div>`,
 	);
 }

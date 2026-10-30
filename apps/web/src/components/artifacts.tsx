@@ -38,25 +38,28 @@ export interface Block {
  * `aria-live` is what carries it to anyone who cannot see the swap.
  */
 export function CopyButton({ text, what }: { readonly text: string; readonly what: string }) {
-	const [copied, setCopied] = useState(false);
+	const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
 	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+	const copied = state === 'copied';
 
 	// Clearing on unmount is not tidiness: a section can leave the tree while the 2s timer is
 	// still pending, and setting state after that logs a warning and leaks the handle.
 	useEffect(() => () => clearTimeout(timer.current), []);
 
 	async function copy() {
+		// The async API first, then the old selection copy. `writeText` refuses more often than it
+		// looks: a document that lost focus, an embedded browser, a permissions policy. A silent
+		// refusal read as a broken button, so the fallback runs and a real failure says so.
+		let ok = false;
 		try {
 			await navigator.clipboard.writeText(text);
+			ok = true;
 		} catch {
-			// Denied permission, or no clipboard in this context. Say nothing rather than claim
-			// a copy that did not happen — a false "Copied" is worse than a button that did not
-			// visibly respond, because the paste fails somewhere else entirely.
-			return;
+			ok = copyBySelection(text);
 		}
-		setCopied(true);
+		setState(ok ? 'copied' : 'failed');
 		clearTimeout(timer.current);
-		timer.current = setTimeout(() => setCopied(false), 2000);
+		timer.current = setTimeout(() => setState('idle'), ok ? 2000 : 4000);
 	}
 
 	return (
@@ -88,9 +91,29 @@ export function CopyButton({ text, what }: { readonly text: string; readonly wha
 					</>
 				)}
 			</svg>
-			<span aria-live="polite">{copied ? 'copied' : 'copy'}</span>
+			<span aria-live="polite">
+				{copied ? 'copied' : state === 'failed' ? 'select it and copy' : 'copy'}
+			</span>
 		</button>
 	);
+}
+
+/** `execCommand('copy')` on an off-screen selection: deprecated, and still the one that works. */
+function copyBySelection(text: string): boolean {
+	const area = document.createElement('textarea');
+	area.value = text;
+	area.setAttribute('readonly', '');
+	area.style.position = 'fixed';
+	area.style.opacity = '0';
+	document.body.appendChild(area);
+	area.select();
+	try {
+		return document.execCommand('copy');
+	} catch {
+		return false;
+	} finally {
+		area.remove();
+	}
 }
 
 /**
