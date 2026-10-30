@@ -297,6 +297,14 @@ gateway's keypair either way.
 - Self-hosters generate their own master key at first boot; refuse to start with a
   default one.
 
+**The tenant token** is `@proxlane/shared/token`, and its header is the format's spec. Three
+prefixed strings so a scanner tells them apart: `pxlsk1_` the gateway's secret key (env only),
+`pxlpk1_` its public key, `pxl1_<kid>_` a token. The kid is derived from the public key, so a
+keyring is nothing but secret keys, newest first; rotation adds one ahead of the old and drops the
+old once its tokens are replaced. Opening is synchronous and returns the token's id, a hash, which
+is all that rate limits, the denylist and logs ever see. Unknown payload fields are ignored,
+because the connect page ships before the gateway can read what it adds.
+
 **Where the key lives, and the boundary between the two processes.**
 `packages/api`'s oRPC contract is described as "web ↔ gateway admin API", which would make
 the gateway validate Better Auth sessions — contradicting "hot path only" — and would put
