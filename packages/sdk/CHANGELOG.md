@@ -1,5 +1,11 @@
 # @proxlane/sdk
 
+## 0.1.3
+
+### Patch Changes
+
+- [#468](https://github.com/proxlane/proxlane/pull/468) [`2064864`](https://github.com/proxlane/proxlane/commit/20648642e23473f285425bd8eaff28b210068c54) Thanks [@scarsam](https://github.com/scarsam)! - `fetch_page` no longer describes the gateway as self-hosted, since the hosted one serves it too.
+
 ## 0.1.2
 
 ### Patch Changes
