@@ -86,6 +86,12 @@ const REASONS = {
 	 */
 	GATEWAY_KEYS:
 		'the gateway authenticating its callers: boot and doctor only, never an adapter',
+	/**
+	 * The hosted gateway's tenant token: the provider keys a request may spend, sealed. Opening
+	 * one is the gateway deciding WHICH key an adapter is handed, which is the step before any
+	 * adapter runs. Its own subpath, never the barrel, because it loads libsodium.
+	 */
+	TENANT_TOKEN: 'the hosted gateway resolving whose keys to use: before any adapter runs',
 } as const;
 
 /**
@@ -149,6 +155,10 @@ const EXCLUSIONS: ReadonlyArray<readonly [reason: string, names: readonly string
 		],
 	],
 	[REASONS.EDGE_GUARD, ['EdgeVerdict', 'guardTargetUrl']],
+	[
+		REASONS.TENANT_TOKEN,
+		['OpenedToken', 'TokenInput', 'TokenKeyring', 'TokenPayload', 'TokenRefusal'],
+	],
 	[REASONS.ENV_READ, ['providerKeyFromEnv']],
 	[
 		REASONS.SIZING,
