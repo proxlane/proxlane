@@ -35,7 +35,7 @@ import { accountOnlyChain, hostOf, type RequestLine, timings } from './log.js';
 import { ignoredParams, nearMisses, parseScrapeRequest } from './request.js';
 import { serverTimingHeader, splitTimings } from './server-timing.js';
 import { parseSimulate, SIMULATE_HEADER, simulate } from './simulate.js';
-import { resolveTenant, type Tenancy } from './tenant.js';
+import { resolveTenant, spendAuthFailures, type Tenancy } from './tenant.js';
 import { VERSION } from './version.js';
 
 export interface AppDeps {
@@ -741,6 +741,8 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		// A TENANT TOKEN IS A THIRD KEY CLASS, decided by its shape, and only in hosted mode. On a
 		// self-hosted gateway it is simply a wrong key and falls through to the 401 below.
 		let candidates = deps.candidates;
+		/** Set for a tenant request only: whose AUTH_FAILED budget the chain spends. */
+		let address: string | undefined;
 		if (deps.tenancy !== undefined && presentedValue.startsWith(TOKEN_PREFIX)) {
 			if (!inHeader) {
 				// Refused, not served: a token in a query string reaches access logs, proxy logs and
@@ -753,12 +755,18 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
 				});
 			}
-			const tenant = await resolveTenant(
-				presentedValue,
-				deps.clientAddress?.(c) ?? 'unknown',
-				deps.tenancy,
-				Date.now(),
-			);
+			// Before the token is resolved, so a request refused for it spends none of its budget.
+			if (c.req.header(SIMULATE_HEADER) !== undefined) {
+				return errorWith(c, 400, {
+					code: 'BAD_REQUEST',
+					message:
+						'X-Proxlane-Simulate is honoured only for the sandbox key. A tenant token always ' +
+						'spends real credits, so the request was refused rather than run',
+					...(deps.docsUrl === undefined ? {} : { docsUrl: deps.docsUrl }),
+				});
+			}
+			address = deps.clientAddress?.(c) ?? 'unknown';
+			const tenant = await resolveTenant(presentedValue, address, deps.tenancy, Date.now());
 			if (!tenant.ok) {
 				c.set('tokenRefused', tenant.why);
 				if (tenant.id !== undefined) c.set('token', tenant.id);
@@ -855,7 +863,11 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 		}
 
 		try {
-			return await served(c, sandbox, candidates);
+			const res = await served(c, sandbox, candidates);
+			if (address !== undefined && deps.tenancy !== undefined) {
+				await spendAuthFailures(res.headers.get('X-Chain'), address, deps.tenancy, Date.now());
+			}
+			return res;
 		} finally {
 			// FINALLY, not the success path. A throw that skipped this leaks a slot for the
 			// lifetime of the process, and enough of them wedge the gateway at a ceiling it

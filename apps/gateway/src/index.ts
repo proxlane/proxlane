@@ -15,7 +15,7 @@ import {
 	providerKeyFromEnv,
 	readMemoryLimit,
 } from '@proxlane/shared';
-import { loadTokenKeyring } from '@proxlane/shared/token';
+import { loadTokenKeyring, TOKEN_PREFIX } from '@proxlane/shared/token';
 import { createFetchTransport, DEFAULT_BODY_CAP_MB } from '@proxlane/shared/transport';
 import { Redis } from 'ioredis';
 import { createApp } from './app.js';
@@ -369,7 +369,23 @@ if (TOKEN_KEYS.length > 0) {
 			),
 			addressLimit: limiter('PROXLANE_TOKEN_IP_RPM', minute('PROXLANE_TOKEN_IP_RPM', 120)),
 			credentialLimit: limiter('PROXLANE_TOKEN_RPM', minute('PROXLANE_TOKEN_RPM', 60)),
+			authFailures: limiter(
+				'PROXLANE_TOKEN_AUTH_FAILURES',
+				minute('PROXLANE_TOKEN_AUTH_FAILURES', 10),
+			),
 		};
+		// The operator's own key must never look like a token, or hosted mode would route it down
+		// the token path and lock the operator out of their own gateway.
+		for (const [name, key] of [
+			['PROXLANE_API_KEY', apiKey],
+			['PROXLANE_SANDBOX_KEY', sandbox],
+		] as const) {
+			if (key?.startsWith(TOKEN_PREFIX)) {
+				throw new Error(
+					`${name} starts with ${TOKEN_PREFIX}, which hosted mode reads as a token`,
+				);
+			}
+		}
 	} catch (err) {
 		process.stderr.write(
 			`\n  PROXLANE_TOKEN_KEYS is set but unusable: ${err instanceof Error ? err.message : String(err)}\n` +

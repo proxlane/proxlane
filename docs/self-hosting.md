@@ -282,7 +282,8 @@ most:
 | `PROXLANE_TOKEN_DENY` | unset | Token ids to refuse, from the `token` field of a log line |
 | `PROXLANE_TOKEN_RPM` | `60` | Requests a minute per provider key in a token |
 | `PROXLANE_TOKEN_IP_RPM` | `120` | Requests a minute per caller address, checked before a token is opened. IPv6 counts per /64 |
-| `PROXLANE_CLIENT_IP_HEADER` | unset | The header your reverse proxy writes the caller's address to; its last entry is used. Unset, the socket address is used, which behind a proxy is the proxy's |
+| `PROXLANE_TOKEN_AUTH_FAILURES` | `10` | Provider key refusals (`AUTH_FAILED`) a minute per caller address before its tokens are turned away. Stops junk keys using the gateway to test keys against providers |
+| `PROXLANE_CLIENT_IP_HEADER` | unset | The header your reverse proxy writes the caller's address to; its last entry is used, and only on connections from a private or loopback address, i.e. your proxy. Unset, the socket address is used, which behind a proxy is the proxy's |
 
 A variable set in `.env` reaches the container only if `docker/compose.yml` names it in its
 `environment:` block. If something appears to have no effect, check there first.

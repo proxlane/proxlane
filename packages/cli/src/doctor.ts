@@ -533,7 +533,9 @@ async function tokenCheck(): Promise<Check> {
 				`; ${denied} token(s) denied. Public key at GET /token-key. Caller address: ` +
 				(header === undefined
 					? 'the socket. Behind a reverse proxy that is the proxy, and every caller shares one limit; set PROXLANE_CLIENT_IP_HEADER to the header your proxy writes'
-					: `the last entry of ${header}`),
+					: header.toLowerCase() === 'forwarded'
+						? 'Forwarded (RFC 7239), which is NOT parsed: its entries read `for=…`, so every caller lands in one shared bucket. Name X-Forwarded-For or X-Real-IP instead'
+						: `the last entry of ${header}, from connections on a private network only`),
 		};
 	} catch (err) {
 		return {

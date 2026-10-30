@@ -2,12 +2,14 @@
 // thing stubbed is the network, as everywhere else in this suite.
 
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { type Adapter, REGISTRY } from '@proxlane/adapters';
 import { generateTokenKeypair, loadTokenKeyring, sealToken } from '@proxlane/shared/token';
+import type { HttpTransport } from '@proxlane/shared/transport';
 import { createReplayTransport, loadFixtures } from '@proxlane/vitest-config/replay-transport';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
@@ -32,6 +34,7 @@ let selfHosted: string;
 let token: string;
 let publicKey: string;
 const lines: RequestLine[] = [];
+const authFailures = new InMemoryRateLimiter({ limit: 1000, windowMs: 60_000 });
 const servers: ReturnType<typeof serve>[] = [];
 
 async function listen(app: ReturnType<typeof createApp>): Promise<string> {
@@ -62,6 +65,7 @@ beforeAll(async () => {
 				denied: new Set(),
 				addressLimit: new InMemoryRateLimiter({ limit: 1000, windowMs: 60_000 }),
 				credentialLimit: new InMemoryRateLimiter({ limit: 1000, windowMs: 60_000 }),
+				authFailures,
 			},
 			clientAddress: clientAddressFrom(undefined),
 			log: (l) => lines.push(l),
@@ -133,6 +137,12 @@ describe('a tenant token on a hosted gateway', () => {
 		expect(r.status).toBe(400);
 	});
 
+	it('spends no refusal budget on a served request', async () => {
+		const before = await authFailures.peek('127.0.0.1', Date.now());
+		await scrape(hosted, token);
+		expect(await authFailures.peek('127.0.0.1', Date.now())).toBe(before);
+	});
+
 	it('leaves the operator key working beside it', async () => {
 		// The operator configured no provider, so the operator's own scrape has nothing to route on.
 		const r = await fetch(`${hosted}/v1?url=${SUCCESS}&api_key=${API_KEY}`);
@@ -156,5 +166,61 @@ describe('the public key, for the connect page', () => {
 describe('a self-hosted gateway', () => {
 	it('treats a token as just a wrong key', async () => {
 		expect((await scrape(selfHosted, token)).status).toBe(401);
+	});
+});
+
+describe('a provider refusing the keys in a token', () => {
+	it('spends the address budget, then turns the address away before opening another token', async () => {
+		// The recorded Bright Data suspension, served at the network boundary for every attempt:
+		// what a token full of junk or stolen keys gets back from a provider.
+		const f = JSON.parse(
+			readFileSync(
+				resolve(ROOT, 'packages/adapters/src/brightdata/fixtures/auth-failed.json'),
+				'utf8',
+			),
+		) as { response: { status: number; headers: Record<string, string>; bodyBase64: string } };
+		const refusing: HttpTransport = {
+			async execute() {
+				return {
+					kind: 'response',
+					response: {
+						status: f.response.status,
+						headers: f.response.headers,
+						body: new Uint8Array(Buffer.from(f.response.bodyBase64, 'base64')),
+					},
+					latencyMs: 5,
+				};
+			},
+		};
+		const pair = await generateTokenKeypair();
+		const budget = new InMemoryRateLimiter({ limit: 1, windowMs: 60_000 });
+		const base = await listen(
+			createApp({
+				transport: refusing,
+				candidates: [],
+				apiKey: API_KEY,
+				maxBodyBytes: 1024 * 1024,
+				defaultDeadlineMs: 90_000,
+				tenancy: {
+					keyring: await loadTokenKeyring([pair.secretKey]),
+					adapters,
+					order: IDS,
+					denied: new Set(),
+					addressLimit: new InMemoryRateLimiter({ limit: 1000, windowMs: 60_000 }),
+					credentialLimit: new InMemoryRateLimiter({ limit: 1000, windowMs: 60_000 }),
+					authFailures: budget,
+				},
+				clientAddress: clientAddressFrom(undefined),
+			}),
+		);
+		const junk = await sealToken({ keys: { brightdata: 'zone:junk' } }, pair.publicKey);
+		const first = await scrape(base, junk);
+		expect(first.headers.get('x-outcome')).toBe('AUTH_FAILED');
+		expect(await budget.peek('127.0.0.1', Date.now())).toBe(1);
+
+		const fresh = await sealToken({ keys: { brightdata: 'zone:other-junk' } }, pair.publicKey);
+		const second = await scrape(base, fresh);
+		expect(second.status).toBe(429);
+		expect(second.headers.get('retry-after')).toMatch(/^\d+$/);
 	});
 });

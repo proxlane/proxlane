@@ -311,8 +311,10 @@ token and is refused as `unsupported` by a gateway that cannot enforce it. `.git
 recognises the secret key and the token.
 
 In the gateway, `PROXLANE_TOKEN_KEYS` turns this on beside the operator key (`apps/gateway/src/tenant.ts`).
-A token is accepted only in `Authorization`, limited per caller address before it is opened and
-per provider key after, and each key's account cooldowns are its own (`t.<hash>`), so one user's
+A token is accepted only in `Authorization`, limited per caller address before it is opened, per
+provider key after, and per address on `AUTH_FAILED`, since fresh junk keys evade a per-key limit
+and would make the gateway an oracle for testing keys against providers. Not yet built: a looser
+second limit per IPv6 /48, and an in-flight ceiling for tenants apart from the operator's; and each key's account cooldowns are its own (`t.<hash>`), so one user's
 spent plan never cools a provider for another. Domain cooldowns stay shared, by the design in
 `chain.ts`: a block is a fact about the provider and the site. The operator's
 `/health/cooldowns` therefore lists tenants' account cooldowns by hash, with the provider's own

@@ -326,6 +326,11 @@ describe('doctor', () => {
 				PROXLANE_CLIENT_IP_HEADER: 'x-real-ip',
 			});
 			expect(named.check?.detail).toContain('last entry of x-real-ip');
+			const rfc = await run({
+				PROXLANE_TOKEN_KEYS: pair.secretKey,
+				PROXLANE_CLIENT_IP_HEADER: 'Forwarded',
+			});
+			expect(rfc.check?.detail).toContain('NOT parsed');
 		});
 
 		it('fails, without echoing it, on a keyring the gateway would refuse to boot with', async () => {
