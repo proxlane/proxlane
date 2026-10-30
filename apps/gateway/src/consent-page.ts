@@ -40,27 +40,27 @@ const STYLE = `
 @media (prefers-color-scheme:dark){:root{--ground:#14171a;--surface:#1a1e23;--ink:#fbfaf7;--slate:#adb5bd;--rule:#343a40;--accent:#f06595;--on-accent:#14171a;--line-1:#22b8cf;--line-2:#ff922b;--line-3:#9775fa;--line-4:#51cf66;--line-5:#a9e34b}}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;background:var(--ground);color:var(--ink);font:16px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-main{max-width:30rem;margin:0 auto;padding:clamp(2rem,8vh,5rem) 1rem 3rem}
-.brand{display:flex;align-items:center;gap:.5rem;font-weight:600;letter-spacing:-.01em;margin-bottom:2rem}
+main{max-width:30rem;margin:0 auto;padding:clamp(2rem,8vh,5rem) 1.25rem 3rem}
+.brand{display:flex;align-items:center;gap:.5rem;font-weight:600;letter-spacing:-.01em;margin-bottom:2.5rem}
 .brand svg{width:1.4rem;height:1.4rem}
 ::selection{background:var(--accent);color:var(--on-accent)}
 input{caret-color:var(--accent)}
 .field>span:first-child{display:flex;align-items:center;gap:.6rem}
 .field svg{width:1.75rem;height:.75rem;flex:none}
-h1{font-size:1.625rem;line-height:1.2;letter-spacing:-.02em;margin:0 0 .75rem}
+h1{font-size:1.75rem;line-height:1.15;letter-spacing:-.02em;margin:0 0 .75rem}
 p{color:var(--slate);margin:0 0 1rem}
 .host{color:var(--ink);font-weight:600}
-.card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:1.25rem;margin:1.5rem 0 1rem}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:1.5rem;margin:1.75rem 0 1.25rem;box-shadow:0 1px 2px rgb(0 0 0/.04),0 8px 24px -12px rgb(0 0 0/.18)}
 .warn{border:1px solid var(--accent);border-radius:10px;padding:.85rem 1rem;color:var(--ink);margin:1.25rem 0}
 .err{color:var(--accent);font-weight:500}
-.field{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem}
+.field{display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.25rem}
 .field>span:first-child{font-size:.875rem;font-weight:500}
 .hint{font-size:.8125rem;color:var(--slate);margin:.15rem 0 0}
 input[type=password],input[type=text]{width:100%;padding:.7rem .8rem;border:1px solid var(--rule);border-radius:8px;background:var(--ground);color:var(--ink);font:14px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}
 input::placeholder{color:var(--slate);opacity:.7;font-family:ui-sans-serif,system-ui,sans-serif}
 input:hover{border-color:var(--slate)}
 input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
-details{border-top:1px solid var(--rule);margin-top:1.25rem;padding-top:1rem}
+details{border-top:1px solid var(--rule);margin-top:.25rem;padding-top:1.1rem}
 summary{cursor:pointer;color:var(--slate);font-size:.9rem;list-style:none}
 summary::-webkit-details-marker{display:none}
 summary::before{content:"+ ";color:var(--accent);font-weight:600}
@@ -70,8 +70,9 @@ details[open] summary{margin-bottom:1rem}
 @media (min-width:34rem){.keys{grid-template-columns:1fr 1fr}}
 .check{display:flex;gap:.6rem;align-items:flex-start;font-size:.9rem;margin:1rem 0 0}
 .check input{margin-top:.25rem;accent-color:var(--accent)}
-button,a.button{display:block;width:100%;margin-top:1.25rem;padding:.8rem 1rem;border:0;border-radius:999px;background:var(--accent);color:var(--on-accent);font-family:inherit;font-weight:600;font-size:1rem;line-height:1;text-align:center;cursor:pointer;text-decoration:none}
-button:hover,a.button:hover{filter:brightness(1.08)}
+button,a.button{display:block;width:100%;margin-top:1.5rem;padding:.85rem 1rem;border:1px solid var(--accent);border-radius:999px;background:transparent;color:var(--accent);font-family:inherit;font-weight:600;font-size:1rem;line-height:1;text-align:center;cursor:pointer;text-decoration:none}
+button:hover,a.button:hover{box-shadow:0 0 0 3px color-mix(in oklab,var(--accent) 18%,transparent),0 8px 28px -8px color-mix(in oklab,var(--accent) 55%,transparent)}
+button:focus-visible,a.button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .small{font-size:.8125rem}
 code{display:block;font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);background:var(--ground);border:1px solid var(--rule);border-radius:8px;padding:.7rem .8rem;word-break:break-all}
 `;
