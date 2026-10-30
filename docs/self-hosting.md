@@ -280,6 +280,7 @@ most:
 | `PROXLANE_REPLICAS` | `1` | Refuses to boot above 1 without Valkey |
 | `PROXLANE_TOKEN_KEYS` | unset | Hosted mode: accept tenant tokens, each sealing its caller's own provider keys, beside the gateway key. `pxlsk1_` secret keys from `npx proxlane keygen`, newest first. A bad entry refuses to boot |
 | `PROXLANE_TOKEN_DENY` | unset | Token ids to refuse, from the `token` field of a log line |
+| `PROXLANE_TOKEN_PROVIDERS` | all | Which providers tenants may route to, comma-separated. A token's key for any other is dropped and its other keys still route. An unknown id refuses to boot |
 | `PROXLANE_TOKEN_RPM` | `60` | Requests a minute per provider key in a token |
 | `PROXLANE_TOKEN_IP_RPM` | `120` | Requests a minute per caller address, checked before a token is opened. IPv6 counts per /64 |
 | `PROXLANE_TOKEN_AUTH_FAILURES` | `10` | Provider key refusals (`AUTH_FAILED`) a minute per caller address before its tokens are turned away. Stops junk keys using the gateway to test keys against providers |

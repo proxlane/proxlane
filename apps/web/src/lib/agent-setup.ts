@@ -15,7 +15,7 @@
 
 import type { MarkId } from '../components/agent-marks.js';
 
-const SERVER = { command: 'npx', args: ['-y', '@proxlane/sdk@0.1'] } as const;
+export const SERVER = { command: 'npx', args: ['-y', '@proxlane/sdk@0.1'] } as const;
 export const KEY = 'your-gateway-key';
 const ENV = { PROXLANE_API_KEY: KEY };
 
