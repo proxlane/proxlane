@@ -542,7 +542,7 @@ async function tokenCheck(): Promise<Check> {
 			name: 'tenant tokens',
 			ok: false,
 			detail: `PROXLANE_TOKEN_KEYS is set but unusable: ${err instanceof Error ? err.message : String(err)}. The gateway refuses to boot this way`,
-			fix: 'each comma-separated entry must be a pxlsk1_ secret key, newest first. Generate one with generateTokenKeypair() from @proxlane/shared/token',
+			fix: 'each comma-separated entry must be a pxlsk1_ secret key, newest first. Generate one with: npx proxlane keygen',
 		};
 	}
 }
