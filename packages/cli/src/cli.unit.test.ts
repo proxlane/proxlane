@@ -683,3 +683,24 @@ describe('help', () => {
 		for (const c of ['scrape', 'providers', 'outcomes', 'doctor']) expect(help).toContain(c);
 	});
 });
+
+describe('keygen', () => {
+	it('prints a keypair the gateway boots with, and the public key it will serve', async () => {
+		const r = run(['keygen', '--json']);
+		expect(r.code).toBe(EXIT.OK);
+		const { data } = JSON.parse(r.stdout) as {
+			data: { secretKey: string; publicKey: string; kid: string };
+		};
+		const { loadTokenKeyring } = await import('@proxlane/shared/token');
+		const ring = await loadTokenKeyring([data.secretKey]);
+		expect(ring.publicKey).toBe(data.publicKey);
+		expect(ring.kids).toEqual([data.kid]);
+	});
+
+	it('gives a fresh pair each run, as a line to paste into the env', () => {
+		const a = run(['keygen']);
+		const b = run(['keygen']);
+		expect(a.stdout).toMatch(/^PROXLANE_TOKEN_KEYS=pxlsk1_[A-Za-z0-9_-]{43}\n/);
+		expect(a.stdout).not.toBe(b.stdout);
+	});
+});
