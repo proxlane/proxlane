@@ -7,10 +7,11 @@
  * cannot end up in a URL, a browser's form history or a later paste.
  */
 
+import highlighted from 'virtual:agent-setup';
 import { CAPABILITIES } from '@proxlane/adapters';
 import { sealToken } from '@proxlane/shared/token';
 import { type FormEvent, useState } from 'react';
-import { SERVER } from '../lib/agent-setup.js';
+import { CONNECT, GATEWAY_SLOT, TOKEN_SLOT } from '../lib/agent-setup.js';
 import { HOSTED_GATEWAY } from '../lib/hosted.js';
 import { Panel } from './artifacts.js';
 import { ctaClass } from './cta.js';
@@ -171,10 +172,16 @@ export function ConnectForm() {
 }
 
 function Issued({ token, gateway }: { readonly token: string; readonly gateway: string }) {
-	const claude =
-		`claude mcp add proxlane \\\n  --env PROXLANE_URL=${gateway} \\\n  --env PROXLANE_API_KEY=${token} \\\n` +
-		`  -- ${SERVER.command} ${SERVER.args.join(' ')}`;
-	const curl = `curl -H "Authorization: Bearer ${token}" \\\n  "${gateway}/v1?url=https://example.com"`;
+	// The build coloured each command with slots in it; the token and gateway exist only here.
+	// Escaped although neither can carry markup today: the token is base64url and the gateway an
+	// origin, and "today" is not a property the HTML should depend on.
+	const fill = (text: string, esc: (v: string) => string) =>
+		text.replaceAll(TOKEN_SLOT, esc(token)).replaceAll(GATEWAY_SLOT, esc(gateway));
+	const plain = (v: string) => v;
+	const claude = fill(CONNECT.claude, plain);
+	const curl = fill(CONNECT.curl, plain);
+	const claudeHtml = fill(highlighted['connect:claude'] ?? '', escapeHtml);
+	const curlHtml = fill(highlighted['connect:curl'] ?? '', escapeHtml);
 	return (
 		<div className="flex flex-col gap-6">
 			<p className="max-w-[62ch] text-[color:var(--color-slate)] leading-relaxed">
@@ -186,10 +193,10 @@ function Issued({ token, gateway }: { readonly token: string; readonly gateway: 
 				<p className="break-all font-mono text-[0.8125rem]">{token}</p>
 			</Panel>
 			<Panel label="claude code" copy={claude} what="the Claude Code command">
-				<pre className="overflow-x-auto font-mono text-[0.8125rem] leading-[1.9]">{claude}</pre>
+				<Code html={claudeHtml} />
 			</Panel>
 			<Panel label="curl" copy={curl} what="the curl command">
-				<pre className="overflow-x-auto font-mono text-[0.8125rem] leading-[1.9]">{curl}</pre>
+				<Code html={curlHtml} />
 			</Panel>
 			{/* Ours only: another gateway serves `/mcp` just when its operator set PROXLANE_PUBLIC_URL,
 			    and this page cannot tell from `/token-key` whether they did. */}
@@ -202,5 +209,19 @@ function Issued({ token, gateway }: { readonly token: string; readonly gateway: 
 				</Panel>
 			)}
 		</div>
+	);
+}
+
+function escapeHtml(v: string): string {
+	return v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+function Code({ html }: { readonly html: string }) {
+	return (
+		<div
+			className="code-hl overflow-x-auto font-mono text-[0.8125rem] leading-[1.9]"
+			// Shiki's output from the build, with only the escaped token and gateway put in.
+			dangerouslySetInnerHTML={{ __html: html }}
+		/>
 	);
 }
