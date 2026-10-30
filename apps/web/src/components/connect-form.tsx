@@ -127,10 +127,10 @@ export function ConnectForm() {
 										value={keys[id] ?? ''}
 										onChange={(e) => setKeys((k) => ({ ...k, [id]: e.target.value }))}
 										placeholder="leave empty to skip"
-										className="focus-inset w-full rounded-card bg-transparent px-2 py-1.5 font-mono text-[0.8125rem] placeholder:text-[color:var(--color-slate)]"
+										className="focus-inset w-full rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] px-3 py-2 font-mono text-[0.8125rem] placeholder:text-[color:var(--color-slate)]/70 hover:border-[color:var(--color-slate)]"
 									/>
 									{SHAPE[id] !== undefined && (
-										<span className="px-2 font-mono text-[color:var(--color-slate)] text-xs">
+										<span className="px-1 font-mono text-[color:var(--color-slate)] text-xs">
 											{SHAPE[id]}
 										</span>
 									)}
