@@ -29,6 +29,11 @@ export interface RateLimiter {
 	readonly rate: RateLimit;
 	/** Count one request against `key`, and say whether it is within the limit. Never rejects. */
 	take(key: string, now: number): Promise<RateDecision>;
+	/**
+	 * The count so far in this window, without adding to it. For a budget spent by OUTCOMES rather
+	 * than requests: check it before the work, `take` once per bad outcome after. Never rejects.
+	 */
+	peek(key: string, now: number): Promise<number>;
 }
 
 /** Refuses a nonsense limit at construction, so a typo fails the boot rather than every request. */
@@ -80,6 +85,12 @@ export class InMemoryRateLimiter implements RateLimiter {
 		return count <= this.rate.limit
 			? { ok: true }
 			: { ok: false, retryAfterMs: this.#start + this.rate.windowMs - now };
+	}
+
+	async peek(key: string, now: number): Promise<number> {
+		return windowStart(now, this.rate.windowMs) === this.#start
+			? (this.#counts.get(key) ?? 0)
+			: 0;
 	}
 
 	/** Keys currently held. For the test that pins the rollover. */

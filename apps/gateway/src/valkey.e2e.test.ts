@@ -511,6 +511,15 @@ describe('the rate limiter counts once across replicas', () => {
 		expect(ttl).toBeLessThanOrEqual(61_000);
 	});
 
+	it('peeks the shared count without adding to it', async () => {
+		const l = new ValkeyRateLimiter({ redis, name: 'authfail', rate });
+		await l.take('a', T);
+		await l.take('a', T + 1);
+		expect(await l.peek('a', T + 2)).toBe(2);
+		expect(await l.peek('a', T + 2)).toBe(2);
+		expect(await l.peek('a', T + 60_000)).toBe(0);
+	});
+
 	it('keeps names apart, so the address limit and the credential limit never share a count', async () => {
 		const ip = new ValkeyRateLimiter({
 			redis,

@@ -9,7 +9,7 @@ const apiKey = process.env.PROXLANE_API_KEY?.trim();
 if (apiKey === undefined || apiKey === '') {
 	// stderr, never stdout: stdout is the protocol channel, and a stray line there breaks the client.
 	process.stderr.write(
-		"proxlane-mcp: set PROXLANE_API_KEY to your gateway's PROXLANE_API_KEY.\n" +
+		"proxlane-mcp: set PROXLANE_API_KEY to your gateway's PROXLANE_API_KEY, or to a proxlane token for a hosted gateway.\n" +
 			'Run a gateway first: https://proxlane.dev/docs/quickstart\n',
 	);
 	process.exit(2);

@@ -5,8 +5,8 @@
 		"",
 		"TWO CLASSES, and the distinction is the point.",
 		"",
-		"  patterns        Generic heuristics. They have legitimate exceptions \u2014 a security",
-		"                  control that refuses private ranges has to name them \u2014 so these",
+		"  patterns        Generic heuristics. They have legitimate exceptions — a security",
+		"                  control that refuses private ranges has to name them — so these",
 		"                  honour excludePaths.",
 		"",
 		"  EXTRA_INFRA_PATTERNS  Our actual coordinates: box address, real hostnames. Supplied",
@@ -16,7 +16,7 @@
 		"                  excludePaths entirely: there is no file where a real coordinate is",
 		"                  legitimate. One pattern per line, # for comments.",
 		"",
-		"excludePaths relaxes the HEURISTICS only. It never relaxes the secret patterns \u2014 which",
+		"excludePaths relaxes the HEURISTICS only. It never relaxes the secret patterns — which",
 		"is what makes it safe to exclude the SSRF guard, whose job is enumerating the very",
 		"ranges the heuristics look for.",
 		"",
@@ -29,9 +29,12 @@
 		"nobody remembers opening.",
 		"",
 		"`farm[.]rip` was removed from this list. It is a real-looking hostname, and this file is",
-		"in the public repo \u2014 which is exactly the contradiction the two-class split above exists",
+		"in the public repo — which is exactly the contradiction the two-class split above exists",
 		"to resolve. If it is a coordinate of ours it belongs in EXTRA_INFRA_PATTERNS, where it is",
-		"not published; if it is not, it does not belong here at all."
+		"not published; if it is not, it does not belong here at all.",
+		"",
+		"`client-address.unit.test.ts` is excluded for the edge guard's reason: it tests the check that",
+		"trusts a forwarded header only from a private address, so it has to name private addresses."
 	],
 	"patterns": [
 		"(^|[^0-9.])(10\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})",
@@ -45,6 +48,7 @@
 		"scripts/infra-leak-patterns.json",
 		"packages/shared/src/edge-guard.ts",
 		"packages/shared/src/edge-guard.ssrf.test.ts",
-		"scripts/infra-leak.unit.test.ts"
+		"scripts/infra-leak.unit.test.ts",
+		"apps/gateway/src/client-address.unit.test.ts"
 	]
 }

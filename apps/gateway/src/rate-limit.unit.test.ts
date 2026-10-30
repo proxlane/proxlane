@@ -29,6 +29,18 @@ describe('a fixed window', () => {
 	});
 });
 
+describe('peek, for a budget spent by outcomes', () => {
+	it('reads the count without adding to it, and reads zero in a new window', async () => {
+		const l = new InMemoryRateLimiter({ limit: 5, windowMs: MINUTE });
+		await l.take('k', T);
+		await l.take('k', T);
+		expect(await l.peek('k', T + 5)).toBe(2);
+		expect(await l.peek('k', T + 5)).toBe(2);
+		expect(await l.peek('other', T)).toBe(0);
+		expect(await l.peek('k', T + MINUTE)).toBe(0);
+	});
+});
+
 describe('bounded memory, in constant time', () => {
 	it('drops the whole map when the window rolls over', async () => {
 		const l = new InMemoryRateLimiter({ limit: 1, windowMs: MINUTE });
