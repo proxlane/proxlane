@@ -1490,9 +1490,10 @@ function matchesOwner(pattern: string, file: string): boolean {
 // worse than pointing them at one that does not — a 401 reads as "I set it up wrong", where
 // NXDOMAIN reads as "this does not exist yet", which is the truth. So the ban is on hostnames
 // this project does not offer readers, and resolving is not what lifts it. Shipping the hosted
-// endpoint is.
+// endpoint is, and on 2026-10-30 it shipped: hosted BYOK serves `api.proxlane.dev`, so it left
+// this list in the same change that pointed the connect page at it.
 {
-	const DEAD_HOSTS = ['api.proxlane.dev', 'docs.proxlane.dev'];
+	const DEAD_HOSTS = ['docs.proxlane.dev'];
 	const readme = has('README.md') ? read('README.md') : '';
 	if (readme === '') {
 		fail('29', 'README.md is missing');

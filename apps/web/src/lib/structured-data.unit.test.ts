@@ -25,7 +25,7 @@ describe('the homepage JSON-LD', () => {
 	});
 
 	it('states the price rather than leaving it to be inferred', () => {
-		// BYOK and self-host are both free forever and there is no hosted endpoint. An agent
+		// BYOK, hosted or self-hosted, is free forever and nothing else is built yet. An agent
 		// asked "what does this cost" should not have to find and parse the pricing table.
 		const offers = softwareApplicationLd(DESCRIPTION).offers as Record<string, unknown>;
 		expect(offers['@type']).toBe('Offer');
