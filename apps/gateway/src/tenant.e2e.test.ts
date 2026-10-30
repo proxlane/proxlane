@@ -156,6 +156,8 @@ describe('the public key, for the connect page', () => {
 		const r = await fetch(`${hosted}/token-key`);
 		expect(r.status).toBe(200);
 		expect(await r.json()).toEqual({ publicKey, kid: expect.stringMatching(/^[0-9a-f]{8}$/) });
+		// A connect page on another origin reads it from the browser.
+		expect(r.headers.get('access-control-allow-origin')).toBe('*');
 	});
 
 	it('is NOT_ENABLED on a self-hosted one', async () => {

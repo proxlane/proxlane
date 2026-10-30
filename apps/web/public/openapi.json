@@ -1708,6 +1708,50 @@
 					}
 				}
 			}
+		},
+		"/token-key": {
+			"get": {
+				"operationId": "tokenKey",
+				"summary": "The public key tenant tokens are sealed to",
+				"description": "Hosted mode only (PROXLANE_TOKEN_KEYS). Public by design: anyone holding it can seal a token, but only for provider keys they already have. A browser connect page reads it from here, so it is served with CORS open.",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "The current public key and its id.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"publicKey",
+										"kid"
+									],
+									"properties": {
+										"publicKey": {
+											"type": "string",
+											"pattern": "^pxlpk1_[A-Za-z0-9_-]{43}$"
+										},
+										"kid": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{8}$"
+										}
+									}
+								}
+							}
+						}
+					},
+					"501": {
+						"description": "This gateway does not accept tenant tokens.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	},
 	"components": {

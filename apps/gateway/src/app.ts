@@ -454,7 +454,12 @@ export function createApp(deps: AppDeps): Hono<Vars> {
 			});
 		}
 		const { publicKey, kids } = deps.tenancy.keyring;
-		return c.json({ publicKey, kid: kids[0] }, 200, { 'Cache-Control': 'public, max-age=300' });
+		// CORS OPEN, on this endpoint only: a connect page on another origin seals in the browser,
+		// and this is the one thing it must fetch. Nothing here is secret, and no credential is read.
+		return c.json({ publicKey, kid: kids[0] }, 200, {
+			'Cache-Control': 'public, max-age=300',
+			'Access-Control-Allow-Origin': '*',
+		});
 	});
 
 	// The operator's view of what the router believes. Unlike `/health`, this one NAMES
