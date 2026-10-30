@@ -206,36 +206,51 @@ function Answer({ text, playing }: { text: string; playing: boolean }) {
 /**
  * The chain the gateway walked, as the hero draws it, and what it sent back. Remounted per run
  * and client, so the legs draw again each time the replay plays.
+ *
+ * TWO DRAWINGS, SWAPPED BY CSS, as the hero does it. Squeezed into a side column on desktop the
+ * compact one was the only one that fitted, and it sat small in a pane twice its width. Given the
+ * panel's full width, the wide one renders near 1:1 and the labels stop crowding the lines.
  */
 function Gateway({ run, client, beat }: { run: Run; client: ReplayClient; beat: number }) {
 	const statusProp = run.status === undefined ? {} : { status: run.status };
+	const diagram = {
+		attempts: run.attempts,
+		outcome: run.outcome,
+		...statusProp,
+		presentation: true,
+	};
 	const rows = [
 		['x-outcome', run.outcome],
 		['x-outcome-class', run.response.class],
 		['x-attempts', String(run.attempts.length)],
 	] as const;
 	return (
-		<div className="flex flex-col gap-6">
-			<div className={`min-h-[132px] overflow-x-auto ${beat >= 3 ? '' : 'invisible'}`}>
+		<div className="flex flex-col gap-6 rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_3%,transparent)] px-5 py-6 sm:px-8 sm:py-7">
+			<p className="font-mono text-[color:var(--color-slate)] text-xs">gateway</p>
+			<div className={`min-h-[132px] lg:min-h-[160px] ${beat >= 3 ? '' : 'invisible'}`}>
 				{beat >= 3 && (
-					<RouteDiagram
-						key={`${run.id}-${client.id}`}
-						attempts={run.attempts}
-						outcome={run.outcome}
-						{...statusProp}
-						compact
-						presentation
-						className="w-full min-w-[280px] max-w-[480px]"
-					/>
+					<>
+						<RouteDiagram
+							key={`wide-${run.id}-${client.id}`}
+							{...diagram}
+							className="hidden max-w-[900px] lg:block"
+						/>
+						<RouteDiagram
+							key={`compact-${run.id}-${client.id}`}
+							{...diagram}
+							compact
+							className="w-full max-w-[420px] lg:hidden"
+						/>
+					</>
 				)}
 			</div>
 			<div
-				className={`border-[color:var(--color-rule)] border-t pt-5 font-mono text-[0.8125rem] leading-[1.9] ${beat >= 4 ? 'proxlane-beat' : 'invisible'}`}
+				className={`flex flex-col gap-1 border-[color:var(--color-rule)] border-t pt-5 font-mono text-[0.8125rem] leading-[1.9] sm:flex-row sm:flex-wrap sm:gap-x-12 ${beat >= 4 ? 'proxlane-beat' : 'invisible'}`}
 			>
 				<p className="font-medium">{run.response.line}</p>
-				<dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-6">
+				<dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 sm:flex sm:flex-wrap sm:gap-x-8">
 					{rows.map(([name, value]) => (
-						<div key={name} className="contents">
+						<div key={name} className="contents sm:flex sm:gap-x-3">
 							<dt className="text-[color:var(--color-slate)]">{name}</dt>
 							<dd>{value}</dd>
 						</div>
@@ -247,10 +262,9 @@ function Gateway({ run, client, beat }: { run: Run; client: ReplayClient; beat: 
 }
 
 /**
- * A chat on the left and the gateway beside it, not stacked in one column. Five kinds of thing at
- * one rhythm in a single column read as one dense block. Split, the left reads as a conversation
- * and the right as what the gateway did about it. Below `lg` there is no room beside it, so the
- * gateway drops back in between the call and its result, where it happens.
+ * One column, in the order things happen: the ask, the call, what the gateway did, what came
+ * back, the answer. The gateway used to sit in a pane beside the chat, which held its drawing to
+ * the compact size whatever the screen. Across the full width it gets the hero's geometry.
  */
 function Conversation({
 	run,
@@ -265,49 +279,38 @@ function Conversation({
 }) {
 	const failed = run.outcome !== 'OK';
 	return (
-		<div className="grid min-w-0 gap-10 lg:grid-cols-[minmax(0,7fr)_minmax(0,6fr)] lg:gap-12">
-			<div className="flex min-w-0 flex-col gap-7">
-				<div className={`self-start ${beat >= 1 ? 'proxlane-beat' : 'invisible'}`}>
-					<p className="font-mono text-[color:var(--color-slate)] text-xs">you</p>
-					<p className="mt-2 rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_5%,transparent)] px-4 py-3 text-base">
-						{ASK}
-					</p>
-				</div>
-
-				<div className={beat >= 2 ? 'proxlane-beat' : 'invisible'}>
-					<p className="flex items-center gap-1.5 font-mono text-[color:var(--color-slate)] text-xs">
-						<ClientMark id={client.mark} className="size-3.5" />
-						{client.name.toLowerCase()}
-					</p>
-					<p className="mt-2 inline-block rounded-card border border-[color:var(--color-rule)] px-3.5 py-2.5 font-mono text-[0.8125rem]">
-						<span className="text-[color:var(--color-accent)]">→ </span>
-						{CALL}
-					</p>
-				</div>
-
-				<div className="lg:hidden">
-					<Gateway run={run} client={client} beat={beat} />
-				</div>
-
-				<pre
-					className={`overflow-x-auto whitespace-pre border-l-2 py-1 pl-4 font-mono text-[0.8125rem] leading-[1.8] ${
-						failed ? 'border-[color:var(--color-accent)]' : 'border-[color:var(--color-rule)]'
-					} ${beat >= 5 ? 'proxlane-beat' : 'invisible'}`}
-				>
-					{run.result}
-				</pre>
-
-				<p className={`max-w-[56ch] text-base leading-relaxed ${beat >= 6 ? '' : 'invisible'}`}>
-					<Answer key={`${run.id}-${client.id}`} text={run.answer} playing={playing} />
+		<div className="flex min-w-0 flex-col gap-8">
+			<div className={`self-start ${beat >= 1 ? 'proxlane-beat' : 'invisible'}`}>
+				<p className="font-mono text-[color:var(--color-slate)] text-xs">you</p>
+				<p className="mt-2 rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_5%,transparent)] px-4 py-3 text-base">
+					{ASK}
 				</p>
 			</div>
 
-			<div className="hidden flex-col justify-center rounded-card bg-[color:color-mix(in_oklab,var(--color-ink)_3%,transparent)] px-8 py-10 lg:flex">
-				<p className="mb-5 font-mono text-[color:var(--color-slate)] text-xs">
-					what the gateway did
+			<div className={beat >= 2 ? 'proxlane-beat' : 'invisible'}>
+				<p className="flex items-center gap-1.5 font-mono text-[color:var(--color-slate)] text-xs">
+					<ClientMark id={client.mark} className="size-3.5" />
+					{client.name.toLowerCase()}
 				</p>
-				<Gateway run={run} client={client} beat={beat} />
+				<p className="mt-2 inline-block rounded-card border border-[color:var(--color-rule)] px-3.5 py-2.5 font-mono text-[0.8125rem]">
+					<span className="text-[color:var(--color-accent)]">→ </span>
+					{CALL}
+				</p>
 			</div>
+
+			<Gateway run={run} client={client} beat={beat} />
+
+			<pre
+				className={`overflow-x-auto whitespace-pre border-l-2 py-1 pl-4 font-mono text-[0.8125rem] leading-[1.8] ${
+					failed ? 'border-[color:var(--color-accent)]' : 'border-[color:var(--color-rule)]'
+				} ${beat >= 5 ? 'proxlane-beat' : 'invisible'}`}
+			>
+				{run.result}
+			</pre>
+
+			<p className={`max-w-[60ch] text-base leading-relaxed ${beat >= 6 ? '' : 'invisible'}`}>
+				<Answer key={`${run.id}-${client.id}`} text={run.answer} playing={playing} />
+			</p>
 		</div>
 	);
 }
