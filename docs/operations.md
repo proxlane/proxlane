@@ -285,7 +285,10 @@ review above a threshold.
 Proxlane holds two things attackers want: provider API keys, and the ability to make
 arbitrary outbound requests. Both need real defenses.
 
-**Provider key handling.**
+**Provider key handling.** Hosted BYOK stores none: the user's token is their keys, sealed in
+the browser to the gateway's public key (`plan.md` §2, "Hosted BYOK"). The rules below apply to
+the stored keys hosted credits and orgs will need, and the master key rules apply to the
+gateway's keypair either way.
 - Encrypted at rest with libsodium sealed boxes, master key from env, never in the DB.
 - Decrypted only in the request path, never logged, never returned by any API
   (dashboard shows last four characters only).
