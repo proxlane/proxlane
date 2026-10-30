@@ -301,9 +301,14 @@ gateway's keypair either way.
 prefixed strings so a scanner tells them apart: `pxlsk1_` the gateway's secret key (env only),
 `pxlpk1_` its public key, `pxl1_<kid>_` a token. The kid is derived from the public key, so a
 keyring is nothing but secret keys, newest first; rotation adds one ahead of the old and drops the
-old once its tokens are replaced. Opening is synchronous and returns the token's id, a hash, which
-is all that rate limits, the denylist and logs ever see. Unknown payload fields are ignored,
-because the connect page ships before the gateway can read what it adds.
+old once its tokens are replaced. Opening is synchronous and returns two identities: the token's
+id, for the denylist, and a keyed hash per provider key, for rate limits and cooldowns, since
+anyone can reseal their own keys for a fresh id. The gateway limits by source address before
+opening, because a token naming a real kid costs a decrypt to refuse. A printed payload shows
+`[redacted]` for every key. Unknown payload fields are ignored, because the connect page ships
+before the gateway can read what it adds, except a field listed in `crit`, which restricts the
+token and is refused as `unsupported` by a gateway that cannot enforce it. `.gitleaks.toml`
+recognises the secret key and the token.
 
 **Where the key lives, and the boundary between the two processes.**
 `packages/api`'s oRPC contract is described as "web ↔ gateway admin API", which would make

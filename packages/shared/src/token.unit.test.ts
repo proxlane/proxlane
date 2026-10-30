@@ -23,7 +23,8 @@ beforeAll(async () => {
 });
 
 const KEYS = { scraperapi: 'sa-0123456789abcdef', brightdata: 'unlocker_zone:bd-token-0123' };
-const T0 = Date.UTC(2026, 9, 30, 12, 0, 0);
+/** In the past, so tokens sealed at it open under the real clock too. */
+const T0 = Date.UTC(2026, 0, 15, 12, 0, 0);
 
 /** A token sealed by hand, as anyone holding the public key can, around any plaintext at all. */
 async function sealRaw(plaintext: string, publicKey = pair.publicKey): Promise<string> {
@@ -69,6 +70,10 @@ describe('a sealed token opens to what went in', () => {
 			ok: true,
 			payload: { keys: KEYS, order: ['brightdata', 'scraperapi'], issuedAt: T0 / 1000 },
 			id: await tokenId(token),
+			credentials: {
+				scraperapi: expect.stringMatching(/^[0-9a-f]{32}$/),
+				brightdata: expect.any(String),
+			},
 			kid: pair.kid,
 		});
 	});
@@ -92,11 +97,65 @@ describe('a sealed token opens to what went in', () => {
 		expect(await tokenId(a)).not.toBe(await tokenId(b));
 	});
 
+	it('gives every spelling of one box the same id, so a denied token cannot come back', async () => {
+		// libsodium refuses non-canonical base64 today. Pinned here, and the id is hashed from the
+		// decoded box besides, so the denylist does not rest on either alone.
+		await _sodium.ready;
+		// [1,2,3,4] is `AQIDBA`; `AQIDBB` differs only in bits the decoder should discard.
+		expect(() =>
+			_sodium.from_base64('AQIDBB', _sodium.base64_variants.URLSAFE_NO_PADDING),
+		).toThrow();
+		expect(await tokenId('changeme')).toBeUndefined();
+	});
+
 	it('never puts a key in the id', async () => {
 		const token = await sealToken({ keys: KEYS }, pair.publicKey, T0);
 		const id = await tokenId(token);
 		expect(id).toMatch(/^[0-9a-f]{32}$/);
 		expect(token).not.toContain(KEYS.scraperapi);
+	});
+});
+
+describe('limits key on the credentials, because anyone can reseal their own keys', () => {
+	it('gives the same provider key the same hash however many times it is sealed', async () => {
+		const a = keyring.open(await sealToken({ keys: KEYS }, pair.publicKey, T0));
+		const b = keyring.open(
+			await sealToken({ keys: { scraperapi: KEYS.scraperapi } }, pair.publicKey, T0),
+		);
+		expect(a.ok && b.ok && a.id !== b.id).toBe(true);
+		expect(a.ok && b.ok && a.credentials.scraperapi === b.credentials.scraperapi).toBe(true);
+	});
+
+	it('gives one string accepted by two providers two hashes: two accounts, two cooldowns', async () => {
+		const opened = keyring.open(
+			await sealToken({ keys: { scraperapi: 'same', scrapfly: 'same' } }, pair.publicKey, T0),
+		);
+		expect(opened.ok && opened.credentials.scraperapi !== opened.credentials.scrapfly).toBe(
+			true,
+		);
+	});
+
+	it('keys the hash on the gateway secret, so a logged hash cannot test a guessed key offline', async () => {
+		const other = await generateTokenKeypair();
+		const theirs = await loadTokenKeyring([other.secretKey]);
+		const mine = keyring.open(await sealToken({ keys: KEYS }, pair.publicKey, T0));
+		const its = theirs.open(await sealToken({ keys: KEYS }, other.publicKey, T0));
+		expect(
+			mine.ok && its.ok && mine.credentials.scraperapi !== its.credentials.scraperapi,
+		).toBe(true);
+	});
+});
+
+describe('a printed payload shows no key', () => {
+	it('redacts JSON and inspect, and still reads the key directly', async () => {
+		const opened = keyring.open(await sealToken({ keys: KEYS }, pair.publicKey, T0));
+		if (!opened.ok) throw new Error('did not open');
+		const { inspect } = await import('node:util');
+		for (const printed of [JSON.stringify({ opened }), inspect(opened, { depth: 9 })]) {
+			expect(printed).not.toContain(KEYS.scraperapi);
+			expect(printed).toContain('[redacted]');
+		}
+		expect(opened.payload.keys.scraperapi).toBe(KEYS.scraperapi);
 	});
 });
 
@@ -170,6 +229,7 @@ describe('opening refuses, and says which way', () => {
 			JSON.stringify({ v: 1, iat, keys: { scraperapi: 'k\r\nX-Injected: 1' } }),
 			JSON.stringify({ v: 1, iat, keys: KEYS, order: ['scrapfly'] }),
 			JSON.stringify({ v: 1, iat, keys: KEYS, order: ['scraperapi', 'scraperapi'] }),
+			JSON.stringify({ v: 1, iat, keys: KEYS, order: [] }),
 		];
 		for (const plaintext of bad) {
 			expect(keyring.open(await sealRaw(plaintext)), plaintext).toEqual({
@@ -177,6 +237,23 @@ describe('opening refuses, and says which way', () => {
 				reason: 'invalid',
 			});
 		}
+	});
+
+	it('is invalid when the seal is dated past the clock skew, so a maximum age stays enforceable', async () => {
+		const ahead = T0 / 1000 + TOKEN_LIMITS.clockSkewSeconds + 60;
+		const token = await sealRaw(JSON.stringify({ v: 1, iat: ahead, keys: KEYS }));
+		expect(keyring.open(token, T0)).toEqual({ ok: false, reason: 'invalid' });
+		expect(keyring.open(token, T0 + 120_000).ok).toBe(true);
+	});
+
+	it('is unsupported when it marks critical a field this gateway cannot enforce', async () => {
+		const iat = T0 / 1000;
+		const token = await sealRaw(
+			JSON.stringify({ v: 1, iat, keys: KEYS, budget: { usd: 5 }, crit: ['budget'] }),
+		);
+		expect(keyring.open(token, T0)).toEqual({ ok: false, reason: 'unsupported' });
+		const garbled = await sealRaw(JSON.stringify({ v: 1, iat, keys: KEYS, crit: 'budget' }));
+		expect(keyring.open(garbled, T0)).toEqual({ ok: false, reason: 'invalid' });
 	});
 
 	it('IGNORES fields it does not know, so a newer connect page never locks its users out', async () => {
@@ -206,6 +283,7 @@ describe('sealing refuses what opening would', () => {
 			[{ keys: { scraperapi: 'x'.repeat(TOKEN_LIMITS.keyLength + 1) } }, /too long/],
 			[{ keys: KEYS, order: ['scrapfly'] }, /no key/],
 			[{ keys: KEYS, order: ['scraperapi', 'scraperapi'] }, /twice/],
+			[{ keys: KEYS, order: [] }, /empty/],
 			[
 				{
 					keys: Object.fromEntries(
@@ -233,5 +311,30 @@ describe('sealing refuses what opening would', () => {
 	it('refuses to seal to anything but a public key, a secret key above all', async () => {
 		await expect(sealToken({ keys: KEYS }, pair.secretKey, T0)).rejects.toThrow(/pxlpk1_/);
 		await expect(sealToken({ keys: KEYS }, 'pxlpk1_short', T0)).rejects.toThrow(/32 bytes/);
+	});
+});
+
+describe('the secret scanner recognises what this module emits', () => {
+	/** The `regex` of one rule in the root `.gitleaks.toml`. RE2 and JS agree on these classes. */
+	async function rule(id: string): Promise<RegExp> {
+		const { readFile } = await import('node:fs/promises');
+		const toml = await readFile(new URL('../../../.gitleaks.toml', import.meta.url), 'utf8');
+		const block = toml.split('[[rules]]').find((b) => b.includes(`id = "${id}"`));
+		const source = /regex = '''(.+)'''/.exec(block ?? '')?.[1];
+		if (source === undefined) throw new Error(`.gitleaks.toml has no rule ${id}`);
+		return new RegExp(source);
+	}
+
+	it('catches a secret key, and not the public key beside it', async () => {
+		const secret = await rule('proxlane-token-secret-key');
+		expect(secret.test(`PROXLANE_TOKEN_KEYS=${pair.secretKey}`)).toBe(true);
+		expect(secret.test(pair.publicKey)).toBe(false);
+	});
+
+	it('catches the smallest token this module can seal', async () => {
+		const token = await sealToken({ keys: { a: 'k' } }, pair.publicKey, T0);
+		expect((await rule('proxlane-tenant-token')).test(`Authorization: Bearer ${token}`)).toBe(
+			true,
+		);
 	});
 });

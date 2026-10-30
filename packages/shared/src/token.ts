@@ -60,9 +60,29 @@ export const TOKEN_LIMITS = {
 	keyLength: 512,
 	plaintextBytes: 4096,
 	tokenLength: 6144,
+	/** How far ahead of the gateway's clock a seal may be dated. Past it, the date is a lie. */
+	clockSkewSeconds: 300,
 } as const;
 
-/** What a token carries. The self-hosted gateway's env, sealed: provider keys and an order. */
+/**
+ * Payload fields a token may mark as critical that this module understands. None yet.
+ *
+ * Ignoring unknown fields is right for a field that ADDS something and wrong for one that
+ * RESTRICTS: a page that learns `budget` would mint tokens an older gateway serves without one,
+ * and the user would be less protected than the page told them. So a restricting field is listed
+ * in the payload's `crit`, and a gateway that does not know a name in `crit` refuses the token as
+ * `unsupported` rather than serving it unrestricted. A field moves into this set in the same PR
+ * that enforces it.
+ */
+const UNDERSTOOD_CRITICAL: ReadonlySet<string> = new Set();
+
+/**
+ * What a token carries. The self-hosted gateway's env, sealed: provider keys and an order.
+ *
+ * REDACTED WHEN PRINTED. `JSON.stringify` and `util.inspect` show `[redacted]` in place of every
+ * key, so a `log.info({ opened })` on the hot path cannot write a user's provider keys to disk.
+ * Reading `payload.keys.scraperapi` still gives the key; only serialisation is covered.
+ */
 export interface TokenPayload {
 	/** Provider id to that provider's key, exactly as `<ID>_KEY` would hold it. */
 	readonly keys: Readonly<Record<string, string>>;
@@ -81,7 +101,7 @@ export interface TokenPayload {
 export type TokenInput = Omit<TokenPayload, 'issuedAt'>;
 
 /**
- * Why a token did not open. All four are a 401 to the caller; the distinction is for logs and
+ * Why a token did not open. All five are a 401 to the caller; the distinction is for logs and
  * `proxlane doctor`, which can say "this token is from a retired key" instead of "invalid".
  */
 export type TokenRefusal =
@@ -92,13 +112,21 @@ export type TokenRefusal =
 	/** The keypair matched and the box did not open: altered in transit or by hand. */
 	| 'unreadable'
 	/** Opened, and the contents break the rules below. Only a hand-sealed token gets here. */
-	| 'invalid';
+	| 'invalid'
+	/** Opened and valid, and marks a field critical that this gateway cannot enforce. Upgrade it. */
+	| 'unsupported';
 
 export type OpenedToken =
 	| {
 			readonly ok: true;
 			readonly payload: TokenPayload;
+			/** This token. What the denylist keys on. */
 			readonly id: string;
+			/**
+			 * Each provider key, by provider id, as an opaque hash. What rate limits and cooldowns key
+			 * on, because the token id cannot be: anyone can seal the same keys again for a fresh id.
+			 */
+			readonly credentials: Readonly<Record<string, string>>;
 			readonly kid: string;
 	  }
 	| { readonly ok: false; readonly reason: TokenRefusal };
@@ -113,14 +141,27 @@ export interface TokenKeyring {
 	 * The payload of a token, or why not. SYNCHRONOUS, because the keyring already holds a ready
 	 * library: this sits on the hot path of every hosted request.
 	 *
-	 * The id is a hash of the token as presented: what rate limits, the denylist and logs key on,
-	 * so the token itself never has to be stored or printed anywhere.
+	 * Two kinds of identity come back, because one cannot do both jobs. The token `id` names this
+	 * token and nothing else; a leaked token is denied by it, and its holder cannot reseal the box
+	 * to escape. But the public key is public, so the OWNER of a set of keys can mint a new token
+	 * for every request, and a rate limit on `id` limits nothing. Limits and cooldowns key on
+	 * `credentials`, a hash per provider key, which is the same however many times it is sealed.
+	 * Those hashes are KEYED with a secret derived from the current gateway key, so a log full of
+	 * them cannot be used to test guesses at a provider key offline. Rotating the current key
+	 * changes every one of them, once, which resets limits and cooldowns for that rotation.
 	 *
-	 * Unknown payload fields are IGNORED, never refused. The connect page and the gateway deploy
-	 * separately, so a page that learns a new optional field ships it before the gateway can read
-	 * it, and every token it minted in between must still work.
+	 * NOT FREE TO CALL. A token naming a real kid costs an X25519 operation to refuse, and the kid
+	 * is public. The caller rate-limits by source address BEFORE opening.
+	 *
+	 * A seal dated more than `TOKEN_LIMITS.clockSkewSeconds` ahead of `now` is refused, so a
+	 * maximum token age can be enforced later against a date the token's thief cannot change.
+	 *
+	 * Unknown payload fields are IGNORED, unless the payload lists them in `crit`. The connect page
+	 * and the gateway deploy separately, so a page that learns a new optional field ships it before
+	 * the gateway can read it, and every token it minted in between must still work. A field that
+	 * restricts the token is the exception, and `UNDERSTOOD_CRITICAL` says why.
 	 */
-	open(token: string): OpenedToken;
+	open(token: string, now?: number): OpenedToken;
 }
 
 type Pairs = Map<string, { readonly publicKey: Uint8Array; readonly secretKey: Uint8Array }>;
@@ -203,10 +244,12 @@ export async function loadTokenKeyring(secretKeys: readonly string[]): Promise<T
 	const current = pairs.get(kids[0] ?? '');
 	if (current === undefined)
 		throw new TypeError('a token keyring needs at least one secret key');
+	// Its own subkey, never the secret key itself: one secret, two unrelated uses.
+	const credentialKey = s.crypto_kdf_derive_from_key(32, 1, 'pxlcreds', current.secretKey);
 	return {
 		publicKey: PUBLIC_PREFIX + b64(s, current.publicKey),
 		kids,
-		open: (token) => openWith(s, pairs, token),
+		open: (token, now = Date.now()) => openWith(s, pairs, credentialKey, token, now),
 	};
 }
 
@@ -269,6 +312,9 @@ function checkPayload(
 		if (!Array.isArray(order) || !order.every((id) => typeof id === 'string')) {
 			return { ok: false, why: 'order must be a list of provider ids' };
 		}
+		// Empty is not "the default order", it is a chain with nothing in it. Absent means default.
+		if (order.length === 0)
+			return { ok: false, why: 'order is empty; leave it out for the default' };
 		// Every entry must have a key. Self-host refuses an unknown id in PROXLANE_PROVIDER_ORDER
 		// because a typo there silently changes who is paid first; this is the same check, against
 		// the one list the token can see.
@@ -285,11 +331,24 @@ function checkPayload(
 	}
 	return {
 		ok: true,
-		payload:
+		payload: redacted(
 			cleanOrder === undefined
 				? { keys: clean, issuedAt }
 				: { keys: clean, order: cleanOrder, issuedAt },
+		),
 	};
+}
+
+/** The payload with `toJSON` and the inspect hook attached, both non-enumerable. See `TokenPayload`. */
+function redacted(payload: TokenPayload): TokenPayload {
+	const shown = () => ({
+		...payload,
+		keys: Object.fromEntries(Object.keys(payload.keys).map((id) => [id, '[redacted]'])),
+	});
+	return Object.defineProperties(payload, {
+		toJSON: { value: shown },
+		[Symbol.for('nodejs.util.inspect.custom')]: { value: shown },
+	});
 }
 
 // ---- sealing and opening -------------------------------------------------------------------
@@ -328,21 +387,24 @@ export async function sealToken(
 
 const TOKEN_SHAPE = /^pxl1_([0-9a-f]{8})_([A-Za-z0-9_-]+)$/;
 
-/** `TokenKeyring.open`, with the keyring's library and pairs. */
-function openWith(s: Sodium, pairs: Pairs, token: string): OpenedToken {
-	if (token.length > TOKEN_LIMITS.tokenLength) return { ok: false, reason: 'malformed' };
-	const shape = TOKEN_SHAPE.exec(token);
-	if (shape === null) return { ok: false, reason: 'malformed' };
-	const [, kid = '', body = ''] = shape;
-	const pair = pairs.get(kid);
+/** `TokenKeyring.open`, with the keyring's library, pairs and credential key. */
+function openWith(
+	s: Sodium,
+	pairs: Pairs,
+	credentialKey: Uint8Array,
+	token: string,
+	now: number,
+): OpenedToken {
+	const parsed = parseToken(s, token);
+	if (parsed === undefined) return { ok: false, reason: 'malformed' };
+	const pair = pairs.get(parsed.kid);
 	if (pair === undefined) return { ok: false, reason: 'unknown-key' };
 
-	const sealed = unb64(s, body);
-	if (sealed === undefined || sealed.length <= s.crypto_box_SEALBYTES)
-		return { ok: false, reason: 'malformed' };
 	let plaintext: string;
 	try {
-		plaintext = s.to_string(s.crypto_box_seal_open(sealed, pair.publicKey, pair.secretKey));
+		plaintext = s.to_string(
+			s.crypto_box_seal_open(parsed.sealed, pair.publicKey, pair.secretKey),
+		);
 	} catch {
 		return { ok: false, reason: 'unreadable' };
 	}
@@ -356,20 +418,67 @@ function openWith(s: Sodium, pairs: Pairs, token: string): OpenedToken {
 	if (typeof wire !== 'object' || wire === null || (wire as { v?: unknown }).v !== 1) {
 		return { ok: false, reason: 'invalid' };
 	}
-	const { keys, order, iat } = wire as { keys?: unknown; order?: unknown; iat?: unknown };
+	const { keys, order, iat, crit } = wire as Record<string, unknown>;
 	const checked = checkPayload(keys, order, iat);
 	if (!checked.ok) return { ok: false, reason: 'invalid' };
-	return { ok: true, payload: checked.payload, id: idOf(s, token), kid };
-}
+	if (checked.payload.issuedAt > now / 1000 + TOKEN_LIMITS.clockSkewSeconds) {
+		return { ok: false, reason: 'invalid' };
+	}
+	if (crit !== undefined) {
+		if (!Array.isArray(crit) || !crit.every((f) => typeof f === 'string')) {
+			return { ok: false, reason: 'invalid' };
+		}
+		if (!crit.every((f) => UNDERSTOOD_CRITICAL.has(f)))
+			return { ok: false, reason: 'unsupported' };
+	}
 
-function idOf(s: Sodium, token: string): string {
-	return s.to_hex(s.crypto_generichash(16, s.from_string(token), null));
+	const credentials: Record<string, string> = {};
+	for (const [id, key] of Object.entries(checked.payload.keys)) {
+		// The provider id is part of the input: the same string accepted by two providers is two
+		// accounts, and must not share a cooldown.
+		credentials[id] = s.to_hex(
+			s.crypto_generichash(16, s.from_string(`${id}\n${key}`), credentialKey),
+		);
+	}
+	return {
+		ok: true,
+		payload: checked.payload,
+		id: idOf(s, parsed.sealed),
+		credentials,
+		kid: parsed.kid,
+	};
 }
 
 /**
- * A token's id without a keyring, for tools that revoke or look up a token they hold but cannot
- * open. The same value `TokenKeyring.open` returns.
+ * The kid and the decoded box, or `undefined` for anything not shaped like a token. Length first,
+ * so an oversized header costs a comparison and nothing else.
  */
-export async function tokenId(token: string): Promise<string> {
-	return idOf(await sodium(), token);
+function parseToken(s: Sodium, token: string): { kid: string; sealed: Uint8Array } | undefined {
+	if (token.length > TOKEN_LIMITS.tokenLength) return undefined;
+	const shape = TOKEN_SHAPE.exec(token);
+	if (shape === null) return undefined;
+	const [, kid = '', body = ''] = shape;
+	const sealed = unb64(s, body);
+	if (sealed === undefined || sealed.length <= s.crypto_box_SEALBYTES) return undefined;
+	return { kid, sealed };
+}
+
+/**
+ * Hashed from the DECODED box, not the string. Two spellings of one box would be two ids, and a
+ * denied token would come back under the second. libsodium refuses non-canonical base64 today (a
+ * test holds it to that); this does not depend on it.
+ */
+function idOf(s: Sodium, sealed: Uint8Array): string {
+	return s.to_hex(s.crypto_generichash(16, sealed, null));
+}
+
+/**
+ * A token's id without a keyring, for tools that deny or look up a token they hold but cannot
+ * open. The same value `TokenKeyring.open` returns, or `undefined` for a string that is not a
+ * token.
+ */
+export async function tokenId(token: string): Promise<string | undefined> {
+	const s = await sodium();
+	const parsed = parseToken(s, token);
+	return parsed === undefined ? undefined : idOf(s, parsed.sealed);
 }

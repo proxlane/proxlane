@@ -61,4 +61,5 @@ docs/**                            @scarsam   # devex-engineer
 /.nvmrc                            @scarsam   # devex-engineer
 /.gitattributes                    @scarsam   # devex-engineer
 /.gitignore                        @scarsam   # devex-engineer
+/.gitleaks.toml                    @scarsam   # devex-engineer
 /.env.example                      @scarsam   # devex-engineer

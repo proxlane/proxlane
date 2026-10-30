@@ -1,0 +1,22 @@
+# gitleaks reads this from the repo root in CI's `secrets` job, on top of its default rules.
+#
+# Proxlane's own credential formats, from `@proxlane/shared/token`. Each carries a prefix so a
+# scanner can recognise it, and these rules are that recognition. A unit test in
+# `packages/shared/src/token.unit.test.ts` holds both regexes to what the module emits.
+
+title = "proxlane"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "proxlane-token-secret-key"
+description = "Proxlane gateway token secret key: opens every tenant token sealed to it"
+regex = '''pxlsk1_[A-Za-z0-9_-]{43}'''
+keywords = ["pxlsk1_"]
+
+[[rules]]
+id = "proxlane-tenant-token"
+description = "Proxlane tenant token: a user's provider keys, sealed to a gateway"
+regex = '''pxl1_[0-9a-f]{8}_[A-Za-z0-9_-]{100,}'''
+keywords = ["pxl1_"]
