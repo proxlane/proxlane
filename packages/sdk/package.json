@@ -2,7 +2,7 @@
 	"name": "@proxlane/sdk",
 	"mcpName": "io.github.proxlane/proxlane",
 	"version": "0.1.2",
-	"description": "An MCP server that gives an AI agent a web-fetch tool through your self-hosted Proxlane gateway: failover across scraping APIs, and a failed fetch is reported as a failure, never handed over as content.",
+	"description": "An MCP server that gives an AI agent a web-fetch tool through a Proxlane gateway, self-hosted or hosted: failover across scraping APIs, and a failed fetch is reported as a failure, never handed over as content.",
 	"keywords": [
 		"mcp",
 		"model-context-protocol",

@@ -73,7 +73,7 @@ export function createServer(config: ServerConfig): McpServer {
 		{
 			title: 'Fetch a web page',
 			description:
-				'Fetch a web page through a self-hosted Proxlane gateway, which fails over between ' +
+				'Fetch a web page through a Proxlane gateway, which fails over between ' +
 				'scraping APIs and checks every response for block pages. Returns the page as text. ' +
 				'On failure returns {ok:false, outcome, class, retryable, reason}: a blocked or ' +
 				'captcha page is reported as a failure, never returned as content. Do not retry ' +
