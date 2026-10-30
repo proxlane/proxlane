@@ -40,7 +40,8 @@ Owner decisions and external answers. None is unblocked by writing code.
   **Bright Data 09-01: BYOK is not reselling, but pooling users behind one account or selling access
   as a product needs written approval** — naming hosted credits, not just keyless. **ScrapingBee is
   ambiguous, not a yes**: their AI cited non-transferable terms and declined, a human said it should
-  be fine if nothing is stored. Scrapfly closed 08-29, ScraperAPI silent, Jina asked 09-21. *External.*
+  be fine if nothing is stored. **Decided 10-30: that answer covers hosted BYOK** (sealed, never
+  stored); no second ask. `PROXLANE_TOKEN_PROVIDERS` drops it if they object. Scrapfly closed 08-29, ScraperAPI silent, Jina asked 09-21. *External.*
 - **Provider money: decided 09-17**, `plan.md` §14. Referral links only where there is no key,
   all four listed alphabetically; no testing credits, no preview. Applied 09-17: ScraperAPI
   approved, ScrapingBee and Bright Data pending, Scrapfly asked (no public program). Nothing is
