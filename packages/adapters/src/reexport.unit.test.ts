@@ -157,7 +157,15 @@ const EXCLUSIONS: ReadonlyArray<readonly [reason: string, names: readonly string
 	[REASONS.EDGE_GUARD, ['EdgeVerdict', 'guardTargetUrl']],
 	[
 		REASONS.TENANT_TOKEN,
-		['OpenedToken', 'TokenInput', 'TokenKeyring', 'TokenPayload', 'TokenRefusal'],
+		[
+			'BoxPurpose',
+			'OpenedToken',
+			'TokenInput',
+			'TokenKeyring',
+			'TokenPayload',
+			'TokenRefusal',
+			'Unsealed',
+		],
 	],
 	[REASONS.ENV_READ, ['providerKeyFromEnv']],
 	[

@@ -162,9 +162,52 @@ export interface TokenKeyring {
 	 * restricts the token is the exception, and `UNDERSTOOD_CRITICAL` says why.
 	 */
 	open(token: string, now?: number): OpenedToken;
+	/**
+	 * Seal a value the gateway will read back later, so it never has to store it: an OAuth client
+	 * registration, a code, an access or refresh token. Encrypted and authenticated with a key
+	 * derived from the CURRENT secret key, one per purpose, so a code can never be replayed as an
+	 * access token. `expiresAt` is unix milliseconds; past it, `unseal` refuses. REQUIRED for every
+	 * purpose but `client`: a code or a token that forgot it would never expire, so it throws.
+	 */
+	seal(purpose: BoxPurpose, value: unknown, expiresAt?: number): string;
+	/** A sealed value, or why not. Opens boxes from every key in the ring, so rotation is gentle. */
+	unseal(purpose: BoxPurpose, text: string, now?: number): Unsealed;
 }
 
 type Pairs = Map<string, { readonly publicKey: Uint8Array; readonly secretKey: Uint8Array }>;
+
+/**
+ * What the gateway seals for itself, each with its own prefix and its own derived key. The prefix
+ * is what a scanner and a reader recognise; the key is what makes one purpose useless as another.
+ */
+export const BOX_PREFIX = {
+	client: 'pxc1_',
+	/** The authorize request, carried through the consent form so the POST cannot be tampered. */
+	consent: 'pxf1_',
+	code: 'pxo1_',
+	access: 'pxa1_',
+	refresh: 'pxr1_',
+} as const;
+export type BoxPurpose = keyof typeof BOX_PREFIX;
+
+/** libsodium KDF contexts are exactly eight bytes. */
+const BOX_CONTEXT: Record<BoxPurpose, string> = {
+	client: 'pxlclint',
+	consent: 'pxlconst',
+	code: 'pxlcode_',
+	access: 'pxlaccss',
+	refresh: 'pxlrefrs',
+};
+
+/** Longer than any box this gateway seals: a token inside a grant, with room to spare. */
+const MAX_BOX_LENGTH = 12_288;
+
+export type Unsealed =
+	| { readonly ok: true; readonly value: unknown; readonly kid: string }
+	| {
+			readonly ok: false;
+			readonly reason: 'malformed' | 'unknown-key' | 'unreadable' | 'expired';
+	  };
 
 // ---- keys ----------------------------------------------------------------------------------
 
@@ -246,10 +289,42 @@ export async function loadTokenKeyring(secretKeys: readonly string[]): Promise<T
 		throw new TypeError('a token keyring needs at least one secret key');
 	// Its own subkey, never the secret key itself: one secret, two unrelated uses.
 	const credentialKey = s.crypto_kdf_derive_from_key(32, 1, 'pxlcreds', current.secretKey);
+	const boxKeys = new Map<string, Record<BoxPurpose, Uint8Array>>();
+	for (const [kid, pair] of pairs) {
+		boxKeys.set(kid, {
+			client: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.client, pair.secretKey),
+			consent: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.consent, pair.secretKey),
+			code: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.code, pair.secretKey),
+			access: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.access, pair.secretKey),
+			refresh: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.refresh, pair.secretKey),
+		});
+	}
+	const currentKid = kids[0] as string;
 	return {
 		publicKey: PUBLIC_PREFIX + b64(s, current.publicKey),
 		kids,
 		open: (token, now = Date.now()) => openWith(s, pairs, credentialKey, token, now),
+		seal: (purpose, value, expiresAt) => {
+			if (purpose !== 'client' && expiresAt === undefined) {
+				throw new TypeError(`a ${purpose} box needs an expiry`);
+			}
+			const nonce = s.randombytes_buf(s.crypto_secretbox_NONCEBYTES);
+			const plain = s.from_string(
+				JSON.stringify(
+					expiresAt === undefined ? { v: 1, d: value } : { v: 1, exp: expiresAt, d: value },
+				),
+			);
+			const box = s.crypto_secretbox_easy(
+				plain,
+				nonce,
+				(boxKeys.get(currentKid) as Record<BoxPurpose, Uint8Array>)[purpose],
+			);
+			const joined = new Uint8Array(nonce.length + box.length);
+			joined.set(nonce);
+			joined.set(box, nonce.length);
+			return `${BOX_PREFIX[purpose]}${currentKid}_${b64(s, joined)}`;
+		},
+		unseal: (purpose, text, now = Date.now()) => unsealWith(s, boxKeys, purpose, text, now),
 	};
 }
 
@@ -470,6 +545,47 @@ function parseToken(s: Sodium, token: string): { kid: string; sealed: Uint8Array
  */
 function idOf(s: Sodium, sealed: Uint8Array): string {
 	return s.to_hex(s.crypto_generichash(16, sealed, null));
+}
+
+/** `TokenKeyring.unseal`. Length and shape before any decryption, like `parseToken`. */
+function unsealWith(
+	s: Sodium,
+	boxKeys: ReadonlyMap<string, Record<BoxPurpose, Uint8Array>>,
+	purpose: BoxPurpose,
+	text: string,
+	now: number,
+): Unsealed {
+	const prefix = BOX_PREFIX[purpose];
+	if (text.length > MAX_BOX_LENGTH || !text.startsWith(prefix))
+		return { ok: false, reason: 'malformed' };
+	const shape = /^([0-9a-f]{8})_([A-Za-z0-9_-]+)$/.exec(text.slice(prefix.length));
+	if (shape === null) return { ok: false, reason: 'malformed' };
+	const [, kid = '', body = ''] = shape;
+	const key = boxKeys.get(kid)?.[purpose];
+	if (key === undefined) return { ok: false, reason: 'unknown-key' };
+	const joined = unb64(s, body);
+	if (
+		joined === undefined ||
+		joined.length <= s.crypto_secretbox_NONCEBYTES + s.crypto_secretbox_MACBYTES
+	) {
+		return { ok: false, reason: 'malformed' };
+	}
+	let wire: { v?: unknown; exp?: unknown; d?: unknown };
+	try {
+		const plain = s.crypto_secretbox_open_easy(
+			joined.subarray(s.crypto_secretbox_NONCEBYTES),
+			joined.subarray(0, s.crypto_secretbox_NONCEBYTES),
+			key,
+		);
+		wire = JSON.parse(s.to_string(plain)) as typeof wire;
+	} catch {
+		return { ok: false, reason: 'unreadable' };
+	}
+	if (wire?.v !== 1) return { ok: false, reason: 'unreadable' };
+	if (wire.exp !== undefined && (typeof wire.exp !== 'number' || now > wire.exp)) {
+		return { ok: false, reason: 'expired' };
+	}
+	return { ok: true, value: wire.d, kid };
 }
 
 /**

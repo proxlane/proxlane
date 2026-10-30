@@ -78,6 +78,43 @@ claude.ai and ChatGPT require of dynamic client registration before building it)
 the homepage, only once it is live. **The hostname is undecided**, and the README names none
 until it resolves.
 
+**Remote MCP, for ChatGPT and claude.ai, is OAuth with no state either** (decided 2026-10-30).
+Both connect to an MCP server by URL, and the MCP authorization spec (2026-07-28) makes the server
+an OAuth 2.1 resource server. The hosted gateway is its own authorization server, and every
+artefact is a box sealed with a key derived from the token keyring, so nothing is stored:
+
+- **Client registration** is Dynamic Client Registration, which Claude uses and the spec keeps for
+  compatibility. The `client_id` is the registration itself, sealed: redirect URIs (exact, https
+  or loopback, a handful) and a name. Client ID Metadata Documents, which the spec now prefers,
+  are deferred: the authorization server would fetch a URL the client names, an SSRF surface that
+  needs the edge guard first. Registration is rate-limited per address.
+- **Open registration is a phishing surface, and the consent form is where it is closed.** Anyone
+  can register `redirect_uri=https://evil.example/cb` under the name "Claude" and send a victim
+  the link: they paste keys into our real page and the code goes to the attacker, who holds the
+  PKCE verifier. Checking the URI against the registration does not help; the attacker wrote it.
+  So the form names the redirect HOST, never the client's chosen name, and a host outside a short
+  list of known callbacks (claude.ai, chatgpt.com) is marked unverified and needs a second step.
+- **Authorization** is a plain HTML form the gateway serves, no script: paste provider keys or an
+  existing token. The authorize request is sealed into the form, so the POST cannot be pointed
+  elsewhere, and the page is `no-store`, `no-referrer` and unframeable; its body is never logged.
+  The gateway seals the token itself, since it sees the keys on every request anyway, and issues
+  a code sealed with the PKCE challenge (`S256` only), client, redirect URI and resource, sixty
+  seconds. A redirect URI is checked against the sealed registration before anything redirects
+  to it, and the response carries `iss` (RFC 9207). The success page shows the token's id, which
+  is how a user revokes a grant made from keys they pasted.
+- **Tokens**: an access token bound to the `/mcp` resource (RFC 8707, exact match), an hour, and
+  a refresh token, ninety days. Each carries the tenant token, so denying the tenant token by id
+  revokes every grant made from it; a refresh checks the denylist before issuing.
+- **Single use is the one piece of state.** Codes and refresh tokens carry an id and a grant
+  family; their first use is recorded in Valkey (`SET NX` for the box's remaining life), and a
+  reused refresh token revokes its whole family. Without Valkey, or when it is down, the token
+  endpoint refuses rather than allowing a replay: this is the one store that fails closed.
+- **Rotation**: a retiring key stays in the ring at least ninety days, the refresh lifetime, or
+  rotating logs every connected client out. Client registrations die with their key, and a
+  client simply registers again.
+- **`/mcp`** is the existing `fetch_page` server over Streamable HTTP, stateless, calling this
+  gateway's own `/v1` with the tenant token, so every limit and refusal above applies unchanged.
+
 ### Request lifecycle
 
 ```
