@@ -357,10 +357,27 @@ if (TOKEN_KEYS.length > 0) {
 			redis === undefined
 				? new InMemoryRateLimiter(checkRate(rate, name))
 				: new ValkeyRateLimiter({ redis, name, rate: checkRate(rate, name) });
+		// Which providers tenants may route to. All of them unless the operator narrows it: the
+		// switch for a provider that objects to hosted BYOK, without breaking anyone's token,
+		// since a token's other keys keep routing and the narrowed-out one is simply dropped.
+		const allowed = (env('PROXLANE_TOKEN_PROVIDERS') ?? '')
+			.split(',')
+			.map((id) => id.trim())
+			.filter(Boolean);
+		const unknownAllowed = allowed.filter((id) => !adapters.has(id));
+		if (unknownAllowed.length > 0) {
+			throw new Error(
+				`PROXLANE_TOKEN_PROVIDERS names unknown provider(s): ${unknownAllowed.join(', ')}. Known: ${[...adapters.keys()].sort().join(', ')}`,
+			);
+		}
+		const tenantAdapters =
+			allowed.length === 0
+				? adapters
+				: new Map([...adapters].filter(([id]) => allowed.includes(id)));
 		tenancy = {
 			keyring: await loadTokenKeyring(TOKEN_KEYS),
-			adapters,
-			order: ORDER,
+			adapters: tenantAdapters,
+			order: ORDER.filter((id) => tenantAdapters.has(id)),
 			denied: new Set(
 				(env('PROXLANE_TOKEN_DENY') ?? '')
 					.split(',')
@@ -430,7 +447,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  memory:    ${MEMORY_NOTE}\n` +
 			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
 			`  sandbox:   ${sandbox === undefined ? 'off; PROXLANE_SANDBOX_KEY to enable' : 'on — X-Proxlane-Simulate with the sandbox key calls no provider'}\n` +
-			`  tokens:    ${tenancy === undefined ? 'off; PROXLANE_TOKEN_KEYS to accept hosted tenant tokens' : `on — sealing to ${tenancy.keyring.kids[0]}, ${tenancy.keyring.kids.length} key(s); ${tenancy.credentialLimit.rate.limit}/min per provider key, ${tenancy.addressLimit.rate.limit}/min per address (${env('PROXLANE_CLIENT_IP_HEADER') ?? 'socket address'})`}\n` +
+			`  tokens:    ${tenancy === undefined ? 'off; PROXLANE_TOKEN_KEYS to accept hosted tenant tokens' : `on — sealing to ${tenancy.keyring.kids[0]}, ${tenancy.keyring.kids.length} key(s); providers ${[...tenancy.adapters.keys()].join(', ')}; ${tenancy.credentialLimit.rate.limit}/min per provider key, ${tenancy.addressLimit.rate.limit}/min per address (${env('PROXLANE_CLIENT_IP_HEADER') ?? 'socket address'})`}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);
 });
