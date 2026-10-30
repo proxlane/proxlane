@@ -1752,6 +1752,169 @@
 					}
 				}
 			}
+		},
+		"/.well-known/oauth-protected-resource": {
+			"get": {
+				"operationId": "wellKnownOauthProtectedResource",
+				"summary": "Protected resource metadata (RFC 9728) for /mcp",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "Per the RFC.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/.well-known/oauth-protected-resource/mcp": {
+			"get": {
+				"operationId": "wellKnownOauthProtectedResourceMcp",
+				"summary": "The same, at the path-suffixed location RFC 9728 also allows",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "Per the RFC.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/.well-known/oauth-authorization-server": {
+			"get": {
+				"operationId": "wellKnownOauthAuthorizationServer",
+				"summary": "Authorization server metadata (RFC 8414). PKCE S256 only, public clients",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "Per the RFC.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/oauth/register": {
+			"post": {
+				"operationId": "oauthRegister",
+				"summary": "Dynamic client registration (RFC 7591). The client_id is the sealed registration",
+				"security": [],
+				"responses": {
+					"201": {
+						"description": "Per the RFC.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/oauth/token": {
+			"post": {
+				"operationId": "oauthToken",
+				"summary": "Authorization code and refresh token grants. Codes and refresh tokens are single use",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "Per the RFC.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/oauth/authorize": {
+			"get": {
+				"operationId": "oauthAuthorize",
+				"summary": "The consent form: names the host the code goes to, and flags hosts that are not known AI apps",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "An HTML form.",
+						"content": {
+							"text/html": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					"302": {
+						"description": "A protocol error, back to the client."
+					}
+				}
+			},
+			"post": {
+				"operationId": "oauthConsent",
+				"summary": "Consent: provider keys or a tenant token, sealed into a code for the client",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "An HTML page with the token id and a link back to the client.",
+						"content": {
+							"text/html": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/mcp": {
+			"post": {
+				"operationId": "mcp",
+				"summary": "The fetch_page MCP server over Streamable HTTP, stateless",
+				"description": "An OAuth access token from this gateway, bound to this resource. Without one, 401 with a WWW-Authenticate pointing at the protected resource metadata.",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "A JSON-RPC response.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "No valid access token."
+					}
+				}
+			}
 		}
 	},
 	"components": {

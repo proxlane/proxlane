@@ -93,6 +93,7 @@ provider failed. An exhausted chain reports the last provider's outcome instead.
 | `GET /health/providers` | **yes** | Provider health states, when `PROXLANE_HEALTH=on` |
 | `GET` / `POST /v1` | **yes** | The gateway itself |
 | `GET /token-key` | none | The public key tenant tokens are sealed to, in hosted mode. `501` otherwise |
+| `POST /mcp` | OAuth | Remote MCP for ChatGPT and claude.ai, with `PROXLANE_PUBLIC_URL`. The app finds the OAuth routes (`/.well-known/…`, `/oauth/…`) from its first 401 |
 
 ## 2. A VPS or droplet — DigitalOcean, Hetzner, Linode, Scaleway
 
@@ -284,6 +285,7 @@ most:
 | `PROXLANE_TOKEN_RPM` | `60` | Requests a minute per provider key in a token |
 | `PROXLANE_TOKEN_IP_RPM` | `120` | Requests a minute per caller address, checked before a token is opened. IPv6 counts per /64 |
 | `PROXLANE_TOKEN_AUTH_FAILURES` | `10` | Provider key refusals (`AUTH_FAILED`) a minute per caller address before its tokens are turned away. Stops junk keys using the gateway to test keys against providers |
+| `PROXLANE_PUBLIC_URL` | unset | With hosted mode, serve remote MCP at `<url>/mcp`. The https origin apps reach this gateway at, no path: it is the OAuth issuer and is compared exactly. Without Valkey, single use of codes is held in this process |
 | `PROXLANE_CLIENT_IP_HEADER` | unset | The header your reverse proxy writes the caller's address to; its last entry is used, and only on connections from a private or loopback address, i.e. your proxy. Unset, the socket address is used, which behind a proxy is the proxy's |
 
 A variable set in `.env` reaches the container only if `docker/compose.yml` names it in its

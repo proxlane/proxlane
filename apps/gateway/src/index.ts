@@ -21,12 +21,19 @@ import { Redis } from 'ioredis';
 import { createApp } from './app.js';
 import { clientAddressFrom } from './client-address.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
+import { InMemoryGrantStore } from './grant-store.js';
 import { assertSingleWriter, type HealthStore, InMemoryHealthStore } from './health-store.js';
 import { createLogger } from './log.js';
+import type { OAuthDeps } from './oauth-routes.js';
 import { Prober } from './prober.js';
 import { checkRate, InMemoryRateLimiter } from './rate-limit.js';
 import type { Tenancy } from './tenant.js';
-import { ValkeyCooldownStore, ValkeyHealthStore, ValkeyRateLimiter } from './valkey.js';
+import {
+	ValkeyCooldownStore,
+	ValkeyGrantStore,
+	ValkeyHealthStore,
+	ValkeyRateLimiter,
+} from './valkey.js';
 import { VERSION } from './version.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -414,6 +421,41 @@ if (TOKEN_KEYS.length > 0) {
 	}
 }
 
+// REMOTE MCP, on when hosted mode is and PROXLANE_PUBLIC_URL says where this gateway is reached.
+// The URL is the OAuth issuer and the `/mcp` audience, compared exactly, so it is configured rather
+// than read from a Host header a proxy may rewrite. `plan.md` section 2, "Remote MCP".
+let oauth: OAuthDeps | undefined;
+const PUBLIC_URL = env('PROXLANE_PUBLIC_URL');
+if (PUBLIC_URL !== undefined) {
+	let u: URL | undefined;
+	try {
+		u = new URL(PUBLIC_URL);
+	} catch {
+		u = undefined;
+	}
+	const local = u !== undefined && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+	if (
+		u === undefined ||
+		(u.protocol !== 'https:' && !(u.protocol === 'http:' && local)) ||
+		u.pathname !== '/'
+	) {
+		process.stderr.write(
+			`\n  PROXLANE_PUBLIC_URL must be this gateway's origin, https and with no path, e.g. https://gateway.example.com\n  Got: ${JSON.stringify(PUBLIC_URL)}\n\n`,
+		);
+		process.exit(2);
+	}
+	if (tenancy === undefined) {
+		process.stderr.write(
+			'\n  PROXLANE_PUBLIC_URL is set but PROXLANE_TOKEN_KEYS is not; remote MCP needs hosted mode.\n\n',
+		);
+		process.exit(2);
+	}
+	oauth = {
+		origin: u.origin,
+		grants: redis === undefined ? new InMemoryGrantStore() : new ValkeyGrantStore({ redis }),
+	};
+}
+
 /** One NDJSON line per /v1 request, to stdout. `PROXLANE_LOG=off` to silence it. */
 const LOG = createLogger(env);
 
@@ -424,6 +466,7 @@ const app = createApp({
 	...(tenancy === undefined
 		? {}
 		: { tenancy, clientAddress: clientAddressFrom(env('PROXLANE_CLIENT_IP_HEADER')) }),
+	...(oauth === undefined ? {} : { oauth }),
 	maxBodyBytes: MAX_BODY_BYTES,
 	maxInflight: MAX_INFLIGHT,
 	defaultDeadlineMs: DEFAULT_DEADLINE_MS,
@@ -449,6 +492,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  memory:    ${MEMORY_NOTE}\n` +
 			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
 			`  sandbox:   ${sandbox === undefined ? 'off; PROXLANE_SANDBOX_KEY to enable' : 'on — X-Proxlane-Simulate with the sandbox key calls no provider'}\n` +
+			`  mcp:       ${oauth === undefined ? 'off; PROXLANE_PUBLIC_URL with hosted mode serves remote MCP' : `on — ${oauth.origin}/mcp, OAuth at ${oauth.origin}/.well-known/oauth-authorization-server`}\n` +
 			`  tokens:    ${tenancy === undefined ? 'off; PROXLANE_TOKEN_KEYS to accept hosted tenant tokens' : `on — sealing to ${tenancy.keyring.kids[0]}, ${tenancy.keyring.kids.length} key(s); providers ${[...tenancy.adapters.keys()].join(', ')}; ${tenancy.credentialLimit.rate.limit}/min per provider key, ${tenancy.addressLimit.rate.limit}/min per address (${env('PROXLANE_CLIENT_IP_HEADER') ?? 'socket address'})`}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);

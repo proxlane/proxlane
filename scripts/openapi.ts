@@ -406,6 +406,107 @@ export function buildSpec(): string {
 					},
 				},
 			},
+			// Remote MCP and its OAuth 2.1 authorization server: hosted mode with PROXLANE_PUBLIC_URL.
+			// Standard protocols, described by their RFCs; these entries say they exist and what
+			// they answer, not every field, which the RFCs own.
+			...Object.fromEntries(
+				(
+					[
+						[
+							'/.well-known/oauth-protected-resource',
+							'get',
+							'Protected resource metadata (RFC 9728) for /mcp',
+						],
+						[
+							'/.well-known/oauth-protected-resource/mcp',
+							'get',
+							'The same, at the path-suffixed location RFC 9728 also allows',
+						],
+						[
+							'/.well-known/oauth-authorization-server',
+							'get',
+							'Authorization server metadata (RFC 8414). PKCE S256 only, public clients',
+						],
+						[
+							'/oauth/register',
+							'post',
+							'Dynamic client registration (RFC 7591). The client_id is the sealed registration',
+						],
+						[
+							'/oauth/token',
+							'post',
+							'Authorization code and refresh token grants. Codes and refresh tokens are single use',
+						],
+					] as const
+				).map(([path, method, summary]) => [
+					path,
+					{
+						[method]: {
+							operationId: path
+								.replace(/[^a-z]+/gi, ' ')
+								.trim()
+								.replace(/ (\w)/g, (_, ch: string) => ch.toUpperCase()),
+							summary,
+							security: [],
+							responses: {
+								[path === '/oauth/register' ? '201' : '200']: {
+									description: 'Per the RFC.',
+									content: {
+										'application/json': {
+											schema: { type: 'object', additionalProperties: true },
+										},
+									},
+								},
+							},
+						},
+					},
+				]),
+			),
+			'/oauth/authorize': {
+				get: {
+					operationId: 'oauthAuthorize',
+					summary:
+						'The consent form: names the host the code goes to, and flags hosts that are not known AI apps',
+					security: [],
+					responses: {
+						'200': {
+							description: 'An HTML form.',
+							content: { 'text/html': { schema: { type: 'string' } } },
+						},
+						'302': { description: 'A protocol error, back to the client.' },
+					},
+				},
+				post: {
+					operationId: 'oauthConsent',
+					summary:
+						'Consent: provider keys or a tenant token, sealed into a code for the client',
+					security: [],
+					responses: {
+						'200': {
+							description: 'An HTML page with the token id and a link back to the client.',
+							content: { 'text/html': { schema: { type: 'string' } } },
+						},
+					},
+				},
+			},
+			'/mcp': {
+				post: {
+					operationId: 'mcp',
+					summary: 'The fetch_page MCP server over Streamable HTTP, stateless',
+					description:
+						'An OAuth access token from this gateway, bound to this resource. Without one, 401 with a WWW-Authenticate pointing at the protected resource metadata.',
+					security: [],
+					responses: {
+						'200': {
+							description: 'A JSON-RPC response.',
+							content: {
+								'application/json': { schema: { type: 'object', additionalProperties: true } },
+							},
+						},
+						'401': { description: 'No valid access token.' },
+					},
+				},
+			},
 		},
 		components: {
 			securitySchemes: {

@@ -360,6 +360,56 @@ describe('doctor', () => {
 		});
 	});
 
+	describe('remote mcp, judged the way the gateway boots', () => {
+		const run = async (vars: Record<string, string | undefined>) => {
+			const names = ['PROXLANE_PUBLIC_URL', 'PROXLANE_TOKEN_KEYS'];
+			const saved = names.map((n) => [n, process.env[n]] as const);
+			for (const n of names) {
+				const v = vars[n];
+				if (v === undefined) delete process.env[n];
+				else process.env[n] = v;
+			}
+			try {
+				const [, out] = await capture(() => doctor(true));
+				return (
+					JSON.parse(out).data.checks as { name: string; ok: boolean; detail: string }[]
+				).find((c) => c.name === 'remote mcp');
+			} finally {
+				for (const [n, v] of saved) {
+					if (v === undefined) delete process.env[n];
+					else process.env[n] = v;
+				}
+			}
+		};
+
+		it('is off, and fine, without a public URL', async () => {
+			expect(await run({})).toMatchObject({ ok: true, detail: expect.stringMatching(/^off/) });
+		});
+
+		it('names the URL to give apps, and fails without hosted mode or on a path', async () => {
+			expect(
+				await run({
+					PROXLANE_PUBLIC_URL: 'https://g.example',
+					PROXLANE_TOKEN_KEYS: 'pxlsk1_x',
+				}),
+			).toMatchObject({
+				ok: true,
+				detail: expect.stringContaining('https://g.example/mcp'),
+			});
+			expect(await run({ PROXLANE_PUBLIC_URL: 'https://g.example' })).toMatchObject({
+				ok: false,
+			});
+			expect(
+				await run({
+					PROXLANE_PUBLIC_URL: 'https://g.example/api',
+					PROXLANE_TOKEN_KEYS: 'pxlsk1_x',
+				}),
+			).toMatchObject({
+				ok: false,
+			});
+		});
+	});
+
 	describe('the gateway key, judged the way the gateway boots', () => {
 		const run = async (live: string | undefined, sandbox?: string) => {
 			const saved = [process.env.PROXLANE_API_KEY, process.env.PROXLANE_SANDBOX_KEY] as const;

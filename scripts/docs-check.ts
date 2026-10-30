@@ -32,6 +32,8 @@ const OPENAPI = join(ROOT, 'apps/web/public/openapi.json');
 const GATEWAY_APP = join(ROOT, 'apps/gateway/src/app.ts');
 // Request parsing lives beside the handler; assertion 12 reads both as one source.
 const GATEWAY_REQUEST = join(ROOT, 'apps/gateway/src/request.ts');
+/** The remote MCP and OAuth routes, mounted from `app.ts` in hosted mode. Read with it. */
+const GATEWAY_OAUTH = join(ROOT, 'apps/gateway/src/oauth-routes.ts');
 const API_DOC = join(CONTENT, 'api.md');
 
 const failures: string[] = [];
@@ -259,13 +261,15 @@ const read = (p: string) => readFileSync(p, 'utf8');
 		for (const [method, op] of Object.entries(ops)) {
 			if (!METHODS.includes(method)) continue;
 			total += 1;
-			const content = op.responses?.['200']?.content ?? {};
+			// Its success status, not always 200: registration answers 201 Created (RFC 7591).
+			const success = Object.keys(op.responses ?? {}).find((k) => /^2\d\d$/.test(k)) ?? '200';
+			const content = op.responses?.[success]?.content ?? {};
 			const has = Object.values(content).some((c) => c.schema !== undefined);
 			if (has) typed += 1;
 			else
 				fail(
 					'6b',
-					`${method.toUpperCase()} ${path} (${op.operationId ?? 'no operationId'}) declares a 200 with no typed body`,
+					`${method.toUpperCase()} ${path} (${op.operationId ?? 'no operationId'}) declares a ${success} with no typed body`,
 				);
 		}
 	}
@@ -461,7 +465,10 @@ const read = (p: string) => readFileSync(p, 'utf8');
 			paths: Record<string, Record<string, { parameters?: { name: string }[] }>>;
 			components: { headers: Record<string, unknown> };
 		};
-		const src = read(GATEWAY_APP) + (existsSync(GATEWAY_REQUEST) ? read(GATEWAY_REQUEST) : '');
+		const src =
+			read(GATEWAY_APP) +
+			(existsSync(GATEWAY_REQUEST) ? read(GATEWAY_REQUEST) : '') +
+			(existsSync(GATEWAY_OAUTH) ? read(GATEWAY_OAUTH) : '');
 		const described = new Set((spec.paths['/v1']?.get?.parameters ?? []).map((p) => p.name));
 		const read_ = [
 			...new Set([...src.matchAll(/c\.req\.query\('([a-z_]+)'\)/g)].map((m) => m[1] as string)),
