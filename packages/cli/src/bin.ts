@@ -9,6 +9,7 @@
 
 import { createRequire } from 'node:module';
 import { doctor } from './doctor.js';
+import { keygen } from './keygen.js';
 import { OUTCOME_COUNT, outcomes } from './outcomes.js';
 import { EXIT, emitError } from './output.js';
 import { providers } from './providers.js';
@@ -33,6 +34,7 @@ Commands
   providers         what each adapter can do, from the registry
   outcomes [name]   the ${OUTCOME_COUNT}-outcome taxonomy: failover, billing, http status
   doctor            diagnose this environment; paste the --json into an issue
+  keygen            a keypair for a hosted gateway's tenant tokens (PROXLANE_TOKEN_KEYS)
 
 Global options
   --json            machine-readable output on stdout. Supported by every command.
@@ -102,6 +104,9 @@ switch (cmd) {
 		break;
 	case 'providers':
 		code = await providers(json);
+		break;
+	case 'keygen':
+		code = await keygen(json);
 		break;
 	case 'outcomes':
 		code = outcomes(argv.slice(1), json);
