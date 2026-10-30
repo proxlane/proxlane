@@ -60,8 +60,9 @@ keys, including the gateway's own `api_key`. No request body, no response body.
 
 ## What does it cost?
 
-Nothing. There is no hosted endpoint and no billing. Bring your own keys, run it yourself, pay
-your providers whatever you already negotiated. Proxlane adds nothing to that bill.
+Nothing. There is no billing. Bring your own keys, run it yourself or through the hosted
+gateway at [/connect](/connect), and pay your providers whatever you already negotiated. Proxlane
+adds nothing to that bill.
 
 Hosted credits are planned but the rate is not settled, because charging only for unblocked
 requests while the provider still bills us for blocked ones does not add up yet. BYOK and

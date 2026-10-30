@@ -24,7 +24,8 @@ own gateway, it registers nowhere, and without it anyone who can reach the port 
 provider credits. It also refuses a placeholder such as `changeme`, or a key copied from any
 published example, since everyone who read the same page has it too. Generate one.
 
-Your gateway is now on `http://localhost:8787`. There is no hosted endpoint to call instead.
+Your gateway is now on `http://localhost:8787`. Rather not run one? [/connect](/connect) seals
+your keys into a token for the hosted gateway instead.
 
 ## Make a request
 

@@ -16,8 +16,8 @@ export const SITE = 'https://proxlane.dev';
  * postal address and phone number to satisfy a checklist. What is true is that this is a
  * developer tool with a licence, a repository and a price, which is what this says.
  *
- * `price: '0'` is not a marketing claim. BYOK and self-host are the two launch modes, both
- * free forever, and there is no hosted endpoint to charge for. Stating it here means an agent
+ * `price: '0'` is not a marketing claim. BYOK, hosted or self-hosted, is free forever, and
+ * hosted credits, the one thing with a price, are not built. Stating it here means an agent
  * does not have to infer it from a pricing table it would otherwise need to read and parse.
  */
 export function softwareApplicationLd(description: string): Record<string, unknown> {
@@ -37,7 +37,7 @@ export function softwareApplicationLd(description: string): Record<string, unkno
 			price: '0',
 			priceCurrency: 'EUR',
 			description:
-				'Bring your own provider keys, or self-host. Both are free; there is no hosted endpoint and no account.',
+				'Bring your own provider keys, hosted or self-hosted. Both are free, with no account and no stored keys.',
 		},
 	};
 }

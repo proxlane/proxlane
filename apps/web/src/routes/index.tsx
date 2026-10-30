@@ -455,12 +455,10 @@ const QUICKSTART_BLOCKS: readonly Block[] = [
 const QUICKSTART_COPY = 'docker run -p 8787:8787 --env-file .env ghcr.io/proxlane/gateway';
 
 const CURL_BEFORE = 'curl "https://api.scraperapi.com?api_key=KEY&url=..."';
-// LOCALHOST, BECAUSE THERE IS NO HOSTED ENDPOINT. This is the one line on the page a reader is
-// meant to copy, and it pointed at `api.proxlane.dev` — which answers, with a 401, to a service
-// nobody can sign up for. `repo-check.ts` predicted exactly this failure in the comment above
-// its DEAD_HOSTS list: a 401 reads as "I set it up wrong", where NXDOMAIN reads as "this does
-// not exist yet", which is the truth. The README has said so since it was written; the homepage
-// contradicted it two stations from its own quickstart, which prints localhost three times.
+// LOCALHOST, BECAUSE THIS LINE IS THE SELF-HOSTED ONE. It once pointed at `api.proxlane.dev`
+// while that answered, with a 401, to a service nobody could sign up for: a 401 reads as "I set it
+// up wrong". The hosted gateway now lives there, but it takes a sealed token in a header, never
+// `api_key=` in the query, so this command would still 401 against it. `/connect` is its door.
 const CURL_AFTER = 'curl "http://localhost:8787/v1?api_key=KEY&url=..."';
 
 function Hero({

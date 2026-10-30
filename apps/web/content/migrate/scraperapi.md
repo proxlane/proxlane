@@ -15,8 +15,8 @@ same account you already have.
 + http://localhost:8787/v1?api_key=GATEWAY_KEY&url=https://example.com&render=true
 ```
 
-`localhost:8787` is wherever you run the gateway. There is no hosted endpoint; the
-[quickstart](/docs/quickstart) starts one in about a minute.
+`localhost:8787` is wherever you run the gateway; the [quickstart](/docs/quickstart) starts one
+in about a minute. The hosted gateway takes a sealed token instead, from [/connect](/connect).
 
 ## The key changes meaning
 
