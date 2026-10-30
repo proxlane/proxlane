@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BlockPageDetectorRouteImport } from './routes/block-page-detector'
+import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ScrapingApiComparisonRouteImport } from './routes/scraping-api-comparison'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
@@ -45,6 +46,11 @@ const IndexRoute = IndexRouteImport.update({
 const BlockPageDetectorRoute = BlockPageDetectorRouteImport.update({
   id: '/block-page-detector',
   path: '/block-page-detector',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectRoute = ConnectRouteImport.update({
+  id: '/connect',
+  path: '/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -179,6 +185,7 @@ const SymptomsDatadomeDetectionRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/block-page-detector': typeof BlockPageDetectorRoute
+  '/connect': typeof ConnectRoute
   '/privacy': typeof PrivacyRoute
   '/scraping-api-comparison': typeof ScrapingApiComparisonRoute
   '/docs/adapters': typeof DocsAdaptersRoute
@@ -208,6 +215,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/block-page-detector': typeof BlockPageDetectorRoute
+  '/connect': typeof ConnectRoute
   '/privacy': typeof PrivacyRoute
   '/scraping-api-comparison': typeof ScrapingApiComparisonRoute
   '/docs/adapters': typeof DocsAdaptersRoute
@@ -238,6 +246,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/block-page-detector': typeof BlockPageDetectorRoute
+  '/connect': typeof ConnectRoute
   '/privacy': typeof PrivacyRoute
   '/scraping-api-comparison': typeof ScrapingApiComparisonRoute
   '/docs/adapters': typeof DocsAdaptersRoute
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/block-page-detector'
+    | '/connect'
     | '/privacy'
     | '/scraping-api-comparison'
     | '/docs/adapters'
@@ -298,6 +308,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/block-page-detector'
+    | '/connect'
     | '/privacy'
     | '/scraping-api-comparison'
     | '/docs/adapters'
@@ -327,6 +338,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/block-page-detector'
+    | '/connect'
     | '/privacy'
     | '/scraping-api-comparison'
     | '/docs/adapters'
@@ -357,6 +369,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BlockPageDetectorRoute: typeof BlockPageDetectorRoute
+  ConnectRoute: typeof ConnectRoute
   PrivacyRoute: typeof PrivacyRoute
   ScrapingApiComparisonRoute: typeof ScrapingApiComparisonRoute
   DocsAdaptersRoute: typeof DocsAdaptersRoute
@@ -398,6 +411,13 @@ declare module '@tanstack/react-router' {
       path: '/block-page-detector'
       fullPath: '/block-page-detector'
       preLoaderRoute: typeof BlockPageDetectorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connect': {
+      id: '/connect'
+      path: '/connect'
+      fullPath: '/connect'
+      preLoaderRoute: typeof ConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -581,6 +601,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BlockPageDetectorRoute: BlockPageDetectorRoute,
+  ConnectRoute: ConnectRoute,
   PrivacyRoute: PrivacyRoute,
   ScrapingApiComparisonRoute: ScrapingApiComparisonRoute,
   DocsAdaptersRoute: DocsAdaptersRoute,
