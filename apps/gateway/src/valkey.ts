@@ -1,4 +1,4 @@
-// Valkey-backed health and cooldowns. The multi-replica half of the two in-memory stores.
+// Valkey-backed health, cooldowns and rate limits. The multi-replica half of the in-memory stores.
 //
 // WHAT MAKES THIS MORE THAN A SWAP. Both in-memory stores are correct because JavaScript is
 // single-threaded: a read-modify-write cannot interleave. Across a network it can, and two
@@ -45,6 +45,14 @@ import {
 import type { Redis } from 'ioredis';
 import { type CooldownStore, withWhy } from './cooldown-store.js';
 import type { HealthStore } from './health-store.js';
+import {
+	checkRate,
+	InMemoryRateLimiter,
+	type RateDecision,
+	type RateLimit,
+	type RateLimiter,
+	windowStart,
+} from './rate-limit.js';
 
 /**
  * Read, transform in JS, write back only if nobody else changed it.
@@ -612,6 +620,74 @@ function parseCooldown(raw: string | null): CooldownEntry | null {
 		};
 	} catch {
 		return null;
+	}
+}
+
+/**
+ * Count and expire in one step. `INCR` alone would leave a key with no TTL if the process died
+ * between it and `PEXPIRE`, and that counter would then refuse its caller forever.
+ */
+const TAKE = `
+local n = redis.call('INCR', KEYS[1])
+if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return n
+`;
+
+/**
+ * `InMemoryRateLimiter` shared across replicas: one counter per key and window, so N replicas
+ * enforce one limit rather than N of them.
+ *
+ * The window is IN THE KEY, `rl:{name}:{key}:{start}`, so a new window is a new key and nothing
+ * has to be reset. It expires a second after its window closes; the slack covers clock skew
+ * between replicas, which would otherwise let one replica's late write recreate a dead window.
+ *
+ * WHEN VALKEY IS DOWN IT FALLS BACK, never fully open. Each replica counts in its own memory
+ * instead, so a dead cache multiplies the limit by the replica count rather than lifting it. An
+ * attacker who can knock Valkey over must not thereby switch every limit off. The failure is
+ * reported once per window, not once per request: a flood during an outage is exactly when a
+ * line per request would fill the disk.
+ */
+export class ValkeyRateLimiter implements RateLimiter {
+	readonly rate: RateLimit;
+	readonly #redis: Redis;
+	readonly #name: string;
+	readonly #onError: (where: string, err: unknown) => void;
+	readonly #fallback: InMemoryRateLimiter;
+	#reportedWindow = -1;
+
+	constructor(opts: ValkeyStoreOptions & { readonly name: string; readonly rate: RateLimit }) {
+		this.rate = checkRate(opts.rate, `the ${opts.name} rate limit`);
+		this.#redis = opts.redis;
+		this.#name = opts.name;
+		this.#onError = opts.onError ?? defaultOnError;
+		this.#fallback = new InMemoryRateLimiter(this.rate);
+	}
+
+	async take(key: string, now: number): Promise<RateDecision> {
+		const start = windowStart(now, this.rate.windowMs);
+		try {
+			const n = Number(
+				await this.#redis.eval(
+					TAKE,
+					1,
+					`rl:${this.#name}:${key}:${start}`,
+					String(this.rate.windowMs + 1000),
+				),
+			);
+			return n <= this.rate.limit
+				? { ok: true }
+				: { ok: false, retryAfterMs: start + this.rate.windowMs - now };
+		} catch (err) {
+			if (this.#reportedWindow !== start) {
+				this.#reportedWindow = start;
+				try {
+					this.#onError(`rate limit ${this.#name} (counting in memory until it recovers)`, err);
+				} catch {
+					// Nothing left to report to.
+				}
+			}
+			return this.#fallback.take(key, now);
+		}
 	}
 }
 

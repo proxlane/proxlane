@@ -396,8 +396,9 @@ Notes:
   ```
 
   `code` is the outcome when a scrape happened, and one of a deliberately tiny set of
-  non-outcome codes when it did not — `UNAUTHORIZED` and `NOT_ENABLED`, which describe
-  requests that never reached a provider and so must never enter provider health. `class` is
+  non-outcome codes when it did not — `UNAUTHORIZED`, `NOT_ENABLED` and `TOO_MANY_REQUESTS`
+  (a per-caller limit, distinct from a provider's `RATE_LIMITED`), which describe requests that
+  never reached a provider and so must never enter provider health. `class` is
   the closed set, present on both. `attempts` appears only when providers were tried.
 
   There were two shapes before this: `{error, message}` for auth and validation, and
