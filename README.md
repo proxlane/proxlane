@@ -1,18 +1,18 @@
 # Proxlane
 
-> **Self-host only, and pre-1.0.** **There is no hosted endpoint and no account**: you run
-> it, on your own provider keys, from a published image or an npm package. Everything the
-> Status section lists as shipped is covered by a command you can run — and what is missing
+> **Pre-1.0, and no account.** Run it yourself on your own provider keys, from a published
+> image or an npm package, or use the hosted gateway: [proxlane.dev/connect](https://proxlane.dev/connect)
+> seals your keys into one token in your browser, and the gateway stores none of them. Everything
+> the Status section lists as shipped is covered by a command you can run — and what is missing
 > is missing by decision rather than by breakage: no dashboard, no database, no hosted
 > credits. Docs are live at [proxlane.dev/docs](https://proxlane.dev/docs).
-> Follow the repo if you want to know when that changes.
 
 One lane to every scraping provider. Automatic failover, per-request cost visibility, and
 honest success detection.
 
-Bring your own provider keys and it is free forever. Self-host it and it is free
-forever. Those are the two ways to run it. Hosted credits at provider cost plus 5% are
-designed and not built, and the rate is not settled — see Pricing.
+Bring your own provider keys and it is free forever, hosted or self-hosted. Hosted credits
+at provider cost plus 5% are designed and not built, and the rate is not settled — see
+Pricing.
 
 ```diff
 - https://api.scraperapi.com/?api_key=KEY&url=https://example.com
@@ -95,8 +95,8 @@ quietly hand you a gateway five versions old.
 
 ### On yours
 
-Three commands, and the first one invents a key. There is no hosted endpoint to curl — the
-`localhost` below is not standing in for one, it is where Proxlane runs.
+Three commands, and the first one invents a key. The `localhost` below is not standing in for
+the hosted gateway, which takes a sealed token rather than this key; it is where Proxlane runs.
 
 `PROXLANE_API_KEY` is the key **you** will present to your own gateway. Generate one, as below;
 nothing registers it anywhere. The gateway refuses to boot without it, because a gateway started
@@ -214,11 +214,12 @@ the same page costs 10× on one line and 1× on another.
 
 ## Pricing
 
-Two ways to run it today, both free. A third is designed and not built.
+Three ways to run it today, all free. A fourth is designed and not built.
 
 | | Cost | Requests run on | |
 |---|---|---|---|
 | **BYOK** | free, forever | your provider accounts | ships today |
+| **Hosted BYOK** | free, forever | your provider accounts, our gateway; keys sealed, never stored | ships today |
 | **Self-host** | free, forever | your provider accounts, your servers | ships today |
 | **Hosted credits** | provider cost + 5% | our provider accounts | **not built** |
 

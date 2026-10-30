@@ -181,6 +181,16 @@ function Issued({ token, gateway }: { readonly token: string; readonly gateway: 
 			<Panel label="curl" copy={curl} what="the curl command">
 				<pre className="overflow-x-auto font-mono text-[0.8125rem] leading-[1.9]">{curl}</pre>
 			</Panel>
+			{/* Ours only: another gateway serves `/mcp` just when its operator set PROXLANE_PUBLIC_URL,
+			    and this page cannot tell from `/token-key` whether they did. */}
+			{gateway === HOSTED_GATEWAY && (
+				<Panel label="claude.ai and chatgpt" copy={`${gateway}/mcp`} what="the connector URL">
+					<p className="break-all font-mono text-[0.8125rem]">{gateway}/mcp</p>
+					<p className="mt-3 text-[color:var(--color-slate)] text-sm leading-relaxed">
+						Add it as a custom connector. It signs in by asking for this token, once.
+					</p>
+				</Panel>
+			)}
 		</div>
 	);
 }
