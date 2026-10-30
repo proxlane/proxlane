@@ -689,6 +689,18 @@ export class ValkeyRateLimiter implements RateLimiter {
 			return this.#fallback.take(key, now);
 		}
 	}
+
+	async peek(key: string, now: number): Promise<number> {
+		try {
+			const raw = await this.#redis.get(
+				`rl:${this.#name}:${key}:${windowStart(now, this.rate.windowMs)}`,
+			);
+			return raw === null ? 0 : Number(raw);
+		} catch {
+			// `take` has already reported this window's failure, or will.
+			return this.#fallback.peek(key, now);
+		}
+	}
 }
 
 export { COOLDOWN, COOLDOWN_GRACE_MS, HEALTH_TTL_MS };
