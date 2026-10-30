@@ -166,7 +166,8 @@ export interface TokenKeyring {
 	 * Seal a value the gateway will read back later, so it never has to store it: an OAuth client
 	 * registration, a code, an access or refresh token. Encrypted and authenticated with a key
 	 * derived from the CURRENT secret key, one per purpose, so a code can never be replayed as an
-	 * access token. `expiresAt` is unix milliseconds; past it, `unseal` refuses.
+	 * access token. `expiresAt` is unix milliseconds; past it, `unseal` refuses. REQUIRED for every
+	 * purpose but `client`: a code or a token that forgot it would never expire, so it throws.
 	 */
 	seal(purpose: BoxPurpose, value: unknown, expiresAt?: number): string;
 	/** A sealed value, or why not. Opens boxes from every key in the ring, so rotation is gentle. */
@@ -181,6 +182,8 @@ type Pairs = Map<string, { readonly publicKey: Uint8Array; readonly secretKey: U
  */
 export const BOX_PREFIX = {
 	client: 'pxc1_',
+	/** The authorize request, carried through the consent form so the POST cannot be tampered. */
+	consent: 'pxf1_',
 	code: 'pxo1_',
 	access: 'pxa1_',
 	refresh: 'pxr1_',
@@ -190,6 +193,7 @@ export type BoxPurpose = keyof typeof BOX_PREFIX;
 /** libsodium KDF contexts are exactly eight bytes. */
 const BOX_CONTEXT: Record<BoxPurpose, string> = {
 	client: 'pxlclint',
+	consent: 'pxlconst',
 	code: 'pxlcode_',
 	access: 'pxlaccss',
 	refresh: 'pxlrefrs',
@@ -289,6 +293,7 @@ export async function loadTokenKeyring(secretKeys: readonly string[]): Promise<T
 	for (const [kid, pair] of pairs) {
 		boxKeys.set(kid, {
 			client: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.client, pair.secretKey),
+			consent: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.consent, pair.secretKey),
 			code: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.code, pair.secretKey),
 			access: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.access, pair.secretKey),
 			refresh: s.crypto_kdf_derive_from_key(32, 1, BOX_CONTEXT.refresh, pair.secretKey),
@@ -300,6 +305,9 @@ export async function loadTokenKeyring(secretKeys: readonly string[]): Promise<T
 		kids,
 		open: (token, now = Date.now()) => openWith(s, pairs, credentialKey, token, now),
 		seal: (purpose, value, expiresAt) => {
+			if (purpose !== 'client' && expiresAt === undefined) {
+				throw new TypeError(`a ${purpose} box needs an expiry`);
+			}
 			const nonce = s.randombytes_buf(s.crypto_secretbox_NONCEBYTES);
 			const plain = s.from_string(
 				JSON.stringify(

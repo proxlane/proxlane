@@ -363,9 +363,9 @@ describe('boxes the gateway seals for itself', () => {
 	it('opens boxes from a retiring key, and refuses a key that has left', async () => {
 		const next = await generateTokenKeypair();
 		const rotated = await loadTokenKeyring([next.secretKey, pair.secretKey]);
-		const old = keyring.seal('refresh', { n: 1 });
+		const old = keyring.seal('refresh', { n: 1 }, LATER);
 		expect(rotated.unseal('refresh', old, T0)).toMatchObject({ ok: true, kid: pair.kid });
-		const theirs = (await loadTokenKeyring([next.secretKey])).seal('refresh', { n: 1 });
+		const theirs = (await loadTokenKeyring([next.secretKey])).seal('refresh', { n: 1 }, LATER);
 		expect(keyring.unseal('refresh', theirs, T0)).toEqual({ ok: false, reason: 'unknown-key' });
 	});
 
@@ -386,6 +386,13 @@ describe('boxes the gateway seals for itself', () => {
 		]) {
 			expect(keyring.unseal('client', junk, T0)).toEqual({ ok: false, reason: 'malformed' });
 		}
+	});
+
+	it('refuses to seal a code or token with no expiry, so none can live forever', () => {
+		for (const purpose of ['consent', 'code', 'access', 'refresh'] as const) {
+			expect(() => keyring.seal(purpose, {})).toThrow(/expiry/);
+		}
+		expect(() => keyring.seal('client', {})).not.toThrow();
 	});
 
 	it('gives the same value two different boxes, by its random nonce', () => {
