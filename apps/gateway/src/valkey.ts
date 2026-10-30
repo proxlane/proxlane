@@ -44,6 +44,7 @@ import {
 } from '@proxlane/shared';
 import type { Redis } from 'ioredis';
 import { type CooldownStore, withWhy } from './cooldown-store.js';
+import type { GrantStore } from './grant-store.js';
 import type { HealthStore } from './health-store.js';
 import {
 	checkRate,
@@ -700,6 +701,39 @@ export class ValkeyRateLimiter implements RateLimiter {
 			// `take` has already reported this window's failure, or will.
 			return this.#fallback.peek(key, now);
 		}
+	}
+}
+
+/**
+ * `InMemoryGrantStore` shared across replicas. `SET NX PX` is the whole of single use: one
+ * replica's first use is every replica's. Errors PROPAGATE, unlike every other store here: see
+ * `grant-store.ts` for why this one fails closed.
+ */
+export class ValkeyGrantStore implements GrantStore {
+	readonly #redis: Redis;
+
+	constructor(opts: { readonly redis: Redis }) {
+		this.#redis = opts.redis;
+	}
+
+	async claim(id: string, ttlMs: number): Promise<boolean> {
+		return (
+			(await this.#redis.set(
+				`og:use:${id}`,
+				'1',
+				'PX',
+				Math.max(1, Math.ceil(ttlMs)),
+				'NX',
+			)) === 'OK'
+		);
+	}
+
+	async revoke(family: string, ttlMs: number): Promise<void> {
+		await this.#redis.set(`og:fam:${family}`, '1', 'PX', Math.max(1, Math.ceil(ttlMs)));
+	}
+
+	async revoked(family: string): Promise<boolean> {
+		return (await this.#redis.exists(`og:fam:${family}`)) === 1;
 	}
 }
 
