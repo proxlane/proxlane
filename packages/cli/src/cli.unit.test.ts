@@ -281,6 +281,60 @@ describe('doctor', () => {
 		}
 	});
 
+	describe('tenant tokens, judged the way the gateway boots', () => {
+		const run = async (vars: Record<string, string | undefined>) => {
+			const names = ['PROXLANE_TOKEN_KEYS', 'PROXLANE_CLIENT_IP_HEADER', 'PROXLANE_TOKEN_DENY'];
+			const saved = names.map((n) => [n, process.env[n]] as const);
+			for (const n of names) {
+				const v = vars[n];
+				if (v === undefined) delete process.env[n];
+				else process.env[n] = v;
+			}
+			try {
+				const [, out] = await capture(() => doctor(true));
+				const checks = JSON.parse(out).data.checks as {
+					name: string;
+					ok: boolean;
+					detail: string;
+				}[];
+				return { out, check: checks.find((c) => c.name === 'tenant tokens') };
+			} finally {
+				for (const [n, v] of saved) {
+					if (v === undefined) delete process.env[n];
+					else process.env[n] = v;
+				}
+			}
+		};
+
+		it('is off, and fine, when no keyring is set', async () => {
+			expect((await run({})).check).toMatchObject({
+				ok: true,
+				detail: expect.stringMatching(/^off/),
+			});
+		});
+
+		it('names the sealing key and warns when callers would share the proxy address', async () => {
+			const { generateTokenKeypair } = await import('@proxlane/shared/token');
+			const pair = await generateTokenKeypair();
+			const { out, check } = await run({ PROXLANE_TOKEN_KEYS: pair.secretKey });
+			expect(check).toMatchObject({ ok: true });
+			expect(check?.detail).toContain(pair.kid);
+			expect(check?.detail).toContain('PROXLANE_CLIENT_IP_HEADER');
+			expect(out).not.toContain(pair.secretKey);
+			const named = await run({
+				PROXLANE_TOKEN_KEYS: pair.secretKey,
+				PROXLANE_CLIENT_IP_HEADER: 'x-real-ip',
+			});
+			expect(named.check?.detail).toContain('last entry of x-real-ip');
+		});
+
+		it('fails, without echoing it, on a keyring the gateway would refuse to boot with', async () => {
+			const { out, check } = await run({ PROXLANE_TOKEN_KEYS: 'pxlsk1_not-a-key' });
+			expect(check).toMatchObject({ ok: false });
+			expect(out).not.toContain('not-a-key');
+		});
+	});
+
 	describe('the gateway key, judged the way the gateway boots', () => {
 		const run = async (live: string | undefined, sandbox?: string) => {
 			const saved = [process.env.PROXLANE_API_KEY, process.env.PROXLANE_SANDBOX_KEY] as const;

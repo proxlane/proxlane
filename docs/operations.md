@@ -310,6 +310,16 @@ before the gateway can read what it adds, except a field listed in `crit`, which
 token and is refused as `unsupported` by a gateway that cannot enforce it. `.gitleaks.toml`
 recognises the secret key and the token.
 
+In the gateway, `PROXLANE_TOKEN_KEYS` turns this on beside the operator key (`apps/gateway/src/tenant.ts`).
+A token is accepted only in `Authorization`, limited per caller address before it is opened and
+per provider key after, and each key's account cooldowns are its own (`t.<hash>`), so one user's
+spent plan never cools a provider for another. Domain cooldowns stay shared, by the design in
+`chain.ts`: a block is a fact about the provider and the site. The operator's
+`/health/cooldowns` therefore lists tenants' account cooldowns by hash, with the provider's own
+words about each account; it is operator-only, like every endpoint that names providers.
+`GET /token-key` serves the public key, so the connect page never seals to a key the gateway
+does not hold.
+
 **Where the key lives, and the boundary between the two processes.**
 `packages/api`'s oRPC contract is described as "web ↔ gateway admin API", which would make
 the gateway validate Better Auth sessions — contradicting "hot path only" — and would put
