@@ -55,9 +55,11 @@ What follows from it:
 - **Revocation** is rotating the provider key, which is the real fix anyway. A small denylist
   of token hashes in Valkey covers "I pasted it somewhere". The keypair carries a key id in the
   token prefix so it can rotate with an overlap window.
-- **Tenancy is the token hash.** Rate limits, the cooldown namespace and logs key on it, never
-  on the token. Cooldowns key on the provider key's hash, so one user's spent plan never cools
-  another user down.
+- **Two identities, because one cannot do both jobs.** The token hash is what the denylist keys
+  on; a thief cannot reseal a stolen box to escape it. But the public key is public, so an owner
+  can mint a fresh token per request, and a limit on the token hash limits nothing. Rate limits and
+  cooldowns key on a keyed hash per provider key instead, plus the source address, which is also
+  limited before a token is opened because opening costs a decrypt.
 - **Tokens travel in `Authorization` only**, never a query string, so they stay out of access
   logs.
 - **Provider terms**: nothing stored and nothing pooled, which is the line Bright Data drew and

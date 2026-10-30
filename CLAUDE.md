@@ -210,7 +210,7 @@ faithfully reflects a table that is now wrong.
 | `/CLAUDE.md` | ownership, commands, toolchain — the source of three assertions | devex-engineer |
 | `docs/**` | strategy, integrations, operations, operating, state | devex-engineer |
 | `.claude/**` | agent briefs, hooks, settings | devex-engineer |
-| `/package.json` `/pnpm-workspace.yaml` `/pnpm-lock.yaml` `/turbo.json` `/biome.json` `/vitest.config.ts` `/tsconfig.json` `/.npmrc` `/.nvmrc` `/.gitattributes` `/.gitignore` `/.env.example` | root config. Globs in the Path cell, never prose — the generator parses this column | devex-engineer |
+| `/package.json` `/pnpm-workspace.yaml` `/pnpm-lock.yaml` `/turbo.json` `/biome.json` `/vitest.config.ts` `/tsconfig.json` `/.npmrc` `/.nvmrc` `/.gitattributes` `/.gitignore` `/.gitleaks.toml` `/.env.example` | root config. Globs in the Path cell, never prose — the generator parses this column | devex-engineer |
 
 **`SECURITY.md` is the only path security-engineer owns, and that is deliberate.**
 `CLAUDE.md` used to list "SSRF guard, key encryption, env parsing" alongside it, which reads

@@ -41,15 +41,22 @@
 		"./transport": {
 			"types": "./dist/transport.d.mts",
 			"default": "./dist/transport.mjs"
+		},
+		"./token": {
+			"types": "./dist/token.d.mts",
+			"default": "./dist/token.mjs"
 		}
 	},
 	"files": [
 		"dist"
 	],
 	"scripts": {
-		"build": "tsdown src/index.ts src/outcome.ts src/error-body.ts src/wire.ts src/transport.ts --format esm --dts",
+		"build": "tsdown src/index.ts src/outcome.ts src/error-body.ts src/wire.ts src/transport.ts src/token.ts --format esm --dts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"clean": "rm -rf dist"
+	},
+	"dependencies": {
+		"libsodium-wrappers": "catalog:"
 	},
 	"devDependencies": {
 		"@proxlane/tsconfig": "workspace:*",
