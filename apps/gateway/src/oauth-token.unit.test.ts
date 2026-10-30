@@ -82,7 +82,7 @@ describe('the token endpoint', () => {
 		expect(r.status).toBe(200);
 		expect(r.body).toMatchObject({ token_type: 'Bearer', expires_in: ACCESS_TTL_MS / 1000 });
 		const ok = await verifyAccess(`Bearer ${r.body.access_token}`, d);
-		expect(ok).toEqual({ ok: true, tenantToken: TENANT });
+		expect(ok).toEqual({ ok: true, tenantToken: TENANT, family: expect.any(String) });
 	});
 
 	it('refuses a wrong verifier, another client, or a code past its minute', async () => {

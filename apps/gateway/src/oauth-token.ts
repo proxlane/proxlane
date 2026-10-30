@@ -129,6 +129,23 @@ export async function exchange(
 }
 
 /**
+ * The grant family a code or refresh token belongs to, if it opens: the token endpoint's rate-limit
+ * key. Not the caller's address, which for every ChatGPT or claude.ai user is the vendor's own.
+ */
+export function familyOf(
+	form: Readonly<Record<string, string | undefined>>,
+	keyring: TokenKeyring,
+	now: number,
+): string | undefined {
+	const opened =
+		form.grant_type === 'refresh_token'
+			? keyring.unseal('refresh', form.refresh_token ?? '', now)
+			: keyring.unseal('code', form.code ?? '', now);
+	const f = opened.ok ? (opened.value as { f?: unknown }).f : undefined;
+	return typeof f === 'string' ? f : undefined;
+}
+
+/**
  * A `/mcp` request's bearer token, checked: sealed by this gateway, unexpired, for exactly this
  * resource, and from a family nobody revoked. Returns the tenant token inside it.
  */
@@ -141,7 +158,7 @@ export async function verifyAccess(
 		readonly now: number;
 	},
 ): Promise<
-	| { readonly ok: true; readonly tenantToken: string }
+	| { readonly ok: true; readonly tenantToken: string; readonly family: string }
 	| { readonly ok: false; readonly challenge: string }
 > {
 	const bearer = /^[Bb][Ee][Aa][Rr][Ee][Rr] (.+)$/.exec(authorization ?? '')?.[1];
@@ -157,5 +174,5 @@ export async function verifyAccess(
 	}
 	if (await deps.grants.revoked(g.f))
 		return { ok: false, challenge: challenge(deps.origin, 'invalid_token') };
-	return { ok: true, tenantToken: g.t };
+	return { ok: true, tenantToken: g.t, family: g.f };
 }
