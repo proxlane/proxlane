@@ -15,14 +15,18 @@ import {
 	providerKeyFromEnv,
 	readMemoryLimit,
 } from '@proxlane/shared';
+import { loadTokenKeyring, TOKEN_PREFIX } from '@proxlane/shared/token';
 import { createFetchTransport, DEFAULT_BODY_CAP_MB } from '@proxlane/shared/transport';
 import { Redis } from 'ioredis';
 import { createApp } from './app.js';
+import { clientAddressFrom } from './client-address.js';
 import { type CooldownStore, InMemoryCooldownStore } from './cooldown-store.js';
 import { assertSingleWriter, type HealthStore, InMemoryHealthStore } from './health-store.js';
 import { createLogger } from './log.js';
 import { Prober } from './prober.js';
-import { ValkeyCooldownStore, ValkeyHealthStore } from './valkey.js';
+import { checkRate, InMemoryRateLimiter } from './rate-limit.js';
+import type { Tenancy } from './tenant.js';
+import { ValkeyCooldownStore, ValkeyHealthStore, ValkeyRateLimiter } from './valkey.js';
 import { VERSION } from './version.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -243,9 +247,13 @@ function providerOrder(): string[] {
 	return [...requested, ...ids.filter((id) => !requested.includes(id)).sort()];
 }
 
+const ORDER = providerOrder();
 const candidates: { adapter: Adapter; key: string }[] = [];
-for (const id of providerOrder()) {
+/** Every adapter, keyed or not: a hosted tenant brings keys for providers the operator lacks. */
+const adapters = new Map<string, Adapter>();
+for (const id of ORDER) {
 	const adapter = await (REGISTRY[id] as () => Promise<Adapter>)();
+	adapters.set(id, adapter);
 	// TRIMMED at the boundary. A leading space in the value survives into
 	// `Authorization: Bearer  <key>` and the provider answers 401, which surfaces as
 	// AUTH_FAILED and points at the key rather than at the whitespace. See `providerKeyFromEnv`.
@@ -328,6 +336,65 @@ const prober =
 			});
 prober?.start();
 
+// HOSTED MODE, on when PROXLANE_TOKEN_KEYS holds at least one secret key. `plan.md` section 2:
+// callers present a tenant token carrying their own provider keys, and this gateway stores none.
+// The operator key keeps working beside it, for the operator's own traffic and endpoints.
+//
+// A bad keyring REFUSES TO BOOT, the house style for a key: a gateway that started with half a
+// keyring would turn its users away one at a time with nothing in the log to say why.
+const TOKEN_KEYS = (env('PROXLANE_TOKEN_KEYS') ?? '')
+	.split(',')
+	.map((k) => k.trim())
+	.filter(Boolean);
+let tenancy: Tenancy | undefined;
+if (TOKEN_KEYS.length > 0) {
+	try {
+		const minute = (name: string, fallback: number) => ({
+			limit: Number(env(name) ?? fallback),
+			windowMs: 60_000,
+		});
+		const limiter = (name: string, rate: { limit: number; windowMs: number }) =>
+			redis === undefined
+				? new InMemoryRateLimiter(checkRate(rate, name))
+				: new ValkeyRateLimiter({ redis, name, rate: checkRate(rate, name) });
+		tenancy = {
+			keyring: await loadTokenKeyring(TOKEN_KEYS),
+			adapters,
+			order: ORDER,
+			denied: new Set(
+				(env('PROXLANE_TOKEN_DENY') ?? '')
+					.split(',')
+					.map((id) => id.trim())
+					.filter(Boolean),
+			),
+			addressLimit: limiter('PROXLANE_TOKEN_IP_RPM', minute('PROXLANE_TOKEN_IP_RPM', 120)),
+			credentialLimit: limiter('PROXLANE_TOKEN_RPM', minute('PROXLANE_TOKEN_RPM', 60)),
+			authFailures: limiter(
+				'PROXLANE_TOKEN_AUTH_FAILURES',
+				minute('PROXLANE_TOKEN_AUTH_FAILURES', 10),
+			),
+		};
+		// The operator's own key must never look like a token, or hosted mode would route it down
+		// the token path and lock the operator out of their own gateway.
+		for (const [name, key] of [
+			['PROXLANE_API_KEY', apiKey],
+			['PROXLANE_SANDBOX_KEY', sandbox],
+		] as const) {
+			if (key?.startsWith(TOKEN_PREFIX)) {
+				throw new Error(
+					`${name} starts with ${TOKEN_PREFIX}, which hosted mode reads as a token`,
+				);
+			}
+		}
+	} catch (err) {
+		process.stderr.write(
+			`\n  PROXLANE_TOKEN_KEYS is set but unusable: ${err instanceof Error ? err.message : String(err)}\n` +
+				'  Each entry is a pxlsk1_ secret key, newest first. `npx proxlane doctor` checks them.\n\n',
+		);
+		process.exit(2);
+	}
+}
+
 /** One NDJSON line per /v1 request, to stdout. `PROXLANE_LOG=off` to silence it. */
 const LOG = createLogger(env);
 
@@ -335,6 +402,9 @@ const app = createApp({
 	transport,
 	candidates,
 	apiKey,
+	...(tenancy === undefined
+		? {}
+		: { tenancy, clientAddress: clientAddressFrom(env('PROXLANE_CLIENT_IP_HEADER')) }),
 	maxBodyBytes: MAX_BODY_BYTES,
 	maxInflight: MAX_INFLIGHT,
 	defaultDeadlineMs: DEFAULT_DEADLINE_MS,
@@ -360,6 +430,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 			`  memory:    ${MEMORY_NOTE}\n` +
 			`  prober:    ${prober === undefined ? 'off (needs health)' : 'on — demoted providers are probed back'}\n` +
 			`  sandbox:   ${sandbox === undefined ? 'off; PROXLANE_SANDBOX_KEY to enable' : 'on — X-Proxlane-Simulate with the sandbox key calls no provider'}\n` +
+			`  tokens:    ${tenancy === undefined ? 'off; PROXLANE_TOKEN_KEYS to accept hosted tenant tokens' : `on — sealing to ${tenancy.keyring.kids[0]}, ${tenancy.keyring.kids.length} key(s); ${tenancy.credentialLimit.rate.limit}/min per provider key, ${tenancy.addressLimit.rate.limit}/min per address (${env('PROXLANE_CLIENT_IP_HEADER') ?? 'socket address'})`}\n` +
 			`  GET /v1?api_key=…&url=https://example.com\n\n`,
 	);
 });
