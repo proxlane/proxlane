@@ -114,6 +114,16 @@ describe('the consent form, where open registration is closed', () => {
 		}
 	});
 
+	it('never bounces an error to a host that is not a known app: no open redirector', () => {
+		const evil = clientFor('https://evil.example/cb');
+		expect(
+			authorize({ redirect_uri: 'https://evil.example/cb', response_type: 'token' }, evil),
+		).toMatchObject({
+			kind: 'fatal',
+		});
+		expect(authorize({ state: 's'.repeat(600) })).toMatchObject({ kind: 'redirect' });
+	});
+
 	it('refuses an altered or stale consent form', () => {
 		const start = authorize();
 		if (start.kind !== 'consent') throw new Error(start.kind);

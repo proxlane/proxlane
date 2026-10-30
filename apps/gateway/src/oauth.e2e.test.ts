@@ -34,6 +34,7 @@ const CHALLENGE = createHash('sha256').update(VERIFIER).digest('base64url');
 let base: string;
 let server: ReturnType<typeof serve>;
 const lines: RequestLine[] = [];
+const addressLimit = new InMemoryRateLimiter({ limit: 1000, windowMs: 60_000 });
 
 beforeAll(async () => {
 	const pair = await generateTokenKeypair();
@@ -49,7 +50,7 @@ beforeAll(async () => {
 			adapters,
 			order: IDS,
 			denied: new Set(),
-			addressLimit: new InMemoryRateLimiter({ limit: 1000, windowMs: 60_000 }),
+			addressLimit,
 			credentialLimit: new InMemoryRateLimiter({ limit: 1000, windowMs: 60_000 }),
 			authFailures: new InMemoryRateLimiter({ limit: 1000, windowMs: 60_000 }),
 		},
@@ -170,6 +171,9 @@ describe('a sign-in from a known app', () => {
 		expect(result.result.structuredContent?.ok).toBe(true);
 		// The /v1 call it made in process is logged as that tenant, by id.
 		expect(lines.at(-1)?.token).toBe(tokenId);
+		// And limited as that GRANT, not as the address it came from, which for every claude.ai user
+		// is Anthropic's: one user's dead key must not lock the rest out.
+		expect(await addressLimit.peek('127.0.0.1', Date.now())).toBe(0);
 	});
 
 	it('refuses a tenant token presented to /mcp directly: only grants open it', async () => {
@@ -210,5 +214,16 @@ describe('a sign-in toward an unknown host', () => {
 			body: new URLSearchParams({ consent, key_scraperapi: 'k' }),
 		});
 		expect(await r.text()).toContain('Tick the box');
+	});
+});
+
+describe('unauthenticated bodies are bounded', () => {
+	it('refuses an oversized registration before reading it', async () => {
+		const r = await fetch(at('/oauth/register'), {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ redirect_uris: [CB], client_name: 'x'.repeat(20_000) }),
+		});
+		expect(r.status).toBe(413);
 	});
 });

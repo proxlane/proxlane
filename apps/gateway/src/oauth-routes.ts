@@ -12,6 +12,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { createServer } from '@proxlane/sdk';
 import { sealToken, TOKEN_PREFIX, type TokenKeyring } from '@proxlane/shared/token';
 import type { Context, Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { connectedPage, consentPage, fatalPage, PAGE_HEADERS } from './consent-page.js';
 import type { GrantStore } from './grant-store.js';
 import {
@@ -22,7 +23,7 @@ import {
 	register,
 	startAuthorize,
 } from './oauth.js';
-import { exchange, verifyAccess } from './oauth-token.js';
+import { exchange, familyOf, verifyAccess } from './oauth-token.js';
 import type { Tenancy } from './tenant.js';
 
 export interface OAuthDeps {
@@ -47,11 +48,18 @@ export function mountOAuth(
 	addressOf: (c: Context) => string,
 ): void {
 	const { origin, grants } = oauth;
+
+	// Bounded before any body is read: these routes take no key, and `maxBodyBytes` guards `/v1` only.
+	const tooLarge = (c: Context) =>
+		c.json({ error: 'invalid_request', error_description: 'body too large' }, 413);
+	app.use('/oauth/*', bodyLimit({ maxSize: 16 * 1024, onError: tooLarge }));
+	app.use('/mcp', bodyLimit({ maxSize: 64 * 1024, onError: tooLarge }));
 	const keyring: TokenKeyring = tenancy.keyring;
 
 	/** The same per-address budget as `/v1`, under its own prefix: sign-in is not free either. */
-	const limited = async (c: Context) => {
-		const d = await tenancy.addressLimit.take(`oauth:${addressOf(c)}`, Date.now());
+	// Keyed on the grant when there is one: a vendor's users all arrive from the vendor's addresses.
+	const limited = async (c: Context, key = `oauth:${addressOf(c)}`) => {
+		const d = await tenancy.addressLimit.take(key, Date.now());
 		return d.ok ? undefined : Math.ceil(d.retryAfterMs / 1000);
 	};
 
@@ -147,9 +155,6 @@ export function mountOAuth(
 		}),
 	);
 	app.post('/oauth/token', async (c) => {
-		const wait = await limited(c);
-		if (wait !== undefined)
-			return c.json({ error: 'slow_down' }, 429, { ...CORS, 'Retry-After': String(wait) });
 		const type = c.req.header('content-type') ?? '';
 		const raw = type.includes('json')
 			? ((await c.req.json().catch(() => ({}))) as Record<string, unknown>)
@@ -157,6 +162,10 @@ export function mountOAuth(
 		const form = Object.fromEntries(
 			Object.entries(raw).flatMap(([k, v]) => (typeof v === 'string' ? [[k, v]] : [])),
 		) as Record<string, string>;
+		const family = familyOf(form, keyring, Date.now());
+		const wait = await limited(c, family === undefined ? undefined : `grant:${family}`);
+		if (wait !== undefined)
+			return c.json({ error: 'slow_down' }, 429, { ...CORS, 'Retry-After': String(wait) });
 		const r = await exchange(form, {
 			keyring,
 			grants,
@@ -189,7 +198,10 @@ export function mountOAuth(
 		if (!access.ok) {
 			return c.json({ error: 'unauthorized' }, 401, { 'WWW-Authenticate': access.challenge });
 		}
-		const bindings: InternalBindings = { proxlaneAddress: addressOf(c) };
+		// THE GRANT, not the address, is who this is: every claude.ai or ChatGPT user calls from the
+		// vendor's addresses, so per-address limits would make one user's dead key everyone's outage.
+		// The bearer is verified already, so the caller cannot choose the family.
+		const bindings: InternalBindings = { proxlaneAddress: `grant:${access.family}` };
 		const server = createServer({
 			gatewayUrl: origin,
 			apiKey: access.tenantToken,
