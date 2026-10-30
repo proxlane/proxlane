@@ -13,6 +13,12 @@
 //   4. the per-key limit. NOT on the token id: the owner of a set of keys can seal them again
 //      for a fresh id on every request, so only the credential hash is stable.
 //
+// And a fifth, checked with the first: the per-address budget of AUTH_FAILED. Keys are the
+// caller's to choose, so fresh random ones evade the per-key limit by construction, and every
+// one fails over through every provider. Unbudgeted, that makes this gateway an amplifier
+// against providers and an anonymising oracle for testing stolen keys, from an egress address
+// every tenant shares. A real user with a wrong key hits it after a few tries and is told why.
+//
 // Self-host never reaches this file. Its operator key is a different credential class, decided
 // in `app.ts` by the shape of what was presented.
 
@@ -32,6 +38,8 @@ export interface Tenancy {
 	readonly addressLimit: RateLimiter;
 	/** Per provider key, after opening. */
 	readonly credentialLimit: RateLimiter;
+	/** Per source address, AUTH_FAILED attempts. Checked before opening, spent after the chain. */
+	readonly authFailures: RateLimiter;
 }
 
 export type Candidate = { adapter: Adapter; key: string; account: string };
@@ -44,7 +52,7 @@ export type TenantResolution =
 			readonly code: 'UNAUTHORIZED' | 'TOO_MANY_REQUESTS';
 			readonly message: string;
 			/** For the log: why, in one word, without the token. */
-			readonly why: TokenRefusal | 'denied' | 'address-limit' | 'key-limit';
+			readonly why: TokenRefusal | 'denied' | 'address-limit' | 'key-limit' | 'auth-failures';
 			/** Present on a 429. */
 			readonly retryAfterMs?: number;
 			/** Present once the token opened, so a refused request is still attributable. */
@@ -93,6 +101,20 @@ export function candidatesFor(
 	}));
 }
 
+/**
+ * Spend the address's AUTH_FAILED budget for a served chain, read from its `X-Chain` header
+ * (`provider:OUTCOME>…`): one per refused key. After the chain, because only then is it known.
+ */
+export async function spendAuthFailures(
+	chain: string | null,
+	address: string,
+	tenancy: Pick<Tenancy, 'authFailures'>,
+	now: number,
+): Promise<void> {
+	const refused = (chain ?? '').split('>').filter((hop) => hop.endsWith(':AUTH_FAILED')).length;
+	for (let i = 0; i < refused; i++) await tenancy.authFailures.take(address, now);
+}
+
 /** The request's candidates if its token is good and within its limits, else why not. */
 export async function resolveTenant(
 	token: string,
@@ -109,6 +131,20 @@ export async function resolveTenant(
 			message: `over ${tenancy.addressLimit.rate.limit} requests a minute from this address; retry after the window`,
 			why: 'address-limit',
 			retryAfterMs: byAddress.retryAfterMs,
+		};
+	}
+
+	if ((await tenancy.authFailures.peek(address, now)) >= tenancy.authFailures.rate.limit) {
+		return {
+			ok: false,
+			status: 429,
+			code: 'TOO_MANY_REQUESTS',
+			message:
+				`over ${tenancy.authFailures.rate.limit} provider key refusals a minute from this address. ` +
+				'Check the keys in your token against each provider before retrying',
+			why: 'auth-failures',
+			retryAfterMs:
+				tenancy.authFailures.rate.windowMs - (now % tenancy.authFailures.rate.windowMs),
 		};
 	}
 
@@ -137,11 +173,11 @@ export async function resolveTenant(
 	const candidates = candidatesFor(opened.payload, opened.credentials, tenancy);
 	// Every key the request could spend, not only the first: a token can list one real key among
 	// junk, and the real one is what the limit protects.
-	let wait = 0;
-	for (const c of candidates) {
-		const d = await tenancy.credentialLimit.take(c.account, now);
-		if (!d.ok) wait = Math.max(wait, d.retryAfterMs);
-	}
+	// Together, not in turn: with Valkey each is a round trip.
+	const decisions = await Promise.all(
+		candidates.map((c) => tenancy.credentialLimit.take(c.account, now)),
+	);
+	const wait = Math.max(0, ...decisions.map((d) => (d.ok ? 0 : d.retryAfterMs)));
 	if (wait > 0) {
 		return {
 			ok: false,

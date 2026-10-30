@@ -9,7 +9,7 @@ import {
 } from '@proxlane/shared/token';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryRateLimiter } from './rate-limit.js';
-import { candidatesFor, resolveTenant, type Tenancy } from './tenant.js';
+import { candidatesFor, resolveTenant, spendAuthFailures, type Tenancy } from './tenant.js';
 
 const adapter = (id: string) => ({ capabilities: { id } }) as unknown as Adapter;
 const ADAPTERS = new Map(
@@ -34,6 +34,7 @@ function tenancy(over: Partial<Tenancy> = {}): Tenancy {
 		denied: new Set(),
 		addressLimit: new InMemoryRateLimiter({ limit: 100, windowMs: 60_000 }),
 		credentialLimit: new InMemoryRateLimiter({ limit: 100, windowMs: 60_000 }),
+		authFailures: new InMemoryRateLimiter({ limit: 100, windowMs: 60_000 }),
 		...over,
 	};
 }
@@ -123,6 +124,35 @@ describe('refusals, in the order that keeps them cheap', () => {
 		const again = await resolveTenant(b, 'y', t, NOW);
 		expect(again).toMatchObject({ ok: false, status: 429, why: 'key-limit' });
 		expect(again.ok === false && again.retryAfterMs).toBeGreaterThan(0);
+	});
+
+	it('budgets AUTH_FAILED per address, so junk keys cannot turn the gateway into an oracle', async () => {
+		// Fresh random keys evade the per-key limit by construction. What they cannot evade is
+		// failing, and failures are what this spends.
+		const authFailures = new InMemoryRateLimiter({ limit: 3, windowMs: 60_000 });
+		const t = tenancy({ authFailures });
+		const junk = await sealToken(
+			{ keys: { scraperapi: 'junk1', scrapfly: 'junk2' } },
+			publicKey,
+			NOW,
+		);
+		expect((await resolveTenant(junk, '203.0.113.7', t, NOW)).ok).toBe(true);
+		await spendAuthFailures(
+			'scraperapi:AUTH_FAILED>scrapfly:AUTH_FAILED>scrapingbee:OK',
+			'203.0.113.7',
+			t,
+			NOW,
+		);
+		await spendAuthFailures('scraperapi:AUTH_FAILED', '203.0.113.7', t, NOW);
+		expect(await resolveTenant(junk, '203.0.113.7', t, NOW)).toMatchObject({
+			ok: false,
+			status: 429,
+			why: 'auth-failures',
+		});
+		// Another address is untouched, and a chain with no refusal spends nothing.
+		expect((await resolveTenant(junk, '198.51.100.1', t, NOW)).ok).toBe(true);
+		await spendAuthFailures('scraperapi:OK', '198.51.100.1', t, NOW);
+		expect(await authFailures.peek('198.51.100.1', NOW)).toBe(0);
 	});
 
 	it('says what to do for each way a token fails to open, without echoing it', async () => {

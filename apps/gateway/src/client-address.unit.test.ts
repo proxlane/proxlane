@@ -2,7 +2,7 @@
 // caller behind a proxy shares.
 
 import { describe, expect, it } from 'vitest';
-import { addressKey } from './client-address.js';
+import { addressKey, isPrivate } from './client-address.js';
 
 describe('the key an address is limited under', () => {
 	it('keeps IPv4 as is, and unwraps the IPv4-mapped form to it', () => {
@@ -30,6 +30,26 @@ describe('the key an address is limited under', () => {
 		// A header is caller-controlled until a proxy overwrites it; junk must not mint buckets.
 		for (const junk of [undefined, '', 'localhost', 'x'.repeat(5000), '1.2.3.4, 5.6.7.8']) {
 			expect(addressKey(junk)).toBe('unknown');
+		}
+	});
+});
+
+describe('whose header to believe', () => {
+	it("trusts a forwarded header only from the operator's own network", () => {
+		for (const a of [
+			'127.0.0.1',
+			'10.0.0.5',
+			'172.18.0.3',
+			'192.168.1.1',
+			'::1',
+			'fd00::1',
+			'::ffff:10.0.0.5',
+		]) {
+			expect(isPrivate(a), a).toBe(true);
+		}
+		// A public address reached the port without the proxy; its header is the caller's own.
+		for (const a of ['203.0.113.7', '172.32.0.1', '2001:db8::1', '::ffff:203.0.113.7']) {
+			expect(isPrivate(a), a).toBe(false);
 		}
 	});
 });

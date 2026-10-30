@@ -2,11 +2,14 @@
 //
 // TWO RULES, both from the review of the limiter that consumes this:
 //
-//   1. A forwarded header is trusted ONLY when the operator names it. Behind a reverse proxy the
-//      socket address is the proxy, and every caller would share one limit; but read
+//   1. A forwarded header is trusted ONLY when the operator names it AND the connection comes
+//      from a private or loopback address, i.e. from the operator's own proxy. Behind a reverse
+//      proxy the socket address is the proxy, and every caller would share one limit; but read
 //      `X-Forwarded-For` by default and any caller sets their own address with a header. So the
 //      operator says which header their proxy writes (`PROXLANE_CLIENT_IP_HEADER`), and the LAST
-//      entry is taken: the one that proxy appended, not the ones the caller sent ahead of it.
+//      entry is taken: the one that proxy appended, not the ones the caller sent ahead of it. A
+//      connection from a public address bypassed the proxy, and its header is ignored: with the
+//      port reachable directly, a named header would otherwise let a caller choose its own bucket.
 //   2. IPv6 is limited per /64, the block one subscriber is usually given. Per address it is no
 //      limit at all: a single host can draw a fresh source from 2^64 of them for every request.
 
@@ -49,18 +52,42 @@ function expandV6(a: string): string[] {
 	return [...left, ...fill, ...right].map((h) => Number.parseInt(h, 16).toString(16));
 }
 
-/** How the server finds a caller's address: a named proxy header, else the socket. */
-export function clientAddressFrom(header: string | undefined): (c: Context) => string {
-	if (header !== undefined) {
-		const name = header.toLowerCase();
-		return (c) => addressKey(c.req.header(name)?.split(',').at(-1));
+/**
+ * Loopback, RFC 1918, link-local and IPv6 unique-local: where a proxy the operator runs connects
+ * from. A container network is one of these.
+ */
+export function isPrivate(address: string): boolean {
+	const v4 = /^(?:::ffff:)?(\d+)\.(\d+)\.\d+\.\d+$/i.exec(address);
+	if (v4 !== null) {
+		const [a, b] = [Number(v4[1]), Number(v4[2])];
+		return (
+			a === 10 ||
+			a === 127 ||
+			(a === 172 && b >= 16 && b <= 31) ||
+			(a === 192 && b === 168) ||
+			(a === 169 && b === 254)
+		);
 	}
+	const v6 = address.toLowerCase();
+	return v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6);
+}
+
+/**
+ * How the server finds a caller's address: a named proxy header when the connection is from the
+ * operator's own network, else the socket.
+ */
+export function clientAddressFrom(header: string | undefined): (c: Context) => string {
+	const name = header?.toLowerCase();
 	return (c) => {
+		let socket: string | undefined;
 		try {
-			return addressKey(getConnInfo(c).remote.address);
+			socket = getConnInfo(c).remote.address;
 		} catch {
 			// No socket to read, as under `app.request` in a test.
-			return 'unknown';
 		}
+		if (name !== undefined && socket !== undefined && isPrivate(socket)) {
+			return addressKey(c.req.header(name)?.split(',').at(-1));
+		}
+		return addressKey(socket);
 	};
 }
