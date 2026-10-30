@@ -25,8 +25,11 @@ const NAMES: Readonly<Record<string, string>> = {
 
 /** What a key looks like when it is not one string, said beside the field that needs it. */
 const SHAPE: Readonly<Record<string, string>> = {
-	brightdata: '<zone>:<token>, the Web Unlocker zone name, a colon, then the API token',
+	brightdata: 'Zone name, a colon, then the API token: zone:token',
 };
+
+const FIELD =
+	'focus-inset w-full rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] px-3.5 py-2.5 font-mono text-[0.875rem] placeholder:font-sans placeholder:text-[color:var(--color-slate)]/70 hover:border-[color:var(--color-slate)]';
 
 const PROVIDERS = CAPABILITIES.map((c) => c.id).sort();
 
@@ -98,47 +101,54 @@ export function ConnectForm() {
 			<form onSubmit={seal} autoComplete="off" className="flex flex-col gap-6">
 				{HOSTED_GATEWAY === undefined && (
 					<label className="flex flex-col gap-2">
-						<span className="font-mono text-[color:var(--color-slate)] text-xs">gateway</span>
+						<span className="font-medium text-[color:var(--color-ink)] text-sm">Gateway</span>
 						<input
 							type="url"
 							value={gateway}
 							onChange={(e) => setGateway(e.target.value)}
 							placeholder="https://gateway.example.com"
 							spellCheck={false}
-							className="focus-inset rounded-card border border-[color:var(--color-rule)] bg-[color:var(--color-surface)] px-4 py-3 font-mono text-[0.8125rem]"
+							className={FIELD}
 						/>
 					</label>
 				)}
-				<Panel label="provider keys" bodyClass="p-0">
-					<div className="flex flex-col divide-y divide-[color:var(--color-rule)]">
+				{/* A PLAIN FORM, NOT A PANEL. The site draws its diagrams and transcripts in `Panel`s, and a
+				    form inside one read as another of those pictures rather than something to type in. */}
+				<fieldset className="flex flex-col gap-5">
+					<legend className="mb-5 flex flex-col gap-1">
+						<span className="font-semibold text-[color:var(--color-ink)] text-lg">
+							Your provider keys
+						</span>
+						<span className="text-[color:var(--color-slate)] text-sm">
+							Fill in at least one. Leave the rest empty.
+						</span>
+					</legend>
+					<div className="grid gap-5 sm:grid-cols-2">
 						{PROVIDERS.map((id) => (
-							<label
-								key={id}
-								className="grid gap-2 px-4 py-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-center"
-							>
-								<span className="text-[color:var(--color-ink)] text-sm">{NAMES[id] ?? id}</span>
-								<span className="flex flex-col gap-1">
-									<input
-										type="password"
-										autoComplete="off"
-										spellCheck={false}
-										data-1p-ignore
-										data-lpignore="true"
-										value={keys[id] ?? ''}
-										onChange={(e) => setKeys((k) => ({ ...k, [id]: e.target.value }))}
-										placeholder="leave empty to skip"
-										className="focus-inset w-full rounded-card bg-transparent px-2 py-1.5 font-mono text-[0.8125rem] placeholder:text-[color:var(--color-slate)]"
-									/>
-									{SHAPE[id] !== undefined && (
-										<span className="px-2 font-mono text-[color:var(--color-slate)] text-xs">
-											{SHAPE[id]}
-										</span>
-									)}
+							<label key={id} className="flex flex-col gap-2">
+								<span className="font-medium text-[color:var(--color-ink)] text-sm">
+									{NAMES[id] ?? id}
 								</span>
+								<input
+									type="password"
+									autoComplete="off"
+									spellCheck={false}
+									data-1p-ignore
+									data-lpignore="true"
+									value={keys[id] ?? ''}
+									onChange={(e) => setKeys((k) => ({ ...k, [id]: e.target.value }))}
+									placeholder={`${NAMES[id] ?? id} API key`}
+									className={FIELD}
+								/>
+								{SHAPE[id] !== undefined && (
+									<span className="text-[color:var(--color-slate)] text-xs leading-relaxed">
+										{SHAPE[id]}
+									</span>
+								)}
 							</label>
 						))}
 					</div>
-				</Panel>
+				</fieldset>
 				<div className="flex flex-wrap items-center gap-4">
 					<button
 						type="submit"
