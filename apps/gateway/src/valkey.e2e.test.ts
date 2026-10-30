@@ -18,7 +18,12 @@ import {
 } from '@proxlane/shared';
 import { Redis } from 'ioredis';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { ValkeyCooldownStore, ValkeyHealthStore, ValkeyRateLimiter } from './valkey.js';
+import {
+	ValkeyCooldownStore,
+	ValkeyGrantStore,
+	ValkeyHealthStore,
+	ValkeyRateLimiter,
+} from './valkey.js';
 
 const URL = process.env.PROXLANE_VALKEY_URL;
 let redis: Redis;
@@ -555,6 +560,32 @@ describe('the rate limiter counts once across replicas', () => {
 		expect(seen).toEqual([true, true, true, false]);
 		expect(errors).toHaveLength(1);
 		expect(errors[0]).toContain('rate limit ip');
+		dead.disconnect();
+	});
+});
+
+describe('the grant store, single use across replicas', () => {
+	it('lets one replica claim an id, and every other replica sees it used', async () => {
+		const a = new ValkeyGrantStore({ redis });
+		const b = new ValkeyGrantStore({ redis });
+		expect(await a.claim('code:1', 60_000)).toBe(true);
+		expect(await b.claim('code:1', 60_000)).toBe(false);
+		expect(await redis.pttl('og:use:code:1')).toBeGreaterThan(0);
+	});
+
+	it('revokes a family for every replica', async () => {
+		await new ValkeyGrantStore({ redis }).revoke('fam', 60_000);
+		expect(await new ValkeyGrantStore({ redis }).revoked('fam')).toBe(true);
+	});
+
+	it('REJECTS when the server is gone, so the token endpoint fails closed', async () => {
+		const dead = new Redis('redis://127.0.0.1:1', {
+			maxRetriesPerRequest: 0,
+			retryStrategy: () => null,
+			lazyConnect: true,
+			commandTimeout: 500,
+		});
+		await expect(new ValkeyGrantStore({ redis: dead }).claim('x', 1000)).rejects.toThrow();
 		dead.disconnect();
 	});
 });
