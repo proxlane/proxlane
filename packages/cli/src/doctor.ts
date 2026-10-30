@@ -524,12 +524,26 @@ async function tokenCheck(): Promise<Check> {
 		const denied = (env('PROXLANE_TOKEN_DENY') ?? '')
 			.split(',')
 			.filter((id) => id.trim()).length;
+		const allowed = (env('PROXLANE_TOKEN_PROVIDERS') ?? '')
+			.split(',')
+			.map((id) => id.trim())
+			.filter(Boolean);
+		const unknown = allowed.filter((id) => !Object.hasOwn(REGISTRY, id));
+		if (unknown.length > 0) {
+			return {
+				name: 'tenant tokens',
+				ok: false,
+				detail: `PROXLANE_TOKEN_PROVIDERS names unknown provider(s): ${unknown.join(', ')}. The gateway refuses to boot this way`,
+				fix: `use ids from: ${Object.keys(REGISTRY).sort().join(', ')}`,
+			};
+		}
 		return {
 			name: 'tenant tokens',
 			ok: true,
 			detail:
 				`on. Sealing to key ${ring.kids[0]}` +
 				(ring.kids.length > 1 ? `, still opening ${ring.kids.slice(1).join(', ')}` : '') +
+				`; tenants may use ${allowed.length === 0 ? 'every provider' : allowed.join(', ')}` +
 				`; ${denied} token(s) denied. Public key at GET /token-key. Caller address: ` +
 				(header === undefined
 					? 'the socket. Behind a reverse proxy that is the proxy, and every caller shares one limit; set PROXLANE_CLIENT_IP_HEADER to the header your proxy writes'
