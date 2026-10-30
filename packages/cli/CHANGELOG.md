@@ -1,5 +1,23 @@
 # proxlane
 
+## 0.7.0
+
+### Minor Changes
+
+- [#449](https://github.com/proxlane/proxlane/pull/449) [`14f3e99`](https://github.com/proxlane/proxlane/commit/14f3e993b12b92c0138150e08af276b9bfb6d8b6) Thanks [@scarsam](https://github.com/scarsam)! - `proxlane keygen` prints a keypair for a hosted gateway's tenant tokens.
+
+- [#458](https://github.com/proxlane/proxlane/pull/458) [`7d679a8`](https://github.com/proxlane/proxlane/commit/7d679a8706b305f61572d47dee465fb8afe9638a) Thanks [@scarsam](https://github.com/scarsam)! - Remote MCP: with hosted mode and `PROXLANE_PUBLIC_URL`, the gateway serves `fetch_page` at `/mcp` over OAuth, for ChatGPT and claude.ai, and `proxlane doctor` checks it.
+
+- [#450](https://github.com/proxlane/proxlane/pull/450) [`09a513f`](https://github.com/proxlane/proxlane/commit/09a513f6876491c2705c406f1e4ec3fe7533554d) Thanks [@scarsam](https://github.com/scarsam)! - Hosted mode: with `PROXLANE_TOKEN_KEYS` set, the gateway accepts tenant tokens that carry their own provider keys, and `proxlane doctor` checks the keyring.
+
+### Patch Changes
+
+- [#454](https://github.com/proxlane/proxlane/pull/454) [`0fc8224`](https://github.com/proxlane/proxlane/commit/0fc8224354044b1d5cfcb33f7e58a79cce4ab849) Thanks [@scarsam](https://github.com/scarsam)! - `PROXLANE_TOKEN_PROVIDERS` limits which providers hosted tenants route to, and a hosted gateway no longer warns that it holds no provider keys of its own.
+
+- Updated dependencies [[`bc57b35`](https://github.com/proxlane/proxlane/commit/bc57b35e3fb11604d2b5449dbb1ce83df7d51226), [`db8d8f8`](https://github.com/proxlane/proxlane/commit/db8d8f83d65fc98fe6869cf6515a52e1db376ba8), [`c525593`](https://github.com/proxlane/proxlane/commit/c5255932b3001e60218f5ab541f174cc959697ba)]:
+  - @proxlane/shared@0.16.0
+  - @proxlane/adapters@0.13.4
+
 ## 0.6.4
 
 ### Patch Changes

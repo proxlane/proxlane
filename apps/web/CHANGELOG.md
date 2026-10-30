@@ -1,5 +1,27 @@
 # @proxlane/web
 
+## 0.12.0
+
+### Minor Changes
+
+- [#452](https://github.com/proxlane/proxlane/pull/452) [`2496d04`](https://github.com/proxlane/proxlane/commit/2496d0413e1fd36e4e0a06ad48ba8f0157e7a616) Thanks [@scarsam](https://github.com/scarsam)! - A connect page seals provider keys into a hosted gateway token in the browser.
+
+### Patch Changes
+
+- [#439](https://github.com/proxlane/proxlane/pull/439) [`a0e9040`](https://github.com/proxlane/proxlane/commit/a0e9040da04ed5f66ec1794b832b67dbbad230bf) Thanks [@scarsam](https://github.com/scarsam)! - The site's server-rendering serialiser moves to seroval 1.7.3, past two script-injection advisories.
+
+- [#443](https://github.com/proxlane/proxlane/pull/443) [`a8315c7`](https://github.com/proxlane/proxlane/commit/a8315c79d1cf79b14329ef311e1297d2aedae1da) Thanks [@scarsam](https://github.com/scarsam)! - The agent replay has more room and larger type, asks for a changelog summary, and the VS Code setup reads over four coloured lines.
+
+- [#444](https://github.com/proxlane/proxlane/pull/444) [`e02f828`](https://github.com/proxlane/proxlane/commit/e02f8284985e5467f73393deb6f748198f82471c) Thanks [@scarsam](https://github.com/scarsam)! - The agent replay draws the gateway across the full width, in the order things happen.
+
+- [#441](https://github.com/proxlane/proxlane/pull/441) [`04a2153`](https://github.com/proxlane/proxlane/commit/04a215306aaddc23fc817f383595fac5bdae34de) Thanks [@scarsam](https://github.com/scarsam)! - The route diagram draws in leg by leg, the agent replay shows the gateway's response and waits for the chain before its result, and switching clients no longer moves the page.
+
+- [#442](https://github.com/proxlane/proxlane/pull/442) [`f086b37`](https://github.com/proxlane/proxlane/commit/f086b378a8914d92a0d3a3e808bc4a0d6c104b27) Thanks [@scarsam](https://github.com/scarsam)! - The homepage's MCP setup snippets are colour-coded in the docs' own palette.
+
+- Updated dependencies [[`bc57b35`](https://github.com/proxlane/proxlane/commit/bc57b35e3fb11604d2b5449dbb1ce83df7d51226), [`db8d8f8`](https://github.com/proxlane/proxlane/commit/db8d8f83d65fc98fe6869cf6515a52e1db376ba8), [`c525593`](https://github.com/proxlane/proxlane/commit/c5255932b3001e60218f5ab541f174cc959697ba)]:
+  - @proxlane/shared@0.16.0
+  - @proxlane/adapters@0.13.4
+
 ## 0.11.11
 
 ### Patch Changes
