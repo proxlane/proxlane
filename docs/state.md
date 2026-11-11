@@ -9,9 +9,9 @@ stale file is worse than an empty one. Only what no command can answer: what is 
 
 **LAUNCH, so far**: Show HN flagged within the hour, mods silent. Reddit megathreads 09-09, five
 days on: zero engagement, zero referrals (r/selfhosted standalone post allowed from **11-10**).
-Directory PRs open, unanswered: lorien/awesome-web-scraping #294, Germey/AwesomeWebScraping #20;
-awesome-selfhosted from **12-12**. First migration page live 09-14. **55 views, 24 uniques, 4 stars.**
-**Outreach from 09-18**: 12 emails, 4 issues, no replies yet. `scrapy-proxlane` public 09-21, PyPI pending.
+Lists: lorien #294 **merged 10-26**; Germey #20, awesome-scrapy #17 silent since 09-23; awesome-selfhosted
+**12-12**. **4 stars, 1 fork.** Outreach 09-18: 12 emails, 4 issues, no replies. `scrapy-proxlane` on PyPI.
+**Hosted BYOK + remote MCP live at `api.proxlane.dev` since 10-30**; no outside token has used it yet.
 
 **Public since 2026-08-10**, ruleset on `main`. Dogfooding it against another of the maintainer's
 projects found six defects in five days. That is not §9's "one stranger runs it", which stays open
