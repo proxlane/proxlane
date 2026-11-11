@@ -1,5 +1,19 @@
 # @proxlane/web
 
+## 0.14.0
+
+### Minor Changes
+
+- [#466](https://github.com/proxlane/proxlane/pull/466) [`8c4e2f0`](https://github.com/proxlane/proxlane/commit/8c4e2f0c1956e8922b252715b2fec6075255a0c3) Thanks [@scarsam](https://github.com/scarsam)! - The connect page draws each provider in its line colour, checks the Bright Data key shape, can show a key, and shows the token with tabs for claude.ai, Claude Code and curl.
+
+### Patch Changes
+
+- [#463](https://github.com/proxlane/proxlane/pull/463) [`34010cd`](https://github.com/proxlane/proxlane/commit/34010cdcd44691b34b51252c9ad0dd55a6e2e269) Thanks [@scarsam](https://github.com/scarsam)! - The connect page asks for keys in a plain form, with a label above each field.
+
+- [#467](https://github.com/proxlane/proxlane/pull/467) [`a4558c3`](https://github.com/proxlane/proxlane/commit/a4558c377b6dff6b4b862f74f4074121bd13ebcb) Thanks [@scarsam](https://github.com/scarsam)! - The connect page puts its keys and the seal button in one card, with even rows and a clearer token screen.
+
+- [#465](https://github.com/proxlane/proxlane/pull/465) [`ea58d07`](https://github.com/proxlane/proxlane/commit/ea58d071186818c421625b83313961649a71e0b3) Thanks [@scarsam](https://github.com/scarsam)! - The connect page colours its commands, and its copy buttons fall back when the clipboard API refuses, saying so if both fail.
+
 ## 0.13.0
 
 ### Minor Changes
