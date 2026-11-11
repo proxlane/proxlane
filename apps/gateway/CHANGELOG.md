@@ -1,5 +1,20 @@
 # @proxlane/gateway
 
+## 0.22.1
+
+### Patch Changes
+
+- [#466](https://github.com/proxlane/proxlane/pull/466) [`8c4e2f0`](https://github.com/proxlane/proxlane/commit/8c4e2f0c1956e8922b252715b2fec6075255a0c3) Thanks [@scarsam](https://github.com/scarsam)! - The remote MCP sign-in page carries the site mark and each provider's line colour.
+
+- [#465](https://github.com/proxlane/proxlane/pull/465) [`ea58d07`](https://github.com/proxlane/proxlane/commit/ea58d071186818c421625b83313961649a71e0b3) Thanks [@scarsam](https://github.com/scarsam)! - The remote MCP sign-in page matches the site: the token field first, provider keys behind a fold.
+
+- [#467](https://github.com/proxlane/proxlane/pull/467) [`a4558c3`](https://github.com/proxlane/proxlane/commit/a4558c377b6dff6b4b862f74f4074121bd13ebcb) Thanks [@scarsam](https://github.com/scarsam)! - The remote MCP sign-in page has more room and a button that matches the site.
+
+- [#468](https://github.com/proxlane/proxlane/pull/468) [`2064864`](https://github.com/proxlane/proxlane/commit/20648642e23473f285425bd8eaff28b210068c54) Thanks [@scarsam](https://github.com/scarsam)! - `fetch_page` no longer describes the gateway as self-hosted, since the hosted one serves it too.
+
+- Updated dependencies [[`2064864`](https://github.com/proxlane/proxlane/commit/20648642e23473f285425bd8eaff28b210068c54)]:
+  - @proxlane/sdk@0.1.3
+
 ## 0.22.0
 
 ### Minor Changes
