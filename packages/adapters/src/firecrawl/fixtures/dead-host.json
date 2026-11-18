@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "dead-host",
-	"recordedAt": "2026-09-18T14:08:04.236Z",
+	"recordedAt": "2026-11-18T15:55:16.239Z",
 	"adapter": "firecrawl",
 	"target": {
 		"url": "https://not-a-real-host.invalid/",

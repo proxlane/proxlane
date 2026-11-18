@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "slow-target",
-	"recordedAt": "2026-09-18T14:08:26.541Z",
+	"recordedAt": "2026-11-18T15:55:47.884Z",
 	"adapter": "firecrawl",
 	"target": {
 		"url": "https://httpbin.dev/delay/30",
