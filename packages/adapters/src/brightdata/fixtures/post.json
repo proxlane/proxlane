@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "post",
-	"recordedAt": "2026-09-24T21:11:47.841Z",
+	"recordedAt": "2026-11-18T15:55:18.091Z",
 	"adapter": "brightdata",
 	"target": {
 		"url": "https://httpbin.dev/post",
