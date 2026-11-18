@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "dead-host",
-	"recordedAt": "2026-10-08T06:41:23.445Z",
+	"recordedAt": "2026-11-18T15:55:07.230Z",
 	"adapter": "scrapfly",
 	"target": {
 		"url": "https://not-a-real-host.invalid/",
