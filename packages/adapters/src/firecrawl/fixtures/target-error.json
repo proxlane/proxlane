@@ -1,7 +1,7 @@
 {
 	"kind": "exchange",
 	"category": "target-error",
-	"recordedAt": "2026-09-18T14:08:03.910Z",
+	"recordedAt": "2026-11-18T15:55:16.061Z",
 	"adapter": "firecrawl",
 	"target": {
 		"url": "https://httpbingo.org/status/503",
